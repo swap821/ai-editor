@@ -1,0 +1,2518 @@
+{
+ "ts": "2026-10-12T10:39:26+00:00",
+ "benchmark": "clerk-benchmark-v1",
+ "jobs_sha256_lf": "f6bc84737e754e80622d5fc2a881c263a89b95303c6f986186db95fce9a322dc",
+ "results": {
+  "ollama.qwen2.5-coder:7b": {
+   "correct": 44,
+   "jobs": 54,
+   "schema_valid": 54,
+   "median_seconds": 2.6950000000000003,
+   "by_profile": {
+    "check_context_completeness": 2,
+    "classify": 6,
+    "cluster": 4,
+    "explain_route": 5,
+    "extract": 6,
+    "select_skill": 6,
+    "summarise": 5,
+    "summarise_disagreement": 6,
+    "validate_structure": 4
+   },
+   "statuses": {
+    "completed": 54
+   },
+   "rows": [
+    {
+     "job": "classify-01",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 9.71,
+     "output": {
+      "label": "bug"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-02",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.3,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-03",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.21,
+     "output": {
+      "label": "incident"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-04",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.16,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-05",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.25,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-06",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.33,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-01",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.42,
+     "output": {
+      "approver": "Priya Natarajan",
+      "version": "4.2.1",
+      "approved_on": "2026-10-09",
+      "deployed_on": "2026-10-11"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-02",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.53,
+     "output": {
+      "archive_name": "gagos-20261012T043107Z.tar.gz",
+      "size_mb": 2.4,
+      "entries": 75,
+      "previous_age_days": 6.1
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-03",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.86,
+     "output": {
+      "input_tokens": 1284330,
+      "output_tokens": 211904,
+      "models": 3,
+      "september_usd": 4.37
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-04",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.59,
+     "output": {
+      "incident_id": "INC-2207",
+      "mitigated_at": "14:41",
+      "resolved_at": "15:20",
+      "component": "router"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-05",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.17,
+     "output": {
+      "name": "Aisha Khan",
+      "extension": "4417"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-06",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.68,
+     "output": {
+      "merged": true,
+      "reviewer": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-01",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 8.18,
+     "output": {
+      "summary": "The nightly endurance job failed three consecutive nights on 2026-10-09, 2026-10-10, and 2026-10-11 due to the consecutive-error gate tripping on the qwen2.5:0.5b model. The proposed fix is to run the job on qwen2.5:1.5b."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-02",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.91,
+     "output": {
+      "summary": "The decision was made to send think=false to every local model by the clerk jobs. This decision was owned by Swapnil and had a deadline of 2026-10-20. A per-job thinking flag was discussed but rejected."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-03",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['inc-2209']",
+      "missing fact: one of ['no data was lost', 'no data lost', 'no data loss', 'without data loss', 'nothing was lost']"
+     ],
+     "seconds": 2.66,
+     "output": {
+      "summary": "A backup task failed due to a full data disk, but was successful after removing an old log file."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-04",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 6.94,
+     "output": {
+      "summary": "Four cloud models achieved perfect scores of 50 out of 50, including Mistral Large 3, Qwen3-Coder-480B, Kimi K2.5, and Kimi K3. The default local model scored 18, while qwen2.5-coder:7b performed at 37 with significantly higher latency."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-05",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.5,
+     "output": {
+      "summary": "The readiness gate for backups now checks Windows Task Scheduler or crontab for a schedule and ensures the newest archive is fresh, addressing a one-off archive issue."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-06",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.83,
+     "output": {
+      "summary": "150 targets were attempted, with 85 comparable and 65 skipped due to recall returning nothing."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-01",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.28,
+     "output": {
+      "groups": [
+       [
+        "REC-1",
+        "REC-3"
+       ],
+       [
+        "REC-2",
+        "REC-4"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-02",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [['REC-11', 'REC-13'], ['REC-12', 'REC-14']], got [['REC-11', 'REC-12'], ['REC-13', 'REC-14']]"
+     ],
+     "seconds": 3.35,
+     "output": {
+      "groups": [
+       [
+        "REC-11",
+        "REC-12"
+       ],
+       [
+        "REC-13",
+        "REC-14"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-03",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [], got [['REC-21', 'REC-24']]"
+     ],
+     "seconds": 2.22,
+     "output": {
+      "groups": [
+       [
+        "REC-21",
+        "REC-24"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-04",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.74,
+     "output": {
+      "groups": [
+       [
+        "REC-31",
+        "REC-32",
+        "REC-33"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-05",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.5,
+     "output": {
+      "groups": [
+       [
+        "REC-41",
+        "REC-43"
+       ],
+       [
+        "REC-42",
+        "REC-44"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-06",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.42,
+     "output": {
+      "groups": [
+       [
+        "REC-51",
+        "REC-53"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-01",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "valid: expected False, got True",
+      "missing_fields: expected ['owner'], got []"
+     ],
+     "seconds": 1.69,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-02",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.54,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-03",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.95,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-04",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.7,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-05",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "valid: expected True, got False",
+      "missing_fields: expected [], got ['id', 'status']"
+     ],
+     "seconds": 1.93,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "id",
+       "status"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-06",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.01,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "status",
+       "created_at"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-01",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.21,
+     "output": {
+      "complete": false,
+      "missing": [
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-02",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "complete: expected True, got False",
+      "missing: expected [], got ['error_message']"
+     ],
+     "seconds": 2.15,
+     "output": {
+      "complete": false,
+      "missing": [
+       "error_message"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-03",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.11,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-04",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'error_message', 'reproduction_steps']"
+     ],
+     "seconds": 3.14,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-05",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'reproduction_steps']"
+     ],
+     "seconds": 2.73,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-06",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['error_message'], got ['file_path', 'error_message', 'reproduction_steps']"
+     ],
+     "seconds": 2.97,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-01",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.34,
+     "output": {
+      "skill": "backup_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-02",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.34,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-03",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.29,
+     "output": {
+      "skill": "restore_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-04",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.13,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-05",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.21,
+     "output": {
+      "skill": "rotate_logs"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-06",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.21,
+     "output": {
+      "skill": "lint_code"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-01",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.55,
+     "output": {
+      "disagreement_summary": "Analysis A attributes the timeouts to the 420 s model limit, while Analysis B blames pytest grading for exceeding the 120 s limit."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-02",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.0,
+     "output": {
+      "disagreement_summary": "Analysis A recommends keeping qwen2.5-coder:7b as the clerk due to its successful performance in all tests. Analysis B suggests switching to granite4.2:8b as the clerk, highlighting its suitability for extraction and classification tasks."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-03",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.92,
+     "output": {
+      "disagreement_summary": "Analysis A posits that the memory store is the bottleneck, limiting the number of lessons admitted to 11. Analysis B, however, argues that the model is the bottleneck, suggesting that a 30B model struggles to effectively utilize lessons."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-04",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.27,
+     "output": {
+      "disagreement_summary": "Analysis A suggests merging #484 with a squash and re-gathering organ 37 afterwards, while Analysis B recommends merging #484 with a merge commit to keep the cited commit reachable."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-05",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.28,
+     "output": {
+      "disagreement_summary": "Analysis A recommends Kimi K3 for teaching due to its being the newest model, while Analysis B suggests Qwen3-Coder-480B for teaching because it is the fastest at coding."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-06",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.42,
+     "output": {
+      "disagreement_summary": "Analysis A recommends running the Docker drill tonight, while Analysis B suggests waiting until both judged runs finish due to Docker potentially consuming 8 GB of RAM."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-01",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.66,
+     "output": {
+      "explanation": "The route to frontier_escalation was chosen because no local model is qualified for the summarise profile."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-02",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.63,
+     "output": {
+      "explanation": "The ticket type is routed deterministically based on an existing rule, so no model is required for classification."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-03",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['granite']"
+     ],
+     "seconds": 2.76,
+     "output": {
+      "explanation": "The local_clerk is assigned to the extract job because it is approved, healthy, and qualified for the task."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-04",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.37,
+     "output": {
+      "explanation": "The route to human_clarification was selected because two skills matched the task equally well."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-05",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.75,
+     "output": {
+      "explanation": "The route 'frontier_escalation' was chosen because the local model's last 3 summaries failed validation."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-06",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.82,
+     "output": {
+      "explanation": "The route to the local_clerk is determined for the cluster because the qwen2.5-coder:7b model is qualified for the cluster and deterministic code cannot judge meaning."
+     },
+     "failure_reason": null
+    }
+   ]
+  },
+  "ollama.granite4.2:8b": {
+   "correct": 44,
+   "jobs": 54,
+   "schema_valid": 54,
+   "median_seconds": 3.92,
+   "by_profile": {
+    "check_context_completeness": 2,
+    "classify": 6,
+    "cluster": 3,
+    "explain_route": 6,
+    "extract": 6,
+    "select_skill": 5,
+    "summarise": 4,
+    "summarise_disagreement": 6,
+    "validate_structure": 6
+   },
+   "statuses": {
+    "completed": 54
+   },
+   "rows": [
+    {
+     "job": "classify-01",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 10.96,
+     "output": {
+      "label": "bug"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-02",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.82,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-03",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.63,
+     "output": {
+      "label": "incident"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-04",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.62,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-05",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.63,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-06",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.82,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-01",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 6.51,
+     "output": {
+      "approver": "Priya Natarajan",
+      "version": "4.2.1",
+      "approved_on": "2026-10-09",
+      "deployed_on": "2026-10-11"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-02",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 6.63,
+     "output": {
+      "archive_name": "gagos-20261012T043107Z.tar.gz",
+      "size_mb": 2.4,
+      "entries": 75,
+      "previous_age_days": 6.1
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-03",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.42,
+     "output": {
+      "input_tokens": 1284330,
+      "output_tokens": 211904,
+      "models": 3,
+      "september_usd": 4.37
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-04",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.52,
+     "output": {
+      "incident_id": "INC-2207",
+      "mitigated_at": "14:41",
+      "resolved_at": "15:20",
+      "component": "router"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-05",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.79,
+     "output": {
+      "name": "Aisha Khan",
+      "extension": "4417"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-06",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.42,
+     "output": {
+      "merged": true,
+      "reviewer": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-01",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 8.57,
+     "output": {
+      "summary": "The nightly endurance job failed on 2026-10-09, 2026-10-10, and 2026-10-11 due to the consecutive-error gate tripping on the qwen2.5:0.5b model; the fix is to run the job on qwen2.5:1.5b."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-02",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.68,
+     "output": {
+      "summary": "Swapnil will have clerk jobs send think=false to every local model by 2026-10-20; the per-job thinking flag was discussed and rejected."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-03",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['inc-2209']"
+     ],
+     "seconds": 6.48,
+     "output": {
+      "summary": "Between 10:02 and 10:19 UTC, the backup task wrote no archive due to a full data disk (0 bytes free), but after removing a 9 GB log file, the 10:30 run succeeded with no data loss."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-04",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.36,
+     "output": {
+      "summary": "Four cloud models achieved the maximum score of 50, while the default local model scored 18 and qwen2.5-coder:7b scored 37 but had about four times the latency."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-05",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 6.4,
+     "output": {
+      "summary": "The readiness gate for backups now checks Windows Task Scheduler (or crontab) and requires both a fresh newest archive and an existing schedule, instead of printing a fixed string, to prevent one-off archives from passing for a week without ensuring the next schedule."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-06",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['85']",
+      "invented or contradicted: 'all 150 targets were comparable'"
+     ],
+     "seconds": 2.16,
+     "output": {
+      "summary": "All 150 targets were comparable."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-01",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.31,
+     "output": {
+      "groups": [
+       [
+        "REC-1",
+        "REC-3"
+       ],
+       [
+        "REC-2",
+        "REC-4"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-02",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [['REC-11', 'REC-13'], ['REC-12', 'REC-14']], got [['REC-11', 'REC-12'], ['REC-13', 'REC-14']]"
+     ],
+     "seconds": 4.14,
+     "output": {
+      "groups": [
+       [
+        "REC-11",
+        "REC-12"
+       ],
+       [
+        "REC-13",
+        "REC-14"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-03",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.55,
+     "output": {
+      "groups": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-04",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.55,
+     "output": {
+      "groups": [
+       [
+        "REC-31",
+        "REC-32",
+        "REC-33"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-05",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [['REC-41', 'REC-43'], ['REC-42', 'REC-44']], got [['REC-41', 'REC-43', 'REC-44'], ['REC-42', 'REC-44']]"
+     ],
+     "seconds": 4.76,
+     "output": {
+      "groups": [
+       [
+        "REC-41",
+        "REC-43",
+        "REC-44"
+       ],
+       [
+        "REC-42",
+        "REC-44"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-06",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [['REC-51', 'REC-53']], got [['REC-51', 'REC-53'], ['REC-52', 'REC-54']]"
+     ],
+     "seconds": 4.22,
+     "output": {
+      "groups": [
+       [
+        "REC-51",
+        "REC-53"
+       ],
+       [
+        "REC-52",
+        "REC-54"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-01",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.33,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-02",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.39,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-03",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.48,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-04",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.05,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-05",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.32,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-06",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.78,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "status",
+       "created_at"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-01",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['reproduction_steps'], got ['error_message', 'reproduction_steps']"
+     ],
+     "seconds": 4.03,
+     "output": {
+      "complete": false,
+      "missing": [
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-02",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.13,
+     "output": {
+      "complete": true,
+      "missing": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-03",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.86,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-04",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'error_message', 'reproduction_steps']"
+     ],
+     "seconds": 4.53,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-05",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'error_message', 'reproduction_steps']"
+     ],
+     "seconds": 4.55,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-06",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['error_message'], got ['error_message', 'reproduction_steps']"
+     ],
+     "seconds": 3.84,
+     "output": {
+      "complete": false,
+      "missing": [
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-01",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.99,
+     "output": {
+      "skill": "backup_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-02",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.81,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-03",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.84,
+     "output": {
+      "skill": "restore_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-04",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.45,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-05",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "skill: expected 'rotate_logs', got 'restart_backend'"
+     ],
+     "seconds": 1.85,
+     "output": {
+      "skill": "restart_backend"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-06",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 1.83,
+     "output": {
+      "skill": "lint_code"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-01",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.49,
+     "output": {
+      "disagreement_summary": "Analysis A states that timeouts are caused by the 420 s model limit, while Analysis B states that timeouts are caused by pytest grading taking longer than 120 s."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-02",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 6.36,
+     "output": {
+      "disagreement_summary": "Analysis A suggests keeping qwen2.5-coder:7b as the clerk because it passed every test first time. Analysis B suggests switching the clerk to granite4.2:8b because it is built for extraction and classification."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-03",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.51,
+     "output": {
+      "disagreement_summary": "Analysis A states that the memory store is the bottleneck, with only 11 lessons admitted. Analysis B states that the model is the bottleneck, as a 30B model cannot use lessons well."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-04",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.3,
+     "output": {
+      "disagreement_summary": "Analysis A suggests merging #484 with a squash and then re-gathering organ 37 afterwards. Analysis B suggests merging #484 with a merge commit to keep the cited commit reachable."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-05",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.39,
+     "output": {
+      "disagreement_summary": "Analysis A states Kimi K3 should teach because it is the newest model, while Analysis B states Qwen3-Coder-480B should teach because it is the fastest at coding."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-06",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.82,
+     "output": {
+      "disagreement_summary": "Analysis A suggests running the Docker drill tonight, while Analysis B recommends waiting until both judged runs finish due to Docker's potential need for 8 GB of RAM."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-01",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.0,
+     "output": {
+      "explanation": "The routing decision sends the summarise job to frontier_escalation because no local model is qualified for the summarise profile."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-02",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.59,
+     "output": {
+      "explanation": "The routing decision is deterministic because a rule already maps this exact ticket type, eliminating the need for a model."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-03",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.45,
+     "output": {
+      "explanation": "The routing decision assigns the job to local_clerk because the model granite4.2:8b is approved, healthy, and qualified for extract."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-04",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.12,
+     "output": {
+      "explanation": "Two skills matched the task equally well, so the system requested clarification from a human."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-05",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.4,
+     "output": {
+      "explanation": "The routing to frontier_escalation was chosen because the local model's last three summaries failed validation."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-06",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.82,
+     "output": {
+      "explanation": "The routing decision sends the request to local_clerk because the model qwen2.5-coder:7b is qualified for cluster and deterministic code cannot judge meaning."
+     },
+     "failure_reason": null
+    }
+   ]
+  },
+  "ollama.qwen3.5:9b": {
+   "correct": 44,
+   "jobs": 54,
+   "schema_valid": 54,
+   "median_seconds": 5.0649999999999995,
+   "by_profile": {
+    "check_context_completeness": 4,
+    "classify": 5,
+    "cluster": 3,
+    "explain_route": 5,
+    "extract": 6,
+    "select_skill": 5,
+    "summarise": 4,
+    "summarise_disagreement": 6,
+    "validate_structure": 6
+   },
+   "statuses": {
+    "completed": 54
+   },
+   "rows": [
+    {
+     "job": "classify-01",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 17.43,
+     "output": {
+      "label": "bug"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-02",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.81,
+     "output": {
+      "label": "feature_request"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-03",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.7,
+     "output": {
+      "label": "incident"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-04",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.7,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-05",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.71,
+     "output": {
+      "label": "question"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "classify-06",
+     "profile": "classify",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "label: expected 'feature_request', got 'incident'"
+     ],
+     "seconds": 2.71,
+     "output": {
+      "label": "incident"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-01",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 10.24,
+     "output": {
+      "approver": "Priya Natarajan",
+      "version": "4.2.1",
+      "approved_on": "2026-10-09",
+      "deployed_on": "2026-10-11"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-02",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 9.93,
+     "output": {
+      "archive_name": "gagos-20261012T043107Z.tar.gz",
+      "size_mb": 2.4,
+      "entries": 75,
+      "previous_age_days": 6.1
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-03",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 8.6,
+     "output": {
+      "input_tokens": 1284330,
+      "output_tokens": 211904,
+      "models": 3,
+      "september_usd": 4.37
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-04",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 8.44,
+     "output": {
+      "incident_id": "INC-2207",
+      "mitigated_at": "14:41",
+      "resolved_at": "15:20",
+      "component": "router"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-05",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.46,
+     "output": {
+      "name": "Aisha Khan",
+      "extension": "4417"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "extract-06",
+     "profile": "extract",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.58,
+     "output": {
+      "merged": true,
+      "reviewer": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-01",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 11.61,
+     "output": {
+      "summary": "The nightly endurance job failed consecutively from October 9th to October 11th, 2026, due to errors in the qwen2.5:0.5b model. The proposed solution is to switch the job to run on the qwen2.5:1.5b model."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-02",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 7.32,
+     "output": {
+      "summary": "The decision is to have clerk jobs send think=false to every local model, which was made by Swapnil with a deadline of October 20, 2026."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-03",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['inc-2209']"
+     ],
+     "seconds": 10.1,
+     "output": {
+      "summary": "The backup task failed to write an archive between 10:02 and 10:19 UTC due to a full data disk, but after removing a 9 GB log file, the subsequent run at 10:30 succeeded with no data loss."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-04",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 8.59,
+     "output": {
+      "summary": "Four cloud models achieved perfect scores of 50 out of 50, while the default local model scored 18 and qwen2.5-coder:7b scored 37 with significantly higher latency."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-05",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 7.58,
+     "output": {
+      "summary": "The readiness gate for backups was updated to verify that a schedule exists and the newest archive is fresh, replacing the previous fixed 'nothing schedules them' message which incorrectly allowed stale one-off archives."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "summarise-06",
+     "profile": "summarise",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['85']",
+      "invented or contradicted: 'all 150 targets were comparable'"
+     ],
+     "seconds": 3.75,
+     "output": {
+      "summary": "All 150 targets were comparable."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-01",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [['REC-1', 'REC-3'], ['REC-2', 'REC-4']], got [['REC-1', 'REC-3']]"
+     ],
+     "seconds": 4.62,
+     "output": {
+      "groups": [
+       [
+        "REC-1",
+        "REC-3"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-02",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [['REC-11', 'REC-13'], ['REC-12', 'REC-14']], got [['REC-11', 'REC-12'], ['REC-13', 'REC-14']]"
+     ],
+     "seconds": 6.74,
+     "output": {
+      "groups": [
+       [
+        "REC-11",
+        "REC-12"
+       ],
+       [
+        "REC-13",
+        "REC-14"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-03",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.53,
+     "output": {
+      "groups": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-04",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.72,
+     "output": {
+      "groups": [
+       [
+        "REC-31",
+        "REC-32",
+        "REC-33"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-05",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "groups: expected [['REC-41', 'REC-43'], ['REC-42', 'REC-44']], got [['REC-41', 'REC-43']]"
+     ],
+     "seconds": 4.96,
+     "output": {
+      "groups": [
+       [
+        "REC-41",
+        "REC-43"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "cluster-06",
+     "profile": "cluster",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.91,
+     "output": {
+      "groups": [
+       [
+        "REC-51",
+        "REC-53"
+       ]
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-01",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.71,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-02",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.53,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-03",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.64,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-04",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.62,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "owner"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-05",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.64,
+     "output": {
+      "valid": true,
+      "missing_fields": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "validate-06",
+     "profile": "validate_structure",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.47,
+     "output": {
+      "valid": false,
+      "missing_fields": [
+       "status",
+       "created_at"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-01",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.81,
+     "output": {
+      "complete": false,
+      "missing": [
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-02",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 3.43,
+     "output": {
+      "complete": true,
+      "missing": []
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-03",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 6.39,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-04",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'error_message']"
+     ],
+     "seconds": 5.48,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "error_message"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-05",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing: expected ['file_path'], got ['file_path', 'reproduction_steps']"
+     ],
+     "seconds": 5.61,
+     "output": {
+      "complete": false,
+      "missing": [
+       "file_path",
+       "reproduction_steps"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "context-06",
+     "profile": "check_context_completeness",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.64,
+     "output": {
+      "complete": false,
+      "missing": [
+       "error_message"
+      ]
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-01",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.9,
+     "output": {
+      "skill": "backup_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-02",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.4,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-03",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.84,
+     "output": {
+      "skill": "restore_db"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-04",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.45,
+     "output": {
+      "skill": null
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-05",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "skill: expected 'rotate_logs', got 'restart_backend'"
+     ],
+     "seconds": 2.84,
+     "output": {
+      "skill": "restart_backend"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "skill-06",
+     "profile": "select_skill",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 2.85,
+     "output": {
+      "skill": "lint_code"
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-01",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 7.23,
+     "output": {
+      "disagreement_summary": "Analysis A attributes the timeouts to the 420-second model limit, whereas Analysis B claims they are caused by pytest grading exceeding 120 seconds."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-02",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 8.71,
+     "output": {
+      "disagreement_summary": "Analysis A recommends keeping qwen2.5-coder:7b because it passed all tests, while Analysis B suggests switching to granite4.2:8b due to its suitability for extraction and classification tasks."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-03",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 8.98,
+     "output": {
+      "disagreement_summary": "Analysis A identifies the memory store as the bottleneck, noting that only 11 lessons were admitted, whereas Analysis B attributes the limitation to the model itself, stating that a 30B model cannot effectively utilize the lessons."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-04",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 8.13,
+     "output": {
+      "disagreement_summary": "Analysis A proposes merging pull request #484 using a squash method followed by re-gathering organ 37, whereas Analysis B recommends a merge commit to ensure the cited commit remains reachable."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-05",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 9.34,
+     "output": {
+      "disagreement_summary": "Analysis A argues that Kimi K3 should be selected for teaching because it is the newest model, while Analysis B contends that Qwen3-Coder-480B is the better choice due to its superior speed in coding tasks."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "disagree-06",
+     "profile": "summarise_disagreement",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 6.63,
+     "output": {
+      "disagreement_summary": "Analysis A recommends running the Docker drill immediately, whereas Analysis B advises waiting for both judged runs to complete due to Docker's high RAM consumption."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-01",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 4.99,
+     "output": {
+      "explanation": "The route was escalated to frontier because no local model is qualified for the summarise profile."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-02",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.74,
+     "output": {
+      "explanation": "The routing decision is deterministic because a rule already maps this ticket type exactly, so no model is needed."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-03",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": false,
+     "failed_checks": [
+      "missing fact: one of ['granite']"
+     ],
+     "seconds": 5.96,
+     "output": {
+      "explanation": "The route was assigned to local_clerk because the job is approved, healthy, and qualified for extraction."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-04",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.14,
+     "output": {
+      "explanation": "The routing decision to human_clarification was made because two skills matched the task equally well."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-05",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 5.26,
+     "output": {
+      "explanation": "The route is set to frontier_escalation because the local model's last three summaries failed validation."
+     },
+     "failure_reason": null
+    },
+    {
+     "job": "route-06",
+     "profile": "explain_route",
+     "status": "completed",
+     "schema_valid": true,
+     "correct": true,
+     "failed_checks": [],
+     "seconds": 7.31,
+     "output": {
+      "explanation": "The routing decision to local_clerk was made because deterministic code cannot judge meaning, and the qwen2.5-coder:7b model is qualified for cluster tasks."
+     },
+     "failure_reason": null
+    }
+   ]
+  }
+ }
+}
