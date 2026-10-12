@@ -536,12 +536,17 @@ class LocalWorkforceService:
     def _default_model_client(self, model_id: str) -> LLMClient:
         if not isinstance(self.ollama, OllamaClient):
             return self.ollama
+        # Clerical jobs are short, structured answers: no hidden reasoning. A
+        # thinking model at its default spent 51-64 s per job that took
+        # 1.2-4.6 s without it, for the same answer (qwen3.5:9b, 2026-10-12).
+        # A model that cannot think ignores think=false.
         return OllamaClient(
             model=model_id,
             host=self.ollama.host,
             timeout_s=self.ollama.timeout_s,
             temperature=self.ollama.temperature,
             num_ctx=self.ollama.num_ctx,
+            think=False,
         )
 
 
