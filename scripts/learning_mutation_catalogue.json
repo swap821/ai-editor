@@ -270,8 +270,8 @@
   {
    "id": "3c:lessons are filtered",
    "file": "aios/application/memory/adapters.py",
-   "old": "        if self.gate is None:\n            return list(items)[:limit]\n        kept: list[Any] = []\n",
-   "new": "        return list(items)[:limit]\n        kept: list[Any] = []\n",
+   "old": "        if self.gate is None:\n            items = list(items)\n            return distinct_lessons(items, limit) if distinct else items[:limit]\n        kept: list[Any] = []\n",
+   "new": "        items = list(items)\n        return distinct_lessons(items, limit) if distinct else items[:limit]\n        kept: list[Any] = []\n",
    "tests": [
     "tests/test_phase3b_write_provenance.py",
     "tests/test_phase3c_recall_gate.py"
