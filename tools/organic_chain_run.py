@@ -50,6 +50,7 @@ guard to make a ledger go green is the trade this whole effort refuses.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import sys
@@ -112,10 +113,8 @@ from tools.reverse_engineer_gagos import (  # noqa: E402
     run_self_check,
     tier_verdict,
 )
-from aios.agents import tool_loop_helpers  # noqa: E402
 from aios.agents.reflection_agent import ReflectionAgent  # noqa: E402
 from aios.core.cerebellum import Cerebellum  # noqa: E402
-from aios.core.verification_strength import VerificationStrength  # noqa: E402
 from aios.memory.db import get_connection, init_memory_db  # noqa: E402
 from aios.memory.skills import scoped_skill_attempt  # noqa: E402
 from aios.memory.mistake import MistakeMemory  # noqa: E402
@@ -126,7 +125,7 @@ from tools.self_corpus_grading import (  # noqa: E402
     pin_steps,
     record_pin_outcome,
 )
-from tools.self_corpus_targets import collect_targets  # noqa: E402
+from tools.self_corpus_targets import practice_targets  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "organic-chain-runs.jsonl"
 WORKTREE = REPO_ROOT.parent / "ai-editor-selfcorpus"
@@ -183,6 +182,7 @@ def run_chain(
     targets: int,
     retries: int,
     model_timeout: int,
+    offset: int = 0,
 ) -> tuple[list[LinkEvidence], list[Attempt], str, str]:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     init_memory_db(DB)
@@ -208,7 +208,9 @@ def run_chain(
     # The store is passed EXPLICITLY: ReflectionAgent refuses to guess one,
     # so a lesson can never land somewhere other than where the rest of the
     # chain will look for it.
-    reflector = ReflectionAgent(ladder[0][1], mistakes=mistakes, db_path=DB)
+    reflector = ReflectionAgent(
+        reflection_client(ladder[0][1]), mistakes=mistakes, db_path=DB
+    )
 
     links = {
         name: LinkEvidence(name, faculty)
@@ -243,7 +245,11 @@ def run_chain(
         if not ok:
             raise CorpusError(f"positive control failed, instrument invalid: {control}")
         print("control : grader earns a known-correct test\n")
-        chosen = collect_targets(corpus.root, limit=targets)
+        # Never a frozen judged target (D10); `offset` walks the ranking so
+        # successive runs practise different code.
+        chosen = practice_targets(
+            corpus.root, limit=targets, offset=offset, repo=REPO_ROOT
+        )
 
         for target in chosen:
             print(f"  {target.label}")
@@ -252,6 +258,9 @@ def run_chain(
             # `pending` is the fail->confirm tracker the turn path keeps in
             # memory for a session; the same shape, for the same reason.
             pending: list[tuple[int, str]] = []
+            # D11: the last failing test and what it said, so a later pass
+            # can be grounded in the change between the two.
+            failed_code, failure_said = "", ""
 
             for spec, client in ladder:
                 tier_attempts: list[Attempt] = []
@@ -272,8 +281,23 @@ def run_chain(
                     # Only a GRADED failure. A transport error is not the
                     # model's mistake and there is nothing to learn from it.
                     if not record.earned and record.outcome in ("rejected", "vacuous"):
+                        test_path = corpus.root / test_rel
+                        failed_code = (
+                            test_path.read_text(encoding="utf-8")
+                            if test_path.is_file()
+                            else ""
+                        )
+                        failure_said = _failure_text(record)
+                        # One task per TARGET. With the run id as every
+                        # target's task, a failure of the same error type on a
+                        # different target read as a RECURRENCE of the first
+                        # lesson: its own fact was dropped and the first one's
+                        # count inflated (D10 pilot, 2026-10-12).
                         reflection = _reflect(
-                            reflector, verify_command, _failure_text(record), run_id
+                            reflector,
+                            verify_command,
+                            _failure_text(record),
+                            f"{run_id}:{target.label}",
                         )
                         if reflection is not None:
                             pending.append((reflection, verify_command))
@@ -283,27 +307,31 @@ def run_chain(
                             )
                             print(f"            L1 lesson {reflection} recorded")
 
-                    # --- L2: the identical command succeeding confirms it ----
-                    if record.earned and pending:
-                        promoted: list[int] = []
-                        list(
-                            tool_loop_helpers.confirm(
-                                pending,
-                                verify_command,
-                                0,
-                                lambda mid: (
-                                    promoted.append(mid),
-                                    mistakes.promote(mid),
-                                ),
-                                strength=VerificationStrength.STRONG,
-                            )
+                    # --- L2 (D11): the identical command passing GROUNDS a lesson.
+                    # The failure-time guesses are never promoted: "the task
+                    # later passed" never proved them (13 of 32 were false).
+                    if record.earned and pending and failed_code:
+                        test_path = corpus.root / test_rel
+                        grounded, what = ground_on_success(
+                            reflector,
+                            mistakes,
+                            guesses=[mid for mid, _cmd in pending],
+                            command=verify_command,
+                            failure=failure_said,
+                            failed_code=failed_code,
+                            passing_code=(
+                                test_path.read_text(encoding="utf-8")
+                                if test_path.is_file()
+                                else ""
+                            ),
+                            task_id=f"{run_id}:{target.label}",
                         )
-                        if promoted:
+                        if grounded is not None:
                             links["lesson_transfer"].fired = True
                             links["lesson_transfer"].refs.append(
-                                f"lesson {promoted[0]} promoted by {verify_command!r}"
+                                f"lesson {grounded} grounded by {verify_command!r}"
                             )
-                            print(f"            L2 lesson {promoted[0]} PROMOTED")
+                        print(f"            L2 {what}")
 
                     if record.earned:
                         break
@@ -839,6 +867,68 @@ def _passed_count(verify_output: str) -> int:
     return int(match.group(1)) if match else 0
 
 
+def reflection_client(client):
+    """The ladder's first model, as the completion client ReflectionAgent uses.
+
+    A cloud chat client (Bedrock, Gemini, OpenAI-compatible) has no
+    ``complete()``: every reflection raised AttributeError, so on a cloud
+    ladder L1 never fired and no lesson was ever written (found 2026-10-12).
+    The gateway's chat adapter translates the message shape and adds nothing.
+    """
+    if callable(getattr(client, "complete", None)):
+        return client
+    from aios.application.intelligence.gateway import AdvisoryChatCompletionAdapter
+
+    return AdvisoryChatCompletionAdapter(client)
+
+
+def ground_on_success(
+    reflector,
+    mistakes,
+    *,
+    guesses: list[int],
+    command: str,
+    failure: str,
+    failed_code: str,
+    passing_code: str,
+    task_id: str,
+) -> tuple[int | None, str]:
+    """D11: when a target passes after failing, write the lesson from the fix.
+
+    The failure-time guesses are NEVER promoted. If the change that made the
+    test pass proves a fact about the code under test, that fact becomes a
+    verified lesson and supersedes the guesses. If it proves nothing (a typo,
+    a syntax slip, a misused mock), the guesses stay pending -- recalled only
+    within their own practice task, so they never reach a live turn.
+    Returns ``(new lesson id or None, what happened)``.
+    """
+    change = "".join(
+        difflib.unified_diff(
+            failed_code.splitlines(keepends=True),
+            passing_code.splitlines(keepends=True),
+            "failing test",
+            "passing test",
+            n=2,
+        )
+    )
+    if not change.strip():
+        return None, "no change between the failing and passing test"
+    try:
+        grounded = reflector.reflect_resolution(
+            command, failure, change, task_id=task_id
+        )
+    except Exception as exc:  # noqa: BLE001 - a learning step must not be fatal
+        return None, f"resolution reflection unavailable: {type(exc).__name__}"
+    if grounded is None:
+        return (
+            None,
+            "the fix proves nothing about the code under test; guesses stay pending",
+        )
+    for guess in guesses:
+        mistakes.supersede(guess, grounded.mistake_id)
+    return grounded.mistake_id, f"grounded lesson replaces {guesses}"
+
+
 def _reflect(reflector, command: str, error_output: str, run_id: str) -> int | None:
     """Record a lesson, returning its id. Never breaks the run."""
     try:
@@ -943,6 +1033,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--models", default="ollama.qwen2.5-coder:7b")
     parser.add_argument("--model-timeout", type=int, default=300)
     parser.add_argument(
+        "--offset",
+        type=int,
+        default=0,
+        help="start this many targets into the practice ranking (frozen judged "
+        "targets are always excluded)",
+    )
+    parser.add_argument(
         "--env-file",
         type=Path,
         default=None,
@@ -956,6 +1053,7 @@ def main(argv: list[str] | None = None) -> int:
             targets=args.targets,
             retries=args.retries,
             model_timeout=args.model_timeout,
+            offset=args.offset,
         )
     except CorpusError as exc:
         print(f"\nFAIL  {exc}")
@@ -982,6 +1080,7 @@ def main(argv: list[str] | None = None) -> int:
             # LC11/LC12 (evidence currency and lineage) ask of it.
             "corpus_sha": corpus_sha,
             "models": args.models,
+            "offset": args.offset,
             "links": [asdict(link) for link in links],
             "attempts": [asdict(a) for a in attempts],
         }

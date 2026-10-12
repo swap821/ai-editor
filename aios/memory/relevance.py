@@ -61,6 +61,102 @@ def relevance(query: str, document: str) -> float:
     return round(overlap / math.sqrt(len(query_tokens) * len(document_tokens)), 6)
 
 
+#: Vocabulary any coding or testing task may contain, so sharing it says
+#: nothing about WHICH code a task and a lesson are about. Built from general
+#: sources -- English function words, Python keywords and builtins, and the
+#: generic words of writing and testing code -- and never naming a module,
+#: function, file or domain. Fixed 2026-10-12, before any run it affects
+#: (docs/learning/PAYOFF_PREREGISTRATION.md, D9).
+_GENERIC_WORDS = frozenset(
+    """
+    about above after again against all also although am any anything because
+    been before being below between both but can cannot could did does doing
+    done down during each either else even ever every few further had has have
+    having here if into its itself just least less may might more most much
+    must my never no nor not now off once only other others our out over own
+    per rather same several shall should since so some such than that their
+    them then there these they those though through thus too under until up
+    upon very via was we were what whatever when where whether which while who
+    whom whose why will within without would yet you your
+    actual actually always argument arguments assert assertion assertions
+    behavior behaviour build call called calling calls case cases change
+    changed changes check checked checks code correct correctly create created
+    ensure ensured error errors example examples exception exceptions expect
+    expected expects fail failed failing fails failure file files fix fixed
+    function functions get given import imported imports input inputs line
+    lines make makes match matches method methods module modules name names
+    new object objects output outputs parameter parameters pass passed passes
+    path paths properly result results return returned returning returns run
+    running runs should source sure test tested testing tests type types
+    update updated use used uses using value values variable variables verify
+    verified write writes writing written wrong pytest unittest
+    access accessed accessing attribute attributes character characters
+    content contents data default defaults empty exist existing exists field
+    fields global item items key keys like local message messages number
+    numbers option options string strings text
+    already another around attempt attempted attempts break breaking breaks
+    choose chose complete completely concrete construct constructed contain
+    contained containing contains depend depends exactly first following
+    genuinely guess guessed instead last next one ones part parts possible
+    previous read reading reads real really referenced remove removed
+    requirement requirements show shown shows simple simply specific
+    specifically still thing things two unless way ways whole yourself
+    anywhere assign assigned avoid checking define defined non-empty
+    nonempty presence present
+    fixture fixtures mock mocked mocking mocks patch patched patching
+    constant constants literal literals python raise raised raises symbol
+    symbols
+    """.split()
+)
+
+
+def _python_vocabulary() -> frozenset[str]:
+    import builtins
+    import keyword
+
+    return frozenset(
+        {word.lower() for word in keyword.kwlist}
+        | {name.lower() for name in dir(builtins) if not name.startswith("_")}
+    )
+
+
+GENERIC = _STOP | _GENERIC_WORDS | _python_vocabulary()
+
+
+def specific_tokens(text: str) -> set[str]:
+    """Tokens of *text* that can say which code it is about: not generic
+    vocabulary, not a bare number, longer than two characters.
+
+    Edge punctuation is dropped first: ``tokens`` keeps ``.``, ``/`` and ``-``
+    so paths survive whole, which also makes a sentence-final "it." a word
+    of its own -- one that matched every task (found 2026-10-12). Inner
+    punctuation stays: ``aios/x.py`` and ``config.value`` are one name each.
+    ``tokens`` itself is unchanged; skill identity hashes are built on it.
+    """
+    found: set[str] = set()
+    for raw in tokens(text):
+        token = raw.strip("./-")
+        if token and token not in GENERIC and not token.isdigit() and len(token) > 2:
+            found.add(token)
+    return found
+
+
+def specific_relevance(query: str, document: str) -> float:
+    """``relevance`` over specific tokens only, in ``[0, 1]``.
+
+    Zero unless the two share at least one specific term. Plain ``relevance``
+    counts any shared word, so a long task and a long lesson nearly always
+    overlap on generic vocabulary -- which is how lesson recall came to return
+    the same lessons for every task (calibration run, 2026-09-27).
+    """
+    query_tokens = specific_tokens(query)
+    document_tokens = specific_tokens(document)
+    shared = query_tokens & document_tokens
+    if not shared:
+        return 0.0
+    return round(len(shared) / math.sqrt(len(query_tokens) * len(document_tokens)), 6)
+
+
 def signature(text: str) -> str:
     """Stable non-secret signature for grouping similar normalized task text."""
     normalized = " ".join(sorted(tokens(text)))
