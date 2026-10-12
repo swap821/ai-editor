@@ -36,6 +36,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
+from aios.core import model_calls
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 from aios.core.provider_retry import call_with_backoff, stream_with_backoff
@@ -535,6 +536,7 @@ class GeminiClient:
         if tool_decls:
             gen_config["tools"] = tool_decls
 
+        model_calls.observe("gemini", model or self.model, "chat")
         try:
             response = call_with_backoff(
                 lambda: self._client.models.generate_content(
@@ -599,6 +601,7 @@ class GeminiClient:
         if tool_decls:
             gen_config["tools"] = tool_decls
 
+        model_calls.observe("gemini", model or self.model, "stream_chat")
         try:
             # generate_content_stream is LAZY -- it issues no request until
             # iterated -- so retry must wrap CONSUMPTION, not creation, and is
@@ -662,6 +665,7 @@ class GeminiClient:
         if tool_decls:
             gen_config["tools"] = tool_decls
 
+        model_calls.observe("gemini", model or self.model, "stream_chat_with_tools")
         try:
             # Lazy stream: retry wraps CONSUMPTION, bounded by emission. This
             # is the path that lost a golden-mission run to a 429 on

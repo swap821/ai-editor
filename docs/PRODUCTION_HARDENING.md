@@ -47,11 +47,11 @@ tests is NOT_MEASURED, never PASS.
 | Cage | `master_ci` | master's latest CI green |
 | Animal | `signing_key` | the live learning key present (env or the OS keystore, by name only) and its public key pinned (otherwise everything learned is refused) |
 | Animal | `guards_scheduled` | the red-team reel and mutation probe run on a schedule |
-| Animal | `usefulness` | *not measured yet*: a pre-registered payoff run that met its hypothesis |
+| Animal | `usefulness` | what the animal learned reaches a live turn (a read-only census through the production recall gate: rows admitted to their owner) **and** the pre-registered Phase 8 run met H1 under Holm (`docs/learning/payoff_judged_result.json`) |
 | Clerk | `admitted_model` | a local model the dispatcher would give a job (approved, qualified, healthy, with a role) |
 | Clerk | `live_roles_earnable` | every role production code asks the clerk for is one a qualification test can grant |
 | Clerk | `real_jobs` | the clerk has done real jobs, recorded in its provenance store |
-| Clerk | `one_gateway` | *not measured yet*: every model call through the one gateway |
+| Clerk | `one_gateway` | every production model call on this machine in the last 7 days passed an Organ 32 gateway entrance, read from the model-call ledger (`docs/ONE_GATEWAY.md`) |
 | Sovereign | `production_started` | the production launcher has run here |
 | Sovereign | `backend_ready` | the backend answers its readiness probe |
 | Sovereign | `backups` | a restorable backup newer than the staleness limit |
@@ -130,8 +130,9 @@ marks steps only the operator can take on his own machine.
 | **H7** | One law: the constitution is the ceiling on cloud egress; effective cloud tasks = constitution ∩ runtime profile (operator decision 2026-10-11) | correctness, no gate |
 | **H8** | Best cloud + local intelligence, measured: only callable models ranked, Kimi K3 usable, a 50-task benchmark as the router's prior (`docs/BEST_INTELLIGENCE.md`) | correctness, no gate |
 | **H6b** | This scoreboard reads the drill report and the OS keystore (until then, keys stored as the bring-up guide says still read FAIL) | three `*_drill` gates, `signing_key`, `cloud_provider` |
-| next | One gateway: inventory every model call and migrate the two legacy constructors | `one_gateway` |
-| next | Animal: learning-guards on a schedule (operator: CI minutes), reflex payoff measured, the payoff result read by this tool | `guards_scheduled`, `usefulness` |
+| **H10** | One gateway, measured: a model-call ledger written by every provider adapter, a real-app inventory (62/62 calls gated; it found `/api/v1/plan` ungated and `/api/v1/chat` 500ing on "what is…"), the gate reading this machine's ledger (`docs/ONE_GATEWAY.md`) | `one_gateway` |
+| **H11** | Usefulness, measured: a read-only census of what learned memory reaches a live turn, and the judged Phase 8 payoff result (`docs/learning/payoff_judged_result.json`) | `usefulness` |
+| next | Learning-guards on a schedule (operator: CI minutes) | `guards_scheduled` |
 | **H9** | The 8 yellow organs, each against its named blockers | `organ_ledger` |
 
 **What hardening cannot do:** make the learning loop *useful*. Hardening
