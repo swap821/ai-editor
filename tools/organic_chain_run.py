@@ -184,6 +184,8 @@ def run_chain(
     model_timeout: int,
     offset: int = 0,
     teacher: str | None = None,
+    critic: str | None = None,
+    critic_log: list[dict] | None = None,
 ) -> tuple[list[LinkEvidence], list[Attempt], str, str]:
     run_id = f"{datetime.now(timezone.utc):%Y%m%dT%H%M%S}-{uuid.uuid4().hex[:8]}"
     init_memory_db(DB)
@@ -209,6 +211,18 @@ def run_chain(
     teacher_spec, teacher_client = choose_teacher(
         ladder, teacher, timeout_s=model_timeout
     )
+    critic_client = None
+    if critic:
+        if critic == teacher_spec:
+            raise CorpusError(
+                "the critic must be a different model from the teacher: a model "
+                "checking its own lesson is not a second opinion"
+            )
+        critic_client = reflection_client(
+            choose_teacher(ladder, critic, timeout_s=model_timeout)[1]
+        )
+    if critic_log is None:
+        critic_log = []
 
     # The store is passed EXPLICITLY: ReflectionAgent refuses to guess one,
     # so a lesson can never land somewhere other than where the rest of the
@@ -333,6 +347,21 @@ def run_chain(
                             ),
                             task_id=f"{run_id}:{target.label}",
                         )
+                        if grounded is not None and critic_client is not None:
+                            grounded = _apply_critic(
+                                critic_client,
+                                mistakes,
+                                grounded,
+                                target=target,
+                                corpus_root=corpus.root,
+                                change=lesson_change(
+                                    failed_code,
+                                    (corpus.root / test_rel).read_text(encoding="utf-8")
+                                    if (corpus.root / test_rel).is_file()
+                                    else "",
+                                ),
+                                log=critic_log,
+                            )
                         if grounded is not None:
                             links["lesson_transfer"].fired = True
                             links["lesson_transfer"].refs.append(
@@ -908,6 +937,123 @@ def reflection_client(client):
     return AdvisoryChatCompletionAdapter(client)
 
 
+def lesson_change(failed_code: str, passing_code: str) -> str:
+    """The diff from the failing test to the passing one: what D11 grounds on."""
+    return "".join(
+        difflib.unified_diff(
+            failed_code.splitlines(keepends=True),
+            passing_code.splitlines(keepends=True),
+            "failing test",
+            "passing test",
+            n=2,
+        )
+    )
+
+
+#: D12's critic: a second strong model, shown the code the lesson is about.
+CRITIC_SYSTEM = (
+    "You check one lesson against the source code it is about. Answer with ONE "
+    'JSON object and nothing else: {"verdict": "true" | "false" | "unsure", '
+    '"reason": "<one sentence>"}. "true" only if the source shown proves the '
+    "lesson's claim about this code. A lesson about the test's own mocks, "
+    'fixtures or generic Python is "false": it says nothing about this code.'
+)
+#: Enough of a module to see its imports and the function; capped so one
+#: large module cannot crowd out the lesson.
+CRITIC_SOURCE_CHARS = 20_000
+#: What a critic-rejected lesson becomes in the PRACTICE store. mistake_pool's
+#: CHECK allows only pending / verified / superseded, and superseded is the one
+#: state neither recall (verified, or pending within its own task) nor the
+#: import into live memory (verified only) ever reads. ``superseded_by`` stays
+#: NULL, which tells it apart from a real replacement; the run's trail row
+#: records the lesson's text and the critic's reason.
+REJECTED_BY_CRITIC = "superseded"
+
+
+def critique_lesson(
+    critic,
+    *,
+    lesson_text: str,
+    root_cause: str,
+    function: str,
+    source: str,
+    change: str,
+) -> tuple[str, str]:
+    """Ask the critic whether the lesson is true of the code: (verdict, reason).
+
+    Anything but a parseable "true" / "false" / "unsure" is "unsure", and only
+    "true" keeps a lesson -- a critic that cannot say yes is not a yes.
+    """
+    prompt = (
+        f"The function under test is `{function}`. Its module:\n```python\n"
+        f"{source[:CRITIC_SOURCE_CHARS]}\n```\n\nThe change that made the failing "
+        f"test pass:\n```diff\n{change[:6000]}\n```\n\nRoot cause the teacher "
+        f"stated: {root_cause}\nLesson: {lesson_text}\n\nIs the lesson true of "
+        "this code?"
+    )
+    try:
+        raw = critic.complete(prompt, system=CRITIC_SYSTEM, json_mode=True)
+    except Exception as exc:  # noqa: BLE001 - an unanswered critic keeps nothing
+        return "unsure", f"critic unavailable: {type(exc).__name__}"
+    start, end = raw.find("{"), raw.rfind("}")
+    try:
+        answer = json.loads(raw[start : end + 1]) if start != -1 < end else {}
+    except json.JSONDecodeError:
+        answer = {}
+    verdict = str(answer.get("verdict", "")).strip().lower()
+    if verdict not in ("true", "false", "unsure"):
+        return "unsure", "the critic's answer could not be read"
+    return verdict, str(answer.get("reason", ""))[:300]
+
+
+def _apply_critic(
+    critic,
+    mistakes,
+    lesson_id: int,
+    *,
+    target,
+    corpus_root: Path,
+    change: str,
+    log: list,
+) -> int | None:
+    """Keep the grounded lesson only if the critic says it is true; log every verdict."""
+    row = mistakes.get(lesson_id)
+    module = corpus_root / target.module
+    verdict, reason = critique_lesson(
+        critic,
+        lesson_text=str(row["lesson_text"]) if row is not None else "",
+        root_cause=str(row["root_cause"]) if row is not None else "",
+        function=target.function,
+        source=module.read_text(encoding="utf-8")
+        if module.is_file()
+        else target.source,
+        change=change,
+    )
+    log.append(
+        {
+            "lesson": lesson_id,
+            "target": target.label,
+            "verdict": verdict,
+            "reason": reason,
+            "lesson_text": str(row["lesson_text"]) if row is not None else "",
+        }
+    )
+    print(f"            critic: {verdict} -- {reason[:90]}")
+    if verdict == "true":
+        return lesson_id
+    reject_lesson(mistakes.db_path, lesson_id)
+    return None
+
+
+def reject_lesson(db_path: Path, lesson_id: int) -> None:
+    """Take a critic-rejected lesson out of recall in the practice store."""
+    with get_connection(db_path) as conn:
+        conn.execute(
+            "UPDATE mistake_pool SET verification_status = ? WHERE id = ?",
+            (REJECTED_BY_CRITIC, lesson_id),
+        )
+
+
 def ground_on_success(
     reflector,
     mistakes,
@@ -928,15 +1074,7 @@ def ground_on_success(
     within their own practice task, so they never reach a live turn.
     Returns ``(new lesson id or None, what happened)``.
     """
-    change = "".join(
-        difflib.unified_diff(
-            failed_code.splitlines(keepends=True),
-            passing_code.splitlines(keepends=True),
-            "failing test",
-            "passing test",
-            n=2,
-        )
-    )
+    change = lesson_change(failed_code, passing_code)
     if not change.strip():
         return None, "no change between the failing and passing test"
     try:
@@ -1097,6 +1235,12 @@ def main(argv: list[str] | None = None) -> int:
         default=None,
         help="the run trail (default: .aios/audit/organic-chain-runs.jsonl)",
     )
+    parser.add_argument(
+        "--critic",
+        default=None,
+        help="D12: a second model, different from the teacher, shown the module "
+        "source; a grounded lesson it does not call true is rejected in this store",
+    )
     args = parser.parse_args(argv)
 
     # Module paths, overridden before anything reads them, so N workers never
@@ -1106,6 +1250,7 @@ def main(argv: list[str] | None = None) -> int:
     WORKTREE = args.corpus_dir.resolve() if args.corpus_dir else WORKTREE
     TRAIL = args.trail.resolve() if args.trail else TRAIL
 
+    critic_log: list[dict] = []
     try:
         links, attempts, run_id, corpus_sha = run_chain(
             models=args.models,
@@ -1114,6 +1259,8 @@ def main(argv: list[str] | None = None) -> int:
             model_timeout=args.model_timeout,
             offset=args.offset,
             teacher=args.teacher,
+            critic=args.critic,
+            critic_log=critic_log,
         )
     except CorpusError as exc:
         print(f"\nFAIL  {exc}")
@@ -1141,6 +1288,8 @@ def main(argv: list[str] | None = None) -> int:
             "corpus_sha": corpus_sha,
             "models": args.models,
             "teacher": args.teacher or args.models.split(",")[0].strip(),
+            "critic": args.critic,
+            "critic_verdicts": critic_log,
             "store": str(DB),
             "offset": args.offset,
             "links": [asdict(link) for link in links],
