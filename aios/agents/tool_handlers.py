@@ -15,6 +15,7 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, Optional
 
+from aios.agents.file_surgery import perform_file_surgery
 from aios.agents.self_analysis_agent import SelfAnalysisAgent
 from aios.core.planner import Planner, PlannerError
 from aios.policy.credential_paths import is_credential_path, refusal_reason
@@ -176,49 +177,23 @@ def edit_file(
     except Exception as exc:  # noqa: BLE001 - report read failures cleanly
         return (f"[ERROR] Could not read {filepath}: {exc}", "blocked", False)
 
-    occurrences = current.count(old_string)
-    if occurrences == 0:
-        if new_string and new_string in current:
-            # Replay tolerance (the edit analog of create_file's no-op): the
-            # resumable approval flow re-runs the whole turn, so the model
-            # legitimately re-issues an edit an earlier replay already
-            # applied. The replacement being present (and the original
-            # gone) means there is nothing left to write or approve.
-            return (
-                f"{filepath} already contains the requested replacement; "
-                f"nothing to change.{_next_step_after_noop(target)}",
-                "noop",
-                False,
-            )
-        # Name the way out. This is the single most common write failure in
-        # organ 44's cohort -- 7 of 10 `unverified` steps -- and it happens
-        # because the model reconstructs the file from memory instead of from
-        # what it read. Captured from a real run, it offered
-        # `def __init__(self, steps: List[...])` for a file whose actual line is
-        # `def __init__(self):`. Re-reading does not fix that; it re-read and
-        # hallucinated again.
-        #
-        # "not found" alone leaves only the option that already failed. The
-        # alternative does not need an exact match at all, so it is stated here,
-        # at the moment the model is choosing what to try next.
+    surgery = perform_file_surgery(current, old_string, new_string, filepath=filepath)
+    if surgery.status == "replay":
         return (
-            f"[ERROR] old_string not found in {filepath}. It must match the file "
-            "byte-for-byte, including indentation -- do not retype it from "
-            "memory. Either read_file and copy an exact snippet, or call "
-            f"overwrite_file with the COMPLETE new body of {filepath}, which "
-            "needs no snippet match.",
-            "blocked",
+            f"{filepath} already contains the requested replacement; "
+            f"nothing to change.{_next_step_after_noop(target)}",
+            "noop",
             False,
         )
-    if occurrences > 1:
+    if surgery.status in ("not_found", "multiple_matches", "error"):
         return (
-            f"[ERROR] old_string is not unique in {filepath} "
-            f"({occurrences} matches); add surrounding context.",
+            surgery.error_message or f"[ERROR] Could not apply edit to {filepath}.",
             "blocked",
             False,
         )
 
-    updated = current.replace(old_string, new_string, 1)
+    updated = surgery.updated_content
+    assert updated is not None
     diff = "".join(
         difflib.unified_diff(
             current.splitlines(keepends=True),
