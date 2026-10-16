@@ -75,7 +75,7 @@ function GalleryScene({ entry, tier, focusSeatIndex }: { entry: PhysicalStateGal
     [entry.id, focusSeatIndex],
   );
   return (
-    <QualityTierProvider key={tier} defaultTier={tier}>
+    <QualityTierProvider key={tier} defaultTier={tier} restorePreference={false}>
       <Canvas
         camera={{ position: [0, 0.25, 8.5], fov: 42, near: 0.1, far: 150 }}
         dpr={tier === 'high' ? 1 : tier === 'medium' ? 0.85 : 0.7}

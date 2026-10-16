@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { ReceiptCard } from './ReceiptCard';
 import { deriveReceipt } from './receipts';
@@ -15,6 +15,29 @@ describe('ReceiptCard', () => {
     render(<ReceiptCard receipt={receipt} />);
 
     expect(screen.getByRole('button', { name: 'Why verified' })).toBeInTheDocument();
+  });
+
+  it('keeps its explanation when the one receipt moves between reader and conversation hosts', async () => {
+    const hostView = render(<div className="lm-surface__body" style={{ padding: '12px' }}><div data-testid="result-receipt-host" /></div>);
+    const host = screen.getByTestId('result-receipt-host');
+    // Only browser layout is external to jsdom; exercise the real host clamp.
+    Object.defineProperty(host.parentElement, 'clientHeight', { configurable: true, value: 144 });
+    const receipt = deriveReceipt({ action: 'authorize', succeeded: true, target: 'result.py', verification: 'pass' });
+    const view = render(<ReceiptCard receipt={receipt} host={host} />);
+    expect(host.querySelector('.gagos-receipt')).not.toBeNull();
+    expect((host.querySelector('.gagos-receipt') as HTMLElement).style.maxHeight).toBe('120px');
+    fireEvent.click(screen.getByLabelText('Receipt details: Done'));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Why verified' })).toBeVisible());
+    fireEvent.click(screen.getByRole('button', { name: 'Why verified' }));
+    expect(screen.getByText(/because a real verifier result passed/)).toBeVisible();
+    view.rerender(<ReceiptCard receipt={receipt} host={null} />);
+    expect(host.querySelector('.gagos-receipt')).toBeNull();
+    expect(screen.getByText(/because a real verifier result passed/)).toBeVisible();
+    view.rerender(<ReceiptCard receipt={receipt} host={host} />);
+    expect(host.querySelector('.gagos-receipt')).not.toBeNull();
+    expect(screen.getAllByRole('status', { name: 'Done' })).toHaveLength(1);
+    expect(screen.getByText(/because a real verifier result passed/)).toBeVisible();
+    view.unmount(); hostView.unmount();
   });
 
   it('routes failure inspection to the safe review path', () => {

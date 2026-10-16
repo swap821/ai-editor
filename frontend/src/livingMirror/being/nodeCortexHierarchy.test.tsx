@@ -19,7 +19,7 @@ beforeEach(() => {
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 async function withLattice(tier: QualityTier, run: (nodes: THREE.InstancedMesh,
-  scene: THREE.Scene, frame: () => void) => void | Promise<void>) {
+  scene: THREE.Scene, frame: (seconds?: number, beforePaint?: () => void) => void) => void | Promise<void>) {
   const canvas = document.createElement('canvas');
   const root = createRoot(canvas); const store = _roots.get(canvas)!.store;
   const gl = { domElement: canvas, render() {}, setSize() {}, setPixelRatio() {} } as unknown as RootState['gl'];
@@ -33,8 +33,14 @@ async function withLattice(tier: QualityTier, run: (nodes: THREE.InstancedMesh,
     const scene = store.getState().scene;
     scene.traverse(object => { if (object instanceof THREE.InstancedMesh) nodes = object; });
     let time = 0;
-    const frame = () => { act(() => advance(++time / 60, false, store.getState())); };
-    await run(nodes, scene, frame);
+    const clock = vi.spyOn(performance, 'now').mockImplementation(() => time * 1000);
+    const frame = (seconds = 1 / 60, beforePaint?: () => void) => {
+      time += seconds;
+      beforePaint?.();
+      act(() => advance(time, false, store.getState()));
+    };
+    frame(0);
+    try { await run(nodes, scene, frame); } finally { clock.mockRestore(); }
   } finally { await act(async () => { root.unmount(); }); }
 }
 
@@ -103,5 +109,60 @@ it('retains real regional firing and stable node transforms under reduced motion
     expect(Array.from(nodes.instanceMatrix.array)).toEqual(matrices);
     expect(Array.from(nodes.instanceColor!.array)).toEqual(colors);
     expect((nodes.material as THREE.ShaderMaterial).uniforms.uNodeGain.value).toBeGreaterThan(0);
+  });
+});
+
+it.each([30, 60, 120])('settles regional light by elapsed time at %i frames per second', async hz => {
+  await withLattice('high', (nodes, _scene, frame) => {
+    const activation = nodes.geometry.getAttribute('aActivation');
+    publishCognition({ type: 'agent-dispatch', detail: 'tool engaged: create_file', source: 'fixture-test' });
+    // Preserve the existing60Hz response: after half a second, the activated
+    // hub retains about11.34% energy regardless of the display's refresh rate.
+    for (let tick = 0; tick < hz / 2; tick++) frame(1 / hz);
+    expect(activation.getX(2)).toBeCloseTo(0.11336747, 5);
+    expect(activation.getX(0)).toBe(0);
+    for (let tick = 0; tick < hz; tick++) frame(1 / hz);
+    expect(Array.from(activation.array).every(value => value === 0)).toBe(true);
+  });
+});
+
+it('does not age a newly admitted regional light on a zero-time paint', async () => {
+  await withLattice('high', (nodes, _scene, frame) => {
+    publishCognition({ type: 'agent-dispatch', detail: 'tool engaged: create_file', source: 'fixture-test' });
+    frame(0);
+    expect(nodes.geometry.getAttribute('aActivation').getX(2)).toBe(1);
+  });
+});
+
+it('does not charge a fresh regional light for the quiet interval before its admission', async () => {
+  await withLattice('high', (nodes, _scene, frame) => {
+    // The real scheduler next sees a10-second delta, but this event arrives
+    // just before that paint. Its measured local age is zero, not10seconds.
+    frame(10, () => publishCognition({ type: 'agent-dispatch', detail: 'tool engaged: create_file', source: 'fixture-test' }));
+    const activation = nodes.geometry.getAttribute('aActivation');
+    expect(activation.getX(2)).toBe(1);
+    frame(0.5);
+    expect(activation.getX(2)).toBeCloseTo(0.11336747, 5);
+  });
+});
+
+it('refreshes a repeated regional event even when no intervening paint aged the prior one', async () => {
+  await withLattice('high', (nodes, _scene, frame) => {
+    const event = { type: 'agent-dispatch' as const, detail: 'tool engaged: create_file', source: 'fixture-test' };
+    publishCognition(event);
+    frame(0);
+    frame(10, () => publishCognition(event));
+    expect(nodes.geometry.getAttribute('aActivation').getX(2)).toBe(1);
+  });
+});
+
+it('keeps stronger regional light while admitting a weaker whole-body event', async () => {
+  await withLattice('high', (nodes, _scene, frame) => {
+    publishCognition({ type: 'agent-dispatch', detail: 'tool engaged: create_file', source: 'fixture-test' });
+    frame(0.05);
+    frame(0.05, () => publishCognition({ type: 'directive', source: 'fixture-test' }));
+    const activation = nodes.geometry.getAttribute('aActivation');
+    expect(activation.getX(2)).toBeCloseTo(0.64699018, 5);
+    expect(activation.getX(0)).toBeCloseTo(0.6, 5);
   });
 });

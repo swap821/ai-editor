@@ -1,17 +1,20 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import type { ExperienceMode } from './experienceMode';
 import { getMirrorConnectionCopy } from './mirrorConnectionCopy';
 import { useMirrorStore } from '../superbrain/lib/mirrorStore';
 import { startMirrorClient, stopMirrorClient } from '../superbrain/lib/aiosMirror';
+import { RenderingQualityControls } from './RenderingQualityControls';
 
 const COMPACT_CONNECTION_QUERY = '(max-width: 767px)';
 
 type MirrorConnectionNoticeProps = {
   experienceMode?: ExperienceMode;
   onOpenAuthority?: (trigger: HTMLButtonElement) => void;
+  detailsHost?: HTMLElement | null;
 };
 
-export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuthority }: MirrorConnectionNoticeProps) {
+export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuthority, detailsHost = null }: MirrorConnectionNoticeProps) {
   const mirror = useMirrorStore();
   const copy = getMirrorConnectionCopy(mirror, experienceMode);
   const [detailsOpen, setDetailsOpen] = useState(() => (
@@ -34,6 +37,17 @@ export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuth
     void startMirrorClient();
   };
 
+  const connectionDetails = <details className="lm-connection__details" open={detailsOpen}
+    onToggle={(event) => setDetailsOpen(event.currentTarget.open)}>
+    <summary>More connection details</summary>
+    <span className="lm-connection__detail-content">
+      <span className="lm-connection__detail">{copy.detail}</span>
+      {experienceMode === 'expert' ? <span className="lm-connection__technical">{copy.technical}</span> : null}
+      {mirror.snapshotReceivedAt ? <span className="lm-connection__snapshot">Snapshot {new Date(mirror.snapshotReceivedAt).toLocaleTimeString()}</span> : null}
+      {mirror.compatibility ? <span>{mirror.compatibility}</span> : null}
+      <RenderingQualityControls />
+    </span>
+  </details>;
   return (
     <div
       className={`lm-connection lm-connection--${copy.tone}`}
@@ -44,21 +58,7 @@ export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuth
       <span className="lm-connection__signal" aria-hidden="true" />
       <div className="lm-connection__message">
         <strong>{copy.label}</strong>
-        <details
-          className="lm-connection__details"
-          open={detailsOpen}
-          onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
-        >
-          <summary>More connection details</summary>
-          <span className="lm-connection__detail-content">
-            <span className="lm-connection__detail">{copy.detail}</span>
-            {experienceMode === 'expert' ? <span className="lm-connection__technical">{copy.technical}</span> : null}
-            {mirror.snapshotReceivedAt ? (
-              <span className="lm-connection__snapshot">Snapshot {new Date(mirror.snapshotReceivedAt).toLocaleTimeString()}</span>
-            ) : null}
-            {mirror.compatibility ? <span>{mirror.compatibility}</span> : null}
-          </span>
-        </details>
+        {detailsHost ? createPortal(connectionDetails, detailsHost) : connectionDetails}
       </div>
       <div className="lm-connection__actions">
         {copy.canRetry ? <button type="button" onClick={retry}>Try again</button> : null}

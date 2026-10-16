@@ -1,0 +1,64 @@
+/* Compact working layout. No palette, art or desktop policy change. */
+@media (max-width: 767px) {
+  .lm-app.lm-compact-working-chrome[data-working="true"][data-experience-mode] .lm-shell .lm-header {
+    top: calc(8px + var(--lm-safe-area-top));
+    left: max(12px, var(--lm-safe-area-left));
+    right: calc(84px + var(--lm-safe-area-right));
+    z-index: 50;
+  }
+  .lm-compact-working-chrome .lm-header .lm-brand,
+  .lm-compact-working-chrome .lm-workspace-rail { display: none; }
+  .lm-compact-more {
+    position: absolute;
+    top: calc(8px + var(--lm-safe-area-top));
+    right: max(12px, var(--lm-safe-area-right));
+    z-index: 48;
+    pointer-events: auto;
+    color: var(--lm-text);
+    font: 400 14px/1.4 var(--font-inter), sans-serif;
+  }
+  .lm-compact-more > summary {
+    display: flex; align-items: center; justify-content: center;
+    min-width: 64px; min-height: 44px; padding: 0 8px;
+    border: 1px solid var(--lm-line); border-radius: 8px;
+    background: var(--lm-canvas); cursor: pointer; list-style: none;
+  }
+  .lm-compact-more > summary::-webkit-details-marker { display: none; }
+  .lm-compact-more > summary[aria-disabled="true"] { opacity: .5; cursor: default; }
+  .lm-compact-more :focus-visible { outline: 2px solid var(--lm-cyan); outline-offset: -3px; }
+  .lm-compact-more__content {
+    position: absolute; top: calc(100% + 8px); right: 0;
+    width: min(340px, calc(100vw - 24px)); box-sizing: border-box;
+    overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin;
+    padding: 8px; border: 1px solid var(--lm-line); border-radius: 8px;
+    background: var(--lm-surface);
+  }
+  .lm-compact-more__slots { display: grid; gap: 8px; }
+  .lm-app.lm-compact-working-chrome .lm-compact-more .gagos-experience-switch {
+    position: static; transform: none; width: auto; margin-bottom: 8px;
+    display: flex; flex-wrap: wrap; pointer-events: auto;
+  }
+  .lm-app.lm-compact-working-chrome .lm-compact-more .lm-navigation {
+    display: grid; position: static; visibility: visible; padding: 0;
+    grid-template-columns: minmax(0, 1fr); gap: 4px;
+  }
+  .lm-compact-more button, .lm-compact-more select {
+    font: inherit; min-height: 44px; min-width: 44px;
+    border: 1px solid var(--lm-line); border-radius: 6px;
+    background: var(--lm-canvas); color: var(--lm-text); padding: 8px;
+  }
+  .lm-compact-more button[aria-current="page"] { border-color: var(--lm-cyan); }
+  .lm-compact-more summary { min-height: 44px; }
+  .lm-compact-more .lm-expert-mobile-surfaces__groups,
+  .lm-compact-more .lm-expert-mobile-surface-group__items {
+    position: static; max-height: none; overflow: visible;
+    width: auto; padding: 4px 0; border: 0; box-shadow: none;
+  }
+  .lm-compact-more .lm-expert-mobile-surfaces__groups button { width: 100%; }
+  .lm-app.lm-compact-working-chrome[data-working="true"][data-experience-mode]:not([data-keyboard-open="true"]) .gagos-chat {
+    bottom: calc(64px + var(--lm-safe-area-bottom));
+  }
+  .lm-app.lm-compact-working-chrome[data-working="true"][data-experience-mode] .lm-connection {
+    min-height: 44px; max-height: 48px; padding-block: 2px;
+  }
+}

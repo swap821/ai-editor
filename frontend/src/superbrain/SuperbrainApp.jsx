@@ -1,12 +1,14 @@
 /** One operational shell, one conversation owner, and the preserved connected organism. */
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import BootSequence from '@/components/ui/BootSequence';
 import GagosChrome from '../workbench/GagosChrome';
 import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
 import { LivingWorkspaceShell } from '../livingMirror/LivingWorkspaceShell';
 import { installKeyboardViewportTracking } from '../livingMirror/keyboardViewport';
 import { installWorkspaceDockTracking } from '../livingMirror/workspaceDock';
+import { captureCompactControlFocus, restoreCompactControlFocus } from '../livingMirror/compactChromeFocus';
 import { readExperienceMode, writeExperienceMode } from '../livingMirror/experienceMode';
+import { isWorkspacePanelVisible } from '../livingMirror/experience/workspaceVisibility';
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
 import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
@@ -23,17 +25,26 @@ import {
 import { startMirrorClient, stopMirrorClient } from './lib/aiosMirror';
 import { useTabStore } from './lib/tabStore';
 import { useMirrorStore } from './lib/mirrorStore';
+import { QualityTierProvider } from './components/QualityTierProvider';
 import './superbrain.css';
+import '../livingMirror/compactWorkingChrome.css';
 
 const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas'));
 
 export default function SuperbrainApp() {
+  // Preference lifetime belongs to the app, not a replaceable GL context.
+  return <QualityTierProvider><SuperbrainAppContent /></QualityTierProvider>;
+}
+
+function SuperbrainAppContent() {
   const [booted, setBooted] = useState(false);
   const [experienceMode, setExperienceMode] = useState(() => readExperienceMode());
-  const [inputDraftPresent, setInputDraftPresent] = useState(false);
+  const [inputAttentionActive, setInputAttentionActive] = useState(false);
   const [beingFocused, setBeingFocused] = useState(false);
   const [canvasContextLost, setCanvasContextLost] = useState(false);
   const [rendererRestartKey, setRendererRestartKey] = useState(0);
+  const [compactViewport, setCompactViewport] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches);
+  const [compactControlsHost, setCompactControlsHost] = useState(null);
   const snapshot = useTabStore();
   const being = useBeingPresentation();
   const physical = useMemo(() => derivePhysicalSnapshot(being), [being]);
@@ -41,16 +52,60 @@ export default function SuperbrainApp() {
   const measuredAttentionRef = useRef(null);
   const canvasContextLostRef = useRef(false);
   const appRootRef = useRef(null);
+  const compactControlFocusRef = useRef(null);
+  const lastCompactControlFocusRef = useRef(null);
+  const conversationInputRef = useRef(null);
   const workspaceConnectionRef = useRef(null);
-  const working = snapshot.panels?.some((p) => p.id === snapshot.focusId && p.open)
+  // One renderer-local measured target shared with its existing connection.
+  // It carries no user text, task activity, capability or authority.
+  const attentionTargetRef = useRef(null);
+  const working = snapshot.panels?.some((p) => p.id === snapshot.focusId && p.open && isWorkspacePanelVisible(p, experienceMode))
     || snapshot.tabs.some((t) => t.id === snapshot.focusId && t.kind === 'content' && t.lifecycle !== 'retracting');
+  const compactWorking = compactViewport && working;
+  useEffect(() => {
+    if (typeof window.matchMedia !== 'function') return undefined;
+    const query = window.matchMedia('(max-width: 767px)');
+    let previous = query.matches;
+    const sync = () => {
+      if (query.matches !== previous) compactControlFocusRef.current = captureCompactControlFocus(appRootRef.current, lastCompactControlFocusRef.current);
+      previous = query.matches;
+      setCompactViewport(query.matches);
+    };
+    const clearLastFocus = () => { lastCompactControlFocusRef.current = null; };
+    const ownerDocument = appRootRef.current?.ownerDocument;
+    const rememberFocus = () => { lastCompactControlFocusRef.current = captureCompactControlFocus(appRootRef.current); };
+    const clearPointerAway = (event) => {
+      if (!(event.target instanceof Node) || !lastCompactControlFocusRef.current?.previous.contains(event.target)) clearLastFocus();
+    };
+    sync(); query.addEventListener('change', sync);
+    window.addEventListener('blur', clearLastFocus);
+    ownerDocument?.addEventListener('pointerdown', clearPointerAway, true);
+    ownerDocument?.addEventListener('focusin', rememberFocus, true);
+    return () => {
+      query.removeEventListener('change', sync);
+      window.removeEventListener('blur', clearLastFocus);
+      ownerDocument?.removeEventListener('pointerdown', clearPointerAway, true);
+      ownerDocument?.removeEventListener('focusin', rememberFocus, true);
+      clearLastFocus();
+    };
+  }, []);
+  useLayoutEffect(() => {
+    // Portal destinations settle in a second commit on folding. Wait for the
+    // actual slot; otherwise diagnostics would be focused before moving again.
+    if (!compactControlFocusRef.current || (compactWorking && !compactControlsHost)) return;
+    restoreCompactControlFocus(appRootRef.current, compactControlFocusRef.current);
+    compactControlFocusRef.current = null;
+  }, [compactWorking, compactControlsHost]);
   const handleBootComplete = useCallback(() => setBooted(true), []);
   const handleExperienceModeChange = useCallback((nextMode) => {
     writeExperienceMode(nextMode);
     setExperienceMode(nextMode);
   }, []);
-  const handleDraftPresenceChange = useCallback((present) => {
-    setInputDraftPresent(present === true);
+  const handleInputAttentionChange = useCallback((active) => {
+    setInputAttentionActive(active === true);
+  }, []);
+  const handleReturnToConversation = useCallback(() => {
+    conversationInputRef.current?.focus({ preventScroll: true });
   }, []);
   const handleRendererRetry = useCallback(() => {
     if (canvasContextLostRef.current) {
@@ -165,7 +220,8 @@ export default function SuperbrainApp() {
   useEffect(() => { void startMirrorClient(); return stopMirrorClient; }, []);
   return <div
     ref={appRootRef}
-    className="lm-app"
+    className={`lm-app${compactWorking ? ' lm-compact-working-chrome' : ''}`}
+    style={compactWorking ? { '--lm-active-presence-top': 'calc(64px + var(--lm-safe-area-top))' } : undefined}
     data-working={working ? 'true' : 'false'}
     data-experience-mode={experienceMode}
     data-being-phase={being.phase}
@@ -182,13 +238,13 @@ export default function SuperbrainApp() {
     <div className="lm-stage">{canvasContextLost ? null : (
       <RendererFailureBoundary onRetry={handleRendererRetry}>
         <Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
-          <WorkspaceCanvas key={rendererRestartKey} booted={booted} physical={physical}>
+          <WorkspaceCanvas key={rendererRestartKey} booted={booted} physical={physical} inputAttentionActive={inputAttentionActive} attentionTargetRef={attentionTargetRef}>
           <SuperbrainReactiveEffects
             presentationOverride={being}
             physicalOverride={physical}
-            inputDraftPresent={inputDraftPresent}
+            inputAttentionActive={inputAttentionActive}
           />
-          <WorkspaceConnectionProjection overlayRef={workspaceConnectionRef} snapshot={snapshot} />
+          <WorkspaceConnectionProjection overlayRef={workspaceConnectionRef} snapshot={snapshot} attentionTargetRef={attentionTargetRef} />
           </WorkspaceCanvas>
         </Suspense>
       </RendererFailureBoundary>
@@ -198,10 +254,15 @@ export default function SuperbrainApp() {
       integrated
       experienceMode={experienceMode}
       onExperienceModeChange={handleExperienceModeChange}
-      onDraftPresenceChange={handleDraftPresenceChange}
+      onInputAttentionChange={handleInputAttentionChange}
+      conversationInputRef={conversationInputRef}
       beingFocused={beingFocused}
       onBeingFocusChange={setBeingFocused}
+      compactWorkingChrome={compactWorking}
+      onCompactControlsHost={setCompactControlsHost}
     /></main>
-    <LivingWorkspaceShell experienceMode={experienceMode} />
+    <LivingWorkspaceShell experienceMode={experienceMode} onReturnToConversation={handleReturnToConversation}
+      compactWorkingChrome
+      compactControlsHost={compactWorking ? compactControlsHost : null} />
   </div>;
 }

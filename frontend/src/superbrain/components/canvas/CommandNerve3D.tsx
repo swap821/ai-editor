@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { getFunnelAnchor } from '@/lib/funnelAnchorBus';
 import { getWeather, installWeather, phaseHueOf } from '@/lib/phaseWeather';
@@ -34,9 +34,12 @@ const _convNdc = new THREE.Vector3();
 const _btn = new THREE.Vector3();
 const _c1 = new THREE.Vector3();
 const _c2 = new THREE.Vector3();
+const _controlNdc = new THREE.Vector3();
+const _clearance = new THREE.Vector3();
+const _cameraRight = new THREE.Vector3();
+const _cameraUp = new THREE.Vector3();
+const INTERIOR_CONTROLS = [_c1, _c2];
 const _beadPos = new THREE.Vector3();
-const _lastBtn = new THREE.Vector3(1e9, 1e9, 1e9);
-const _lastConv = new THREE.Vector3(1e9, 1e9, 1e9);
 const REBUILD_EPS = 0.004; // world units — rebuild the tube only when an endpoint moved enough
 
 // PHASE CHORD (B2): damp targets for the intake nerve's phase tint — module
@@ -51,6 +54,7 @@ interface CommandNerve3DProps {
 
 export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
   const meshRef = useRef<THREE.Mesh>(null);
+  const ownedTube = useRef<THREE.TubeGeometry | null>(null);
   const tubeMatRef = useRef<THREE.MeshStandardMaterial>(null);
   const btnNodeRef = useRef<THREE.Group>(null);
   const cordNodeRef = useRef<THREE.Group>(null);
@@ -59,14 +63,29 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
   const driveRef = useRef(0); // damped channel liveliness (0..1)
   const flowRef = useRef(0); // damped bead flow (0..1)
   const beadTRef = useRef(0); // bead travel phase
-  const curveRef = useRef<THREE.CatmullRomCurve3>(
-    new THREE.CatmullRomCurve3([
+  // Geometry belongs to this renderer. A replacement at identical endpoints
+  // must build its own tube, not inherit another root's rebuild cache.
+  const lastBtn = useRef(new THREE.Vector3(1e9, 1e9, 1e9));
+  const lastConv = useRef(new THREE.Vector3(1e9, 1e9, 1e9));
+  const lastProjection = useRef(new THREE.Matrix4());
+  const lastCameraWorld = useRef(new THREE.Matrix4());
+  // A convex control hull cannot overshoot its last bend below the canvas as
+  // Catmull-Rom did. The same endpoints and vertical cauda approach remain.
+  const curveRef = useRef<THREE.CubicBezierCurve3>(
+    new THREE.CubicBezierCurve3(
       new THREE.Vector3(),
       new THREE.Vector3(),
       new THREE.Vector3(),
       new THREE.Vector3(),
-    ]),
+    ),
   );
+
+  // R3F owns the JSX placeholder, not the imperative generated replacement.
+  // Release our final generation when this subtree leaves a surviving canvas.
+  useLayoutEffect(() => () => {
+    ownedTube.current?.dispose();
+    ownedTube.current = null;
+  }, []);
 
   useFrame((state, delta) => {
     const mesh = meshRef.current;
@@ -90,6 +109,8 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
       tubeMatRef.current.color.lerp(NERVE_TINT_TARGET, Math.min(1, delta * 2.5));
     }
     const funnel = getFunnelAnchor();
+    const presence = funnel.presence === undefined ? 1
+      : Number.isFinite(funnel.presence) ? THREE.MathUtils.clamp(funnel.presence, 0, 1) : 0;
     const sendBtn = typeof document !== 'undefined' ? document.querySelector('.gagos-send') : null;
 
     // damp the phase-driven channel toward its target every frame, so the nerve eases
@@ -111,7 +132,7 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
     const flow = flowRef.current;
 
     // fully gone (no being / off-screen / deep-work recede) → hide everything cheaply
-    if (!funnel.visible || !sendBtn || drive < 0.02) {
+    if (!funnel.visible || !sendBtn || drive < 0.02 || presence <= 0.02) {
       mesh.visible = false;
       if (btnNode) btnNode.visible = false;
       if (cordNode) cordNode.visible = false;
@@ -132,7 +153,7 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
 
     // CHANNEL GLOW scales with the phase drive: present+calm at rest, ablaze at intake.
     if (tubeMatRef.current) {
-      tubeMatRef.current.opacity = 0.05 + 0.9 * drive;
+      tubeMatRef.current.opacity = (0.05 + 0.9 * drive) * presence;
       tubeMatRef.current.emissiveIntensity = 1.1 + 0.85 * drive;
     }
 
@@ -140,7 +161,7 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
     // under reduced motion). The socket breathes a touch slower/deeper — the living mouth.
     const t = state.clock.elapsedTime;
     const breath = reducedMotion ? 0 : 1;
-    const nodeFade = 0.18 + 0.82 * drive;
+    const nodeFade = (0.18 + 0.82 * drive) * presence;
     if (btnNode) {
       btnNode.visible = true;
       btnNode.position.copy(_btn);
@@ -154,10 +175,60 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
       setGroupOpacity(cordNode, nodeFade);
     }
 
-    // COMMAND-BEADS: while the being is receiving you, pulses pour down the nerve from
-    // the -> button (u=0) INTO the socket (u=1) — "my words travel into its body."
+    // The interior clearance is camera-relative even when both world contacts
+    // stay still. Preserve endpoint hysteresis, but invalidate an old lens/pose.
+    if (
+      _btn.distanceToSquared(lastBtn.current) >= REBUILD_EPS * REBUILD_EPS ||
+      _conv.distanceToSquared(lastConv.current) >= REBUILD_EPS * REBUILD_EPS ||
+      !lastProjection.current.equals(state.camera.projectionMatrix) ||
+      !lastCameraWorld.current.equals(state.camera.matrixWorld)
+    ) {
+      lastBtn.current.copy(_btn);
+      lastConv.current.copy(_conv);
+      lastProjection.current.copy(state.camera.projectionMatrix);
+      lastCameraWorld.current.copy(state.camera.matrixWorld);
+
+      // Leave the button level, sweep across, then rise into the cauda from
+      // below. Keep the authored approach, without a spline's overshoot.
+      const dist = _btn.distanceTo(_conv);
+      _c1.lerpVectors(_btn, _conv, 0.36);
+      _c1.y -= dist * 0.08;
+      _c2.lerpVectors(_btn, _conv, 0.8);
+      _c2.x = _conv.x;
+      _c2.z = _conv.z;
+      _c2.y = _conv.y - dist * 0.14;
+
+      // Leave room for the tube's radial envelope in this camera's full-stage
+      // viewport, not just for its centerline. Only its two interior controls
+      // adapt near an edge; the DOM and anatomical contacts never move.
+      _cameraRight.setFromMatrixColumn(state.camera.matrixWorld, 0);
+      _cameraUp.setFromMatrixColumn(state.camera.matrixWorld, 1);
+      _clearance.copy(_conv).addScaledVector(_cameraRight, TUBE_RADIUS * 3)
+        .addScaledVector(_cameraUp, TUBE_RADIUS * 3).project(state.camera);
+      const padX = Math.abs(_clearance.x - _convNdc.x);
+      const padY = Math.abs(_clearance.y - _convNdc.y);
+      for (const control of INTERIOR_CONTROLS) {
+        _controlNdc.copy(control).project(state.camera);
+        _controlNdc.x = THREE.MathUtils.clamp(_controlNdc.x, -1 + padX, 1 - padX);
+        _controlNdc.y = THREE.MathUtils.clamp(_controlNdc.y, -1 + padY, 1 - padY);
+        control.copy(_controlNdc.unproject(state.camera));
+      }
+
+      const curve = curveRef.current;
+      curve.v0.copy(_btn);
+      curve.v1.copy(_c1);
+      curve.v2.copy(_c2);
+      curve.v3.copy(_conv);
+
+      const next = new THREE.TubeGeometry(curve, TUBE_SEGMENTS, TUBE_RADIUS, RADIAL_SEGMENTS, false);
+      ownedTube.current?.dispose();
+      ownedTube.current = next;
+      mesh.geometry = next;
+    }
+
+    // Update travelling words AFTER the current tube, including first paint
+    // and viewport changes. Retain the same clock, phase and pause policy.
     if (beadGroup) {
-      // Pause takes effect immediately, not after the damped flow fades out.
       const beadsLive = !reducedMotion && flow > 0.02;
       beadGroup.visible = beadsLive;
       if (beadsLive) {
@@ -169,44 +240,12 @@ export default function CommandNerve3D({ reducedMotion }: CommandNerve3DProps) {
           const u = (beadTRef.current + i / BEAD_COUNT) % 1;
           curve.getPoint(u, _beadPos);
           b.position.copy(_beadPos);
-          // fade in near the button, brightest mid-span, arrive into the socket
           const mat = b.material as THREE.MeshBasicMaterial;
-          mat.opacity = flow * Math.sin(u * Math.PI) * 0.95;
+          mat.opacity = flow * Math.sin(u * Math.PI) * 0.95 * presence;
           b.scale.setScalar(0.7 + 0.5 * Math.sin(u * Math.PI));
         }
       }
     }
-
-    // rebuild the tube only when an endpoint moved enough (the being sways every frame)
-    if (
-      _btn.distanceToSquared(_lastBtn) < REBUILD_EPS * REBUILD_EPS &&
-      _conv.distanceToSquared(_lastConv) < REBUILD_EPS * REBUILD_EPS
-    ) {
-      return;
-    }
-    _lastBtn.copy(_btn);
-    _lastConv.copy(_conv);
-
-    // A CLEAN, intentional arc (two interior control points): leave the button level,
-    // sweep across, then RISE STRAIGHT UP into the conus from directly below — so the
-    // nerve meets the cord vertically, like a willow root, not a tube poking in sideways.
-    const dist = _btn.distanceTo(_conv);
-    _c1.lerpVectors(_btn, _conv, 0.36);
-    _c1.y -= dist * 0.08;
-    _c2.lerpVectors(_btn, _conv, 0.8);
-    _c2.x = _conv.x; // straighten the approach so it rises vertically into the cord
-    _c2.z = _conv.z;
-    _c2.y = _conv.y - dist * 0.14; // sit the last control point BELOW the conus → vertical entry
-
-    const curve = curveRef.current;
-    curve.points[0].copy(_btn);
-    curve.points[1].copy(_c1);
-    curve.points[2].copy(_c2);
-    curve.points[3].copy(_conv);
-
-    const next = new THREE.TubeGeometry(curve, TUBE_SEGMENTS, TUBE_RADIUS, RADIAL_SEGMENTS, false);
-    mesh.geometry.dispose();
-    mesh.geometry = next;
   });
 
   return (

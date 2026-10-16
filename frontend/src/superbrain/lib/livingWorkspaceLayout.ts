@@ -46,6 +46,7 @@ export interface BrainPresenceLayout {
 }
 
 const ACTIVE_WORKSPACE_TARGET: Vec3Tuple = [0, -1.04, 0.82];
+export const WAITING_POINTS_SURFACE_SCALE = 0.36;
 
 const WAITING_SLOTS: readonly Vec3Tuple[] = [
   [1.36, -1.08, 0.18],
@@ -187,7 +188,7 @@ export function deriveLivingWorkspacePose(input: LivingWorkspacePoseInput): Livi
       // further back in depth — so they read as "at rest, idling" and never compete
       // with the dominant attended tab. Still nerve-tethered + visible.
       targetLocal: tuple(cx * (1 + ring * 0.1), cy - ring * 0.22, cz - 0.18 - ring * 0.12),
-      scale: round3(clamp(0.36 - ring * 0.05, 0.22, 0.36)),
+      scale: round3(clamp(WAITING_POINTS_SURFACE_SCALE - ring * 0.05, 0.22, WAITING_POINTS_SURFACE_SCALE)),
       opacity: round3(clamp(0.3 - ring * 0.08, 0.16, 0.3)),
       tubeOpacity: round3(clamp(0.32 - ring * 0.06, 0.16, 0.32)),
     };

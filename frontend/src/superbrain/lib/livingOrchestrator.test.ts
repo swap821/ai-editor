@@ -131,6 +131,38 @@ describe('livingOrchestrator', () => {
     expect(orchestration.attention).toBeNull();
   });
 
+
+  it.each([null, 'history-panel', 'removed-result'])('does not invent materialized focus for %s', (focusId) => {
+    const tabs = [tab('lower', 'content', 'live', 5), tab('upper', 'content', 'live', 2)];
+    const orchestration = deriveLivingOrchestration({
+      tabs,
+      focusId,
+      attention: { fromId: 'upper', toId: 'lower', direction: 'forward', startedAt: 10 },
+    });
+
+    expect(orchestration.focusId).toBeNull();
+    expect(orchestration.focusKind).toBeNull();
+    expect(orchestration.activeSeatIndex).toBeNull();
+    expect(orchestration.activeConductionIndex).toBe(-1);
+    expect(orchestration.attention).toBeNull();
+    expect(orchestration.workspaceCount).toBe(2);
+    expect(orchestration.conductorOrder).toEqual(['upper', 'lower']);
+    expect(orchestration.surfaces.map((surface) => [surface.tab.id, surface.role, surface.focused, surface.waitingIndex]))
+      .toEqual([['upper', 'waiting', false, 0], ['lower', 'waiting', false, 1]]);
+    expect(orchestration.surfaces.map((surface) => surface.tab)).toEqual([tabs[1], tabs[0]]);
+  });
+
+  it('drops a transfer whose destination is no longer the selected result', () => {
+    const orchestration = deriveLivingOrchestration({
+      tabs: [tab('upper', 'content', 'live', 2), tab('lower', 'content', 'live', 5)],
+      focusId: 'upper',
+      attention: { fromId: 'upper', toId: 'lower', direction: 'forward', startedAt: 10 },
+    });
+
+    expect(orchestration.focusId).toBe('upper');
+    expect(orchestration.attention).toBeNull();
+  });
+
   it('lets approval hold override ordinary conducting', () => {
     const orchestration = deriveLivingOrchestration({
       tabs: [tab('content-1', 'content', 'live', 2), tab('approval-1', 'approval', 'live', 3)],

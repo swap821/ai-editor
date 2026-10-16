@@ -129,7 +129,14 @@ export function GuidedApprovalPanel({
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    firstActionRef.current?.focus();
+    const action = firstActionRef.current;
+    const bounds = action?.getBoundingClientRect();
+    const viewport = window.visualViewport;
+    const visibleTop = viewport?.offsetTop ?? 0;
+    const visibleBottom = visibleTop + (viewport?.height ?? window.innerHeight);
+    // Preserve an already-visible decision/Stop composition. Still let the
+    // browser reveal a genuinely offscreen action (e.g. a short/IME viewport).
+    action?.focus({ preventScroll: !!bounds && bounds.top >= visibleTop && bounds.bottom <= visibleBottom });
     return () => {
       const previous = previousFocusRef.current;
       if (previous?.isConnected) previous.focus();
@@ -239,12 +246,14 @@ export function GuidedApprovalPanel({
     >
       <header className="approval-head">
         <span className="approval-title">GAGOS wants your permission</span>
-        <span id="guided-approval-summary" className="approval-summary">
-          It wants to {actionLabel(pending)}.
-        </span>
       </header>
 
       <div className="approval-body" role="region" aria-label="Permission request details" tabIndex={0}>
+        {/* Request-owned text belongs to the readable proposal; a long path
+            must not consume fixed decision chrome. Description IDs stay put. */}
+        <span id="guided-approval-summary" className="approval-summary">
+          It wants to {actionLabel(pending)}.
+        </span>
         <dl className="approval-human-facts" aria-label="Permission details">
           <div><dt>What</dt><dd>{actionLabel(pending)}</dd></div>
           <div><dt>Where</dt><dd>{pending.filepath || pending.url || 'No specific location is included in this approval record.'}</dd></div>

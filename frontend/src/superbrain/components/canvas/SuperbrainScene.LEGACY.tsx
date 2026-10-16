@@ -32,7 +32,7 @@ import MaterializationLayer from './MaterializationLayer';
 import DeliberationOverlay from '../../core/CorticalNerves/DeliberationOverlay';
 import { SubsystemErrorBoundary } from './SubsystemErrorBoundary';
 import { makeBrainMaterial } from '@/lib/brainMaterial';
-import { deriveBrainAttentionPosture } from '@/lib/brainAttentionPosture';
+import { deriveBrainAttentionPosture, type WorkPlaneAttentionTarget } from '@/lib/brainAttentionPosture';
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { deriveVoyageDrift } from '@/lib/voyageDrift';
 import { deriveOrganismCameraFrame } from '@/lib/organismCameraFrame';
@@ -40,10 +40,10 @@ import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
 import { getTurnMetabolismSnapshot, subscribeTurnMetabolism } from '@/lib/turnMetabolism';
-import { deriveBodyPosture, lifecyclePhaseForPhysicalProjection, postureColor01, POSTURE_DIAL, type PhysicalBodyProjection } from '@/lib/bodyPosture';
+import { bodyHoldForProjection, deriveBodyPosture, lifecyclePhaseForPhysicalProjection, postureColor01, POSTURE_DIAL, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, getEffectiveOrganismPhase } from '@/lib/conversationPhaseBus';
-import type { QualityTier } from '@/components/QualityTierProvider';
+import { useQualityTier, type QualityTier } from '@/components/QualityTierProvider';
 import { readBeingMode } from '@/lib/beingMode';
 import { setBrainDockScale } from '@/lib/spineFusionBus';
 import { useBodyWorldFrame } from '@/lib/useBodyWorldFrame';
@@ -106,6 +106,9 @@ export interface SuperbrainSceneProps {
   activity: number;
   /** Single product-derived semantic snapshot; optional only for standalone lab previews. */
   physical?: PhysicalBodyProjection;
+  /** Same local focus/capture cue consumed by the product cortical current. */
+  inputAttentionActive?: boolean;
+  attentionTargetRef?: MutableRefObject<WorkPlaneAttentionTarget | null>;
   /** Effective quality tier — governs particle counts, shells, and the
    *  cortex shader's octave/animation budget. */
   tier?: QualityTier;
@@ -699,6 +702,9 @@ export function BrainModel({
   surface = 'web',
   arrival,
   physical,
+  workPaneRef,
+  attentionTargetRef,
+  inputAttentionActive = false,
 }: {
   activity: number;
   mode: CognitiveMode;
@@ -707,11 +713,19 @@ export function BrainModel({
   tier?: QualityTier;
   surface?: BrainSurface;
   physical?: PhysicalBodyProjection;
+  /** Private measured body/reader separation; never operational/authority state. */
+  workPaneRef?: MutableRefObject<boolean>;
+  attentionTargetRef?: MutableRefObject<WorkPlaneAttentionTarget | null>;
+  inputAttentionActive?: boolean;
   /** Shared coalescence scalar (1 = arriving, 0 = settled) for the aura shells. */
   arrival: MutableRefObject<number>;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   useBodyWorldFrame(groupRef);
+  const quality = useQualityTier();
+  // Only the fused surface/spine point density adapts. Regional anatomy,
+  // signals, materials and authored semantics still use the structural tier.
+  const densityTier = quality.preference === 'auto' ? quality.autoProfile.densityTier : tier;
   const brainVisualRef = useRef<THREE.Group>(null);
   const dockYRef = useRef(0); // SOUL P1: eased rise so the brain crowns the top while orchestrating
   /** Damped pointer-attention lean (CURSOR_ATTENTION). */
@@ -720,8 +734,11 @@ export function BrainModel({
   const cursorAttnRef = useRef({ leanYaw: 0, leanPitch: 0, brighten: 0, awaken: 0 });
   /** Live voyage-drift snapshot for the __getVoyageDrift proof hook. */
   const voyageRef = useRef({ offsetX: 0, offsetY: 0, roll: 0, gain: 1 });
+  // Presentation-active time: a decision/pause cannot accumulate voyage travel
+  // that jumps into the body when released. No task or authority clock here.
+  const voyageTimeRef = useRef(0);
   const postureRef = useRef({ yaw: 0, pitch: 0, roll: 0, offsetX: 0, offsetY: 0, scaleBoost: 0 });
-  const { tabs, focusId, attention } = useTabStore();
+  const { tabs, focusId, attention, panels } = useTabStore();
   const { width: viewportWidth, height: viewportHeight } = useThree((state) => state.size);
   const orchestration = useMemo(
     () => deriveLivingOrchestration({ tabs, focusId, attention }),
@@ -729,6 +746,14 @@ export function BrainModel({
   );
   const workspaceCount = orchestration.workspaceCount;
   const approvalHeld = tabs.some((t) => t.kind === 'approval' && t.lifecycle !== 'retracting');
+  const bodyHeld = bodyHoldForProjection(physical, approvalHeld);
+  const bodyStopped = physical?.phase === 'stopped' || physical?.cortex.posture === 'stopped';
+  const postureTabs = useMemo(() => bodyStopped ? [] : bodyHeld
+    ? tabs.filter(tab => tab.kind === 'approval' && tab.lifecycle !== 'retracting' && Number.isInteger(tab.seatIndex))
+    : tabs, [bodyHeld, bodyStopped, tabs]);
+  const intakeAttentionActive = inputAttentionActive && !bodyHeld && !bodyStopped;
+  const focusedPanel = panels?.some(panel => panel.open && panel.id === focusId);
+  const pointerAttentionActive = !inputAttentionActive && !bodyHeld && !bodyStopped && !focusedPanel && !orchestration.focusId;
   const brainPresence = useMemo(
     () =>
       deriveBrainPresenceLayout({
@@ -848,12 +873,15 @@ export function BrainModel({
     /* ── Brain group animation ── */
     if (groupRef.current) {
       const postureTarget = deriveBrainAttentionPosture({
-        tabs,
-        focusId,
-        attention: orchestration.attention,
+        tabs: postureTabs,
+        panels: bodyHeld || bodyStopped ? undefined : panels,
+        inputAttentionActive: intakeAttentionActive,
+        planeTarget: attentionTargetRef ? attentionTargetRef.current : undefined,
+        focusId: bodyHeld ? postureTabs[0]?.id ?? null : focusId,
+        attention: bodyHeld || bodyStopped ? null : orchestration.attention,
         nowMs: typeof performance !== 'undefined' ? performance.now() : Date.now(),
       });
-      const postureMotionScale = reduceMotion ? 0.42 : 1;
+      const postureMotionScale = reduceMotion ? (BEING_MODE === 'points' ? 0 : 0.42) : 1;
       const postureFollow = reduceMotion ? 7.5 : 4.2;
       const posture = postureRef.current;
       posture.yaw = THREE.MathUtils.damp(posture.yaw, postureTarget.yaw * postureMotionScale, postureFollow, delta);
@@ -908,8 +936,8 @@ export function BrainModel({
         // contract (the cortex still warms via the brighten fold in BrainPointField).
         if (CURSOR_ATTENTION) {
           const attend = attendRef.current;
-          attend.x = THREE.MathUtils.damp(attend.x, state.pointer.x, 1.6, delta);
-          attend.y = THREE.MathUtils.damp(attend.y, state.pointer.y, 1.6, delta);
+          attend.x = THREE.MathUtils.damp(attend.x, pointerAttentionActive ? state.pointer.x : 0, 1.6, delta);
+          attend.y = THREE.MathUtils.damp(attend.y, pointerAttentionActive ? state.pointer.y : 0, 1.6, delta);
           const a = deriveCursorAttention({
             pointerX: attend.x,
             pointerY: attend.y,
@@ -921,6 +949,10 @@ export function BrainModel({
           groupRef.current.rotation.x += a.leanPitch * awakenLean;
           cursorAttnRef.current = { ...a, awaken: uniforms.uAwaken.value };
         }
+        // Point-field and fused cord share the same admitted workspace aim.
+        // A held approval outranks reader focus; do not rotate the cortex alone.
+        groupRef.current.rotation.y += posture.yaw;
+        groupRef.current.rotation.x += posture.pitch;
         // SOUL P1 (points orchestration): ease the WHOLE being UP while orchestrating
         // so the (shrinking) brain CROWNS the top with the spine descending into the
         // focus tab beneath it. mainBrainOffsetY is 0 at rest (position byte-identical
@@ -928,21 +960,25 @@ export function BrainModel({
         // together, so the rigid cord join is preserved — a whole-group lift, never an
         // independent brain bob. Previously the brain only shrank in place (the
         // composition-breaker the poster-gap audit flagged).
-        dockYRef.current = THREE.MathUtils.damp(dockYRef.current, brainPresence.mainBrainOffsetY, 2.5, delta);
+        dockYRef.current = THREE.MathUtils.damp(dockYRef.current, workPaneRef?.current ? 0 : brainPresence.mainBrainOffsetY, 2.5, delta);
         // THE BRAIN NEVER STOPS VOYAGING (north star): a perpetual gentle whole-body
         // drift + bank carries the being through the deep-vast void. Because brain +
         // spine are ONE group, the cord weld stays rigid (whole-body voyage, never an
         // independent bob). It VOYAGES at rest and STEADIES as it docks to orchestrate
         // (so the spine stays plumb in the focus tab) — voyageGain fades the travel in
         // as dockY rises. Reduced-motion zeroes it inside the contract.
-        const voyage = deriveVoyageDrift({ time, reducedMotion: reduceMotion });
+        // The existing selected reader owns attention too. Freeze only the
+        // voyage clock at its current pose, so returning to Conversation resumes
+        // calm travel without catching up elapsed reading time; breath stays live.
+        if (!inputAttentionActive && !focusedPanel && !orchestration.focusId && !bodyHeld && !bodyStopped && !reduceMotion) voyageTimeRef.current += delta;
+        const voyage = deriveVoyageDrift({ time: voyageTimeRef.current, reducedMotion: reduceMotion });
         const voyageGain = 1 - THREE.MathUtils.clamp(dockYRef.current / 1.6, 0, 0.85);
         groupRef.current.position.set(
           voyage.offsetX * voyageGain,
           0.12 + dockYRef.current + voyage.offsetY * voyageGain,
           -1.2,
         );
-        groupRef.current.rotation.z = voyage.roll * voyageGain;
+        groupRef.current.rotation.z = voyage.roll * voyageGain + posture.roll;
         voyageRef.current = { ...voyage, gain: Math.round(voyageGain * 10000) / 10000 };
       } else {
         // Hold a cinematic three-quarter silhouette instead of spinning into
@@ -988,7 +1024,10 @@ export function BrainModel({
     }
 
     if (brainVisualRef.current) {
-      const scale = THREE.MathUtils.damp(brainVisualRef.current.scale.x, brainPresence.mainBrainScale, 3.2, delta);
+      // The measured body-only pane already yields space to its DOM reader.
+      // Keep one full fused organism here; standalone choreography is
+      // unchanged, as are the semantic posture, hold and all attachment owners.
+      const scale = THREE.MathUtils.damp(brainVisualRef.current.scale.x, workPaneRef?.current ? 1 : brainPresence.mainBrainScale, 3.2, delta);
       brainVisualRef.current.scale.setScalar(scale);
       // SOUL P2: publish the eased dock scale so the work-tab nerves anchor on the
       // *visible* (shrunken) vertebrae (they render as a sibling of this scaled group).
@@ -1025,9 +1064,11 @@ export function BrainModel({
             source={brainAsset.object}
             uniforms={uniforms}
             physical={physical}
-            count={tier === 'high' ? 200000 : tier === 'medium' ? 60000 : 40000}
+            pointerAttentionActive={pointerAttentionActive}
+            intakeAttentionActive={intakeAttentionActive}
+            count={densityTier === 'high' ? 200000 : densityTier === 'medium' ? 60000 : 40000}
             spineScale={1 / BRAIN_SCALE}
-            spineCount={tier === 'high' ? 56000 : tier === 'medium' ? 18000 : 11000}
+            spineCount={densityTier === 'high' ? 56000 : densityTier === 'medium' ? 18000 : 11000}
           />
         )}
 
@@ -1062,7 +1103,7 @@ export function BrainModel({
             consumes uArrival/uBreath/uHold/uBurst from the shared uniforms; flip
             NODE_BRAIN off to remove it and restore the canon organ cortex. */}
         {NODE_BRAIN && (
-          <NodeLattice uniforms={uniforms} tier={tier} reducedMotion={reduceMotion} />
+          <NodeLattice uniforms={uniforms} tier={tier} reducedMotion={reduceMotion} physical={physical} />
         )}
         {/* MEMORY HALO (B4): pending fact proposals orbit the cortex as
             narrative-green motes — the operator's touch ABSORBS (approves,
@@ -1106,7 +1147,7 @@ export function PointerBrainClone({
   const groupRef = useRef<THREE.Group>(null);
   const materialOpacityRef = useRef(0);
   const postureRef = useRef({ pitch: 0, roll: 0, offsetX: 0, offsetY: 0, offsetZ: 0, scaleBoost: 0 });
-  const { tabs, focusId, attention } = useTabStore();
+  const { tabs, focusId, attention, panels } = useTabStore();
   const { width: viewportWidth, height: viewportHeight } = useThree((state) => state.size);
   const orchestration = useMemo(
     () => deriveLivingOrchestration({ tabs, focusId, attention }),
@@ -1173,6 +1214,7 @@ export function PointerBrainClone({
     if (!groupRef.current) return;
     const postureTarget = deriveBrainAttentionPosture({
       tabs,
+      panels,
       focusId,
       attention: orchestration.attention,
       nowMs: typeof performance !== 'undefined' ? performance.now() : Date.now(),
@@ -1321,9 +1363,11 @@ export function CameraDrift({
 export function OrganismFraming({
   controlsRef,
   phoneFocusRef,
+  workPaneRef,
 }: {
-  controlsRef: MutableRefObject<{ target: THREE.Vector3 } | null>;
+  controlsRef: MutableRefObject<{ target: THREE.Vector3; enabled?: boolean } | null>;
   phoneFocusRef?: MutableRefObject<boolean>;
+  workPaneRef?: MutableRefObject<boolean>;
 }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
@@ -1348,7 +1392,7 @@ export function OrganismFraming({
     const aspect = view?.enabled ? view.fullWidth / view.fullHeight
       : size.height > 0 ? size.width / size.height : 1.6;
     const frame = deriveOrganismCameraFrame({ aspect, activeSurfaceCount: workspaceCount,
-      phoneFocus: phoneFocusRef?.current });
+      phoneFocus: phoneFocusRef?.current, workPane: workPaneRef?.current });
     // Dev live-tuning dial for the operator's real device (overrides the derived frame).
     const dial =
       typeof window !== 'undefined'
@@ -1365,6 +1409,10 @@ export function OrganismFraming({
     const controls = controlsRef.current;
     if (controls) {
       controls.target.y = THREE.MathUtils.damp(controls.target.y, targetY, 3, delta);
+      // Disabled OrbitControls block gestures AND Drei's update callback.
+      // Keep this owner's damped framing target and camera aim in agreement
+      // without advancing retained orbit/damping momentum during input.
+      if (controls.enabled === false) cam.lookAt(controls.target);
     }
     liveRef.current = {
       fov: Math.round(cam.fov * 1000) / 1000,
