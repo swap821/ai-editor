@@ -40,10 +40,11 @@ export type BodySpeechSyncAction = 'skip' | 'sync' | 'force-resync';
 /** Pure decision for whether BodySpeech's renderer should (re)issue a troika
  *  sync this frame. `pending`/`pendingSinceMs` track whether a previously
  *  issued sync's completion callback has fired yet, and since when it hasn't —
- *  the caller only updates `pendingSinceMs` on the false->true transition, so
+ *  the caller updates `pendingSinceMs` on false->true or a forced fresh attempt, so
  *  it reflects how long the OLDEST unresolved attempt has been outstanding,
  *  not merely the most recent sync() call (text keeps changing every frame
- *  during normal streaming, which must not keep resetting the stall clock). */
+ *  during normal streaming, which must not keep resetting the stall clock).
+ *  A forced retry gets its own interval instead of retrying every next frame. */
 export function decideBodySpeechSync(
   visibleText: string,
   lastSyncedText: string,
@@ -68,7 +69,9 @@ export function deriveBodySpeech(input: BodySpeechInput): BodySpeechOutput {
   const { text, phase, sinceMs } = input;
   const trimmed = text.length > BODY_SPEECH_MAX_CHARS ? text.slice(text.length - BODY_SPEECH_MAX_CHARS) : text;
 
-  if (phase === 'idle' || (!trimmed && phase !== 'error')) {
+  // Empty failure has no words to show. Re-enabling the group would expose the
+  // previous glyph buffer while an empty async build is still pending.
+  if (phase === 'idle' || !trimmed) {
     return { visibleText: '', glow: 0, fade: 0, active: false };
   }
   if (phase === 'streaming') {

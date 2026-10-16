@@ -1,5 +1,7 @@
 # NODE-BRAIN RESEARCH — The Supercomputer Node-Lattice Inside the Brain Shape
 
+> Historical 2026-06-15 research, not current backend or release evidence. Current 2026-10-13 frontend implementation routes the existing body projection to regional firing/packet restraint; lab-first managed-source port is authoritative, not this historical hand-copy suggestion. No backend graph work was performed in this slice. [Current implementation, qualified scope and pending gates](../../docs/frontend/PHONE_PRESENCE_2026-10-07.md).
+
 > DEEP-RESEARCH ONLY. No code edited, no build run. Verified against the live tree on 2026-06-15.
 > Operator's vision: the cherished brain GLB **silhouette stays**; the **interior** changes from
 > organic cortex tissue → a living lattice of **glowing, colorful compute NODES** wired together

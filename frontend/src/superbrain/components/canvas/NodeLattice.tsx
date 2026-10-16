@@ -50,8 +50,15 @@ import { fetchFactGraph, getKnownTrails, subscribeTelemetry } from '@/lib/aiosAd
 import type { FactEdge, TrailRow } from '@/lib/aiosAdapter';
 import type { CognitionUniforms } from './SuperbrainScene.LEGACY';
 import type { QualityTier } from '@/components/QualityTierProvider';
+import { lifecyclePhaseForPhysicalProjection, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 
 const TAU = Math.PI * 2;
+
+// Existing60Hz response, evaluated in measured local milliseconds. Shared by
+// event admission and paints so an unpainted interval cannot hide a new cue.
+function decayRegionalLight(value: number, elapsedMs: number): number {
+  return value * Math.pow(0.93, Math.max(0, elapsedMs) * 0.06);
+}
 
 /* ---------------------------------------------------------------------------
  * Brain-group-local bounds of /models/brain.glb (root scale 0.01) — IDENTICAL
@@ -650,17 +657,22 @@ export default function NodeLattice({
   uniforms,
   tier = 'high',
   reducedMotion = false,
+  physical,
 }: {
   uniforms: CognitionUniforms;
   tier?: QualityTier;
   /** a11y: when true, packets freeze and coalescence is assembled (no travel). */
   reducedMotion?: boolean;
+  /** Existing admitted body projection; absent in the standalone lab. */
+  physical?: PhysicalBodyProjection;
 }) {
+  const cognitionAllowed = !physical || lifecyclePhaseForPhysicalProjection(physical) === 'working';
   // One shared lever the frame loop writes; both wire materials + the node
   // material read it. Snapping it (vs. a per-material literal) keeps the three
   // draw calls in lock-step and lets reduced-motion be honored live.
   const reducedMotionUniform = useRef({ value: reducedMotion ? 1 : 0 });
-  reducedMotionUniform.current.value = reducedMotion ? 1 : 0;
+  // Quiet product states keep the lit graph, not travelling compute packets.
+  reducedMotionUniform.current.value = reducedMotion || !cognitionAllowed ? 1 : 0;
 
   // ── REAL-DATA self-fetch ──────────────────────────────────────────────────
   // Mount once: try knowledge-graph, fall back to trails. If both are empty,
@@ -754,6 +766,7 @@ export default function NodeLattice({
     // node's hub runs its kind of real work, decayed each frame. Dynamic
     // instanced attribute the node shader reads as aActivation.
     const activationArr = new Float32Array(nodes.length);
+    const activationTimes = new Float64Array(nodes.length);
     const activationAttr = new THREE.InstancedBufferAttribute(activationArr, 1);
     activationAttr.setUsage(THREE.DynamicDrawUsage);
     nodeGeo.setAttribute('aActivation', activationAttr);
@@ -864,7 +877,7 @@ export default function NodeLattice({
 
     return {
       nodeMesh, nodeGeo, nodeMat, edgeMesh, edgeGeo, edgeMat, backboneMesh, backboneGeo, backboneMat,
-      activationArr, activationAttr, hubOfInstance,
+      activationArr, activationTimes, activationAttr, hubOfInstance,
     };
   }, [uniforms, tier, real]);
 
@@ -873,19 +886,30 @@ export default function NodeLattice({
   // frame. The lattice stays a pure SUBSCRIBER. useFrame is a no-op while idle.
   const firingRef = useRef(false);
   useEffect(() => {
-    const { activationArr, hubOfInstance } = built;
+    const { activationArr, activationTimes, activationAttr, hubOfInstance } = built;
+    if (!cognitionAllowed) {
+      // Retire previously admitted light as well as late legacy events. Keep
+      // the same topology/material/instance identity through hold and release.
+      activationArr.fill(0);
+      firingRef.current = false;
+      activationAttr.needsUpdate = true;
+      return;
+    }
     return subscribeCognition((event) => {
       const target = hubIndexForEvent(event);
       if (target === null) return;
       const amount = target === -1 ? 0.6 : 1.0;
+      const admittedAt = performance.now();
       for (let i = 0; i < activationArr.length; i++) {
-        if ((target === -1 || hubOfInstance[i] === target) && activationArr[i] < amount) {
-          activationArr[i] = amount;
+        if (target === -1 || hubOfInstance[i] === target) {
+          const remaining = decayRegionalLight(activationArr[i], admittedAt - activationTimes[i]);
+          activationArr[i] = Math.max(remaining, amount);
+          activationTimes[i] = admittedAt;
         }
       }
       firingRef.current = true;
     });
-  }, [built]);
+  }, [built, cognitionAllowed]);
 
   // Dev-only live tuning dial — mirrors window.__POINTFIELD for the point-field.
   // Tune the lattice vividness live in the operator's real-GPU browser, then
@@ -942,11 +966,18 @@ export default function NodeLattice({
 
   useFrame(() => {
     if (!firingRef.current) return;
-    const { activationArr, activationAttr } = built;
+    const { activationArr, activationTimes, activationAttr } = built;
+    // Preserve the existing60Hz response in elapsed seconds: a30Hz phone
+    // must not hold a regional light twice as long, nor120Hz extinguish it
+    // twice as fast. Use the measured local admission clock, not the entire
+    // renderer delta: its first paint may follow a long interval BEFORE the
+    // event arrived. No server timestamp or shader/ambient clock is involved.
+    const now = performance.now();
     let maxAct = 0;
     for (let i = 0; i < activationArr.length; i++) {
-      const a = activationArr[i] * 0.93; // ~0.5s firing pulse
+      const a = decayRegionalLight(activationArr[i], now - activationTimes[i]);
       activationArr[i] = a;
+      activationTimes[i] = now;
       if (a > maxAct) maxAct = a;
     }
     if (maxAct < 0.003) {

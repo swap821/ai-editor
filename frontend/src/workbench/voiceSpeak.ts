@@ -14,11 +14,13 @@ export interface VoiceSpeakState {
 
 const MUTE_KEY = 'gagos-voice-muted';
 
-let state: VoiceSpeakState = { supported: false, muted: false, speaking: false };
+let state: VoiceSpeakState = { supported: false, muted: true, speaking: false };
 const listeners = new Set<(s: VoiceSpeakState) => void>();
 let cognitionUnsub: (() => void) | null = null;
 let startCount = 0;
 let pendingText = '';
+// Loading/queued speech is cancellable, but is not yet observed playback.
+let pendingSpeech = false;
 let currentUtterance: SpeechSynthesisUtterance | null = null;
 let backendTTSEnabled = false;
 let audioCtx: AudioContext | null = null;
@@ -56,16 +58,16 @@ function isSupported(): boolean {
 
 function readMute(): boolean {
   try {
-    return window.localStorage.getItem(MUTE_KEY) === '1';
+    // Missing/legacy/unknown preference is not evidence of output opt-in.
+    return window.localStorage.getItem(MUTE_KEY) !== '0';
   } catch {
-    return false;
+    return true;
   }
 }
 
 function writeMute(muted: boolean): void {
   try {
-    if (muted) window.localStorage.setItem(MUTE_KEY, '1');
-    else window.localStorage.removeItem(MUTE_KEY);
+    window.localStorage.setItem(MUTE_KEY, muted ? '1' : '0');
   } catch {
     // storage may be blocked
   }
@@ -82,8 +84,11 @@ function selectVoice(): SpeechSynthesisVoice | undefined {
   );
 }
 
-function cancelSpeech(): void {
+function cancelSpeech(): boolean {
+  const wasSpeaking = state.speaking;
+  // Invalidate callbacks before cancel/stop: browsers may call them synchronously.
   speakGeneration += 1;
+  pendingSpeech = false;
   if (typeof window !== 'undefined' && window.speechSynthesis) {
     try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
   }
@@ -92,6 +97,8 @@ function cancelSpeech(): void {
     currentSource = null;
   }
   currentUtterance = null;
+  if (state.speaking) set({ speaking: false });
+  return wasSpeaking;
 }
 
 function publishSpeaking(text: string): void {
@@ -113,23 +120,31 @@ function publishSpeakingComplete(): void {
 }
 
 function speakViaBrowser(trimmed: string): void {
+  const myGeneration = speakGeneration;
   const utter = new window.SpeechSynthesisUtterance(trimmed);
+  currentUtterance = utter;
   const voice = selectVoice();
   if (voice) utter.voice = voice;
   utter.rate = 1;
   utter.pitch = 1;
   utter.onstart = () => {
-    currentUtterance = utter;
+    if (myGeneration !== speakGeneration || currentUtterance !== utter) return;
+    pendingSpeech = false;
     set({ speaking: true });
     publishSpeaking(trimmed);
   };
   utter.onend = () => {
-    if (currentUtterance === utter) currentUtterance = null;
+    if (myGeneration !== speakGeneration || currentUtterance !== utter) return;
+    currentUtterance = null;
+    pendingSpeech = false;
+    const wasSpeaking = state.speaking;
     set({ speaking: false });
-    publishSpeakingComplete();
+    if (wasSpeaking) publishSpeakingComplete();
   };
-  utter.onerror = () => {
-    if (currentUtterance === utter) currentUtterance = null;
+  const onError = () => {
+    if (myGeneration !== speakGeneration || currentUtterance !== utter) return;
+    currentUtterance = null;
+    pendingSpeech = false;
     set({ speaking: false });
     publishCognition({
       type: 'voice-speaking',
@@ -138,33 +153,38 @@ function speakViaBrowser(trimmed: string): void {
       data: { phase: 'error' },
     });
   };
-  window.speechSynthesis.speak(utter);
+  utter.onerror = onError;
+  try { window.speechSynthesis.speak(utter); } catch { onError(); }
 }
 
 function speakViaBackend(trimmed: string): void {
   const myGeneration = speakGeneration;
-  set({ speaking: true });
-  publishSpeaking(trimmed);
   speakText(trimmed)
     .then((buf) => {
+      if (myGeneration !== speakGeneration) return;
       if (!audioCtx) audioCtx = new AudioContext();
       return audioCtx.decodeAudioData(buf);
     })
     .then((decoded) => {
-      if (myGeneration !== speakGeneration) return; // superseded while decoding
+      if (myGeneration !== speakGeneration || !decoded) return; // superseded while decoding
       const src = audioCtx!.createBufferSource();
       currentSource = src;
       src.buffer = decoded;
       src.connect(audioCtx!.destination);
       src.onended = () => {
-        if (currentSource === src) currentSource = null;
+        if (myGeneration !== speakGeneration || currentSource !== src) return;
+        currentSource = null;
         set({ speaking: false });
         publishSpeakingComplete();
       };
       src.start();
+      pendingSpeech = false;
+      set({ speaking: true });
+      publishSpeaking(trimmed);
     })
     .catch(() => {
       if (myGeneration !== speakGeneration) return; // superseded; don't clobber the active call
+      currentSource = null;
       set({ speaking: false });
       speakViaBrowser(trimmed);
     });
@@ -173,6 +193,7 @@ function speakViaBackend(trimmed: string): void {
 function speak(text: string): void {
   if (!state.supported || state.muted || !text.trim()) return;
   cancelSpeech();
+  pendingSpeech = true;
   const trimmed = text.trim();
   if (backendTTSEnabled) {
     speakViaBackend(trimmed);
@@ -224,7 +245,7 @@ export function startVoiceSpeak(): () => void {
         cognitionUnsub();
         cognitionUnsub = null;
       }
-      cancelSpeech();
+      if (cancelSpeech()) publishSpeakingComplete();
       // Close the backend-TTS AudioContext (a separate context from
       // soundEngine.ts's own) when the last consumer unmounts, instead of
       // holding an audio device handle open for the life of the tab.
@@ -239,7 +260,7 @@ export function startVoiceSpeak(): () => void {
 export function setVoiceSpeakMuted(muted: boolean): void {
   writeMute(muted);
   set({ muted });
-  if (muted) cancelSpeech();
+  if (muted && cancelSpeech()) publishSpeakingComplete();
 }
 
 export function setBackendTTS(enabled: boolean): void {
@@ -247,10 +268,9 @@ export function setBackendTTS(enabled: boolean): void {
 }
 
 export function interruptSpeech(): void {
-  if (!state.speaking) return;
-  cancelSpeech();
-  set({ speaking: false });
-  publishSpeakingComplete();
+  if (!state.speaking && !pendingSpeech) return;
+  const wasSpeaking = cancelSpeech();
+  if (wasSpeaking) publishSpeakingComplete();
 }
 
 export function isVoiceSpeakMuted(): boolean {
@@ -272,9 +292,9 @@ export function subscribeVoiceSpeak(l: (s: VoiceSpeakState) => void): () => void
 export function useVoiceSpeak(): VoiceSpeakState {
   const [s, setS] = useState(getVoiceSpeakState);
   useEffect(() => {
-    setS(getVoiceSpeakState());
-    const stop = startVoiceSpeak();
     const unsub = subscribeVoiceSpeak(setS);
+    const stop = startVoiceSpeak();
+    setS(getVoiceSpeakState());
     return () => {
       unsub();
       stop();
@@ -284,7 +304,7 @@ export function useVoiceSpeak(): VoiceSpeakState {
 }
 
 export function __resetVoiceSpeakForTests(): void {
-  state = { supported: false, muted: false, speaking: false };
+  state = { supported: false, muted: true, speaking: false };
   listeners.clear();
   if (startCount > 0 && cognitionUnsub) {
     cognitionUnsub();
@@ -292,6 +312,7 @@ export function __resetVoiceSpeakForTests(): void {
   }
   startCount = 0;
   pendingText = '';
+  pendingSpeech = false;
   currentUtterance = null;
   currentSource = null;
   backendTTSEnabled = false;

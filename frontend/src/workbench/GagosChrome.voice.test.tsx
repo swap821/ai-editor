@@ -2,8 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { act } from 'react';
 import { __resetActiveBrainForTests } from '../superbrain/lib/activeBrain';
-import { __resetTabStoreForTests } from '../superbrain/lib/tabStore';
-import { __resetVoiceSpeakForTests } from './voiceSpeak';
+import { __resetTabStoreForTests, getTabStoreSnapshot } from '../superbrain/lib/tabStore';
+import { __resetVoiceSpeakForTests, getVoiceSpeakState, setVoiceSpeakMuted } from './voiceSpeak';
+import { publishCognition } from '../superbrain/lib/cognitionBus';
+import { __resetReplyVoiceForTests, getReplyVoice } from '../superbrain/lib/replyVoiceBus';
+import { deriveBodySpeech } from '../superbrain/lib/bodySpeech';
+import { dispatchLivingMirrorEvent } from '../superbrain/lib/livingMirrorRegistry';
+import { useMirrorStore } from '../superbrain/lib/mirrorStore';
+import { setEmergencyStopPresentation } from '../livingMirror/emergencyStopPresentation';
 
 const { sendDirective, sendVoiceTurn, approvePendingApproval, getLastEmittedCode, previewIntent, fetchOnboardingState, transcribeAudio, correctHumanState, isWorkIntent, recognitionProbe } = vi.hoisted(() => ({
   sendDirective: vi.fn().mockResolvedValue({ paused: false, answer: 'ok' }),
@@ -21,7 +27,13 @@ const { sendDirective, sendVoiceTurn, approvePendingApproval, getLastEmittedCode
   transcribeAudio: vi.fn().mockResolvedValue({ text: 'hello world', language: 'en', confidence: 0.95 }),
   correctHumanState: vi.fn().mockResolvedValue(true),
   isWorkIntent: vi.fn(() => true),
-  recognitionProbe: { current: null as { onresult: ((event: unknown) => void) | null } | null },
+  recognitionProbe: { current: null as {
+    onresult: ((event: unknown) => void) | null;
+    onstart: (() => void) | null;
+    onend: (() => void) | null;
+    onerror: ((event: { error?: string }) => void) | null;
+    start: () => void;
+  } | null },
 }));
 
 vi.mock('../superbrain/SuperbrainApp', () => ({
@@ -44,11 +56,17 @@ vi.mock('../superbrain/lib/aiosAdapter', async () => {
 
 describe('GagosChrome voice UX', () => {
   beforeEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     __resetActiveBrainForTests();
     __resetTabStoreForTests();
     __resetVoiceSpeakForTests();
+    __resetReplyVoiceForTests();
+    setEmergencyStopPresentation('unknown');
+    useMirrorStore.setState({ recentEvents: [], lastEventId: null,
+      lastTurnStartedEventId: null, lastVerificationEventId: null });
     sendDirective.mockClear();
-    sendVoiceTurn.mockClear().mockResolvedValue('ok');
+    sendVoiceTurn.mockReset().mockResolvedValue('ok');
     approvePendingApproval.mockClear().mockResolvedValue({ paused: false, ok: true, answer: 'approved' });
     transcribeAudio.mockClear();
     correctHumanState.mockClear().mockResolvedValue(true);
@@ -98,10 +116,185 @@ describe('GagosChrome voice UX', () => {
       onerror: (() => void) | null = null;
       constructor(text: string) { this.text = text; }
     });
+    vi.stubGlobal('fetch', vi.fn(async () => new Response('Unavailable test endpoint', { status: 503 })));
   });
 
   afterEach(() => {
     (window as unknown as { __clearApproval?: () => void }).__clearApproval?.();
+  });
+
+  it('acknowledges measured microphone capture without a focused input or submitted turn', async () => {
+    const reportInputAttention = vi.fn();
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome onInputAttentionChange={reportInputAttention} />);
+    fireEvent.click(screen.getByRole('checkbox', { name: /use browser recognition/i }));
+    await waitFor(() => expect(recognitionProbe.current).not.toBeNull());
+    const input = screen.getByLabelText('Talk to GAGOS');
+    const mic = screen.getByRole('button', { name: /hold to speak/i });
+    await act(async () => { fireEvent.pointerDown(mic); });
+    expect(reportInputAttention).toHaveBeenLastCalledWith(true);
+    expect(input).toHaveValue('');
+    expect(document.activeElement).not.toBe(input);
+    expect(sendDirective).not.toHaveBeenCalled();
+    expect(sendVoiceTurn).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.pointerUp(mic); });
+    expect(reportInputAttention.mock.calls).toEqual([[true], [false]]);
+  });
+
+  describe('actual capture-to-reply interruption', () => {
+    type Utterance = { onstart: (() => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
+    function installReplyOutput(playing: boolean) {
+      let utterance!: Utterance;
+      vi.stubGlobal('speechSynthesis', {
+        speak: vi.fn((next: Utterance) => { utterance = next; if (playing) next.onstart?.(); }),
+        cancel: vi.fn(), // Real browsers need not deliver onend when cancelled.
+        getVoices: vi.fn(() => []), pause: vi.fn(), resume: vi.fn(),
+      });
+      return () => utterance;
+    }
+    async function startReply() {
+      await act(async () => {
+        setVoiceSpeakMuted(false); // Explicit output opt-in, independent of the shipped default.
+        publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'A readable completed answer' } });
+        publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      });
+    }
+    async function consentToBrowserCapture() {
+      fireEvent.click(screen.getByRole('checkbox', { name: /use browser recognition/i }));
+      await waitFor(() => expect(recognitionProbe.current).not.toBeNull());
+      return recognitionProbe.current!;
+    }
+    function expectNoSubmittedAction() {
+      expect(sendDirective).not.toHaveBeenCalled();
+      expect(sendVoiceTurn).not.toHaveBeenCalled();
+      expect(approvePendingApproval).not.toHaveBeenCalled();
+    }
+
+    it.each([true, false])('confirmed browser capture interrupts playing=%s; request alone does not', async (playing) => {
+      const getUtterance = installReplyOutput(playing);
+      const { default: GagosChrome } = await import('./GagosChrome');
+      render(<GagosChrome />);
+      const recognition = await consentToBrowserCapture();
+      vi.spyOn(recognition, 'start').mockImplementation(() => {}); // Delay the external start event.
+      const input = screen.getByLabelText('Talk to GAGOS');
+      fireEvent.change(input, { target: { value: 'Keep this microphone draft unsent' } });
+      await startReply();
+      expect(getVoiceSpeakState().speaking).toBe(playing);
+      const beforeCapture = getReplyVoice();
+      expect(beforeCapture).toMatchObject({ phase: playing ? 'streaming' : 'complete', text: 'A readable completed answer' });
+      const mic = screen.getByRole('button', { name: /hold to speak/i });
+      await act(async () => { fireEvent.pointerDown(mic); });
+      expect(getVoiceSpeakState().speaking).toBe(playing);
+      expect(getReplyVoice()).toBe(beforeCapture);
+      await act(async () => { recognition.onstart?.(); });
+      expect(screen.getByRole('button', { name: 'Stop microphone' })).toBeInTheDocument();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'A readable completed answer' });
+      if (!playing) expect(getReplyVoice()).toBe(beforeCapture); // No fake end or renewed caption lease.
+      const afterCapture = getReplyVoice();
+      await act(async () => { getUtterance().onstart?.(); getUtterance().onend?.(); getUtterance().onerror?.(); });
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toBe(afterCapture);
+      expect(input).toHaveValue('Keep this microphone draft unsent');
+      expectNoSubmittedAction();
+      await act(async () => { fireEvent.pointerUp(mic); });
+    });
+
+    it.each(['released', 'route-disabled'])('ignores a delayed browser start from an abandoned capture: %s', async (cause) => {
+      installReplyOutput(true);
+      const reportInputAttention = vi.fn();
+      const { default: GagosChrome } = await import('./GagosChrome');
+      render(<GagosChrome onInputAttentionChange={reportInputAttention} />);
+      const recognition = await consentToBrowserCapture();
+      vi.spyOn(recognition, 'start').mockImplementation(() => {});
+      const input = screen.getByLabelText('Talk to GAGOS');
+      fireEvent.change(input, { target: { value: 'Keep the previous draft' } });
+      await startReply();
+      const beforeCapture = getReplyVoice();
+      const mic = screen.getByRole('button', { name: /hold to speak/i });
+      await act(async () => { fireEvent.pointerDown(mic); });
+      const delayedStart = recognition.onstart!;
+      await act(async () => {
+        if (cause === 'released') fireEvent.pointerUp(mic);
+        else fireEvent.click(screen.getByRole('checkbox', { name: /use browser recognition/i }));
+        delayedStart();
+      });
+      expect(screen.queryByRole('button', { name: 'Stop microphone' })).not.toBeInTheDocument();
+      expect(reportInputAttention).not.toHaveBeenCalledWith(true);
+      expect(getVoiceSpeakState().speaking).toBe(true);
+      expect(getReplyVoice()).toBe(beforeCapture);
+      expect(input).toHaveValue('Keep the previous draft');
+      expectNoSubmittedAction();
+    });
+
+    it('unavailable or refused browser capture retains playback, the caption and typed fallback', async () => {
+      installReplyOutput(true);
+      const { default: GagosChrome } = await import('./GagosChrome');
+      render(<GagosChrome />);
+      const input = screen.getByLabelText('Talk to GAGOS');
+      fireEvent.change(input, { target: { value: 'Typed input remains available' } });
+      await startReply();
+      const beforeCapture = getReplyVoice();
+      const mic = screen.getByRole('button', { name: /hold to speak/i });
+      await act(async () => { fireEvent.pointerDown(mic); fireEvent.pointerUp(mic); });
+      expect(getVoiceSpeakState().speaking).toBe(true);
+      expect(getReplyVoice()).toBe(beforeCapture);
+      const recognition = await consentToBrowserCapture();
+      vi.spyOn(recognition, 'start').mockImplementation(() => { throw new Error('Capture refused'); });
+      await act(async () => { fireEvent.pointerDown(mic); });
+      expect(screen.queryByRole('button', { name: 'Stop microphone' })).not.toBeInTheDocument();
+      expect(getVoiceSpeakState().speaking).toBe(true);
+      expect(getReplyVoice()).toBe(beforeCapture);
+      expect(input).toHaveValue('Typed input remains available');
+      expect(input).not.toBeDisabled();
+      expectNoSubmittedAction();
+    });
+
+    it.each([true, false])('successful local recording interrupts playing=%s, not a pending or denied permission request', async (playing) => {
+      const getUtterance = installReplyOutput(playing);
+      vi.stubGlobal('fetch', vi.fn(async (url) => String(url).endsWith('/api/v1/voice/models')
+        ? new Response(JSON.stringify({ stt: { enabled: true }, tts: { enabled: false } }), { status: 200 })
+        : new Response('Unavailable test endpoint', { status: 503 })));
+      let resolveCapture!: (stream: MediaStream) => void;
+      let rejectCapture!: (error: Error) => void;
+      const getUserMedia = vi.fn(() => new Promise<MediaStream>((resolve, reject) => { resolveCapture = resolve; rejectCapture = reject; }));
+      vi.stubGlobal('navigator', Object.assign(Object.create(navigator), { mediaDevices: { getUserMedia } }));
+      const track = { stop: vi.fn() };
+      const stream = { getTracks: () => [track] } as unknown as MediaStream;
+      vi.stubGlobal('MediaRecorder', class {
+        state = 'inactive'; mimeType = 'audio/webm';
+        ondataavailable = null; onerror = null; onstop: (() => void) | null = null;
+        static isTypeSupported() { return true; }
+        start() { this.state = 'recording'; }
+        stop() { this.state = 'inactive'; this.onstop?.(); }
+      });
+      const { default: GagosChrome } = await import('./GagosChrome');
+      render(<GagosChrome />);
+      await screen.findByText('Voice input ready');
+      const input = screen.getByLabelText('Talk to GAGOS');
+      fireEvent.change(input, { target: { value: 'Retain this local voice draft' } });
+      await startReply();
+      const beforeCapture = getReplyVoice();
+      const mic = screen.getByRole('button', { name: /hold to speak/i });
+      await act(async () => { fireEvent.pointerDown(mic); });
+      expect(getVoiceSpeakState().speaking).toBe(playing);
+      expect(getReplyVoice()).toBe(beforeCapture);
+      await act(async () => { rejectCapture(Object.assign(new Error('Denied'), { name: 'NotAllowedError' })); });
+      expect(screen.queryByRole('button', { name: 'Stop microphone' })).not.toBeInTheDocument();
+      expect(getVoiceSpeakState().speaking).toBe(playing);
+      expect(getReplyVoice()).toBe(beforeCapture);
+      await act(async () => { fireEvent.pointerDown(mic); resolveCapture(stream); });
+      expect(screen.getByRole('button', { name: 'Stop microphone' })).toBeInTheDocument();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'A readable completed answer' });
+      if (!playing) expect(getReplyVoice()).toBe(beforeCapture);
+      const afterCapture = getReplyVoice();
+      await act(async () => { getUtterance().onstart?.(); getUtterance().onend?.(); });
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toBe(afterCapture);
+      expect(input).toHaveValue('Retain this local voice draft');
+      expectNoSubmittedAction();
+    });
   });
 
   it('renders the language toggle button showing EN by default', async () => {
@@ -215,6 +408,7 @@ describe('GagosChrome voice UX', () => {
     render(<GagosChrome />);
 
     await act(async () => {
+      setVoiceSpeakMuted(false);
       publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Hi' } });
       publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
     });
@@ -223,6 +417,36 @@ describe('GagosChrome voice UX', () => {
       const speakerBtn = screen.getByRole('button', { name: /interrupt speech/i });
       expect(speakerBtn).toBeInTheDocument();
     });
+  });
+
+  it('voice output opt-in: the real speaker control starts quiet and explicitly enables subsequent playback', async () => {
+    vi.stubGlobal('speechSynthesis', {
+      speak: vi.fn((utter: { onstart?: () => void }) => utter.onstart?.()),
+      cancel: vi.fn(), getVoices: vi.fn(() => []), pause: vi.fn(), resume: vi.fn(),
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+    expect(getVoiceSpeakState().supported).toBe(true);
+    await screen.findByRole('button', { name: 'Unmute GAGOS voice' });
+    await act(async () => {
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'A silent readable answer' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    });
+    expect(getVoiceSpeakState()).toMatchObject({ muted: true, speaking: false });
+    expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'A silent readable answer' });
+    const control = screen.getByRole('button', { name: 'Unmute GAGOS voice' });
+    expect(control).toHaveAttribute('aria-pressed', 'true');
+    await act(async () => { fireEvent.click(control); });
+    expect(screen.getByRole('button', { name: 'Mute GAGOS voice' })).toHaveAttribute('aria-pressed', 'false');
+    await act(async () => {
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'An opted-in spoken answer' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    });
+    expect(screen.getByRole('button', { name: 'Interrupt speech' })).toBeInTheDocument();
+    expect(getVoiceSpeakState()).toMatchObject({ muted: false, speaking: true });
+    expect(sendDirective).not.toHaveBeenCalled();
+    expect(sendVoiceTurn).not.toHaveBeenCalled();
+    expect(approvePendingApproval).not.toHaveBeenCalled();
   });
 
   it('mic button receives --mic-level CSS variable', async () => {
@@ -357,6 +581,211 @@ describe('GagosChrome voice UX', () => {
     expect(screen.getByRole('log', { name: 'Conversation with GAGOS' })).toHaveTextContent(
       'GAGOS: Here is what I can help with.',
     );
+  });
+
+  it('real composer Stop retires the streaming caption, keeps prior answers and the unsent draft, and rejects late chunks', async () => {
+    isWorkIntent.mockReturnValue(false);
+    const firstAnswer = 'A completed answer remains readable.';
+    sendVoiceTurn.mockImplementationOnce(async (_text: string, opts: { onChunk: (text: string) => void }) => {
+      opts.onChunk(firstAnswer);
+      return firstAnswer;
+    });
+    let lateChunk!: (text: string) => void;
+    let resolveLate!: (text: string) => void;
+    let signal!: AbortSignal;
+    sendVoiceTurn.mockImplementationOnce((_text: string, opts: { onChunk: (text: string) => void; signal: AbortSignal }) => {
+      lateChunk = opts.onChunk;
+      signal = opts.signal;
+      opts.onChunk('An unfinished answer');
+      return new Promise<string>((resolve) => { resolveLate = resolve; });
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Explain the first idea' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    expect(screen.getByRole('log', { name: 'Conversation with GAGOS' })).toHaveTextContent(firstAnswer);
+    expect(deriveBodySpeech({ ...getReplyVoice(), sinceMs: 100, reducedMotion: false })).toMatchObject({ active: true, visibleText: firstAnswer });
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Explain the second idea' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    expect(getReplyVoice()).toMatchObject({ phase: 'streaming', text: 'An unfinished answer' });
+    fireEvent.change(input, { target: { value: 'Keep this draft unsent' } });
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Stop' })); });
+    expect(signal.aborted).toBe(true);
+    expect(deriveBodySpeech({ ...getReplyVoice(), sinceMs: 0, reducedMotion: false }).active).toBe(false);
+    expect(input).toHaveValue('Keep this draft unsent');
+    expect(screen.getByRole('log', { name: 'Conversation with GAGOS' })).toHaveTextContent(firstAnswer);
+    await act(async () => {
+      lateChunk('A late cancelled answer');
+      resolveLate('A late cancelled answer');
+    });
+    expect(getReplyVoice()).toMatchObject({ phase: 'idle', text: '' });
+    expect(screen.getByRole('log', { name: 'Conversation with GAGOS' })).not.toHaveTextContent('A late cancelled answer');
+    expect(input).toHaveValue('Keep this draft unsent');
+    expect(sendVoiceTurn).toHaveBeenCalledTimes(2);
+    expect(sendDirective).not.toHaveBeenCalled();
+  });
+
+  describe('canonical emergency Stop reaches the local reply owner', () => {
+    // Break caught: Stop observation cancels an old turn, but an already
+    // engaged latch still lets Enter/Send/Retry clear a draft and start a new
+    // model/work request. Exercise real UI/owner state, not the disabled label.
+    it.each([
+      ['Enter', false], ['Send', false], ['Retry', false],
+      ['Enter', true], ['Send', true], ['Retry', true],
+    ] as const)('keeps a new draft/history while already stopped: %s work=%s; Clear does not send it', async (entry, work) => {
+      isWorkIntent.mockReturnValue(false);
+      const oldAnswer = 'A completed answer remains in history.';
+      sendVoiceTurn.mockImplementation(async (_text: string, opts: { onChunk: (text: string) => void }) => {
+        opts.onChunk(oldAnswer); return oldAnswer;
+      });
+      const { default: GagosChrome } = await import('./GagosChrome');
+      render(<GagosChrome integrated />);
+      const input = screen.getByLabelText('Talk to GAGOS');
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'Explain the original idea' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+      });
+      if (entry === 'Retry') {
+        sendVoiceTurn.mockRejectedValueOnce(new Error('A fixture failure keeps its retry available'));
+        await act(async () => {
+          fireEvent.change(input, { target: { value: 'Explain the failed idea' } });
+          fireEvent.keyDown(input, { key: 'Enter' });
+        });
+        expect(screen.getByRole('button', { name: 'Retry: Explain the failed idea' })).toBeEnabled();
+      }
+      await act(async () => { setEmergencyStopPresentation('engaged'); });
+      const history = screen.getByRole('log', { name: 'Conversation with GAGOS' });
+      const historyBefore = history.textContent;
+      const draft = work ? 'Build a stopped draft without sending it' : 'Explain this stopped draft without sending it';
+      isWorkIntent.mockReturnValue(work);
+      await act(async () => { fireEvent.change(input, { target: { value: draft } }); });
+      await act(async () => {
+        if (entry === 'Enter') fireEvent.keyDown(input, { key: 'Enter' });
+        else fireEvent.click(screen.getByRole('button', {
+          name: entry === 'Send' ? 'Send' : 'Retry: Explain the failed idea',
+        }));
+      });
+      expect(input, 'a known Stop must not consume the draft or create a new turn').toHaveValue(draft);
+      expect(history.textContent).toBe(historyBefore);
+      expect(history).toHaveTextContent(oldAnswer);
+      expect(getReplyVoice()).toMatchObject({ phase: 'idle', text: '' });
+      expect(sendVoiceTurn).toHaveBeenCalledTimes(entry === 'Retry' ? 2 : 1);
+      expect(sendDirective).not.toHaveBeenCalled();
+      expect(approvePendingApproval).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+      expect(getTabStoreSnapshot().tabs.filter(tab => tab.kind === 'content')).toHaveLength(0);
+      expect(getTabStoreSnapshot().recoverableTabs ?? []).toHaveLength(0);
+      expect(screen.getByText(/new requests cannot be sent/i)).toBeInTheDocument();
+      await act(async () => { setEmergencyStopPresentation('clear'); });
+      expect(input).toHaveValue(draft);
+      expect(history.textContent).toBe(historyBefore);
+      expect(sendVoiceTurn).toHaveBeenCalledTimes(entry === 'Retry' ? 2 : 1);
+      expect(sendDirective).not.toHaveBeenCalled();
+      expect(screen.getByRole('button', { name: 'Send' })).toBeEnabled();
+      // Clear is not replay. A NEW deliberate action starts the next turn.
+      isWorkIntent.mockReturnValue(false);
+      sendVoiceTurn.mockImplementation(async (_text: string, opts: { onChunk: (text: string) => void }) => {
+        opts.onChunk('A new explicitly submitted answer.'); return 'A new explicitly submitted answer.';
+      });
+      await act(async () => { fireEvent.keyDown(input, { key: 'Enter' }); });
+      expect(input).toHaveValue('');
+      expect(history).toHaveTextContent(oldAnswer);
+      expect(history).toHaveTextContent('A new explicitly submitted answer.');
+      expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'A new explicitly submitted answer.' });
+      expect(sendDirective).not.toHaveBeenCalled();
+      expect(approvePendingApproval).not.toHaveBeenCalled();
+    });
+    it('an admitted Stop cancels the stream and caption without deleting prior answers or draft', async () => {
+      isWorkIntent.mockReturnValue(false);
+      const firstAnswer = 'A completed answer remains readable.';
+      sendVoiceTurn.mockImplementationOnce(async (_text: string, opts: { onChunk: (text: string) => void }) => {
+        opts.onChunk(firstAnswer); return firstAnswer;
+      });
+      let lateChunk!: (text: string) => void;
+      let resolveLate!: (text: string) => void;
+      let signal!: AbortSignal;
+      sendVoiceTurn.mockImplementationOnce((_text: string, opts: { onChunk: (text: string) => void; signal: AbortSignal }) => {
+        lateChunk = opts.onChunk; signal = opts.signal;
+        opts.onChunk('An unfinished answer');
+        return new Promise<string>(resolve => { resolveLate = resolve; });
+      });
+      const { default: GagosChrome } = await import('./GagosChrome');
+      render(<GagosChrome />);
+      const input = screen.getByLabelText('Talk to GAGOS');
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'Explain the first idea' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+      });
+      await act(async () => {
+        fireEvent.change(input, { target: { value: 'Explain the second idea' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+      });
+      expect(getReplyVoice()).toMatchObject({ phase: 'streaming', text: 'An unfinished answer' });
+      fireEvent.change(input, { target: { value: 'Keep this emergency draft unsent' } });
+      await act(async () => {
+        expect(dispatchLivingMirrorEvent({ id: 1, eventType: 'governance.emergency_stop.engaged',
+          canonical: { eventId: 'fixture-stop-1', eventType: 'governance.emergency_stop.engaged',
+            schema_version: '1', payload: { reason: 'Test-only observed stop' }, reason: 'Test-only observed stop' },
+          payload: { reason: 'Test-only observed stop' } })).toBe(true);
+      });
+      expect(signal.aborted, 'canonical Stop must cancel the same local stream').toBe(true);
+      expect(getReplyVoice()).toMatchObject({ phase: 'idle', text: '' });
+      expect(screen.getByRole('log', { name: 'Conversation with GAGOS' })).toHaveTextContent(firstAnswer);
+      expect(input).toHaveValue('Keep this emergency draft unsent');
+      await act(async () => { lateChunk('A late cancelled answer'); resolveLate('A late cancelled answer'); });
+      expect(getReplyVoice()).toMatchObject({ phase: 'idle', text: '' });
+      expect(screen.getByRole('log', { name: 'Conversation with GAGOS' })).not.toHaveTextContent('A late cancelled answer');
+      expect(sendVoiceTurn).toHaveBeenCalledTimes(2);
+      expect(sendDirective).not.toHaveBeenCalled();
+      expect(approvePendingApproval).not.toHaveBeenCalled();
+    });
+
+    it.each([true, false])('an observed Stop retires playing=%s after network completion and ignores stale audio callbacks', async playing => {
+      isWorkIntent.mockReturnValue(false);
+      const answer = 'A completed answer remains in the conversation.';
+      sendVoiceTurn.mockImplementation(async (_text: string, opts: { onChunk: (text: string) => void }) => {
+        opts.onChunk(answer); return answer;
+      });
+      let utterance!: { onstart: (() => void) | null; onend: (() => void) | null; onerror: (() => void) | null };
+      vi.stubGlobal('speechSynthesis', {
+        speak: (next: typeof utterance) => { utterance = next; if (playing) next.onstart?.(); },
+        cancel() {}, // Cancellation need not emit a browser callback.
+        getVoices: () => [], pause() {}, resume() {},
+      });
+      const { default: GagosChrome } = await import('./GagosChrome');
+      render(<GagosChrome />);
+      const input = screen.getByLabelText('Talk to GAGOS');
+      await act(async () => {
+        setVoiceSpeakMuted(false);
+        fireEvent.change(input, { target: { value: 'Explain this idea' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+      });
+      expect(utterance).toBeDefined();
+      expect(getVoiceSpeakState().speaking).toBe(playing);
+      expect(screen.queryByRole('button', { name: 'Stop' })).not.toBeInTheDocument(); // Network is already finished.
+      fireEvent.change(input, { target: { value: 'Retain this playback draft' } });
+      await act(async () => { setEmergencyStopPresentation('unknown'); });
+      expect(getVoiceSpeakState().speaking).toBe(playing); // Unknown is not a confirmed Stop.
+      await act(async () => { setEmergencyStopPresentation('engaged'); });
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toMatchObject({ phase: 'idle', text: '' });
+      await act(async () => {
+        utterance.onstart?.(); utterance.onend?.(); utterance.onerror?.();
+        setEmergencyStopPresentation('clear');
+      });
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toMatchObject({ phase: 'idle', text: '' }); // Clear must not restart retired output.
+      expect(screen.getByRole('log', { name: 'Conversation with GAGOS' })).toHaveTextContent(answer);
+      expect(input).toHaveValue('Retain this playback draft');
+      expect(sendVoiceTurn).toHaveBeenCalledTimes(1);
+      expect(sendDirective).not.toHaveBeenCalled();
+      expect(approvePendingApproval).not.toHaveBeenCalled();
+    });
   });
 
   it('organ 30: renders the human-state hint and submits a real correction', async () => {

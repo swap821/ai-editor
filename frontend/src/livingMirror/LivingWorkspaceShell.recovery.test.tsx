@@ -185,7 +185,8 @@ it('keeps the thirteenth result open when closed-result capacity is full rather 
       const tab = materialize(`saved-${n}.ts`, `saved content ${n}`);
       store.closeWorkspace(tab.id);
     }
-    materialize('current.ts', 'keep current readable');
+    const current = materialize('current.ts', 'keep current readable');
+    store.focusWorkspace(current.id);
   });
   fireEvent.click(screen.getByRole('button', { name: 'Close workspace' }));
   expect(screen.getByText('keep current readable')).toBeVisible();
@@ -261,6 +262,69 @@ it('makes recovery reachable from Guided conversation under the real production 
     expect(screen.getByText('readable result')).toBeVisible();
     expect(screen.getByRole('heading', { name: 'result.ts' })).toHaveFocus();
   } finally { style.remove(); }
+});
+
+it('reaches open Guided results from Conversation through the real Recent entry without resubmitting or losing a draft', async () => {
+  vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+    matches: query === '(max-width: 767px)', media: query,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(),
+  })));
+  await act(async () => { render(<><GagosChrome integrated experienceMode="beginner" /><LivingWorkspaceShell /></>); });
+  const draft = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(draft, { target: { value: 'keep this unsent' } });
+  draft.setSelectionRange(2, 9);
+  let first = '';
+  act(() => { first = materialize('first.ts').id; });
+  const code = screen.getByText('readable result');
+  act(() => { materialize('second.ts', 'other result'); store.focusWorkspace(null); });
+  expect(screen.queryByRole('region', { name: 'Selected workspace' })).not.toBeInTheDocument();
+  fireEvent.click(within(screen.getByRole('region', { name: 'Conversation' }))
+    .getByRole('button', { name: 'Recent activity' }));
+  expect(screen.getByRole('heading', { name: 'Recent activity', level: 2 })).toHaveFocus();
+  fireEvent.change(screen.getByRole('combobox', { name: 'Choose workspace' }), { target: { value: first } });
+  expect(screen.getByText('readable result')).toBe(code);
+  expect(code).toBeVisible();
+  expect(draft).toHaveValue('keep this unsent');
+  expect([draft.selectionStart, draft.selectionEnd]).toEqual([2, 9]);
+  expect(vi.mocked(fetch).mock.calls.some(([url]) => /agent|chat|execute|replay/.test(String(url)))).toBe(false);
+});
+
+it('keeps the Guided Recent entry scoped to visible work rather than hidden Expert panels', async () => {
+  vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+    matches: query === '(max-width: 767px)', media: query,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(),
+  })));
+  await act(async () => { render(<><GagosChrome integrated experienceMode="beginner" /><LivingWorkspaceShell /></>); });
+  const conversation = screen.getByRole('region', { name: 'Conversation' });
+  expect(within(conversation).queryByRole('button', { name: 'Recent activity' })).not.toBeInTheDocument();
+  act(() => { store.openWorkspacePanel('terminal', 'Terminal'); store.focusWorkspace(null); });
+  expect(within(conversation).queryByRole('button', { name: 'Recent activity' })).not.toBeInTheDocument();
+  act(() => { store.openWorkspacePanel('history', 'Recent activity'); store.focusWorkspace(null); });
+  fireEvent.click(within(conversation).getByRole('button', { name: 'Recent activity' }));
+  expect(screen.getByRole('heading', { name: 'Recent activity', level: 2 })).toHaveFocus();
+});
+
+it('reaches all open results from Guided Conversation even when every body anchor is occupied', async () => {
+  vi.stubGlobal('matchMedia', vi.fn((query: string) => ({
+    matches: query === '(max-width: 767px)', media: query,
+    addEventListener: vi.fn(), removeEventListener: vi.fn(),
+  })));
+  await act(async () => { render(<><GagosChrome integrated experienceMode="beginner" /><LivingWorkspaceShell /></>); });
+  let ids: string[] = [];
+  act(() => {
+    ids = Array.from({ length: 12 }, (_, index) => store.showContentSurface({
+      filepath: `full-${index}.ts`, code: `full result ${index}`, language: 'typescript',
+    }, { seatIndex: index }).id);
+    store.focusWorkspace(null);
+  });
+  fireEvent.click(within(screen.getByRole('region', { name: 'Conversation' }))
+    .getByRole('button', { name: 'Recent activity' }));
+  expect(store.getTabStoreSnapshot().panels?.find((panel) => panel.id === 'history')?.seatIndex).toBeNull();
+  const chooser = screen.getByRole('combobox', { name: 'Choose workspace' });
+  expect(within(chooser).getAllByRole('option')).toHaveLength(13);
+  fireEvent.change(chooser, { target: { value: ids[0] } });
+  expect(screen.getByText('full result 0')).toBeVisible();
+  expect(store.getTabStoreSnapshot().tabs.filter((tab) => tab.kind === 'content')).toHaveLength(12);
 });
 
 it.each([false, true])('routes late verification to the closed result, never the focused other result (%s)', async (otherFocused) => {

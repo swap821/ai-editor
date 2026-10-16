@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BRAIN_ATTENTION_POSTURE_DURATION_MS, deriveBrainAttentionPosture } from './brainAttentionPosture';
-import type { AttentionTransfer, MaterializedTabKind, MaterializedTabRecord, TabLifecycle } from './tabStore';
+import type { AttentionTransfer, MaterializedTabKind, MaterializedTabRecord, TabLifecycle, WorkspacePanel } from './tabStore';
 
 function tab(
   id: string,
@@ -39,6 +39,34 @@ function transfer(partial: Partial<AttentionTransfer> = {}): AttentionTransfer {
 }
 
 describe('brainAttentionPosture', () => {
+  it.each([null, -1, 12, 2.5])('does not borrow a result target for selected History without a valid seat (%s)', seatIndex => {
+    const panels: WorkspacePanel[] = [{ id: 'history', kind: 'history', title: 'Recent activity',
+      open: true, pinned: false, seatIndex }];
+    const posture = deriveBrainAttentionPosture({ tabs: [upper, lower], focusId: 'history', panels,
+      attention: transfer(), nowMs: 1460 });
+    expect(posture).toMatchObject({ active: false, targetId: null, intensity: 0,
+      yaw: 0, pitch: 0, roll: 0, offsetX: 0, offsetY: 0, scaleBoost: 0 });
+  });
+
+  it('attends to the selected panel seat, not a fresh background result transfer', () => {
+    const panels: WorkspacePanel[] = [{ id: 'history', kind: 'history', title: 'Recent activity',
+      open: true, pinned: false, seatIndex: 6 }];
+    const posture = deriveBrainAttentionPosture({ tabs: [upper, lower], focusId: 'history', panels,
+      attention: transfer(), nowMs: 1460 });
+    expect(posture).toMatchObject({ active: true, targetId: 'history', intensity: 0.32,
+      yaw: 0, offsetX: 0 });
+    expect(posture.roll).toBeCloseTo(0, 8); // signed zero has the same physical orientation
+    expect(posture.pitch).toBeLessThan(0);
+    expect(posture.offsetY).toBeLessThan(0);
+    expect(deriveBrainAttentionPosture({ tabs: [upper, lower], focusId: 'history', panels,
+      inputAttentionActive: true, nowMs: 1460 })).toMatchObject({ targetId: null, active: true });
+    expect(deriveBrainAttentionPosture({ tabs: [upper, lower], focusId: 'lower', panels,
+      nowMs: 2400 })).toMatchObject({ targetId: 'lower' });
+    panels[0].open = false;
+    expect(deriveBrainAttentionPosture({ tabs: [upper, lower], focusId: 'history', panels,
+      nowMs: 2400 })).toMatchObject({ targetId: null, active: false }); // a closed panel cannot select foreign work
+  });
+
   it('stays neutral when no workspace can be attended', () => {
     expect(deriveBrainAttentionPosture({ tabs: [], focusId: null, nowMs: 1200 })).toEqual({
       active: false,

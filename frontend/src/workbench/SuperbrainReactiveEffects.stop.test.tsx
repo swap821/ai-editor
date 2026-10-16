@@ -39,7 +39,7 @@ describe('SuperbrainReactiveEffects Emergency Stop boundary', () => {
 
   it('does not render new cloud-route action lightning while stopped', async () => {
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
-    const { container } = render(<SuperbrainReactiveEffects />);
+    const { container } = render(<SuperbrainReactiveEffects inputAttentionActive />);
 
     act(() => {
       startSwarmPlan(['cloud task']);
@@ -51,6 +51,8 @@ describe('SuperbrainReactiveEffects Emergency Stop boundary', () => {
     });
     expect(getSwarmHUDState().cloudIndices).toEqual([0]);
     expect(container.querySelector('[data-testid="line"]')).toBeNull();
+    expect(container.querySelector('[data-testid="cortex-current"]')).toBeNull();
+    expect(container.querySelector('mesh[name="cortex-attention-pulse"]')).toBeNull();
     expect(container.querySelector('[data-testid="sovereign-membrane"]')).not.toBeNull();
   });
 });

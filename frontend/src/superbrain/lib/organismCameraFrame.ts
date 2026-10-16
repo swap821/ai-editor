@@ -20,6 +20,8 @@ export interface CameraFrameInput {
   activeSurfaceCount: number;
   /** Phone Focus has a measured control-free pane, not a whole-screen zoom. */
   phoneFocus?: boolean;
+  /** A measured active body pane, separate from its operational reader. */
+  workPane?: boolean;
 }
 
 export interface OrganismCameraFrame {
@@ -43,23 +45,32 @@ const ORCHESTRATE_FOV_GAIN = 5;
 /** Side/rear roots also need width. Preserve at least this horizontal lens in
  * the measured phone Focus pane; a taller pane must not imply a tighter crop. */
 const PHONE_FOCUS_HORIZONTAL_FOV = 30;
+/** Full-size cord/crown envelope including side/rear poses, not the old
+ * shrunken orchestration silhouette. Retain head/root breathing headroom. */
+const WORK_PANE: OrganismCameraFrame = { fov: 24, targetY: -0.75 };
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 const round3 = (v: number) => Math.round(v * 1000) / 1000;
 
-export function deriveOrganismCameraFrame({ aspect, activeSurfaceCount, phoneFocus = false }: CameraFrameInput): OrganismCameraFrame {
+export function deriveOrganismCameraFrame({ aspect, activeSurfaceCount, phoneFocus = false, workPane = false }: CameraFrameInput): OrganismCameraFrame {
   // 1 at landscape, 0 at portrait.
   const wide = clamp((aspect - PORTRAIT_ASPECT) / (LANDSCAPE_ASPECT - PORTRAIT_ASPECT), 0, 1);
   // Fit both axes, not just vertical height. The authored vertical lens alone
   // clips the fused roots at actual side/rear orbit angles in a tall Focus pane.
   const focusAspect = Number.isFinite(aspect) && aspect > 0 ? aspect : LANDSCAPE_ASPECT;
   const horizontalFloor = 2 * Math.atan(Math.tan(PHONE_FOCUS_HORIZONTAL_FOV * Math.PI / 360) / focusAspect) * 180 / Math.PI;
-  const fovBase = phoneFocus ? Math.max(LANDSCAPE.fov, horizontalFloor) : lerp(PORTRAIT.fov, LANDSCAPE.fov, wide);
-  const targetY = phoneFocus ? LANDSCAPE.targetY : lerp(PORTRAIT.targetY, LANDSCAPE.targetY, wide);
+  const fovBase = workPane ? Math.max(WORK_PANE.fov, horizontalFloor)
+    : phoneFocus ? Math.max(LANDSCAPE.fov, horizontalFloor) : lerp(PORTRAIT.fov, LANDSCAPE.fov, wide);
+  // Center the full fused cord as well as the cortex. The old poster target
+  // sits above its middle and clips the roots once the phone stops shrinking.
+  const targetY = workPane ? WORK_PANE.targetY : phoneFocus ? LANDSCAPE.targetY : lerp(PORTRAIT.targetY, LANDSCAPE.targetY, wide);
   // Orchestration: widen fov a touch so seated surfaces around the being aren't
   // cropped (capped at ~3 surfaces of effect).
-  const orchestrateFov = (Math.min(activeSurfaceCount, 3) / 3) * ORCHESTRATE_FOV_GAIN;
+  // The measured camera window frames anatomy only: its selected work
+  // reader has a separate DOM allocation. A tab-count lens bonus here reserves
+  // that space twice and makes the being shrink again with each retained tab.
+  const orchestrateFov = workPane ? 0 : (Math.min(activeSurfaceCount, 3) / 3) * ORCHESTRATE_FOV_GAIN;
   return {
     fov: round3(fovBase + orchestrateFov),
     targetY: round3(targetY),

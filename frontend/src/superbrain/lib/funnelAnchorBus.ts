@@ -17,6 +17,9 @@ export interface FunnelAnchor {
   visible: boolean;
   /** WORLD position of the convergence (for the 3D command nerve to reach). */
   world: [number, number, number];
+  /** Current cauda shader presence; separate from phase liveliness. Omitted by
+   * legacy publishers means fully present, preserving their authored path. */
+  presence?: number;
   /** 0..1 phase-driven channel liveliness: blazes while RECEIVING you (intake),
    *  recedes as the being tucks its tail to work (mirrors uSprayHide). */
   intake: number;

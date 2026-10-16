@@ -35,11 +35,45 @@
 .fixture-journey__step { flex: 1 1 220px; overflow-wrap: anywhere; }
 .fixture-journey__app {
   min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
   /* Fixed product controls stay inside the real app's allotted viewport,
      not over the honest fixture label. No transform, filter or new motion. */
   contain: layout;
 }
-.fixture-journey__app > .lm-app { height: 100%; min-height: 0; }
+/* Preserve the real product's minimum rather than squeeze its work/input/Stop
+   into an impossible residual viewport below the fixture driver. This scrolls
+   the isolated app only; the honest label stays outside it. Fixed controls
+   follow that same app box instead of the smaller scrollport. */
+.fixture-journey__app > .lm-app { height: 100%; min-height: 520px; contain: layout; }
+@media (min-width: 768px) and (max-height: 520px) {
+  /* The complete product short dock has a360px floor, not portrait's520px.
+     The honest driver remains outside; its smaller residual area may scroll.
+     Only the development wrapper owns that scrolling. Preserve the product
+     header's app-relative position: a sticky test header feeds a changing
+     root-relative bottom into the real dock tracker and starves the composer
+     when input focus scrolls this wrapper. Small residual viewports may show
+     only part of the app; they are not simultaneous all-control/device proof. */
+  .fixture-journey__app > .lm-app { min-height: 360px; overflow: clip; }
+}
+@media (max-width: 360px), (max-width: 767px) and (max-height: 739px) {
+  /* Below the honest driver, the held request can exceed the remaining app
+     viewport. Preserve60px of body and the actual proposal/actions budget;
+     use this frame's existing scroll rather than cover either with the other. */
+  .fixture-journey__app > .lm-app[data-working="true"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) {
+    min-height: max(520px, calc(var(--lm-compact-presence-top) + 60px + var(--lm-compact-work-budget) + var(--lm-workspace-dock-clearance, 240px)));
+    /* clip does not introduce a second scroll owner; Stop sticks to the
+       actual development viewport when the user intentionally scrolls. */
+    overflow: clip;
+  }
+  .fixture-journey__app > .lm-app[data-working="true"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .lm-header {
+    position: sticky;
+    left: auto;
+    right: auto;
+    width: calc(100% - max(16px, var(--lm-safe-area-left)) - max(16px, var(--lm-safe-area-right)));
+    margin-inline: auto;
+  }
+}
 @media (max-width: 600px) {
   /* Compact only the fixture driver; don't spend the phone viewport on a
      test toolbar or alter the product's own layout. Targets remain 44px. */

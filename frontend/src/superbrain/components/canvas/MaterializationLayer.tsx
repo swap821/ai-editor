@@ -52,6 +52,7 @@ import CompletionMemoryBead from './CompletionMemoryBead';
 import MaterializedTab from './MaterializedTab';
 import ReabsorptionParticles from './ReabsorptionParticles';
 import { readBeingMode } from '@/lib/beingMode';
+import { POINTS_REABSORPTION_MS } from '@/lib/reabsorptionTiming';
 
 // Point-field being: the per-tab umbilical (MaterializedTab) + the conversation/
 // completion postures cover conduction; the mesh-era scene overlays render at
@@ -407,6 +408,10 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
   }, []);
 
   const orchestration = deriveLivingOrchestration({ tabs, focusId, attention });
+  // This count is only the render-placement budget, not active/admitted work.
+  // A still-painted retiring slab must reserve its row until it disappears.
+  const paintedWorkspaceCount = tabs.filter(tab => tab.kind !== 'input').length;
+  const paintedWaitingCount = orchestration.surfaces.filter(({ tab, focused }) => tab.kind !== 'input' && !focused).length;
   const anatomy = deriveAnatomicalConductor({ tabs, orchestration });
   const rootSystem = deriveAnatomicalRootSystem({ surfaces: orchestration.surfaces, metabolism, outcome });
   const organism = deriveOrganismLifecycle({ orchestration, metabolism, outcome, completion, rootSystem });
@@ -445,7 +450,9 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
             reducedMotion={reducedMotion}
             focused={focused}
             waitingIndex={waitingIndex}
-            workspaceCount={orchestration.workspaceCount}
+            workspaceCount={paintedWorkspaceCount}
+            paintedWaitingCount={paintedWaitingCount}
+            wholeBodyClearance={orchestration.focusId === null}
             posture={bodyPosture}
             metabolism={metabolism}
             outcome={outcome}
@@ -463,8 +470,9 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
             <ReabsorptionParticles
               key={`reabsorb-${tab.id}`}
               origin={tab.originLocal}
+              seatIndex={tab.seatIndex}
               startedAt={tab.phaseStartedAt}
-              durationMs={1700}
+              durationMs={POINTS_REABSORPTION_MS}
               color={completion.tint}
               reducedMotion={reducedMotion}
             />

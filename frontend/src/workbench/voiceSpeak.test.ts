@@ -9,7 +9,8 @@ import {
   startVoiceSpeak,
   subscribeVoiceSpeak,
 } from './voiceSpeak';
-import { publishCognition } from '../superbrain/lib/cognitionBus';
+import { publishCognition, subscribeCognition } from '../superbrain/lib/cognitionBus';
+import { getReplyVoice, __resetReplyVoiceForTests } from '../superbrain/lib/replyVoiceBus';
 import { speakText } from '../superbrain/lib/aiosAdapter';
 
 vi.mock('../superbrain/lib/aiosAdapter', () => ({
@@ -81,21 +82,96 @@ function voice(name: string, lang: string): SpeechSynthesisVoice {
 
 beforeEach(() => {
   __resetVoiceSpeakForTests();
+  __resetReplyVoiceForTests();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+});
+
+function startOptedInVoiceSpeak(): () => void {
+  const stop = startVoiceSpeak();
+  setVoiceSpeakMuted(false);
+  return stop;
+}
+
+describe('voice output opt-in', () => {
+  it.each([null, '1', 'invalid'])('keeps completed captions readable without playback when preference=%s', (preference) => {
+    installSpeechMocks();
+    if (preference !== null) localStorage.setItem('gagos-voice-muted', preference);
+    const stop = startVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Readable without sound' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    expect(getVoiceSpeakState()).toMatchObject({ speaking: false, muted: true });
+    expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'Readable without sound' });
+    stop();
+  });
+
+  it('does not request backend synthesis without output opt-in', () => {
+    installSpeechMocks();
+    const requests = vi.mocked(speakText).mock.calls.length;
+    setBackendTTS(true);
+    const stop = startVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'A quiet answer' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    expect(vi.mocked(speakText).mock.calls.length).toBe(requests);
+    expect(getVoiceSpeakState().speaking).toBe(false);
+    expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'A quiet answer' });
+    stop();
+  });
+
+  it('fails quiet when the output preference cannot be read', () => {
+    installSpeechMocks();
+    vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('Storage unavailable'); });
+    const stop = startVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Read this answer' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    expect(getVoiceSpeakState()).toMatchObject({ speaking: false, muted: true });
+    expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'Read this answer' });
+    stop();
+  });
+
+  it('persists explicit unmute through service restart, and subsequent mute prevents another playback', () => {
+    installSpeechMocks();
+    const firstStop = startVoiceSpeak();
+    setVoiceSpeakMuted(false);
+    firstStop();
+    const secondStop = startVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Deliberate output' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    expect(getVoiceSpeakState()).toMatchObject({ muted: false, speaking: true });
+    expect(getReplyVoice()).toMatchObject({ phase: 'streaming', text: 'Deliberate output' });
+    setVoiceSpeakMuted(true);
+    secondStop();
+    const thirdStop = startVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Keep this quiet' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    expect(getVoiceSpeakState()).toMatchObject({ muted: true, speaking: false });
+    expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'Keep this quiet' });
+    thirdStop();
+  });
+
+  it('a saved explicit opt-in still permits genuine playback', () => {
+    installSpeechMocks();
+    localStorage.setItem('gagos-voice-muted', '0');
+    const stop = startVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Remembered output choice' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    expect(getVoiceSpeakState()).toMatchObject({ muted: false, speaking: true });
+    expect(getReplyVoice()).toMatchObject({ phase: 'streaming', text: 'Remembered output choice' });
+    stop();
+  });
 });
 
 describe('voiceSpeak', () => {
   it('reports unsupported when speechSynthesis is absent', () => {
     const stop = startVoiceSpeak();
     expect(getVoiceSpeakState().supported).toBe(false);
-    expect(getVoiceSpeakState().muted).toBe(false);
+    expect(getVoiceSpeakState().muted).toBe(true);
     stop();
   });
 
   it('speaks the final reply when reply-complete arrives', () => {
     const mocks = installSpeechMocks();
-    const stop = startVoiceSpeak();
+    const stop = startOptedInVoiceSpeak();
     expect(getVoiceSpeakState().supported).toBe(true);
 
     publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Hello there' } });
@@ -113,7 +189,7 @@ describe('voiceSpeak', () => {
 
   it('cancels current speech on a new question', () => {
     const mocks = installSpeechMocks();
-    const stop = startVoiceSpeak();
+    const stop = startOptedInVoiceSpeak();
 
     publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Hello there' } });
     publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
@@ -124,9 +200,88 @@ describe('voiceSpeak', () => {
     stop();
   });
 
+  it.each(['question', 'stopped', 'error'])('clears active playback on %s even when the browser sends no cancellation callback', (phase) => {
+    const mocks = installSpeechMocks();
+    mocks.cancel.mockImplementation(() => {});
+    const stop = startOptedInVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete', reply: 'An actual spoken answer' } });
+    expect(getVoiceSpeakState().speaking).toBe(true);
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase } });
+    expect(getVoiceSpeakState().speaking).toBe(false);
+    stop();
+  });
+
+  it('ignores late browser callbacks after Stop and after a newer utterance starts', () => {
+    const mocks = installSpeechMocks();
+    mocks.cancel.mockImplementation(() => {});
+    const stop = startOptedInVoiceSpeak();
+    const events: string[] = [];
+    const unsub = subscribeCognition((event) => { if (event.source === 'voice-tts') events.push(String(event.data?.phase)); });
+    try {
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete', reply: 'Old' } });
+      const old = mocks.getLastUtterance()!;
+      expect(events).toEqual(['speaking']);
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'stopped' } });
+      const stoppedCaption = getReplyVoice();
+      old.onstart?.(); old.onend?.(); old.onerror?.();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toBe(stoppedCaption);
+      expect(events).toEqual(['speaking']);
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete', reply: 'New' } });
+      const current = mocks.getLastUtterance()!;
+      const currentCaption = getReplyVoice();
+      old.onstart?.(); old.onend?.(); old.onerror?.();
+      expect(getVoiceSpeakState().speaking).toBe(true);
+      expect(getReplyVoice()).toBe(currentCaption);
+      expect(events).toEqual(['speaking', 'speaking']);
+      current.onend?.();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'New' });
+      expect(events).toEqual(['speaking', 'speaking', 'speaking-complete']);
+    } finally { unsub(); stop(); }
+  });
+
+  it('mic interruption cancels a queued browser utterance before onstart without fabricating playback completion', () => {
+    const mocks = installSpeechMocks();
+    mocks.speak.mockImplementation(() => {});
+    mocks.cancel.mockImplementation(() => {});
+    const stop = startOptedInVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Queued' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    const queued = mocks.speak.mock.calls[0][0];
+    const completedCaption = getReplyVoice();
+    expect(getVoiceSpeakState().speaking).toBe(false);
+    const cancels = mocks.cancel.mock.calls.length;
+    interruptSpeech();
+    expect(mocks.cancel).toHaveBeenCalledTimes(cancels + 1);
+    queued.onstart?.(); queued.onend?.();
+    expect(getVoiceSpeakState().speaking).toBe(false);
+    expect(getReplyVoice()).toBe(completedCaption);
+    stop();
+  });
+
+  it.each(['mute', 'last-unmount'])('settles a genuinely played caption on %s without trusting a cancellation callback', (cause) => {
+    const mocks = installSpeechMocks();
+    mocks.cancel.mockImplementation(() => {});
+    const stop = startOptedInVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'A spoken answer remains readable' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    const old = mocks.getLastUtterance()!;
+    expect(getVoiceSpeakState().speaking).toBe(true);
+    expect(getReplyVoice().phase).toBe('streaming');
+    if (cause === 'mute') setVoiceSpeakMuted(true); else stop();
+    expect(getVoiceSpeakState().speaking).toBe(false);
+    expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'A spoken answer remains readable' });
+    const settled = getReplyVoice();
+    old.onstart?.(); old.onend?.(); old.onerror?.();
+    expect(getReplyVoice()).toBe(settled);
+    expect(getVoiceSpeakState().speaking).toBe(false);
+    if (cause === 'mute') stop();
+  });
+
   it('does not speak while muted', () => {
     const mocks = installSpeechMocks();
-    const stop = startVoiceSpeak();
+    const stop = startOptedInVoiceSpeak();
     setVoiceSpeakMuted(true);
     expect(isVoiceSpeakMuted()).toBe(true);
 
@@ -137,9 +292,23 @@ describe('voiceSpeak', () => {
     stop();
   });
 
+  it('settles a synchronous browser enqueue failure rather than leaving phantom pending speech', () => {
+    const mocks = installSpeechMocks();
+    mocks.speak.mockImplementation(() => { throw new Error('Speech queue unavailable'); });
+    const stop = startOptedInVoiceSpeak();
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Readable answer' } });
+    publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+    expect(getVoiceSpeakState().speaking).toBe(false);
+    expect(getReplyVoice()).toMatchObject({ phase: 'error', text: 'Readable answer' });
+    const cancels = mocks.cancel.mock.calls.length;
+    interruptSpeech();
+    expect(mocks.cancel).toHaveBeenCalledTimes(cancels);
+    stop();
+  });
+
   it('ignores its own voice-tts feedback events', () => {
     const mocks = installSpeechMocks();
-    const stop = startVoiceSpeak();
+    const stop = startOptedInVoiceSpeak();
 
     publishCognition({ type: 'voice-speaking', source: 'voice-tts', data: { phase: 'speaking-complete' } });
     publishCognition({ type: 'voice-speaking', source: 'voice-tts', data: { phase: 'speaking', reply: 'loop' } });
@@ -150,7 +319,7 @@ describe('voiceSpeak', () => {
 
   it('publishes speaking and speaking-complete cognition events', () => {
     installSpeechMocks();
-    const stop = startVoiceSpeak();
+    const stop = startOptedInVoiceSpeak();
     // cognition bus subscriber order is a singleton; use a lightweight spy on publishCognition
     // by observing state transitions instead.
     const stateLog: boolean[] = [];
@@ -170,7 +339,7 @@ describe('voiceSpeak', () => {
       voice('Google हिन्दी', 'hi-IN'),
       voice('Google UK English', 'en-GB'),
     ]);
-    const stop = startVoiceSpeak();
+    const stop = startOptedInVoiceSpeak();
 
     publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Namaste' } });
     publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
@@ -197,7 +366,9 @@ describe('voiceSpeak', () => {
     class MockAudioContext {
       destination = {};
       createBufferSource(): MockSource {
-        return new MockSource();
+        const source = new MockSource();
+        sources.push(source);
+        return source;
       }
       decodeAudioData(buf: unknown): Promise<unknown> {
         return Promise.resolve(buf);
@@ -209,9 +380,11 @@ describe('voiceSpeak', () => {
     }
 
     let startedTags: string[];
+    let sources: MockSource[];
 
     beforeEach(() => {
       startedTags = [];
+      sources = [];
       closeSpy.mockClear();
       installSpeechMocks();
       vi.stubGlobal('AudioContext', MockAudioContext);
@@ -219,7 +392,7 @@ describe('voiceSpeak', () => {
     });
 
     it('does not let a stale reply start playing after a newer reply already started', async () => {
-      const stop = startVoiceSpeak();
+      const stop = startOptedInVoiceSpeak();
       const speakTextMock = vi.mocked(speakText);
       const first = deferred<ArrayBuffer>();
       const second = deferred<ArrayBuffer>();
@@ -245,7 +418,7 @@ describe('voiceSpeak', () => {
     });
 
     it('still plays a reply normally when nothing supersedes it', async () => {
-      const stop = startVoiceSpeak();
+      const stop = startOptedInVoiceSpeak();
       const speakTextMock = vi.mocked(speakText);
       speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
 
@@ -257,8 +430,116 @@ describe('voiceSpeak', () => {
       stop();
     });
 
+    it('keeps a genuine completed caption while fetching/decoding and announces speech only after audio starts', async () => {
+      const fetched = deferred<ArrayBuffer>();
+      const decoded = deferred<unknown>();
+      vi.mocked(speakText).mockReturnValueOnce(fetched.promise);
+      vi.spyOn(MockAudioContext.prototype, 'decodeAudioData').mockReturnValueOnce(decoded.promise);
+      const stop = startOptedInVoiceSpeak();
+      const observations: string[][] = [];
+      const unsub = subscribeCognition((event) => {
+        if (event.source === 'voice-tts' && event.data?.phase === 'speaking') observations.push([...startedTags]);
+      });
+      try {
+        publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Ready answer' } });
+        publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+        const completedCaption = getReplyVoice();
+        expect(getVoiceSpeakState().speaking).toBe(false);
+        expect(completedCaption).toMatchObject({ phase: 'complete', text: 'Ready answer' });
+        expect(observations).toEqual([]);
+        fetched.resolve({ tag: 'Ready answer' } as unknown as ArrayBuffer);
+        await flush();
+        expect(getVoiceSpeakState().speaking).toBe(false);
+        expect(getReplyVoice()).toBe(completedCaption);
+        expect(startedTags).toEqual([]);
+        decoded.resolve({ tag: 'Ready answer' });
+        await flush();
+        expect(getVoiceSpeakState().speaking).toBe(true);
+        expect(getReplyVoice()).toMatchObject({ phase: 'streaming', text: 'Ready answer' });
+        expect(observations).toEqual([['Ready answer']]);
+        sources[0].onended?.();
+        expect(getVoiceSpeakState().speaking).toBe(false);
+        expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'Ready answer' });
+      } finally { unsub(); stop(); }
+    });
+
+    it('mic interruption cancels pending decode without a later start or caption-lease extension', async () => {
+      const decoded = deferred<unknown>();
+      vi.mocked(speakText).mockResolvedValueOnce({ tag: 'Cancelled' } as unknown as ArrayBuffer);
+      vi.spyOn(MockAudioContext.prototype, 'decodeAudioData').mockReturnValueOnce(decoded.promise);
+      const stop = startOptedInVoiceSpeak();
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Cancelled' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      const completedCaption = getReplyVoice();
+      await flush();
+      interruptSpeech();
+      decoded.resolve({ tag: 'Cancelled' });
+      await flush();
+      expect(startedTags).toEqual([]);
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toBe(completedCaption);
+      stop();
+    });
+
+    it('falls back to browser speech after backend failure without reporting queued fallback as playback', async () => {
+      const mocks = installSpeechMocks();
+      mocks.speak.mockImplementation(() => {});
+      vi.mocked(speakText).mockRejectedValueOnce(new Error('TTS unavailable'));
+      const stop = startOptedInVoiceSpeak();
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Fallback answer' } });
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
+      const completedCaption = getReplyVoice();
+      await flush();
+      expect(startedTags).toEqual([]);
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toBe(completedCaption);
+      expect(mocks.speak).toHaveBeenCalledTimes(1);
+      const fallback = mocks.speak.mock.calls[0][0];
+      fallback.onstart?.();
+      expect(getVoiceSpeakState().speaking).toBe(true);
+      expect(getReplyVoice()).toMatchObject({ phase: 'streaming', text: 'Fallback answer' });
+      fallback.onend?.();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'Fallback answer' });
+      stop();
+    });
+
+    it('ignores a superseded source end while the current source is playing', async () => {
+      vi.mocked(speakText).mockResolvedValueOnce({ tag: 'Old' } as unknown as ArrayBuffer)
+        .mockResolvedValueOnce({ tag: 'New' } as unknown as ArrayBuffer);
+      const stop = startOptedInVoiceSpeak();
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete', reply: 'Old' } });
+      await flush();
+      const old = sources[0];
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete', reply: 'New' } });
+      await flush();
+      expect(startedTags).toEqual(['Old', 'New']);
+      const currentCaption = getReplyVoice();
+      old.onended?.();
+      expect(getVoiceSpeakState().speaking).toBe(true);
+      expect(getReplyVoice()).toBe(currentCaption);
+      sources[1].onended?.();
+      expect(getVoiceSpeakState().speaking).toBe(false);
+      expect(getReplyVoice()).toMatchObject({ phase: 'complete', text: 'New' });
+      stop();
+    });
+
+    it('does not recreate an audio context or decode a late response after the final consumer unmounts', async () => {
+      const fetched = deferred<ArrayBuffer>();
+      vi.mocked(speakText).mockReturnValueOnce(fetched.promise);
+      const decode = vi.spyOn(MockAudioContext.prototype, 'decodeAudioData');
+      const stop = startOptedInVoiceSpeak();
+      publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete', reply: 'Late' } });
+      stop();
+      fetched.resolve({ tag: 'Late' } as unknown as ArrayBuffer);
+      await flush();
+      expect(decode).not.toHaveBeenCalled();
+      expect(startedTags).toEqual([]);
+      expect(getVoiceSpeakState().speaking).toBe(false);
+    });
+
     it('closes the AudioContext when the last consumer stops', async () => {
-      const stop = startVoiceSpeak();
+      const stop = startOptedInVoiceSpeak();
       const speakTextMock = vi.mocked(speakText);
       speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
 
@@ -272,8 +553,8 @@ describe('voiceSpeak', () => {
     });
 
     it('does not close the AudioContext while other consumers are still mounted', async () => {
-      const stopA = startVoiceSpeak();
-      const stopB = startVoiceSpeak();
+      const stopA = startOptedInVoiceSpeak();
+      const stopB = startOptedInVoiceSpeak();
       const speakTextMock = vi.mocked(speakText);
       speakTextMock.mockResolvedValueOnce({ tag: 'ONLY' } as unknown as ArrayBuffer);
 
@@ -291,7 +572,7 @@ describe('voiceSpeak', () => {
   describe('interruptSpeech', () => {
     it('stops active speech and sets speaking to false', () => {
       const mocks = installSpeechMocks();
-      const stop = startVoiceSpeak();
+      const stop = startOptedInVoiceSpeak();
 
       publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Long text' } });
       publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply-complete' } });
@@ -305,7 +586,7 @@ describe('voiceSpeak', () => {
 
     it('does nothing when not speaking', () => {
       const mocks = installSpeechMocks();
-      const stop = startVoiceSpeak();
+      const stop = startOptedInVoiceSpeak();
       expect(getVoiceSpeakState().speaking).toBe(false);
 
       interruptSpeech();
@@ -316,7 +597,7 @@ describe('voiceSpeak', () => {
 
     it('does not toggle mute state', () => {
       installSpeechMocks();
-      const stop = startVoiceSpeak();
+      const stop = startOptedInVoiceSpeak();
       expect(getVoiceSpeakState().muted).toBe(false);
 
       publishCognition({ type: 'voice-speaking', source: 'gagos', data: { phase: 'reply', reply: 'Hi' } });

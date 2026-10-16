@@ -15,6 +15,7 @@ interface TroikaText {
   text: string;
   fillOpacity: number;
   outlineOpacity: number;
+  textRenderInfo?: { parameters: { text: string } } | null;
   sync: (callback?: () => void) => void;
   // Internal troika-three-text bookkeeping (not in its public typings) — only
   // touched defensively on the force-resync path, see the comment below.
@@ -32,6 +33,7 @@ export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
   // 2026-07-05 — see decideBodySpeechSync's doc comment in bodySpeech.ts).
   const syncPending = useRef(false);
   const syncPendingSinceMs = useRef(0);
+  const syncGeneration = useRef(0);
   // REACTIVE reduced-motion (was a once-at-import module const) — the useFrame
   // closure re-reads it on the re-render when the OS setting flips.
   const reduced = useReducedMotion();
@@ -51,7 +53,13 @@ export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
     if (!o.active) return;
 
     const nowMs = performance.now();
-    const action = decideBodySpeechSync(
+    // Forced recovery cannot cancel Troika's previous font/glyph request. A
+    // late completion can replace newer geometry even after our callback has
+    // settled. Compare its public render info, not just the requested text.
+    const renderedText = t.textRenderInfo?.parameters.text;
+    const staleGeometry = !syncPending.current && lastText.current === o.visibleText &&
+      renderedText !== undefined && renderedText !== o.visibleText;
+    const action = staleGeometry ? 'force-resync' : decideBodySpeechSync(
       o.visibleText,
       lastText.current,
       syncPending.current,
@@ -76,13 +84,17 @@ export default function BodySpeech({ color = '#7bf5fb' }: { color?: string }) {
         t._queuedSyncs = null;
       }
       t.text = o.visibleText;
-      if (!syncPending.current) {
+      if (!syncPending.current || action === 'force-resync') {
         syncPendingSinceMs.current = nowMs;
       }
       syncPending.current = true;
+      const generation = ++syncGeneration.current;
       try {
         t.sync(() => {
-          syncPending.current = false;
+          // Troika starts a queued build BEFORE the older callback runs. Only
+          // the current request may retire its watchdog; old callbacks cannot
+          // declare queued or forced replacement glyphs complete.
+          if (generation === syncGeneration.current) syncPending.current = false;
         });
       } catch {
         // A synchronous throw here means this attempt never truly started;

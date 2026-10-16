@@ -23,6 +23,7 @@ import {
   getSpineFusion,
   getBrainDockScale,
   getCortexAnchor,
+  getCaudaIntakePresence,
 } from '../superbrain/lib/spineFusionBus';
 import { SEGMENT_ANCHORS } from '../superbrain/lib/spineAnatomy';
 import { deriveAnatomicalConductor } from '../superbrain/lib/anatomicalConductor';
@@ -60,8 +61,9 @@ import {
   deriveCortexAttentionPaths,
   retargetCortexAttentionPulse,
   retargetCortexAttentionSpring,
+  writeCortexAttentionPathTarget,
 } from './cortexAttentionPaths';
-import { copyBodyGroupPoseMatrix } from './bodyEffectsFrame';
+import { copyBodyGroupPoseMatrix, createCortexEffectFrame, copyCortexEffectFrame, copyCortexEffectTarget } from './bodyEffectsFrame';
 import { reconcileWorkerSeats } from './workerSeatRegistry';
 
 const CLOUD_COLORS = {
@@ -95,24 +97,34 @@ function syncCortexAttentionGeometry(spring, scratchPoints, geometry) {
 
 /**
  * @param {{ points: THREE.Vector3[], color: string | THREE.Color, lineWidth: number,
- *   opacity: number, reducedMotion: boolean, inputAttention?: boolean }} props
+ *   opacity: number, reducedMotion: boolean, inputAttention?: boolean,
+ *   attachment: () => import('./bodyEffectsFrame').CortexEffectFrame | null,
+ *   cortexOrigin: THREE.Vector3, focusSeatIndex: number | null, activity: number,
+ *   convergence: number, pathIndex: number, pathCount: number }} props
  */
-function CortexAttentionCurrent({ points, color, lineWidth, opacity, reducedMotion, inputAttention = false }) {
+function CortexAttentionCurrent({ points, color, lineWidth, opacity, reducedMotion, inputAttention = false,
+  attachment, cortexOrigin, focusSeatIndex, activity, convergence, pathIndex, pathCount }) {
   const lineRef = useRef(null);
   const pulseMeshRef = useRef(null);
   const pulsePositionRef = useRef(new THREE.Vector3());
   const [pulseState] = useState(() => createCortexAttentionPulseState());
   const pulsePathRef = useRef(new THREE.LineCurve3(points[0].clone(), points[points.length - 1].clone()));
-  const [buffer] = useState(() => {
+  const [initialPoints] = useState(() => points.map((point) => point.clone()));
+  const bufferRef = useRef(null);
+  if (bufferRef.current === null) {
     const initialPath = toCortexAttentionPath(points);
-    return {
+    bufferRef.current = {
       spring: createCortexAttentionSpring([initialPath]),
-      initialPoints: points.map((point) => point.clone()),
       scratchPoints: points.map((point) => point.clone()),
+      pulseTargets: new Float64Array(9),
     };
-  });
+  }
+  const frameInputRef = useRef({ origin: /** @type {[number, number, number]} */ ([0, 0, 0]),
+    target: /** @type {[number, number, number] | null} */ (null), activity: 0, convergence: 0, count: 1, contactTarget: false });
+  const frameTargetRef = useRef(/** @type {[number, number, number]} */ ([0, 0, 0]));
 
   useLayoutEffect(() => {
+    const buffer = bufferRef.current;
     const { spring } = buffer;
     retargetCortexAttentionSpring(spring, [toCortexAttentionPath(points)], reducedMotion);
     if (inputAttention) {
@@ -124,21 +136,68 @@ function CortexAttentionCurrent({ points, color, lineWidth, opacity, reducedMoti
     if (reducedMotion && lineRef.current?.geometry) {
       syncCortexAttentionGeometry(spring, buffer.scratchPoints, lineRef.current.geometry);
     }
-  }, [buffer, inputAttention, points, pulseState, reducedMotion]);
+  }, [inputAttention, points, pulseState, reducedMotion]);
 
   useFrame((_, delta) => {
+    const buffer = bufferRef.current;
     const line = lineRef.current;
-    if (line?.geometry && advanceCortexAttentionSpring(buffer.spring, delta)) {
+    const frame = attachment();
+    if (frame) {
+      const target = copyCortexEffectTarget(frame, inputAttention, focusSeatIndex);
+      const input = frameInputRef.current;
+      input.origin[0] = cortexOrigin.x; input.origin[1] = cortexOrigin.y; input.origin[2] = cortexOrigin.z;
+      input.target = target ? frameTargetRef.current : null;
+      if (target) { frameTargetRef.current[0] = target.x; frameTargetRef.current[1] = target.y; frameTargetRef.current[2] = target.z; }
+      input.activity = activity; input.convergence = convergence; input.count = pathCount; input.contactTarget = inputAttention;
+      writeCortexAttentionPathTarget(input, pathIndex, buffer.spring.targets);
+      if (reducedMotion) { buffer.spring.positions.set(buffer.spring.targets); buffer.spring.velocities.fill(0); }
+    }
+    const moved = advanceCortexAttentionSpring(buffer.spring, delta);
+    // Contact is anatomy, not an eased control point. Keep the curve's other
+    // points on their existing spring, but never leave the intake endpoint
+    // behind its live junction, including a zero-delta first paint.
+    let contactMoved = false;
+    if (inputAttention && frame) {
+      for (let dimension = 6; dimension < 9; dimension++) {
+        contactMoved ||= buffer.spring.positions[dimension] !== buffer.spring.targets[dimension];
+        buffer.spring.positions[dimension] = buffer.spring.targets[dimension];
+        buffer.spring.velocities[dimension] = 0;
+      }
+    }
+    if (line?.geometry && (moved || contactMoved || (frame && reducedMotion))) {
       syncCortexAttentionGeometry(buffer.spring, buffer.scratchPoints, line.geometry);
+    }
+    const caudaAvailable = !frame || getCaudaIntakePresence() > 0.02;
+    const hasIntake = !inputAttention || caudaAvailable;
+    if (line) line.visible = hasIntake;
+    if (inputAttention && frame) {
+      // Both transit directions use the same live physical path. Re-entering
+      // input must not jump onto the independently easing calm curve.
+      pulsePathRef.current.v1.set(buffer.spring.targets[0], buffer.spring.targets[1], buffer.spring.targets[2]);
+      pulsePathRef.current.v2.set(buffer.spring.targets[6], buffer.spring.targets[7], buffer.spring.targets[8]);
+    } else if (frame && pulseState.direction === 'outbound') {
+      // Calm currents can resume after blur while this same bead returns.
+      // Retarget only its path, not its progress or the calm curve's spring.
+      const target = copyCortexEffectTarget(frame, true, null);
+      if (target) {
+        const input = frameInputRef.current;
+        input.target = frameTargetRef.current;
+        frameTargetRef.current[0] = target.x; frameTargetRef.current[1] = target.y; frameTargetRef.current[2] = target.z;
+        input.contactTarget = true; input.count = 1;
+        writeCortexAttentionPathTarget(input, 0, buffer.pulseTargets);
+        pulsePathRef.current.v1.set(buffer.pulseTargets[0], buffer.pulseTargets[1], buffer.pulseTargets[2]);
+        pulsePathRef.current.v2.set(buffer.pulseTargets[6], buffer.pulseTargets[7], buffer.pulseTargets[8]);
+      }
     }
 
     const pulse = pulseMeshRef.current;
     if (!pulse) return;
     const progress = advanceCortexAttentionPulse(pulseState, delta, reducedMotion);
-    if (progress === null) {
+    if (progress === null || !caudaAvailable) {
       pulse.visible = false;
       return;
     }
+    pulse.visible = true;
     pulsePathRef.current.getPoint(THREE.MathUtils.smoothstep(progress, 0, 1), pulsePositionRef.current);
     pulse.position.copy(pulsePositionRef.current);
     const returning = pulseState.direction === 'outbound';
@@ -153,7 +212,7 @@ function CortexAttentionCurrent({ points, color, lineWidth, opacity, reducedMoti
     <Line
       ref={lineRef}
       data-testid="cortex-current"
-      points={buffer.initialPoints}
+      points={initialPoints}
       color={color}
       lineWidth={inputAttention ? Math.max(2, lineWidth) : lineWidth}
       frustumCulled={false}
@@ -337,9 +396,9 @@ function getStableRandom(seed) {
  * @param {{ presentationOverride?: import('../livingMirror/being/semanticKernel').BeingPresentation | null,
  *   physicalOverride?: import('../livingMirror/being/physicalSnapshot').PhysicalSnapshot | null,
  *   tabSnapshotOverride?: import('../superbrain/lib/tabStore').TabSnapshot | null,
- *   inputDraftPresent?: boolean }} [props]
+ *   inputAttentionActive?: boolean }} [props]
  */
-export default function SuperbrainReactiveEffects({ presentationOverride = null, physicalOverride = null, tabSnapshotOverride = null, inputDraftPresent = false } = {}) {
+export default function SuperbrainReactiveEffects({ presentationOverride = null, physicalOverride = null, tabSnapshotOverride = null, inputAttentionActive = false } = {}) {
   const liveBeing = useBeingPresentation();
   // The override is a development/test inspection seam only. Production uses
   // the live presentation projection; the gallery never mutates a store or
@@ -812,10 +871,8 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
   const bodyEffectsGroupRef = useRef(null);
   const bodyGroupWorldMatrixRef = useRef(new THREE.Matrix4());
   const bodyEffectsPoseMatrixRef = useRef(new THREE.Matrix4());
-  // These paths and motes are derived in body-group-local coordinates. The
-  // product scene mounts them beside the body. Follow its live pose while
-  // preserving authored effect-space sizing (the body root scale is already
-  // represented by calibrated anchors and dock/fusion scale).
+  // Follow pose without inflating authored cue radii. Cortex attachments below
+  // separately resolve the mounted point field's complete scale and dock.
   useFrame(() => {
     const group = bodyEffectsGroupRef.current;
     if (!group || !copyBodyGroupWorldMatrix(bodyGroupWorldMatrixRef.current)) return;
@@ -826,14 +883,26 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
 
   const [cx, cy, cz] = getCortexAnchor();
   const brainDockScale = getBrainDockScale();
-  const cortex = new THREE.Vector3(cx, cy, cz).multiplyScalar(brainDockScale);
+  const cortex = useMemo(() => new THREE.Vector3(cx, cy, cz).multiplyScalar(brainDockScale), [cx, cy, cz, brainDockScale]);
+  const cortexCueGroupsRef = useRef([]);
+  const cortexEffectFrameRef = useRef(null);
+  if (cortexEffectFrameRef.current === null) cortexEffectFrameRef.current = createCortexEffectFrame();
+  const syncCortexAttachment = useMemo(() => () => {
+    const frame = cortexEffectFrameRef.current;
+    const ready = copyCortexEffectFrame(frame, cortex);
+    for (const group of cortexCueGroupsRef.current) if (group) group.position.copy(frame.offset);
+    return ready ? frame : null;
+    // The authored origin is a semantic-render snapshot. Live anatomy is read
+    // from its existing owner each frame, without React state or a new clock.
+  }, [cortex]);
+  useFrame(() => { syncCortexAttachment(); });
   const cortexOriginX = cx * brainDockScale;
   const cortexOriginY = cy * brainDockScale;
   const cortexOriginZ = cz * brainDockScale;
   const cortexPostureColor = CORTEX_POSTURE_COLORS[physical.cortex.posture];
   const heldForApproval = physical.membrane.state === 'held';
   const cortexCurrentColor = heldForApproval ? CONDUCTOR_COLORS.held : cortexPostureColor;
-  const attentionOnInput = inputDraftPresent && !heldForApproval;
+  const attentionOnInput = inputAttentionActive && !heldForApproval;
   const focusedPanel = panels.find((panel) => panel.open && panel.id === focusId);
   // A readable-only History has no spatial target. Do not imply a connection
   // to another result by falling back to that result's conductor anchor.
@@ -950,6 +1019,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
       )}
 
       {/* Verify-pass aurora: a soft, transient bloom around the cortex. */}
+      <group ref={group => { cortexCueGroupsRef.current[0] = group; }} name="cortex-aurora-attachment">
       {!actionPresentationStopped && aurora.intensity > 0.01 && (
         <mesh
           ref={auroraMeshRef}
@@ -969,6 +1039,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
           />
         </mesh>
       )}
+      </group>
 
       {!conductorStopped && conductorPathPoints.length > 1 && (
         <Line
@@ -982,6 +1053,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
         />
       )}
 
+      <group ref={group => { cortexCueGroupsRef.current[1] = group; }} name="cortex-current-attachment">
       {cortexCurrentPaths.map((points, index) => (
         <CortexAttentionCurrent
           key={`cortex-current-${index}`}
@@ -991,6 +1063,13 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
           opacity={attentionOnInput ? 0.88 : Math.min(0.32, (0.06 + physical.cortex.activity * 0.12) * coherenceOpacity)}
           reducedMotion={reducedMotion}
           inputAttention={attentionOnInput}
+          attachment={syncCortexAttachment}
+          cortexOrigin={cortex}
+          focusSeatIndex={focusSeatIndex}
+          activity={physical.cortex.activity}
+          convergence={physical.cortex.convergence}
+          pathIndex={index}
+          pathCount={cortexCurrentPaths.length}
         />
       ))}
 
@@ -1006,6 +1085,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
           opacity={0.16 * coherenceOpacity}
         />
       ))}
+      </group>
 
       {conductorSeatSignals.map((signal) => {
         const color = CONDUCTOR_COLORS[signal.role];
@@ -1069,6 +1149,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
       )}
 
       {/* Conduct pulse: a bounded semantic cue around the cortex. */}
+      <group ref={group => { cortexCueGroupsRef.current[2] = group; }} name="cortex-field-attachment">
       {!conductorStopped && <mesh
         ref={semanticPulseMeshRef}
         data-testid="cortex-posture-field"
@@ -1139,6 +1220,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
           />
         </mesh>
       )}
+      </group>
 
       {/* Temporary worker postures derived from the semantic kernel. */}
       {Object.entries(motes).map(([workerId, m]) => {
@@ -1196,6 +1278,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
       })}
 
       {/* Trails and Scars (Stigmergy pheromones and mistakes) */}
+      <group ref={group => { cortexCueGroupsRef.current[3] = group; }} name="cortex-trail-attachment">
       {stigmergyTrails.map((t, i) => {
         const seed = t.skill_id ?? i;
         const rand1 = getStableRandom(seed);
@@ -1256,6 +1339,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
           );
         }
       })}
+      </group>
     </group>
   );
 }

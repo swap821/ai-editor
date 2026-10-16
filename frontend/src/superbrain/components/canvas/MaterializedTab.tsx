@@ -12,16 +12,19 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { approvePendingApproval, rejectPendingApproval } from '@/lib/aiosAdapter';
 import { deriveMaterializedSurfacePose } from '@/lib/materializedSurfacePose';
+import { WAITING_POINTS_SURFACE_SCALE } from '@/lib/livingWorkspaceLayout';
 import {
   buildFocusedHudUmbilicalCurve,
   FOCUSED_HUD_NERVE_GAP,
   shouldUseFocusedHudUmbilical,
 } from '@/lib/materializedSurfaceAnchors';
-import { fuseSpinePoint, getBrainDockScale } from '@/lib/spineFusionBus';
+import { getSpineFusion, getBrainDockScale, copyBodyShapeWorldFrame, copyCortexWorldBounds } from '@/lib/spineFusionBus';
 import { SEGMENT_ANCHORS } from '@/lib/spineAnatomy';
 import { deriveMaterializedSurfaceSkin, type MaterializedSurfaceSkin } from '@/lib/materializedSurfaceSkin';
 import { useSurfaceDial } from '@/lib/surfaceDialBus';
 import { useDomWorkPlane } from '@/lib/useDomWorkPlane';
+import { POINTS_REABSORPTION_MS, POINTS_SLAB_RETRACT_MS } from '@/lib/reabsorptionTiming';
+import { MATERIALIZATION_REACH_MS } from '@/lib/materializationTiming';
 import { deriveOrganMaterialState, type OrganMaterialState } from '@/lib/organMaterialState';
 import { formatMaterializedTextPreview } from '@/lib/materializedTextPreview';
 import { easeOutExpo, easeOutBack, easeInCubic, layerProgress, flashBell } from '@/lib/motionEasing';
@@ -49,7 +52,6 @@ import { ApprovalActionButton } from './materializedTab/ApprovalActionButton';
 import { WorkTabLiveDashboard } from './materializedTab/WorkTabLiveDashboard';
 import { toSurfaceTheme, type SurfaceTheme } from './materializedTab/theme';
 
-const REACH_DURATION_MS = 900;
 const UNFURL_DURATION_MS = 520;
 // MULTI-FILE CASCADE (#wow): per-seat bloom delay so several panels materialize 1→2→3
 // (focus leads) instead of popping together. Capped at 6 seats → cascade ≤ ~660ms.
@@ -66,11 +68,6 @@ const HUD_SPREAD_X = 1.15;
 const HUD_SPREAD_Y = 1.0;
 const HUD_BOW = -0.16; // a gentle downward SAG so the nerve HANGS like a root/cable (catenary) from its vertebra to the waiting tab, rather than arcing UP toward the brain like a wire (#6 root curvature)
 const HUD_REBUILD_EPS = 0.015; // rebuild the nerve geometry only when the tab moved this much (slow orbit -> rare)
-// SOUL P2: which vertebra a tab's nerve roots at — the UPPER vertebra feeds the focus
-// + the top corners, the LOWER vertebra feeds the bottom corners (prototype: nerves
-// emerge from the spine vertebra nearest each tab). 0=top..11=bottom.
-const NERVE_VERTEBRA_UPPER = 2;
-const NERVE_VERTEBRA_LOWER = 7;
 const _camFwd = new THREE.Vector3();
 const _camRight = new THREE.Vector3();
 const _camUp = new THREE.Vector3();
@@ -82,6 +79,13 @@ const _hudPanelRim = new THREE.Vector3();
 const _hudUpPoint = new THREE.Vector3();
 const _hudPanelUp = new THREE.Vector3();
 const _hudEndpoint = new THREE.Vector3();
+const _hudParentScale = new THREE.Vector3();
+const _cortexBounds = new THREE.Box3();
+const _bodyShapeWorld = new THREE.Matrix4();
+const _cortexScreen = new THREE.Box2();
+const _cortexCorner = new THREE.Vector3();
+const _cortexPixel = new THREE.Vector2();
+const _hudClearStrip = new THREE.Vector4();
 const BEAD_COUNT = 4;
 const CONDUCTOR_BEAD_COUNT = 4;
 const CONDUCTOR_PUNCTA_PER_ROOT = 6;
@@ -93,7 +97,7 @@ const APPROVAL_PREVIEW_LINES = 12;
 const APPROVAL_PREVIEW_CHARS = 56;
 const TAU = Math.PI * 2;
 // Three's raycaster otherwise still descends through invisible groups. A
-// delegated reader must not leave a ghost hit target across the organism.
+// delegated or fully dissolved surface must not leave a ghost hit target.
 const passSurfaceRaycast = () => undefined;
 const skipDelegatedSurfaceRaycast = () => false;
 
@@ -856,8 +860,10 @@ export default function MaterializedTab({
   metabolism = REST_TURN_METABOLISM,
   outcome = REST_OUTCOME_IMPRINT,
   waitingIndex = 0,
+  wholeBodyClearance = false,
   posture = BODY_POSTURES.rest,
   workspaceCount = 1,
+  paintedWaitingCount,
 }: {
   tab: MaterializedTabRecord;
   reducedMotion: boolean;
@@ -865,13 +871,18 @@ export default function MaterializedTab({
   metabolism?: TurnMetabolismSnapshot;
   outcome?: OutcomeImprintSnapshot;
   waitingIndex?: number;
+  /** No attended work: reserve the full body, not the focused reader's head-only budget. */
+  wholeBodyClearance?: boolean;
   posture?: BodyPosture;
   workspaceCount?: number;
+  /** Placement occupancy, including still-painted retirement, not admitted work. */
+  paintedWaitingCount?: number;
 }) {
   const camera = useThree((state) => state.camera);
   const viewportWidth = useThree((state) => state.size.width);
   const viewportHeight = useThree((state) => state.size.height);
   const domWorkPlane = useDomWorkPlane(tab);
+  const surfaceRef = useRef<THREE.Group>(null);
   // Operator's live surface-anatomy dial (window.__SURFACE). Default-off → the
   // points being keeps its clean-dark-glass look until he turns a knob on :5173.
   const surfaceDial = useSurfaceDial();
@@ -897,6 +908,10 @@ export default function MaterializedTab({
   // so the umbilical + its beads follow the tab as the view orbits (rebuilt sparsely).
   const curveRef = useRef<THREE.CatmullRomCurve3 | null>(null);
   const lastHudLocalRef = useRef<THREE.Vector3 | null>(null);
+  const lastHudOriginRef = useRef<THREE.Vector3 | null>(null);
+  // Imperative HUD tubes have a separate owner from memoized fallback geometry.
+  // React can replace the mesh prop without disposing this last installed tube.
+  const hudTubeGeometryRef = useRef<THREE.TubeGeometry | null>(null);
 
   const dimensions = SURFACE_DIMENSIONS[tab.kind];
   const metabolismColor = useMemo(() => new THREE.Color(metabolism.tint), [metabolism.tint]);
@@ -922,9 +937,11 @@ export default function MaterializedTab({
   // a camera-anchored HUD element (center focus / corners), all facing the camera.
   // The APPROVAL gate is ALWAYS a camera-anchored HUD element (centre-front, facing the
   // operator) — the supervised decision must command the frame regardless of how many
-  // work tabs are up. Work tabs become HUD elements only in orchestration (2+).
+  // work tabs are up. An unattended result also uses the waiting HUD fit even
+  // when it is the only one; a rotating world card can otherwise cross the
+  // resting anatomy or the product's control boundary after Conversation.
   const isHudTab =
-    POINTS && (tab.kind === 'approval' || (tab.kind !== 'input' && (workspaceCount ?? 1) >= 2));
+    POINTS && (tab.kind === 'approval' || (tab.kind !== 'input' && ((workspaceCount ?? 1) >= 2 || !focused)));
   const facesCamera = tab.kind === 'input' || (POINTS && focused) || isHudTab;
   const isFocused = tab.kind === 'input' || focused;
   const pose = useMemo(
@@ -1095,6 +1112,11 @@ export default function MaterializedTab({
     };
   }, [conductorGeometries, slabBodyGeometry, slabFrameGeometry, slabShapeGeometry, tubeGeometry]);
 
+  useEffect(() => () => {
+    hudTubeGeometryRef.current?.dispose();
+    hudTubeGeometryRef.current = null;
+  }, []);
+
   useEffect(() => {
     if (tab.kind !== 'approval') {
       setApprovalBusy(false);
@@ -1103,6 +1125,16 @@ export default function MaterializedTab({
 
   useFrame((state) => {
     const now = performance.now();
+    // The sibling return may outlive the dissolved work. Keep its record, not
+    // an opaque sliver or invisible hit targets. Reopen restores this same
+    // surface on its next frame; the measured DOM reader still owns visibility.
+    const returnOnly = POINTS && tab.kind !== 'input' && tab.lifecycle === 'retracting'
+      && now - tab.phaseStartedAt >= POINTS_SLAB_RETRACT_MS;
+    if (surfaceRef.current) {
+      const hidden = domWorkPlane || returnOnly;
+      surfaceRef.current.visible = !hidden;
+      surfaceRef.current.raycast = hidden ? skipDelegatedSurfaceRaycast : passSurfaceRaycast;
+    }
     const phaseRate =
       metabolism.phase === 'error'
         ? 7.2
@@ -1162,7 +1194,7 @@ export default function MaterializedTab({
       const cascadeOrder = isFocused ? 0 : Math.min((waitingIndex ?? 0) + 1, 6);
       const reachElapsed = Math.max(0, elapsed - cascadeOrder * CASCADE_STAGGER_MS);
       if (tab.lifecycle === 'reaching') {
-        reachProgress = clamp01(reachElapsed / REACH_DURATION_MS);
+        reachProgress = clamp01(reachElapsed / MATERIALIZATION_REACH_MS);
         slabProgress = 0;
         liveProgress = 0;
         if (reachProgress >= 1) {
@@ -1178,11 +1210,18 @@ export default function MaterializedTab({
       } else if (tab.lifecycle === 'retracting') {
         // Points being: a slower retract so the slab visibly dissolves while the
         // reabsorption motes stream up the spine (poster phase 7).
-        const retractProgress = clamp01(elapsed / (POINTS ? 1300 : RETRACT_DURATION_MS));
+        const retractDuration = POINTS ? POINTS_SLAB_RETRACT_MS : RETRACT_DURATION_MS;
+        const retractProgress = clamp01(elapsed / retractDuration);
         reachProgress = 1 - retractProgress;
         slabProgress = 1 - retractProgress;
         liveProgress = 1 - retractProgress;
-        if (retractProgress >= 1) {
+        // Work return particles are siblings owned by the same tab record.
+        // Keep that record until their existing trip finishes; the slab still
+        // dissolves on its original timeline, and primary Close is immediate.
+        // Input has no return particles in MaterializationLayer; retain its
+        // prior lifetime. Reduced motion already retires above without travel.
+        const retirementDuration = POINTS && tab.kind !== 'input' ? POINTS_REABSORPTION_MS : retractDuration;
+        if (elapsed >= retirementDuration) {
           finishMaterializedTabRetraction(tab.id, tab.retractionToken);
           return;
         }
@@ -1302,6 +1341,7 @@ export default function MaterializedTab({
     // the visible gap.) No scale on this node = no shear; slabRef does scale only.
     // The umbilical ends at the same point, so the nerve stays plugged in as the
     // tab turns to face you.
+    let backgroundFitScale = 1;
     if (orientationRef.current) {
       if (isHudTab) {
         // CAMERA-ANCHORED HUD: hold a fixed SCREEN position (center focus / corners),
@@ -1310,11 +1350,8 @@ export default function MaterializedTab({
         _camFwd.set(0, 0, -1).applyQuaternion(camera.quaternion);
         _camRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
         _camUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
-        _hudPos
-          .copy(camera.position)
-          .addScaledVector(_camFwd, HUD_DIST)
-          .addScaledVector(_camRight, pose.targetLocal[0] * HUD_SPREAD_X)
-          .addScaledVector(_camUp, pose.targetLocal[1] * HUD_SPREAD_Y);
+        let hudX = pose.targetLocal[0] * HUD_SPREAD_X;
+        let hudY = pose.targetLocal[1] * HUD_SPREAD_Y;
         // SOUL P4/P5: the focus gently BREATHES; waiting tabs IDLE-bob (staggered),
         // so the orchestration feels alive. Small + slow, so the nerve (rebuilt on
         // movement) follows without churn. The nerve endpoint bobs with the tab.
@@ -1322,8 +1359,161 @@ export default function MaterializedTab({
           const bob = isFocused
             ? Math.sin(state.clock.elapsedTime * 1.1) * 0.04
             : Math.sin(state.clock.elapsedTime * 1.5 + (waitingIndex ?? 0) * 1.3) * 0.08;
-          _hudPos.addScaledVector(_camUp, bob);
+          hudY += bob;
         }
+        // The product camera frames a presence pane while painting a larger
+        // stage. Full-window authored offsets can put background slabs outside
+        // that pane. Fit only those slabs; the DOM reader/decision/input owners
+        // and standalone camera policy remain unchanged. A sphere envelope
+        // accounts for tilt, birth/retraction overshoot and nearer perspective.
+        if (tab.kind === 'content' && !isFocused && camera instanceof THREE.PerspectiveCamera && camera.view?.enabled) {
+          const view = camera.view;
+          const halfY = HUD_DIST * Math.tan(camera.getEffectiveFOV() * Math.PI / 360);
+          const halfX = halfY * view.fullWidth / view.fullHeight;
+          _hudParentScale.set(1, 1, 1);
+          orientationRef.current.parent?.getWorldScale(_hudParentScale);
+          const parentScale = Math.max(_hudParentScale.x, _hudParentScale.y, _hudParentScale.z);
+          const referenceRadius = Math.hypot(dimensions.width, dimensions.height, dimensions.thickness) * 0.6
+            * WAITING_POINTS_SURFACE_SCALE * POINTS_SLAB_SCALE * parentScale;
+          const radius = referenceRadius * pose.scale / WAITING_POINTS_SURFACE_SCALE;
+          // Tiny positive panes still have a bounded decorative representation;
+          // readable content remains in the existing DOM owner. Proportional
+          // padding yields first, not input/Stop or the result's identity.
+          const marginX = halfX * 2 * Math.min(12, view.fullWidth / 5) / view.fullWidth;
+          const marginY = halfY * 2 * Math.min(12, view.fullHeight / 5) / view.fullHeight;
+          if (referenceRadius > 0 && halfX > marginX && halfY > marginY) {
+            const hasCortex = wholeBodyClearance
+              ? copyBodyShapeWorldFrame(_cortexBounds, _bodyShapeWorld)
+              : copyCortexWorldBounds(_cortexBounds);
+            if (!wholeBodyClearance) _bodyShapeWorld.identity();
+            if (hasCortex) {
+              // Project the current orbit pose before budgeting its side room.
+              camera.updateWorldMatrix(true, false);
+              _cortexScreen.makeEmpty();
+              for (let corner = 0; corner < 8; corner++) {
+                _cortexCorner.set(
+                  corner & 1 ? _cortexBounds.max.x : _cortexBounds.min.x,
+                  corner & 2 ? _cortexBounds.max.y : _cortexBounds.min.y,
+                  corner & 4 ? _cortexBounds.max.z : _cortexBounds.min.z,
+                ).applyMatrix4(_bodyShapeWorld).project(camera);
+                _cortexPixel.set(
+                  (((_cortexCorner.x + 1) * view.width / 2 + view.offsetX) / view.fullWidth * 2 - 1) * halfX,
+                  (1 - ((1 - _cortexCorner.y) * view.height / 2 + view.offsetY) / view.fullHeight * 2) * halfY,
+                );
+                _cortexScreen.expandByPoint(_cortexPixel);
+              }
+            }
+            // A common largest-slab budget preserves ring scale hierarchy and
+            // leaves travel room. Independent full-axis fitting can collapse
+            // every waiting center onto zero and erase distinct work placements.
+            backgroundFitScale = Math.min(1, (halfX - marginX) / (2 * referenceRadius * (1 + halfX / HUD_DIST)),
+              (halfY - marginY) / (2 * referenceRadius * (1 + halfY / HUD_DIST)));
+            const waitingCount = paintedWaitingCount ?? Math.max(0, workspaceCount - 1);
+            // Even two or three waiting cards need shared rows. Independent
+            // nearest-edge correction can collapse the authored corners.
+            const crowdedRows = waitingCount > 4 || (wholeBodyClearance && waitingCount > 0) ? Math.ceil(waitingCount / 2) : 0;
+            const rowGap = crowdedRows > 1 ? Math.min(marginY, (halfY - marginY) / (crowdedRows - 1)) : 0;
+            let clearStripRadius = 0, clearStripHorizontal = false;
+            if (crowdedRows > 0) {
+              // Repeated corner rings hide each other's identity. Share one
+              // largest-slab budget across two spinal branches instead, with
+              // real vertical room for every waiting seat and its idle motion.
+              const rowRadius = (halfY - marginY - (crowdedRows - 1) * rowGap / 2)
+                / (crowdedRows + halfY / HUD_DIST);
+              backgroundFitScale = Math.min(backgroundFitScale, rowRadius / referenceRadius);
+              if (hasCortex) {
+                // Reserve both branches against the same whole-body envelope. A
+                // per-card edge correction can collapse adjacent rows together.
+                const sideRadius = Math.min(halfX + _cortexScreen.min.x, halfX - _cortexScreen.max.x)
+                  - 3 * marginX;
+                if (sideRadius > 0) backgroundFitScale = Math.min(backgroundFitScale,
+                  sideRadius / ((2 + halfX / HUD_DIST) * referenceRadius));
+                else {
+                  // A paired branch needs room on BOTH sides. If one side is
+                  // exhausted, reserve one actual clear strip for all painted
+                  // identities instead of independently pushing cards together.
+                  const minX = -halfX + marginX * 1.1, maxX = halfX - marginX * 1.1;
+                  const minY = -halfY + marginY * 1.1, maxY = halfY - marginY * 1.1;
+                  const left = Math.min(maxX, _cortexScreen.min.x - marginX);
+                  const right = Math.max(minX, _cortexScreen.max.x + marginX);
+                  const bottom = Math.min(maxY, _cortexScreen.min.y - marginY);
+                  const top = Math.max(minY, _cortexScreen.max.y + marginY);
+                  // A fifth of each cell remains spare. These are SCREEN-space
+                  // radii; invert the nearer-perspective envelope below before
+                  // scaling the actual world geometry.
+                  const leftRadius = 0.4 * Math.max(0, Math.min(left - minX, (maxY - minY) / waitingCount));
+                  const rightRadius = 0.4 * Math.max(0, Math.min(maxX - right, (maxY - minY) / waitingCount));
+                  const bottomRadius = 0.4 * Math.max(0, Math.min(bottom - minY, (maxX - minX) / waitingCount));
+                  const topRadius = 0.4 * Math.max(0, Math.min(maxY - top, (maxX - minX) / waitingCount));
+                  clearStripRadius = Math.max(leftRadius, rightRadius, bottomRadius, topRadius);
+                  if (clearStripRadius > 0) {
+                    if (clearStripRadius === leftRadius) _hudClearStrip.set(minX, minY, left, maxY);
+                    else if (clearStripRadius === rightRadius) _hudClearStrip.set(right, minY, maxX, maxY);
+                    else {
+                      clearStripHorizontal = true;
+                      if (clearStripRadius === bottomRadius) _hudClearStrip.set(minX, minY, maxX, bottom);
+                      else _hudClearStrip.set(minX, top, maxX, maxY);
+                    }
+                    backgroundFitScale = Math.min(1, clearStripRadius / (referenceRadius
+                      * (1 + Math.max(halfX, halfY) / HUD_DIST + clearStripRadius / HUD_DIST)));
+                  }
+                }
+              }
+            }
+            const fittedRadius = radius * backgroundFitScale;
+            const limitX = Math.max(0, halfX * (1 - fittedRadius / HUD_DIST) - fittedRadius - marginX);
+            const limitY = Math.max(0, halfY * (1 - fittedRadius / HUD_DIST) - fittedRadius - marginY);
+            // Map the authored corner/ring coordinates monotonically into the
+            // actual pane instead of hard-clamping distinct corners together.
+            hudX = Math.tanh(hudX) * limitX;
+            hudY = Math.tanh(hudY) * limitY;
+            if (clearStripRadius > 0) {
+              const commonRadius = referenceRadius * backgroundFitScale;
+              const screenRadius = commonRadius * (1 + Math.max(halfX, halfY) / HUD_DIST)
+                / (1 - commonRadius / HUD_DIST);
+              const start = (clearStripHorizontal ? _hudClearStrip.x : _hudClearStrip.y) + screenRadius;
+              const end = (clearStripHorizontal ? _hudClearStrip.z : _hudClearStrip.w) - screenRadius;
+              const step = waitingCount > 1 ? (end - start) / (waitingCount - 1) : 0;
+              const bobRoom = Math.max(0, step - 2 * screenRadius) / 4;
+              const idleBob = reducedMotion ? 0 : THREE.MathUtils.clamp(
+                Math.sin(state.clock.elapsedTime * 1.5 + waitingIndex * 1.3) * 0.08, -bobRoom, bobRoom);
+              const along = waitingCount > 1
+                ? THREE.MathUtils.clamp(start + waitingIndex * step + idleBob, start, end)
+                : (start + end) / 2;
+              hudX = clearStripHorizontal ? along : (_hudClearStrip.x + _hudClearStrip.z) / 2;
+              hudY = clearStripHorizontal ? (_hudClearStrip.y + _hudClearStrip.w) / 2 : along;
+            } else if (crowdedRows > 0) {
+              const commonRadius = referenceRadius * backgroundFitScale;
+              const branchX = Math.max(0, halfX * (1 - commonRadius / HUD_DIST) - commonRadius - marginX * 1.1);
+              const branchY = Math.max(0, halfY * (1 - commonRadius / HUD_DIST) - commonRadius - marginY);
+              const row = Math.floor(waitingIndex / 2);
+              const idleBob = reducedMotion ? 0
+                : THREE.MathUtils.clamp(Math.sin(state.clock.elapsedTime * 1.5 + waitingIndex * 1.3) * 0.08,
+                  -rowGap / 4, rowGap / 4);
+              hudX = (waitingIndex % 2 === 0 ? -1 : 1) * branchX;
+              hudY = THREE.MathUtils.clamp((crowdedRows > 1 ? branchY * (1 - 2 * row / (crowdedRows - 1)) : 0) + idleBob, -branchY, branchY);
+            }
+            if (hasCortex && clearStripRadius === 0) {
+              // Bounds-only fitting can leave a card over the actual head.
+              // Choose the nearest clear edge, still inside the existing pane;
+              // the same endpoint feeds its admitted-seat umbilical below.
+              const left = _cortexScreen.min.x - fittedRadius - marginX;
+              const right = _cortexScreen.max.x + fittedRadius + marginX;
+              const bottom = _cortexScreen.min.y - fittedRadius - marginY;
+              const top = _cortexScreen.max.y + fittedRadius + marginY;
+              if (hudX > left && hudX < right && hudY > bottom && hudY < top) {
+                let distance = Infinity, nextX = hudX, nextY = hudY;
+                if (left >= -limitX && hudX - left < distance) { distance = hudX - left; nextX = left; }
+                if (right <= limitX && right - hudX < distance) { distance = right - hudX; nextX = right; }
+                if (bottom >= -limitY && hudY - bottom < distance) { distance = hudY - bottom; nextX = hudX; nextY = bottom; }
+                if (top <= limitY && top - hudY < distance) { nextX = hudX; nextY = top; }
+                hudX = nextX; hudY = nextY;
+              }
+            }
+          }
+        }
+        _hudPos.copy(camera.position).addScaledVector(_camFwd, HUD_DIST)
+          .addScaledVector(_camRight, hudX).addScaledVector(_camUp, hudY);
         const useFocusedHudNerve = shouldUseFocusedHudUmbilical(tab.kind, focused);
         const hudParent = orientationRef.current.parent;
         if (useFocusedHudNerve) _hudCenterWorld.copy(_hudPos);
@@ -1342,28 +1532,33 @@ export default function MaterializedTab({
         } else {
           _hudEndpoint.copy(_hudPos);
         }
+        // Display order moves a waiting surface, never its anatomical identity.
+        // Use the same admitted seat/fusion/dock origin as the DOM connection;
+        // explicit unseated standalone placements keep their own local origin.
+        const seat = typeof tab.seatIndex === 'number' && Number.isInteger(tab.seatIndex)
+          ? SEGMENT_ANCHORS[tab.seatIndex] : undefined;
+        if (seat) {
+          _hudOrigin.copy(seat);
+          const fusion = getSpineFusion();
+          if (fusion.ready) _hudOrigin.multiplyScalar(fusion.spineScale).add(_hudMid.set(...fusion.weld));
+        } else _hudOrigin.set(...tab.originLocal);
+        _hudOrigin.multiplyScalar(getBrainDockScale() || 1);
+        if (socketRef.current) socketRef.current.position.copy(_hudOrigin);
         // An attended content surface keeps one thin nerve, docked just outside its
         // lower rim. Approval and intake retain their existing authority/cord paths.
         if (isFocused && !useFocusedHudNerve) {
           if (tubeRef.current) tubeRef.current.visible = false;
           curveRef.current = null;
           lastHudLocalRef.current = null;
+          lastHudOriginRef.current = null;
         } else {
           if (tubeRef.current) tubeRef.current.visible = true;
           // Redraw the nerve from the spine origin to the (moving) HUD tab — sparsely
           // (only once it has shifted enough) so the umbilical stays plugged in without
           // rebuilding the tube every frame.
-          if (!lastHudLocalRef.current || lastHudLocalRef.current.distanceTo(_hudEndpoint) > HUD_REBUILD_EPS) {
-            // SOUL P2: root the nerve at the VISIBLE vertebra nearest this tab — upper
-            // vertebra for the top corners, lower for the bottom corners — scaled by
-            // the brain's current dock scale (the visible spine shrank in P1).
-            {
-              const ds = getBrainDockScale() || 1;
-              const vi = (waitingIndex ?? 0) <= 1 ? NERVE_VERTEBRA_UPPER : NERVE_VERTEBRA_LOWER;
-              const va = SEGMENT_ANCHORS[vi];
-              const vf = fuseSpinePoint([va.x, va.y, va.z]);
-              _hudOrigin.set(vf[0] * ds, vf[1] * ds, vf[2] * ds);
-            }
+          if (tubeRef.current?.geometry !== hudTubeGeometryRef.current
+            || !lastHudLocalRef.current || lastHudLocalRef.current.distanceTo(_hudEndpoint) > HUD_REBUILD_EPS
+            || !lastHudOriginRef.current || lastHudOriginRef.current.distanceTo(_hudOrigin) > HUD_REBUILD_EPS) {
             let c: THREE.CatmullRomCurve3;
             if (useFocusedHudNerve) {
               c = buildFocusedHudUmbilicalCurve(_hudOrigin, _hudPanelRim, _hudPanelUp);
@@ -1374,19 +1569,26 @@ export default function MaterializedTab({
             }
             curveRef.current = c;
             if (tubeRef.current) {
-              tubeRef.current.geometry.dispose();
-              tubeRef.current.geometry = new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
+              const previous = hudTubeGeometryRef.current;
+              const next = new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
+              hudTubeGeometryRef.current = next;
+              tubeRef.current.geometry = next;
+              previous?.dispose();
             }
             lastHudLocalRef.current = _hudEndpoint.clone();
+            lastHudOriginRef.current = _hudOrigin.clone();
           }
         }
       } else {
         curveRef.current = null;
         lastHudLocalRef.current = null;
+        lastHudOriginRef.current = null;
+        if (socketRef.current) socketRef.current.position.set(...tab.originLocal);
+        hudTubeGeometryRef.current?.dispose();
+        hudTubeGeometryRef.current = null;
         if (tubeRef.current) {
           tubeRef.current.visible = true;
           if (tubeRef.current.geometry !== tubeGeometry) {
-            tubeRef.current.geometry.dispose();
             tubeRef.current.geometry = tubeGeometry;
           }
         }
@@ -1396,7 +1598,7 @@ export default function MaterializedTab({
     }
 
     if (slabRef.current) {
-      const s = pose.scale * POINTS_SLAB_SCALE;
+      const s = pose.scale * POINTS_SLAB_SCALE * backgroundFitScale;
       if (tab.lifecycle === 'retracting') {
         // DISMISS / SETTLE (#wow signature 5): the being DRINKS the panel back — a quick
         // anticipation PUFF, then Y folds shut FIRST on an accelerating ease-IN (the
@@ -1730,6 +1932,7 @@ export default function MaterializedTab({
 
   return (
     <group
+      ref={surfaceRef}
       visible={!domWorkPlane}
       raycast={domWorkPlane ? skipDelegatedSurfaceRaycast : passSurfaceRaycast}
       onClick={(event) => {

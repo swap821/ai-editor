@@ -12,6 +12,7 @@ export function ExperienceModeSwitch({ mode, onChange }: ExperienceModeSwitchPro
       <div className="gagos-experience-mode__choices">
         <button
           type="button"
+          data-experience-choice="beginner"
           className={`gagos-experience-mode__choice${mode === 'beginner' ? ' is-active' : ''}`}
           aria-pressed={mode === 'beginner'}
           onClick={() => onChange('beginner')}
@@ -20,6 +21,7 @@ export function ExperienceModeSwitch({ mode, onChange }: ExperienceModeSwitchPro
         </button>
         <button
           type="button"
+          data-experience-choice="expert"
           className={`gagos-experience-mode__choice${mode === 'expert' ? ' is-active' : ''}`}
           aria-pressed={mode === 'expert'}
           onClick={() => onChange('expert')}
