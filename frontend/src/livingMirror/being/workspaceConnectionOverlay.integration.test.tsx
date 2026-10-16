@@ -89,8 +89,9 @@ describe('body-to-workplane connection', () => {
   it.each([[false, false], [false, true], [true, false], [true, true]])(
     'connects the owned decision, preserving same-path reading and immediate reduced motion (guided=%s, reduced=%s)',
     async (guided, reduced) => {
-      vi.stubGlobal('matchMedia', (query: string) => ({ matches: reduced && query.includes('reduced-motion'),
-        media: query, addEventListener: () => {}, removeEventListener: () => {} }) as MediaQueryList);
+      vi.stubGlobal('matchMedia', (query: string): MediaQueryList => ({ matches: reduced && query.includes('reduced-motion'),
+        media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+        addListener: () => {}, removeListener: () => {}, dispatchEvent: () => true }));
       __resetTabStoreForTests();
       const older = showContentSurface({ filepath: 'same.py', code: 'older result', language: 'python' }, { seatIndex: 2 });
       setMaterializedTabLifecycle(older.id, 'live');
@@ -208,8 +209,9 @@ describe('body-to-workplane connection', () => {
     expect(path()).not.toBe('');
   });
   it.each([false, true])('retires an occluded older reader socket without attaching a same-path decision to that seat; reduced=%s', async reduced => {
-    vi.stubGlobal('matchMedia', (query: string) => ({ matches: reduced && query.includes('reduced-motion'),
-      media: query, addEventListener: () => {}, removeEventListener: () => {} }) as MediaQueryList);
+    vi.stubGlobal('matchMedia', (query: string): MediaQueryList => ({ matches: reduced && query.includes('reduced-motion'),
+      media: query, onchange: null, addEventListener: () => {}, removeEventListener: () => {},
+      addListener: () => {}, removeListener: () => {}, dispatchEvent: () => true }));
     __resetTabStoreForTests();
     const older = showContentSurface({ filepath: 'same.py', code: 'older result', language: 'python' }, { seatIndex: 2 });
     setMaterializedTabLifecycle(older.id, 'live');
