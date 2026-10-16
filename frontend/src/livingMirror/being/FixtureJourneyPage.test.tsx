@@ -21,8 +21,10 @@ vi.mock('@/components/canvas/WorkspaceCanvas', () => ({ default: () => <div clas
 let fixture: ReturnType<typeof createFixtureJourneyTransport>;
 const previousMode = localStorage.getItem(EXPERIENCE_MODE_STORAGE_KEY);
 const previousUrl = window.location.href;
+const responsiveStyleCleanups: Array<() => void> = [];
 afterEach(() => {
   cleanup(); fixture?.dispose(); __resetAiosAdapterForTests(); __resetTabStoreForTests();
+  responsiveStyleCleanups.splice(0).forEach(dispose => dispose());
   document.querySelectorAll('style[data-fixture-journey-test]').forEach((style) => style.remove());
   useMirrorStore.setState(useMirrorStore.getInitialState(), true); setConversationPhase('idle');
   setAmbientMotionPaused(false);
@@ -54,6 +56,20 @@ async function mount(reduced = false, isolate = false, narrow = false, responsiv
   style.textContent = readFileSync('src/workbench/GagosChrome.css', 'utf8')
     + readFileSync('src/livingMirror/livingMirror.css', 'utf8')
     + readFileSync('src/livingMirror/compactWorkingChrome.css', 'utf8'); document.head.append(style);
+  // jsdom does not apply viewport media queries, but30.1.2 correctly refuses
+  // focus on display:none ancestors. Apply the ACTUAL compact CSS rules for
+  // the same mocked media owner; never focus a desktop-hidden phone control.
+  // This supplies focus/visibility fidelity, not native layout/device proof.
+  const compactCss = [...(style.sheet?.cssRules ?? [])]
+    .filter((rule): rule is CSSMediaRule => rule.type === CSSRule.MEDIA_RULE
+      && (rule as CSSMediaRule).conditionText === '(max-width: 767px)')
+    .flatMap(rule => [...rule.cssRules].map(child => child.cssText)).join('\n');
+  const compactStyle = document.createElement('style'); compactStyle.dataset.fixtureJourneyTest = 'true';
+  const compactMedia = window.matchMedia('(max-width: 767px)');
+  const syncCompactStyle = () => { compactStyle.textContent = compactMedia.matches ? compactCss : ''; };
+  compactMedia.addEventListener('change', syncCompactStyle);
+  responsiveStyleCleanups.push(() => compactMedia.removeEventListener('change', syncCompactStyle));
+  syncCompactStyle(); document.head.append(compactStyle);
   render(<StrictMode>{officialEntry ? <SuperbrainApp /> : <FixtureJourneyPage fixture={fixture} />}</StrictMode>);
   await waitFor(() => expect(useMirrorStore.getState().projection).toBe('fresh'));
   if (!officialEntry) expect(screen.getByText('Fixture—not backend work')).toBeVisible();
@@ -705,10 +721,14 @@ it('recovers navigation focus when phone CSS hides its desktop group before the 
   const navigation = document.querySelector<HTMLElement>('.lm-navigation')!;
   const target = within(navigation).getByRole('button', { name: 'Project files' });
   target.focus();
+  expect(document.activeElement).toBe(target);
   // Native CSS is applied before matchMedia callbacks. jsdom does not apply
   // viewport queries, so reproduce that observed focus-loss boundary directly.
   target.closest<HTMLElement>('.lm-expert-group')!.style.display = 'none';
-  target.blur();
+  // jsdom does not automatically run browser focus fixup on CSS hiding, and
+  // blur() now refuses an already non-focusable target. Use its public
+  // viewport focus step to reproduce native BODY focus, not a focus mock.
+  document.documentElement.focus();
   expect(document.activeElement).toBe(document.body);
   act(() => media.resize(true));
   await waitFor(() => expect(document.activeElement).toBe(resizeControl('more')));
