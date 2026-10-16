@@ -362,6 +362,22 @@ _PROOF_CONDITIONS = ("C3", "C4", "C5")
 #: claims as "live" must be one of these -- see _evidence_reference_failures.
 _PHASE4_ARTIFACT_RE = re.compile(r"release/phase4/live-evidence-[\w.\-]+\.json")
 _CI_RUN_RE = re.compile(r"actions/runs/(\d+)")
+
+
+def commit_bound_citations(description: str) -> tuple[list[str], list[str]]:
+    """The citations in a live row that C10 binds to the row's ``commit_sha``:
+    ``release/phase4`` artifacts (whose ``tip_sha`` must equal it) and CI run
+    ids (which must have run at it).
+
+    A row citing either was proven AT that one commit. It can be re-gathered
+    at another, never re-pointed to one. THE ONE DERIVATION (plan Phase 9):
+    C10 reads its citations here, and ``scripts/verify_evidence_lineage.py``
+    asks the same function before it moves a row, so the tool can no longer
+    produce a row C10 refuses -- which it did, and #368 re-gathered instead.
+    """
+    return _PHASE4_ARTIFACT_RE.findall(description), _CI_RUN_RE.findall(description)
+
+
 #: Human-witnessed evidence (an operator driving a real browser) cannot be
 #: re-derived by a script. It is a legitimate kind of proof and the ledger has
 #: four such rows, but it must be DECLARED rather than inferred -- otherwise it
@@ -443,8 +459,7 @@ def _evidence_reference_failures(
         if evidence.proof_level != "live":
             continue
         desc = evidence.description
-        artifacts = _PHASE4_ARTIFACT_RE.findall(desc)
-        runs = _CI_RUN_RE.findall(desc)
+        artifacts, runs = commit_bound_citations(desc)
         nodes = _proof_citations(desc)
         operator = _OPERATOR_ATTESTED in desc
 
@@ -1092,23 +1107,14 @@ def _entrypoint_drift(record, root: Path, since_sha: str) -> list[str]:
     entrypoints = [str(path) for path in (record.production_entrypoints or [])]
     if not entrypoints:
         return []
-    try:
-        completed = subprocess.run(
-            ["git", "log", "--name-only", "--format=", f"{since_sha}..HEAD", "--"]
-            + entrypoints,
-            cwd=str(root),
-            capture_output=True,
-            text=True,
-            timeout=120,
-        )
-    except (OSError, subprocess.SubprocessError):
-        # Unreadable history is not evidence of freshness. Report it as drift so
-        # the organ is examined rather than waved through.
-        return ["<git history unavailable>"]
-    if completed.returncode != 0:
-        return ["<git history unavailable>"]
-    changed = {line.strip() for line in completed.stdout.splitlines() if line.strip()}
-    return sorted(changed & set(entrypoints))
+    # Content, not history: the one derivation the currency tool uses too
+    # (plan Phase 9). Unreadable or unresolvable history comes back as a
+    # marker, which is drift -- never read as "fresh".
+    from scripts.verify_evidence_currency import changed_since
+
+    changed = changed_since(since_sha, entrypoints, "HEAD", root=root)
+    unknown = [entry for entry in changed if entry.startswith("<")]
+    return unknown or sorted(set(changed) & set(entrypoints))
 
 
 def _evidence_currency_failures(record, root: Path) -> list[tuple[str, str]]:

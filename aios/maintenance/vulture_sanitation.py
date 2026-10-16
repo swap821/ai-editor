@@ -187,13 +187,22 @@ class VultureScanner:
         findings.extend(self.scan_targets(targets).findings)
         return VultureReport(findings=tuple(findings))
 
-    def scan_code_paths(self, paths: Iterable[Path | str]) -> VultureReport:
+    def scan_code_paths(
+        self, paths: Iterable[Path | str], *, importers_root: Path | str | None = None
+    ) -> VultureReport:
         """Read Python files and propose local code hygiene findings only.
 
         This intentionally stops at evidence. It does not edit files, run tests,
         invoke formatters, or quarantine anything.
+
+        *importers_root*: the project the scanned files belong to. When given,
+        a name another file takes FROM the scanned module (``from mod import
+        name``, or ``"mod.name"`` as a monkeypatch target) is a live re-export,
+        not dead -- read-only, by AST and text over that root.
         """
 
+        root = Path(importers_root).resolve() if importers_root is not None else None
+        index = _ExternalImportIndex(root) if root is not None else None
         findings: list[VultureFinding] = []
         for raw_path in sorted((Path(p) for p in paths), key=lambda p: p.as_posix()):
             target_id = raw_path.as_posix()
@@ -214,7 +223,14 @@ class VultureScanner:
 
             findings.extend(self._scan_text(target_id, payload))
             if raw_path.suffix == ".py":
-                findings.extend(self._scan_python_ast(target_id, payload))
+                external = (
+                    index.names_imported_from(raw_path)
+                    if index is not None
+                    else frozenset()
+                )
+                findings.extend(
+                    self._scan_python_ast(target_id, payload, external_names=external)
+                )
 
         return VultureReport(findings=tuple(findings))
 
@@ -272,7 +288,11 @@ class VultureScanner:
         return tuple(findings)
 
     def _scan_python_ast(
-        self, target_id: str, payload: str
+        self,
+        target_id: str,
+        payload: str,
+        *,
+        external_names: frozenset[str] = frozenset(),
     ) -> tuple[VultureFinding, ...]:
         try:
             tree = ast.parse(payload)
@@ -288,25 +308,33 @@ class VultureScanner:
                 ),
             )
 
+        lines = payload.splitlines()
         imported: dict[str, int] = {}
+        exported: set[str] = set(_dunder_all(tree)) | set(external_names)
         used_names: set[str] = set()
         for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
+            if isinstance(node, (ast.Import, ast.ImportFrom)):
                 for alias in node.names:
-                    name = alias.asname or alias.name.split(".", 1)[0]
+                    if alias.name == "*" or (
+                        isinstance(node, ast.ImportFrom) and node.module == "__future__"
+                    ):
+                        continue  # a compiler directive, not a binding to use
+                    if isinstance(node, ast.Import):
+                        name = alias.asname or alias.name.split(".", 1)[0]
+                    else:
+                        name = alias.asname or alias.name
                     imported.setdefault(name, node.lineno)
-            elif isinstance(node, ast.ImportFrom):
-                for alias in node.names:
-                    if alias.name == "*":
-                        continue
-                    name = alias.asname or alias.name
-                    imported.setdefault(name, node.lineno)
+                    # A deliberate re-export: a noqa directive covering F401
+                    # on the alias's own line or on the statement's first line.
+                    alias_line = getattr(alias, "lineno", node.lineno)
+                    if _noqa_f401(lines, alias_line) or _noqa_f401(lines, node.lineno):
+                        exported.add(name)
             elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
                 used_names.add(node.id)
 
         findings: list[VultureFinding] = []
         for name in sorted(imported):
-            if name in used_names or name.startswith("_"):
+            if name in used_names or name in exported or name.startswith("_"):
                 continue
             line_no = imported[name]
             findings.append(
@@ -322,12 +350,154 @@ class VultureScanner:
         return tuple(findings)
 
 
+_NOQA = re.compile(r"#\s*noqa(?::\s*(?P<codes>[A-Z0-9, ]+))?", re.IGNORECASE)
+
+
+def _noqa_f401(lines: list[str], lineno: int) -> bool:
+    """True when line *lineno* (1-based) carries a bare noqa or one naming F401."""
+    if not 1 <= lineno <= len(lines):
+        return False
+    match = _NOQA.search(lines[lineno - 1])
+    if match is None:
+        return False
+    codes = match.group("codes")
+    return codes is None or "F401" in codes.upper()
+
+
+def _dunder_all(tree: ast.Module) -> tuple[str, ...]:
+    """Names a module lists in a literal ``__all__`` -- exported on purpose."""
+    names: list[str] = []
+    for node in tree.body:
+        if isinstance(node, ast.Assign):
+            targets = node.targets
+        elif isinstance(node, (ast.AugAssign, ast.AnnAssign)):
+            targets = [node.target]
+        else:
+            continue
+        if not any(isinstance(t, ast.Name) and t.id == "__all__" for t in targets):
+            continue
+        if isinstance(node.value, (ast.List, ast.Tuple)):
+            names.extend(
+                e.value
+                for e in node.value.elts
+                if isinstance(e, ast.Constant) and isinstance(e.value, str)
+            )
+    return tuple(names)
+
+
+_SKIP_DIRS = frozenset({"__pycache__", "node_modules", "venv", ".venv"})
+
+
+class _ExternalImportIndex:
+    """Which names other files in a project take FROM a given module.
+
+    Read-only: AST for ``from mod import name``, text for ``mod.name`` (the
+    shape a ``monkeypatch.setattr("mod.name", ...)`` target takes). The
+    project's sources are read once per index.
+    """
+
+    def __init__(self, root: Path) -> None:
+        self.root = root
+        self._sources: list[tuple[Path, str]] | None = None
+
+    def _all_sources(self) -> list[tuple[Path, str]]:
+        if self._sources is None:
+            out = []
+            for path in sorted(self.root.rglob("*.py")):
+                parts = path.relative_to(self.root).parts
+                if any(p.startswith(".") or p in _SKIP_DIRS for p in parts):
+                    continue
+                try:
+                    out.append(
+                        (path, path.read_text(encoding="utf-8", errors="replace"))
+                    )
+                except OSError:
+                    continue
+            self._sources = out
+        return self._sources
+
+    def _module_name(self, path: Path) -> str | None:
+        try:
+            rel = path.resolve().relative_to(self.root)
+        except ValueError:
+            return None
+        parts = list(rel.with_suffix("").parts)
+        if parts and parts[-1] == "__init__":
+            parts = parts[:-1]
+        return ".".join(parts) or None
+
+    def names_imported_from(self, path: Path) -> frozenset[str]:
+        module = self._module_name(path)
+        if module is None:
+            return frozenset()
+        target = path.resolve()
+        dotted = re.compile(re.escape(module) + r"\.([A-Za-z_]\w*)")
+        names: set[str] = set()
+        for source_path, text in self._all_sources():
+            if source_path.resolve() == target or module not in text:
+                continue
+            names.update(dotted.findall(text))
+            try:
+                tree = ast.parse(text)
+            except SyntaxError:
+                continue
+            parent, _, leaf = module.rpartition(".")
+            aliases: set[str] = set()
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module == module:
+                    names.update(a.name for a in node.names if a.name != "*")
+                elif isinstance(node, ast.ImportFrom) and node.module == parent:
+                    # `from aios.api import main [as api_main]`
+                    aliases.update(
+                        a.asname or a.name for a in node.names if a.name == leaf
+                    )
+                elif isinstance(node, ast.Import):
+                    # `import aios.api.main as api_main`
+                    aliases.update(
+                        a.asname for a in node.names if a.name == module and a.asname
+                    )
+            if aliases:
+                names.update(_attributes_used_through(tree, aliases))
+        return frozenset(names)
+
+
+def _attributes_used_through(tree: ast.AST, aliases: set[str]) -> set[str]:
+    """``alias.name`` reads, and ``setattr/getattr/hasattr(alias, "name", ...)``."""
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id in aliases
+        ):
+            found.add(node.attr)
+        elif isinstance(node, ast.Call) and len(node.args) >= 2:
+            func = node.func
+            fname = (
+                func.attr
+                if isinstance(func, ast.Attribute)
+                else getattr(func, "id", "")
+            )
+            first, second = node.args[0], node.args[1]
+            if (
+                fname in ("setattr", "getattr", "hasattr", "delattr")
+                and isinstance(first, ast.Name)
+                and first.id in aliases
+                and isinstance(second, ast.Constant)
+                and isinstance(second.value, str)
+            ):
+                found.add(second.value)
+    return found
+
+
 def scan_vulture_targets(targets: Mapping[str, str]) -> VultureReport:
     return VultureScanner().scan_targets(targets)
 
 
-def scan_vulture_code_paths(paths: Iterable[Path | str]) -> VultureReport:
-    return VultureScanner().scan_code_paths(paths)
+def scan_vulture_code_paths(
+    paths: Iterable[Path | str], *, importers_root: Path | str | None = None
+) -> VultureReport:
+    return VultureScanner().scan_code_paths(paths, importers_root=importers_root)
 
 
 def _clip(text: str, limit: int = 180) -> str:

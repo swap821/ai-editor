@@ -1561,6 +1561,8 @@ def chat(
     # The application handler owns provider selection, prompt construction,
     # streaming, persistence, and terminal lifecycle.  The HTTP route only
     # supplies validated input plus injected infrastructure callbacks.
+    from aios.application.turns.conversation_pipeline import stream_conversation
+
     task = infer_task(user_text)
     turn = TurnCoordinator(
         deps=RuntimeDeps(
@@ -1619,7 +1621,11 @@ def chat(
                 "auto_ids": _AUTO_IDS,
             },
         ),
-        handlers=production_handlers(),
+        # Every mode streams as conversation here: this route is talk only.
+        # With no factory, a read-only directive ("what is ...", "explain
+        # ...") classified ADVISORY found no stream and raised -- a 500 for
+        # the most ordinary questions (found by tools/model_call_inventory.py).
+        handlers=production_handlers(stream_conversation),
     ).coordinate(ctx)
     return StreamingResponse(
         turn.events,

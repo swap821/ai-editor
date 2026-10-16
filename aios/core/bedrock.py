@@ -25,10 +25,12 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
+from aios.core import model_calls
 from aios.core.llm import LLMError
 from aios.core.stream_protocol import StreamFinished
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
@@ -306,6 +308,15 @@ def _finish_tool(
     )
 
 
+#: Models that reject an explicit temperature (found 2026-10-11: Kimi K3 --
+#: "This model doesn't support the temperature field" -- so EVERY call to the
+#: newest model on the operator's account failed). Learned on first refusal.
+_NO_TEMPERATURE: set[str] = set()
+_TEMPERATURE_REJECTED = re.compile(
+    r"(doesn't|does not) support the temperature", re.IGNORECASE
+)
+
+
 class BedrockClient:
     """:class:`~aios.agents.tool_agent.ChatClient` backed by Bedrock Converse."""
 
@@ -341,6 +352,23 @@ class BedrockClient:
                     "boto3 is required for AWS Bedrock; pip install boto3"
                 ) from exc
             self._client = boto3.client("bedrock-runtime", region_name=region or None)
+
+    def _send(self, call: Any, kwargs: dict[str, Any]) -> Any:
+        """One Converse request. A model that rejects ``temperature`` is
+        retried once without it and remembered, so it stays usable."""
+        model = kwargs.get("modelId", "")
+        model_calls.observe("bedrock", model, getattr(call, "__name__", "converse"))
+        config_block = kwargs.get("inferenceConfig") or {}
+        if model in _NO_TEMPERATURE:
+            config_block.pop("temperature", None)
+        try:
+            return call(**kwargs)
+        except Exception as exc:  # noqa: BLE001 - re-raised unless it is that one refusal
+            if "temperature" in config_block and _TEMPERATURE_REJECTED.search(str(exc)):
+                _NO_TEMPERATURE.add(model)
+                config_block.pop("temperature", None)
+                return call(**kwargs)
+            raise
 
     def chat(
         self,
@@ -388,7 +416,7 @@ class BedrockClient:
             kwargs["toolConfig"] = tool_config
 
         try:
-            response = self._client.converse(**kwargs)
+            response = self._send(self._client.converse, kwargs)
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             # --- Privacy: scrub credentials from the exception before logging. ---
             scrubbed = scrub_exception(exc)
@@ -446,7 +474,7 @@ class BedrockClient:
             kwargs["toolConfig"] = tool_config
 
         try:
-            response = self._client.converse_stream(**kwargs)
+            response = self._send(self._client.converse_stream, kwargs)
             yield from _stream_text_from_converse(response)
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             scrubbed = scrub_exception(exc)
@@ -496,7 +524,7 @@ class BedrockClient:
             kwargs["toolConfig"] = tool_config
 
         try:
-            response = self._client.converse_stream(**kwargs)
+            response = self._send(self._client.converse_stream, kwargs)
             yield from _stream_from_converse(response)
         except Exception as exc:  # noqa: BLE001 - surface uniformly to the agent
             scrubbed = scrub_exception(exc)

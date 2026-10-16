@@ -28,6 +28,29 @@ from typing import Any
 #: actions, because it is the same latch.
 LEARNING_FREEZE_CONTROL = "emergency_stop"
 
+#: What the stop freezes in the learning loop (plan Phase 6f), by the family
+#: each guarded write names -- ``assert_learning_permitted("<family>.<op>")`` --
+#: plus the reflex checks in ``aios/core/cerebellum.py``. A test pins this to
+#: the code, so the freeze event names what is really frozen. Withdrawals
+#: (revocation, quarantine, suspension) are NOT frozen: they take things out
+#: of use.
+FROZEN_BOUNDARIES: dict[str, str] = {
+    "curriculum": "curriculum tasks and progress",
+    "expert_trajectories": "expert trajectories",
+    "facts": "facts and fact proposals",
+    "institutional_skills": "skill saves, attempts and transitions toward use",
+    "learning_derivations": "derivation records",
+    "learning_provenance": "new provenance records (withdrawals still recorded)",
+    "learning_tombstones": "lifting a tombstone",
+    "lessons": "lessons: record, recurrence, promotion, recall outcomes",
+    "reflexes": "reflex compilation and replay bookkeeping",
+    "reuse_outcomes": "skill reuse outcomes",
+    "semantic": "semantic memory writes",
+    "skill_trails": "skill trails and reuse credit",
+    "skill_transfer_outcomes": "negative-transfer windows for skills",
+    "skills": "legacy skill attempts and reuse",
+}
+
 _controllers: dict[Path, Any] = {}
 _lock = threading.Lock()
 

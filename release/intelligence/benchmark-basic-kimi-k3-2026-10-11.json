@@ -1,0 +1,406 @@
+{
+  "generated_at": "2026-10-11T12:59:28.805474+00:00",
+  "tasks": [
+    {
+      "task_id": "c01-genexpr",
+      "category": "coding"
+    },
+    {
+      "task_id": "c02-late-binding",
+      "category": "coding"
+    },
+    {
+      "task_id": "c03-mutable-default",
+      "category": "coding"
+    },
+    {
+      "task_id": "c04-floor-mod",
+      "category": "coding"
+    },
+    {
+      "task_id": "c05-slice",
+      "category": "coding"
+    },
+    {
+      "task_id": "c06-finally",
+      "category": "coding"
+    },
+    {
+      "task_id": "c07-dict-merge",
+      "category": "coding"
+    },
+    {
+      "task_id": "c08-generator",
+      "category": "coding"
+    },
+    {
+      "task_id": "c09-sort-key",
+      "category": "coding"
+    },
+    {
+      "task_id": "c10-bug-mean",
+      "category": "coding"
+    },
+    {
+      "task_id": "c11-bug-bsearch",
+      "category": "coding"
+    },
+    {
+      "task_id": "c12-regex-time",
+      "category": "coding"
+    },
+    {
+      "task_id": "c13-regex-date",
+      "category": "coding"
+    },
+    {
+      "task_id": "c14-json-filter",
+      "category": "coding"
+    },
+    {
+      "task_id": "c15-set-ops",
+      "category": "coding"
+    },
+    {
+      "task_id": "r01-trip",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r02-walls",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r03-youngest",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r04-sequence",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r05-bat-ball",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r06-divisible",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r07-coin",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r08-weekday",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r09-rectangle",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r10-handshakes",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r11-median",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r12-race",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r13-arithmetic",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r14-discount",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r15-knights",
+      "category": "reasoning"
+    }
+  ],
+  "system_prompt": "Answer the question. You may reason first. Then end your reply with one final line exactly in the form: ANSWER: <answer>",
+  "results": [
+    {
+      "model": "bedrock:global.moonshotai.kimi-k3",
+      "summary": {
+        "coding": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 30,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.886,
+            1.0
+          ]
+        },
+        "median_seconds": 2.6
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 2.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 16.609999999869615,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 5.875,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 2.859999999869615,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 2.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 3.422000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 3.625,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 2.0469999997876585,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 2.452999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.3600000001024455,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 4.218000000109896,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "\\A(?:[01]\\d|2[0-3]):[0-5]\\d\\Z",
+          "seconds": 13.140999999828637,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "\\A\\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])\\Z",
+          "seconds": 14.218000000109896,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 2.5159999998286366,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 4.0,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 1.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3 days",
+          "seconds": 2.280999999959022,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 1.2660000000614673,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 1.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.875,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 2.1880000000819564,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 6.375,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 1.843000000109896,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 3.125,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 2.718000000109896,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 1.9689999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 1.375,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 2.8439999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 1.7189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "knight",
+          "seconds": 3.4840000001713634,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

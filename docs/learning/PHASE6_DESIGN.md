@@ -246,3 +246,342 @@ the operator's first activation, but with no human seeing it again.
 
 After replay flakes, the operator re-activates a reflex by hand. Reflexes are
 rare, because only the operator activates skills at all, so the toil is small.
+
+## 6d as built (2026-10-05): the negative-transfer quarantine (T13)
+
+A learned item can be signed, attributed and activated by the operator, and
+still make the turns that recall it worse. Signing proves origin, not safety.
+The plan asked for a quarantine with a **named rule**, one that "neither never
+fires nor fires on noise".
+
+### The rule
+
+`aios/application/learning/negative_transfer.py`, `RULE`: an exact one-sided
+binomial test of the item's recalled outcomes against its baseline.
+
+- *successes* of *attempts* are outcomes of turns that recalled the item.
+- **Nothing to do** when there is no baseline, no outcome yet, or the observed
+  rate is at or above the baseline.
+- **Review** below the baseline on fewer than `NTQ_MIN_OBSERVATIONS` outcomes
+  (env `AIOS_NTQ_MIN_OBSERVATIONS`, default 10). The item is flagged in the
+  learning journal for a human, and stays in use.
+- **Quarantine** at or above that count, when P(X ≤ successes) under
+  Binomial(attempts, baseline) is below `NTQ_ALPHA` (default 0.05).
+- The tail is summed exactly in log space, with no SciPy.
+
+Worked thresholds (from the code):
+
+| baseline | outcomes | quarantined at successes ≤ |
+|---|---|---|
+| 0.8 | 10 | 5 (p = 0.033); 6 of 10 is not |
+| 0.8 | 20 | 12 |
+| 0.6 | 10 | 2 |
+| 0.6 | 20 | 7 |
+
+A skill's baseline is its own record, Laplace-smoothed: (s + 1) / (n + 2).
+"3 of 3" is not certainty, and an exact 1.0 would quarantine on the first
+failure at the minimum count.
+
+### Where it acts
+
+- **Reflexes: first observed harm.** A replay whose execution failed
+  (`Cerebellum._record_replay_failure(..., harm=True)`) takes the reflex out of
+  service at once (`threshold=1`), through 6c's one path. A transient
+  abstention or a blocked step is not harm, and keeps the old streak rule. A
+  step withheld for a human's approval counts as nothing. Recovery is the
+  operator's re-activation (6c).
+- **Skills.**
+  - Each reuse outcome of a library skill is also counted in a window
+    (`skill_transfer_outcomes`, keyed by skill and trail).
+  - The baseline is the skill's own success record minus the outcomes of that
+    trail's reuse, so the window is never compared with itself.
+  - Quarantine moves the skill to `suspended`: an automatic, reviewable
+    withdrawal the emergency stop allows. It is journalled as L3
+    `quarantined`.
+  - Below the minimum count, a failure is journalled as `review_flagged`.
+- **Lessons.**
+  - A verifier-judged turn on `/api/generate` credits the verified lessons it
+    recalled (`lesson_outcomes`). Only that principal's verified lessons count.
+  - The baseline is the similar-task success rate
+    (`_similar_task_baseline`). A rate of exactly 0 or 1 is no baseline.
+  - `mistake_pool`'s CHECK constraint admits no new status. So a lesson's
+    quarantine is an **unsigned provenance withdrawal**
+    (`ProvenanceWriter.withdraw`, transition `quarantined`), which the recall
+    gate already refuses: an unsigned newest record is never inherited.
+  - The journal entry says whether the withdrawal was enforced: recorded, and
+    recall gated.
+- **The operator's acts restart the window.** Activation and re-admission both
+  reset it. Otherwise the old outcomes would re-quarantine an item the moment
+  the operator brought it back.
+
+### Evidence
+
+- `tests/test_phase6d_negative_transfer.py`: 33 tests.
+  - The rule against exact `Fraction` arithmetic.
+  - A seeded property walk.
+  - Each acting site, including the live `/api/generate` route: a judged pass
+    is credited (1, 0), an unjudged turn credits nothing, and a judged failure
+    is credited (1, 1).
+- One writer per table: `lesson_outcomes` (`aios/memory/mistake.py`) and
+  `skill_transfer_outcomes` (`institutional_skills.py`) are in
+  `test_phase2_one_learning_owner`'s map. RT-07 counts them as learning
+  writes the stop must freeze.
+- **RT-26 (T13, new, structural): held (`negative_transfer_quarantine`).**
+  - A signed, verified lesson reaches the prompt. Then ten recalled turns
+    fail, against a similar-task history of 8 successes in 10.
+  - The outcomes go through `record_lesson_outcome` with the route's own
+    baseline.
+  - The lesson is quarantined and no longer reaches the prompt.
+  - Credited only on the rule's record.
+  - **Positive control: breached on `9badfa15`** (before 6d): no outcome was
+    observed, and the lesson was still recalled.
+- Mutations: the `T13 negative-transfer quarantine` guard group, every decision
+  point attacked. The probe found nine untested branches; each now has a test
+  (`e9db2c13`).
+
+### Stated residuals
+
+- **The rule needs outcomes.** With few recalls, nothing is quarantined:
+  that is the review band, by design. Measured harm on live traffic is not yet
+  shown. RT-26 shows the rule acting when outcomes arrive. RT-15 (the
+  behavioural half: does a real model act on such a lesson?) is still
+  unbuilt.
+- **A lesson's baseline is the similar-task rate, not a counterfactual.** A
+  lesson recalled only into hard tasks is held to a rate those tasks might not
+  reach. The test is one-sided and needs ten outcomes, which bounds this, but
+  the bias is real.
+
+## 6e as built (2026-10-05): revocation enforced at retrieval, sealed, cascaded (T6)
+
+"Revoked but Still Authoritative" (2026): 0 of 5 memory systems enforced a
+revocation at retrieval. Before this slice, the operator could withdraw a
+lesson (supersede it) but not *revoke* one. A re-learned copy, or a machine
+transition on top of it, could bring it back.
+
+### What changed
+
+- **`tools/revoke_learning.py`, the operator's act.**
+  - Names rows one at a time; there is no "all".
+  - Dry run by default.
+  - Signs with the live key from the operator's environment, and refuses
+    without it.
+  - Writes a signed `revoked` record naming the approver.
+  - Refuses the whole call before writing anything if the table is unknown,
+    the approver is missing, or any id is not a row.
+- **Recall refuses it.** `RecallGate` refuses a row whose newest signed record
+  is `revoked` ("revoked: by …").
+- **No machine transition extends it.**
+  `ProvenanceWriter._extends_a_signed_state` is false over a revocation, so a
+  recurrence onto a revoked lesson is recorded unsigned and stays refused.
+  Only the operator's re-admission signs it again.
+- **Its content stays revoked.**
+  - Lessons and semantic memories are tombstoned by a content key over what
+    recall *shows*: type plus text, normalised. It is not the signed digest,
+    which also covers counts and status.
+  - The tombstone is per principal (`learning_tombstones`).
+  - A new row with that content is withdrawn at birth: recorded as
+    `tombstoned`, never signed.
+  - An unreadable tombstone table withdraws (fail closed).
+- **It cascades.** Every row recorded as derived from a revoked one
+  (`learning_derivations`) is withdrawn, all the way down. The walk is
+  breadth-first with a seen set, so cycles end. A derived row outside the
+  revocable channels is withdrawn too, not crashed on.
+- **It works during an emergency stop.** `WITHDRAWAL_TRANSITIONS` (revoked,
+  quarantined, tombstoned, withdrawn) are exempt from the latch. A stop that
+  refused a withdrawal would protect the row, not the operator.
+- **A cached self-model is rebuilt.**
+  - The revocation is journalled.
+  - The self-model's cache records the newest withdrawal id it was built
+    after (`learning_journal.last_withdrawal_id`).
+  - A newer withdrawal rebuilds it through the authority. With no authority,
+    it is withheld; it is never served stale.
+- **Re-admission** (`tools/readmit_learning.py`) lifts the tombstone. It is
+  the operator again, and the stop refuses it.
+
+### Evidence
+
+- `tests/test_phase6e_revocation.py`: 25 tests, including the eight branches
+  the probe found untested (`19d247fa`) and the derived-row case (`ec21420a`).
+- **RT-25 (T6, new, structural): held (`learning_revocation`).**
+  - The operator revokes a recalled lesson.
+  - It recurs in its own task, another task learns it, and both are promoted
+    by unattended successes.
+  - It reaches no prompt.
+  - The record shows the signed revocation, and the other task's copy
+    `tombstoned` at birth.
+  - **Positive control: breached on `e9db2c13`** (6d, before 6e) and on
+    `9badfa15`. There, the operator's only withdrawal was deleting the row,
+    and the re-learned copy came straight back.
+- Mutations: the `T6 revocation and lifecycle` guard group, extended.
+
+### Stated residuals
+
+- **The derivation graph has no live producer.**
+  - Nothing in production calls `append_derivation` today. The cascade is
+    generic, and tested over derivations the tests write.
+  - The one live derivation chain, skill → reflex, is withdrawn by the
+    library's own path (6a, 6c), not by this cascade.
+  - When a producer lands (for example lesson → skill), it gets the cascade
+    with no change here, and it needs its own test.
+- **Facts are not tombstoned.** Putting a revoked triple back takes a human
+  approval, which is itself the operator's act.
+
+## 6f as built (2026-10-05): the freeze on the bus, and forgetting what will never be used (T5, T10)
+
+### Freeze and thaw on the bus
+
+- The stop already froze learning (Phase 0b's latch, `learning_freeze.py`).
+  Nothing *said* so, so an observer of learning had to know that the stop and
+  the freeze are one.
+- Now the stop's own events say so. `governance.emergency_stop.engaged`
+  carries `learning: {frozen: true, control, boundaries}`, and `…cleared`
+  carries `learning: {frozen: false, …}`. That is the same point on the
+  timeline, and there is no new event type.
+- **Why not `learning.frozen` / `learning.thawed` events?** That was the first
+  build, and `scripts/check_organism_seam.py` refused it.
+  - Every backend event type must be one the frontend organism can perceive,
+    or sit in a budget that only goes down (7 unheard).
+  - New types would have needed a frontend change (Codex's) or a raised
+    budget (the one move that empties the guard).
+  - The organism already feels the engagement and the clear.
+- The frozen families (`FROZEN_BOUNDARIES`) are the first segment of each
+  `assert_learning_permitted("<family>.<op>")` in `aios/`, plus the reflex
+  checks in `cerebellum.py`.
+- **A test derives that set from the code** by AST scan, and requires
+  equality. So a new guarded write the payload does not name fails the build:
+  it cannot drift into describing a freeze that no longer matches the latch.
+- Describing the freeze can never cost the stop its record. If it cannot be
+  described, the payload says `unavailable` and the event still lands.
+
+### GC: pending lessons that will never be used
+
+- A pending lesson is recalled only into its own task and promoted only by
+  that task's success. One idle for `MEMORY_COMPACT_PENDING_LESSON_DAYS` (env
+  `AIOS_MEMORY_COMPACT_PENDING_LESSON_DAYS`, default 30) never will be either.
+- The operator's compaction (`MemoryAuthority.compact_memory`, the existing
+  dry-run-by-default route) now also forgets them. It goes through the lesson
+  store, their one writer, and reports `lessons_pending_removed` and
+  `lessons_pending_ids`.
+- **Idle means last activity, not creation.**
+  - A recurrence bumps the count and the failed command, not the row's
+    timestamp, so "created 31 days ago" would forget a lesson that recurred
+    yesterday.
+  - Every recurrence and promotion appends a provenance record. The adapter
+    keeps any lesson recorded since the cutoff
+    (`ProvenanceStore.last_recorded_at`).
+  - Unreadable provenance keeps the lesson, because forgetting is final.
+- Only pending lessons are touched.
+  - Verified, superseded and quarantined lessons are recalled, are lineage,
+    or are evidence.
+  - A lesson promoted between the read and the delete stays: the delete
+    re-checks the status.
+  - Provenance records stay, as history.
+  - A removal is journalled as L2 `forgotten`.
+- Forgetting works during a stop: it is the safe direction, like a withdrawal.
+
+### Evidence
+
+- `tests/test_phase6f_freeze_thaw_gc.py`: 17 tests.
+- Mutations: 23 hand-written entries, each killed when written, plus
+  generated always/never entries for the new guards' decision points
+  (`T5 T10 stop and bounds`). Two equivalent mutants turned up, both
+  empty-batch shortcuts (SQLite accepts an empty `IN ()`). They were removed
+  as dead code rather than documented as inert.
+
+### Stated residuals
+
+- **Compaction is operator-triggered.** Nothing schedules it. Growth between
+  sweeps is bounded by 6b's write cap, not by GC.
+- **Only pending lessons are collected.** Semantic memory and episodic rows
+  have the compactor's existing rules. Skills and reflexes are retired through
+  the lifecycle, never deleted.
+
+## Phase 6 evidence: the stack-wide mutation probe (2026-10-11)
+
+The whole catalogue, after 6d, 6e and 6f, in one ledger run
+(`scripts/learning_mutation_probe.py --ledger`).
+Report: `docs/learning/mutation/phase6_stack_probe.json`.
+
+- **649 mutations: 628 killed, 21 INERT, 0 survivors.** Every INERT entry is
+  an equivalent mutation, each with its reason written in the probe's `INERT`
+  map.
+- **Coverage: 248/249 decision points** in 86 guard functions are attacked by
+  a killed mutation.
+  - The one left is `aios/api/turn_pipeline.py:565` (`_recall_memory`):
+    `if unverified`, dead since Phase 0b made `unverified` always empty.
+  - Both of its mutations are therefore INERT. Phase 7 reported the same
+    branch (192/193).
+  - Removing it is a change to organ 31's file, left for that file's next
+    change.
+- **Where it ran:** `71a43f5f`, #447's branch tip; tree identity `465e8f94`.
+  - Master's `aios/` and `tools/` are byte-identical to that commit (#447
+    squashed as `97bb8080`).
+  - Since then, #449 has added only gate scripts and their tests. More tests
+    can only kill more.
+- **How long it took:** the memory reaper stopped it three times. The ledger
+  resumed it each time; the mutated file a kill left behind was restored, and
+  that mutation's result voided and re-run.
+- **A catalogue bug found on the way:** an anchor that 6e re-indented matched
+  mid-line and produced an unparseable mutant (exit 2, which is not a kill).
+  It was fixed, and `test_the_committed_catalogue_applies_to_this_tree` now
+  refuses a mid-line anchor and a mutant that does not parse.
+
+## 6d/6e correction (2026-10-11): a withdrawn lesson's consolidated twin
+
+**Found after #447 merged.** A live turn that confirms a lesson consolidates
+it at once into a `VERIFIED LESSON` semantic memory (`turn_pipeline.py`,
+`_make_confirm_hook`), and recall admits that twin.
+- Revocation (6e) and the quarantine (6d) withdrew the lesson's provenance,
+  never the twin's.
+- On a live system, a revoked or quarantined lesson therefore kept teaching
+  through its twin. The operator's `/api/v1/memory/consolidate` would also
+  re-index a revoked lesson, since a revocation leaves the row `verified`.
+- RT-25 and RT-26 missed it because they promoted lessons without the confirm
+  hook.
+
+### RT-27 (T6) and RT-28 (T13)
+
+- Each mission promotes a lesson and consolidates it as the turn does, then
+  revokes it (RT-27) or quarantines it after ten failed recalls (RT-28).
+- **Breach:** the canary reaches a later prompt.
+- **Positive control: both breached** on master `ae778527`, `aios/` clean.
+- **Held here** by `learning_revocation` and `negative_transfer_quarantine`.
+  The hold is credited only on the twin's own record
+  (`recorded → promoted → withdrawn`).
+
+### The fix
+
+- **One cascade.** `provenance_policy.cascade_withdrawal` is called by
+  `tools/revoke_learning.py` and by the quarantine. It withdraws:
+  - every row recorded as derived;
+  - for a lesson, its semantic twin, found by the twin's exact text (scrubbed,
+    normalised as the store keys it) for that principal only. This also
+    reaches twins made before derivations were recorded.
+- **Consolidation follows recall's verdict.** A lesson the gate refuses
+  (revoked, quarantined, tombstoned, unsigned) is never indexed again.
+  Without a gate (a legacy store), recall admits everything, and so does
+  consolidation.
+- **Consolidation records `lesson → twin`** in `learning_derivations`,
+  exactly once. This is the derivation graph's first live producer (Phase
+  3.3).
+
+### Evidence
+
+- `tests/test_lesson_twin_withdrawal.py` (12 tests). Full reel at `215f37a0`: 22 held, 6 blocked, 0 breached
+  (`docs/learning/redteam_twin_20261011/`).
+- Mutations:
+  - 9 hand-written, all killed;
+  - 22 generated for the new guards' decision points: 21 killed, and 1 INERT
+    (`consolidate_lesson:109`, two routes to the same store row);
+  - the four guards the probe found untested now have tests.
+- Catalogue: 259/259 decision points attacked.
+
+### Still open
+
+- Phase 3.3's other edges (trajectory → lesson, lesson → promotion,
+  arc → skill, skill → reflex) are still not written.
+  - They are lineage only. Withdrawing a skill or a reflex already works
+    through the library state (6a, 6c), and none of them has a recall-gated
+    child for a cascade to reach.
+- Re-admitting a lesson (`tools/readmit_learning.py`) does not re-admit its
+  twin. The twin stays withdrawn until it is re-admitted too.

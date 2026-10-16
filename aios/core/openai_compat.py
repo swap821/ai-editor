@@ -32,6 +32,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
+from aios.core import model_calls
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 
@@ -127,6 +128,9 @@ class OpenAICompatClient:
     Together, vLLM, LM Studio, …) by pointing ``base_url`` elsewhere.
     """
 
+    #: How this adapter's requests are labelled in the model-call ledger.
+    CALL_PROVIDER = "openai_compat"
+
     def __init__(
         self,
         *,
@@ -162,6 +166,7 @@ class OpenAICompatClient:
             headers=self._headers(),
             method="POST",
         )
+        model_calls.observe(self.CALL_PROVIDER, str(payload.get("model", "")), "chat")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 return json.loads(response.read().decode("utf-8"))
@@ -314,6 +319,9 @@ class OpenAICompatClient:
             data=json.dumps(payload).encode("utf-8"),
             headers=self._headers(),
             method="POST",
+        )
+        model_calls.observe(
+            self.CALL_PROVIDER, str(payload.get("model", "")), "stream_chat"
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:

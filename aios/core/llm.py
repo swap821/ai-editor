@@ -15,6 +15,7 @@ import urllib.request
 from typing import Iterator, Optional, Protocol, runtime_checkable, Any
 
 from aios import config
+from aios.core import model_calls
 
 
 class LLMError(RuntimeError):
@@ -43,12 +44,23 @@ class OllamaClient:
         timeout_s: int = config.LLM_REQUEST_TIMEOUT_S,
         temperature: float = config.LLM_TEMPERATURE,
         num_ctx: int = config.LLM_NUM_CTX,
+        think: Optional[bool] = None,
     ) -> None:
         self.model = model
         self.host = host.rstrip("/")
         self.timeout_s = timeout_s
         self.temperature = temperature
         self.num_ctx = num_ctx
+        # Ollama's `think`. None sends nothing: the model's own default. A
+        # thinking model (qwen3.5) left at its default reasons silently before
+        # every answer -- measured 2026-10-12 at 51-64 s per clerical job that
+        # took 1.2-4.6 s with think=false, for the same correct answer.
+        self.think = think
+
+    def _with_think(self, payload: dict[str, object]) -> dict[str, object]:
+        if self.think is not None:
+            payload["think"] = self.think
+        return payload
 
     def complete(
         self, prompt: str, *, system: Optional[str] = None, json_mode: bool = False
@@ -76,10 +88,11 @@ class OllamaClient:
 
         request = urllib.request.Request(
             f"{self.host}/api/generate",
-            data=json.dumps(payload).encode("utf-8"),
+            data=json.dumps(self._with_think(payload)).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        model_calls.observe("ollama", self.model, "complete")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 body = json.loads(response.read().decode("utf-8"))
@@ -146,10 +159,11 @@ class OllamaClient:
 
         request = urllib.request.Request(
             f"{self.host}/api/chat",
-            data=json.dumps(payload).encode("utf-8"),
+            data=json.dumps(self._with_think(payload)).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        model_calls.observe("ollama", model or self.model, "chat")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 body = json.loads(response.read().decode("utf-8"))
@@ -197,10 +211,11 @@ class OllamaClient:
 
         request = urllib.request.Request(
             f"{self.host}/api/generate",
-            data=json.dumps(payload).encode("utf-8"),
+            data=json.dumps(self._with_think(payload)).encode("utf-8"),
             headers={"Content-Type": "application/json"},
             method="POST",
         )
+        model_calls.observe("ollama", model or self.model, "stream_complete")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 for raw_line in response:

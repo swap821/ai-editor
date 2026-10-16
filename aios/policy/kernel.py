@@ -1468,8 +1468,9 @@ class PolicyKernelAuthority:
             self._active_profile = profile
 
     def cloud_tasks_allowed(self, task: str) -> bool:
-        """Return True if *task* may be routed to a cloud provider."""
-        return self.active_runtime_profile().cloud_task_allowed(task)
+        """Return True if *task* may be routed to a cloud provider -- under the
+        constitution's ceiling, not the profile alone (aios/policy/egress.py)."""
+        return task.strip().lower() in self.router_policy().cloud_tasks
 
     def earned_autonomy_enabled(self) -> bool:
         """Return whether earned autonomy is enabled in the active profile."""
@@ -1484,17 +1485,17 @@ class PolicyKernelAuthority:
         return self.active_runtime_profile().offline_mode
 
     def router_policy(self) -> router.Policy:
-        """Build the cross-provider routing policy from the active profile."""
-        profile = self.active_runtime_profile()
-        return router.Policy(
-            cloud_tasks=frozenset(profile.router_cloud_tasks),
-            max_cost=profile.router_max_cost,
-            prefer_local=profile.router_prefer_local,
-        )
+        """The cross-provider routing policy in force: the constitution is the
+        ceiling and the active profile may only narrow it (operator decision
+        2026-10-11; one derivation in aios/policy/egress.py)."""
+        from aios.policy.egress import effective_router_policy
+
+        return effective_router_policy(self.constitution, self.active_runtime_profile())
 
     def runtime_profile_decisions(self) -> dict[str, Any]:
         """Return a read-only summary of the active profile and resolved decisions."""
         profile = self.active_runtime_profile()
+        effective = self.router_policy()
         return {
             "name": profile.name,
             "description": profile.description,
@@ -1512,8 +1513,15 @@ class PolicyKernelAuthority:
             "pheromone_enabled": profile.pheromone_enabled,
             "queen_enabled": profile.queen_enabled,
             "live_surface": profile.live_surface,
+            # What actually applies: the constitution narrowed by this profile.
+            "constitution_router_cloud_tasks": sorted(
+                self.constitution.router_cloud_tasks
+            ),
+            "effective_router_cloud_tasks": sorted(effective.cloud_tasks),
+            "effective_router_prefer_local": effective.prefer_local,
+            "effective_router_max_cost": effective.max_cost,
             "cloud_tasks_allowed": {
-                task: profile.cloud_task_allowed(task)
+                task: task in effective.cloud_tasks
                 for task in ("reasoning", "coding", "browse", "swarm")
             },
         }

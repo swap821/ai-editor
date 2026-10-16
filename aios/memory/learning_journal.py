@@ -83,6 +83,28 @@ def record(
         )
 
 
+#: Transitions that take learned content OUT of use (plan Phase 6e). Anything
+#: cached from learned content is stale once one of these is newer than it.
+WITHDRAWAL_TRANSITIONS: frozenset[str] = frozenset(
+    {"revoked", "quarantined", "tombstoned", "withdrawn"}
+)
+
+
+def last_withdrawal_id(*, db_path: Path = config.MEMORY_DB_PATH) -> Optional[int]:
+    """The id of the newest withdrawal in the journal (0 if none yet), or None
+    if the journal cannot be read -- "could not tell" is not "nothing new"."""
+    try:
+        with get_connection(db_path) as conn:
+            row = conn.execute(
+                "SELECT MAX(id) FROM learning_events "
+                "WHERE transition IN (SELECT value FROM json_each(?))",
+                (json.dumps(sorted(WITHDRAWAL_TRANSITIONS)),),
+            ).fetchone()
+    except sqlite3.Error:
+        return None
+    return int(row[0] or 0)
+
+
 def history(
     faculty: Optional[str] = None,
     *,

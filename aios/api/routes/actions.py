@@ -26,7 +26,10 @@ from aios.application.capabilities.authority import (
     CapabilityError,
     EmergencyStopHardWiringAuthority,
 )
-from aios.application.intelligence.gateway import GovernedAdvisoryCompletionClient
+from aios.application.intelligence.gateway import (
+    CompatibilityAdvisoryCompletionClient,
+    GovernedAdvisoryCompletionClient,
+)
 from aios.api.deps import (
     _session_id_from_request,
     get_action_broker,
@@ -262,6 +265,9 @@ def reflect(
         reflection = agent.reflect(req.command, req.error_output, task_id=req.task_id)
     except ReflectionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    if reflection is None:
+        # Offline, or the failure taught nothing specific: nothing was stored.
+        return {"recorded": False}
     return asdict(reflection)
 
 
@@ -272,10 +278,38 @@ def plan(
     native: NativePlanner = Depends(get_native_planner),
     authority=Depends(get_memory_authority),
     principal: Principal | None = Depends(get_optional_principal),
+    context_store=Depends(get_representative_context_store),
+    emergency_stop=Depends(get_emergency_stop),
 ) -> dict[str, Any]:
-    """Decompose a goal into a confidence-gated task tree."""
+    """Decompose a goal into a confidence-gated task tree, through Organ 32.
+
+    An authenticated principal's plan takes the governed advisory entrance (as
+    ``/api/v1/reflect`` and the forge's own planner do); a caller with no
+    principal takes the local-only compatibility entrance. Until 2026-10-12
+    this route called the model directly -- the one ungated call the model-call
+    inventory found (tools/model_call_inventory.py).
+    """
+    request_id = f"plan:{uuid.uuid4().hex}"
+    gated_llm: Any = (
+        GovernedAdvisoryCompletionClient(
+            llm,
+            request_id=request_id,
+            operator_identity_digest=credential_digest(principal.principal_id),
+            constitution_digest=str(principal.constitution_digest),
+            target="local",
+            desired_outcome="bounded advisory plan",
+            context_store=context_store,
+            emergency_stop=emergency_stop,
+        )
+        # A principal with no constitution binding cannot take the governed
+        # entrance; it gets the stricter local-only one, never a 500.
+        if principal is not None and principal.constitution_digest
+        else CompatibilityAdvisoryCompletionClient(
+            llm, request_id=request_id, emergency_stop=emergency_stop
+        )
+    )
     planner = Planner(
-        llm,
+        gated_llm,
         native=native,
         memory_authority=authority,
         principal=principal.principal_id if principal is not None else None,

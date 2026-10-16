@@ -29,6 +29,7 @@ from aios.domain.learning.repository import (
     skill_row_id,
 )
 from aios.memory.provenance import (
+    REVOKED,
     LearningSigner,
     LearningVerifier,
     Provenance,
@@ -80,6 +81,22 @@ def _field(row: Any, name: str) -> Any:
         return None
 
 
+def _content_key(*parts: Any) -> str:
+    text = "\x1f".join(" ".join(str(p or "").split()).casefold() for p in parts)
+    return content_digest({"content": text})
+
+
+def lesson_content_key(row: Any) -> str:
+    """Plan Phase 6e: what a recalled lesson SHOWS -- its type and its text --
+    so the same lesson learned again from another task matches a tombstone."""
+    return _content_key(_field(row, "error_type"), _field(row, "lesson_text"))
+
+
+def semantic_content_key(row: Any) -> str:
+    """What a recalled semantic memory shows: its text."""
+    return _content_key(_field(row, "text_content"))
+
+
 def lesson_digest(row: Any) -> str:
     """The digest a lesson's provenance covers, from a ``mistake_pool`` row."""
     return content_digest({name: _field(row, name) for name in LESSON_FIELDS})
@@ -93,6 +110,103 @@ def semantic_digest(row: Any) -> str:
 def fact_digest(row: Any) -> str:
     """The digest a fact's provenance covers."""
     return content_digest({name: _field(row, name) for name in FACT_FIELDS})
+
+
+#: The recall-gated channels a withdrawal can reach, and the digest each is
+#: signed over: a withdrawn row is recorded over its own current content.
+WITHDRAWABLE: dict[str, Any] = {
+    "mistake_pool": lesson_digest,
+    "semantic_memory": semantic_digest,
+    "semantic_facts": fact_digest,
+}
+
+
+#: One constant statement per withdrawable table: no SQL is built from data.
+_ROW_SQL: dict[str, str] = {
+    "mistake_pool": "SELECT * FROM mistake_pool WHERE id = ?",
+    "semantic_memory": "SELECT * FROM semantic_memory WHERE id = ?",
+    "semantic_facts": "SELECT * FROM semantic_facts WHERE id = ?",
+}
+
+
+def _row(db: Any, table: str, row_id: Any) -> Any:
+    import sqlite3
+
+    with sqlite3.connect(db) as conn:
+        conn.row_factory = sqlite3.Row
+        return conn.execute(_ROW_SQL[table], (int(row_id),)).fetchone()
+
+
+def lesson_twin_ids(db: Any, lesson_id: Any) -> list[int]:
+    """The semantic memories consolidation made of a lesson, by the twin's
+    exact text (scrubbed and normalised as the store keys it), for the
+    lesson's principal. Reaches twins made before derivations were recorded."""
+    import sqlite3
+
+    from aios.memory.consolidation import lesson_twin_text
+    from aios.memory.relevance import content_hash
+    from aios.security.secret_scanner import scan_and_redact
+
+    row = _row(db, "mistake_pool", lesson_id)
+    if row is None:
+        return []
+    key = content_hash(scan_and_redact(lesson_twin_text(row)).scrubbed)
+    with sqlite3.connect(db) as conn:
+        found = conn.execute(
+            "SELECT id FROM semantic_memory WHERE content_hash = ? "
+            "AND memory_type = 'lesson' AND principal_id IS ? ORDER BY id",
+            (key, row["principal_id"]),
+        ).fetchall()
+    return [int(r[0]) for r in found]
+
+
+def cascade_withdrawal(store: Any, db: Any, roots: list[tuple[str, str]]) -> list[str]:
+    """Withdraw every row derived from *roots*, all the way down: rows recorded
+    as derived (``learning_derivations``) and, for a lesson, the semantic twin
+    consolidation made of it. ONE cascade for the operator's revocation and
+    the machine's quarantine (plan Phase 6e / 6d; RT-27, RT-28).
+
+    Each child gets an unsigned ``withdrawn`` record over its own current
+    content -- recall refuses an unsigned newest record -- naming its parent.
+    A withdrawal, so the emergency stop allows it.
+    """
+    seen = set(roots)
+    queue = list(roots)
+    withdrawn: list[str] = []
+    while queue:
+        parent = queue.pop(0)
+        children = list(store.children_of(*parent))
+        if parent[0] == "mistake_pool" and str(parent[1]).isdigit():
+            children += [
+                ("semantic_memory", str(twin), "consolidated twin")
+                for twin in lesson_twin_ids(db, parent[1])
+            ]
+        for child_table, child_id, relation in children:
+            child = (child_table, str(child_id))
+            if child in seen:
+                continue
+            seen.add(child)
+            row = (
+                _row(db, child_table, child_id)
+                if child_table in WITHDRAWABLE and str(child_id).isdigit()
+                else None
+            )
+            digest = WITHDRAWABLE[child_table](row) if row is not None else "withdrawn"
+            store.append(
+                Provenance(
+                    table=child_table,
+                    row_id=str(child_id),
+                    content_sha256=digest,
+                    source_kind="live",
+                    transition="withdrawn",
+                    parents=(f"{parent[0]}:{parent[1]}",),
+                    principal=row["principal_id"] if row is not None else None,
+                ),
+                None,
+            )
+            withdrawn.append(f"{child_table}:{child_id} ({relation})")
+            queue.append(child)
+    return withdrawn
 
 
 class ProvenanceWriter:
@@ -132,12 +246,40 @@ class ProvenanceWriter:
         self.unsigned_transitions = 0
 
     def attest_new(
-        self, table: str, row_id: Any, digest: str, transition: str, **context: Any
+        self,
+        table: str,
+        row_id: Any,
+        digest: str,
+        transition: str,
+        *,
+        content_key: Optional[str] = None,
+        **context: Any,
     ) -> Optional[int]:
-        """A row this write CREATED: signed if this process holds the key."""
+        """A row this write CREATED: signed if this process holds the key.
+
+        Plan Phase 6e: if the operator revoked this CONTENT (a tombstone for
+        *content_key* and this principal), the new row is withdrawn at birth --
+        recorded, never signed, so recall refuses it -- instead of signed. A
+        revoked lesson does not come back by being learned again.
+        """
+        if content_key is not None and self._tombstoned(
+            table, content_key, context.get("principal")
+        ):
+            return self._write(
+                self._provenance(table, row_id, digest, "tombstoned", context),
+                sign=False,
+            )
         return self._append(
             self._provenance(table, row_id, digest, transition, context), sign=True
         )
+
+    def _tombstoned(
+        self, table: str, content_key: str, principal: Optional[str]
+    ) -> bool:
+        try:
+            return self.store.is_tombstoned(table, content_key, principal=principal)
+        except Exception:  # noqa: BLE001 - unreadable: withdraw (fail-closed)
+            return True
 
     def attest_transition(
         self,
@@ -192,6 +334,11 @@ class ProvenanceWriter:
             prior = self.store.latest(table, str(row_id))
         except Exception:  # noqa: BLE001 - unreadable proves nothing
             return False
+        if prior is not None and prior.provenance.transition == REVOKED:
+            # Plan Phase 6e: a revocation is signed, but it is not a state a
+            # machine may build on -- a recurrence onto a revoked lesson would
+            # otherwise be signed and recalled again.
+            return False
         return self.verifier.verify(
             prior, content_sha256=prior_digest, context=self.source_kind
         ).admitted
@@ -215,6 +362,21 @@ class ProvenanceWriter:
             **{k: (None if v is None else str(v)) for k, v in context.items()},
         )
 
+    def withdraw(
+        self, table: str, row_id: Any, digest: str, transition: str, **context: Any
+    ) -> Optional[int]:
+        """A machine WITHDRAWAL of a row (plan Phase 6d): recorded, never signed.
+
+        The row's newest record is then unsigned, so recall refuses it until the
+        operator re-admits it (``tools/readmit_learning.py`` signs a new state).
+        A withdrawal the machine could sign, it could also undo. Returns the
+        record id, or None if it could not be written -- then the row is NOT
+        withdrawn, and the caller must say so.
+        """
+        return self._write(
+            self._provenance(table, row_id, digest, transition, context), sign=False
+        )
+
     def _append(self, provenance: Provenance, *, sign: bool) -> Optional[int]:
         """Append one record. A failure is counted and logged, never raised: the
         row is then unsigned, and an unsigned row is never recalled. The
@@ -224,6 +386,10 @@ class ProvenanceWriter:
         """
         if not sign:
             self.unsigned_transitions += 1
+        return self._write(provenance, sign=sign)
+
+    def _write(self, provenance: Provenance, *, sign: bool) -> Optional[int]:
+        """The one write path for every record, signed or not."""
         try:
             return self.store.append(
                 provenance, self.signer.sign(provenance) if sign else None
@@ -301,6 +467,12 @@ class RecallGate:
         )
         if not verdict.admitted or signed is None:
             return self._refuse(table, row_id, verdict.reason)
+        if signed.provenance.transition == REVOKED:
+            return self._refuse(
+                table,
+                row_id,
+                f"revoked: by {signed.provenance.approver or 'the operator'}",
+            )
         owner = signed.provenance.principal
         if not owner:
             return self._refuse(
@@ -341,7 +513,9 @@ __all__ = [
     "SKILL_DIGEST_FIELDS",
     "SKILL_PROVENANCE_TABLE",
     "fact_digest",
+    "lesson_content_key",
     "lesson_digest",
+    "semantic_content_key",
     "semantic_digest",
     "skill_digest",
     "skill_row_id",

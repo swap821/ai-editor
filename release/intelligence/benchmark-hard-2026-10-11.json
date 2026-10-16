@@ -1,0 +1,2663 @@
+{
+  "generated_at": "2026-10-11T13:17:08.863954+00:00",
+  "suite": "hard",
+  "tasks": [
+    {
+      "task_id": "hc01-class-attr",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc02-gen-send",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc03-mro",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc04-slice-assign",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc05-groupby",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc06-finally-order",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc07-bug-mutation",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc08-regex-ipv4",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc09-json-aggregate",
+      "category": "coding"
+    },
+    {
+      "task_id": "hc10-zip-star",
+      "category": "coding"
+    },
+    {
+      "task_id": "hr01-trailing-zeros",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr02-clock",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr03-level",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr04-dice",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr05-monty",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr06-nines",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr07-snail",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr08-remainder",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr09-round-table",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "hr10-boxes",
+      "category": "reasoning"
+    }
+  ],
+  "system_prompt": "Answer the question. You may reason first. Then end your reply with one final line exactly in the form: ANSWER: <answer>",
+  "results": [
+    {
+      "model": "bedrock:qwen.qwen3-coder-480b-a35b-v1:0",
+      "summary": {
+        "coding": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 20,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.839,
+            1.0
+          ]
+        },
+        "median_seconds": 2.6
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 2.734999999869615,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 3.1409999998286366,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 3.234999999869615,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 3.0159999998286366,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 2.265000000130385,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 1.5940000000409782,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 2.7810000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": true,
+          "answer": "^(0|[1-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.(0|[1-9][0-9]?|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\\.(0|[1-9][0-9]?|1[0-9]",
+          "seconds": 2.9370000001508743,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 1.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 1.703999999910593,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 2.343000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 1.6409999998286366,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 1.8129999998491257,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 1.7649999998975545,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 2.9840000001713634,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 1.2190000000409782,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 2.625,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 3.1560000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 2.921000000089407,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "mixed",
+          "seconds": 2.656999999890104,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:moonshotai.kimi-k2.5",
+      "summary": {
+        "coding": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 20,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.839,
+            1.0
+          ]
+        },
+        "median_seconds": 2.9
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 2.9060000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 3.0,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 2.8910000000614673,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 4.2810000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 3.030999999959022,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 2.1879999998491257,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 9.625,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": true,
+          "answer": "^(?:0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])(?:\\.(?:0|[1-9][0-9]?|1[0-9]{2}|2[0-4][0-9]|25[0-5])){3}$",
+          "seconds": 5.0939999998081475,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 1.0940000000409782,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 2.875,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 2.468000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 3.1879999998491257,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 1.0620000001508743,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 3.594000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 2.359999999869615,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 2.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 2.9370000001508743,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 4.859000000171363,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 1.7809999999590218,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "mixed",
+          "seconds": 2.905999999959022,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:global.moonshotai.kimi-k3",
+      "summary": {
+        "coding": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 20,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.839,
+            1.0
+          ]
+        },
+        "median_seconds": 3.0
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 6.469000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 5.516000000061467,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 5.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 6.094000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 4.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 4.2810000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 4.280999999959022,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": true,
+          "answer": "\\A(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])){3}\\Z",
+          "seconds": 6.858999999938533,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 2.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 3.0310000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 2.75,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 4.1719999997876585,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 2.469000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 1.6100000001024455,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 1.75,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 2.8119999999180436,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Day 8",
+          "seconds": 3.0,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 2.077999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 1.8600000001024455,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "mixed",
+          "seconds": 2.8590000001713634,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:moonshot.kimi-k2-thinking",
+      "summary": {
+        "coding": {
+          "passed": 4,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.4,
+          "ci95": [
+            0.168,
+            0.687
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 14,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 0.7,
+          "ci95": [
+            0.481,
+            0.855
+          ]
+        },
+        "median_seconds": 10.1
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 13.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 14.734999999869615,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 15.578999999910593,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 19.812999999849126,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 21.375,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 7.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 16.218000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 12.437000000150874,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\":12,\"bob\":3,\"cy\":0}",
+          "seconds": 4.0,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 13.375,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 8.015999999828637,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 9.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 5.5,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 4.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 3.719000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 10.468999999808148,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 14.796999999787658,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301**",
+          "seconds": 9.780999999959022,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040**",
+          "seconds": 6.718000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Mixed",
+          "seconds": 7.687999999849126,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:deepseek.v3.2",
+      "summary": {
+        "coding": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 20,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.839,
+            1.0
+          ]
+        },
+        "median_seconds": 2.9
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 3.7649999998975545,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 4.561999999918044,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 7.358999999938533,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 6.686999999918044,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 1.6880000000819564,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 2.6880000000819564,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": true,
+          "answer": "`^(?:(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])(?:\\.(?:25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9][0-9]|[0-9])){3})$`",
+          "seconds": 2.422000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 1.5309999999590218,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 3.1089999999385327,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 3.797000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 2.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 2.3590000001713634,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 2.125,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 1.625,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 4.2350000001024455,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 4.015999999828637,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 5.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 1.1559999999590218,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "mixed",
+          "seconds": 5.734000000171363,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:zai.glm-5",
+      "summary": {
+        "coding": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 20,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.839,
+            1.0
+          ]
+        },
+        "median_seconds": 3.2
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 5.061999999918044,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 3.280999999959022,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 5.186999999918044,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 7.5,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 2.3910000000614673,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 2.6410000000614673,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.7810000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": true,
+          "answer": "^(?:(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])\\.){3}(?:[0-9]|[1-9][0-9]|1[0-9]{2}|2[0-4][0-9]|25[0-5])$",
+          "seconds": 4.2649999998975545,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 1.6879999998491257,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 1.7809999999590218,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 6.187000000150874,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5 degrees",
+          "seconds": 3.1870000001508743,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 2.6410000000614673,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 2.844000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 2.359999999869615,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 9.093000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 8.312000000150874,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 13.296999999787658,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 2.594000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "mixed",
+          "seconds": 11.327999999979511,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:mistral.mistral-large-3-675b-instruct",
+      "summary": {
+        "coding": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 20,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.839,
+            1.0
+          ]
+        },
+        "median_seconds": 1.9
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 1.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 1.875,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 1.7340000001713634,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 2.3590000001713634,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 1.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 1.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.828999999910593,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": true,
+          "answer": "^((25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])\\.){3}(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9][0-9]|[0-9])$",
+          "seconds": 2.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 0.5470000000204891,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 1.5310000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 1.406999999890104,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 3.3899999998975545,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 3.8909999998286366,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 1.0939999998081475,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 1.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 2.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 1.875,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 2.5160000000614673,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 1.5150000001303852,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "mixed",
+          "seconds": 13.984000000171363,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:mistral.devstral-2-123b",
+      "summary": {
+        "coding": {
+          "passed": 9,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.9,
+          "ci95": [
+            0.596,
+            0.982
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 19,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 0.95,
+          "ci95": [
+            0.764,
+            0.991
+          ]
+        },
+        "median_seconds": 5.6
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "`[0, 1] True`",
+          "seconds": 6.3439999998081475,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 7.75,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 8.718999999808148,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 6.827999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 5.125,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 3.8909999998286366,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 17.75,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": false,
+          "answer": "^(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|0)\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|0)\\.(25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]\\d|0)\\.(25[0-5]",
+          "seconds": 8.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 2.2810000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 6.875,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 5.312999999849126,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5 degrees",
+          "seconds": 5.812000000150874,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 4.844000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 4.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 3.7660000000614673,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 4.062999999849126,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 4.875,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 11.484999999869615,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 3.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "mixed",
+          "seconds": 14.327999999979511,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:qwen.qwen3-235b-a22b-2507-v1:0",
+      "summary": {
+        "coding": {
+          "passed": 9,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.9,
+          "ci95": [
+            0.596,
+            0.982
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 19,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 0.95,
+          "ci95": [
+            0.764,
+            0.991
+          ]
+        },
+        "median_seconds": 3.0
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 4.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 4.875,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 16.04699999978766,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 11.452999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 2.8439999998081475,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 2.7189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 3.625,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 15.016000000061467,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 1.8910000000614673,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 2.125,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 2.8120000001508743,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 2.922000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 2.109999999869615,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 1.3280000002123415,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 1.827999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 5.452999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 3.140000000130385,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 9.375,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 1.156999999890104,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "mixed",
+          "seconds": 9.327999999979511,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:minimax.minimax-m2.5",
+      "summary": {
+        "coding": {
+          "passed": 8,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.8,
+          "ci95": [
+            0.49,
+            0.943
+          ]
+        },
+        "reasoning": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 18,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 0.9,
+          "ci95": [
+            0.699,
+            0.972
+          ]
+        },
+        "median_seconds": 6.7
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 6.733999999938533,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 9.436999999918044,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 18.468000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 13.375,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 5.141000000061467,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 5.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 11.608999999938533,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 17.20299999997951,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 3.5310000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 4.937999999849126,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 2.8909999998286366,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 4.344000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 2.594000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 2.030999999959022,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 3.375,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 9.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 8.687000000150874,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 7.3280000002123415,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 6.640000000130385,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Mixed",
+          "seconds": 7.2189999998081475,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:openai.gpt-oss-120b-1:0",
+      "summary": {
+        "coding": {
+          "passed": 10,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.722,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 9,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.9,
+          "ci95": [
+            0.596,
+            0.982
+          ]
+        },
+        "all": {
+          "passed": 19,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 0.95,
+          "ci95": [
+            0.764,
+            0.991
+          ]
+        },
+        "median_seconds": 1.6
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": true,
+          "answer": "[0, 1] True",
+          "seconds": 1.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 2.5620000001508743,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 2.469000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": true,
+          "answer": "['a', 2, 4, 5]",
+          "seconds": 3.1870000001508743,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 1.827999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 1.5309999999590218,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 0.45399999991059303,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": true,
+          "answer": "r'^(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)(?:\\.(?:25[0-5]|2[0-4]\\d|1\\d{2}|[1-9]?\\d)){3}$'",
+          "seconds": 3.843000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\":12,\"bob\":3,\"cy\":0}",
+          "seconds": 0.39099999982863665,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 0.625,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31**",
+          "seconds": 1.6100000001024455,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5**",
+          "seconds": 1.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 0.8590000001713634,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 0.5629999998491257,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 0.6399999998975545,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 1.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8**",
+          "seconds": 1.8590000001713634,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301**",
+          "seconds": 3.1560000001918525,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 0.8279999999795109,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "mixed**",
+          "seconds": 1.4060000001918525,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "ollama:qwen2.5-coder:7b",
+      "summary": {
+        "coding": {
+          "passed": 6,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.6,
+          "ci95": [
+            0.313,
+            0.832
+          ]
+        },
+        "reasoning": {
+          "passed": 8,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.8,
+          "ci95": [
+            0.49,
+            0.943
+          ]
+        },
+        "all": {
+          "passed": 14,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 0.7,
+          "ci95": [
+            0.481,
+            0.855
+          ]
+        },
+        "median_seconds": 20.2
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": false,
+          "answer": "[0] True",
+          "seconds": 41.406999999890104,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": true,
+          "answer": "1 10 15",
+          "seconds": 24.75,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": true,
+          "answer": "DBCA",
+          "seconds": 30.29700000002049,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": false,
+          "answer": "['a', 2, 'b', 5]",
+          "seconds": 17.25,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 2)]",
+          "seconds": 14.530999999959022,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "3 [1, 2, 4]",
+          "seconds": 24.79700000002049,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 7.452999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 15.562000000150874,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": true,
+          "answer": "{\"ann\": 12, \"bob\": 3, \"cy\": 0}",
+          "seconds": 9.515999999828637,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 20.280999999959022,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 19.75,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "7.5",
+          "seconds": 32.610000000102445,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "30",
+          "seconds": 32.311999999918044,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 30.391000000061467,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 14.593000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "20",
+          "seconds": 22.906999999890104,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "8",
+          "seconds": 20.186999999918044,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 64.57800000021234,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5040",
+          "seconds": 19.531999999890104,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "oranges",
+          "seconds": 10.108999999938533,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "ollama:qwen2.5:3b",
+      "summary": {
+        "coding": {
+          "passed": 3,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.3,
+          "ci95": [
+            0.108,
+            0.603
+          ]
+        },
+        "reasoning": {
+          "passed": 6,
+          "tasks": 10,
+          "errors": 0,
+          "accuracy": 0.6,
+          "ci95": [
+            0.313,
+            0.832
+          ]
+        },
+        "all": {
+          "passed": 9,
+          "tasks": 20,
+          "errors": 0,
+          "accuracy": 0.45,
+          "ci95": [
+            0.258,
+            0.658
+          ]
+        },
+        "median_seconds": 7.0
+      },
+      "outcomes": [
+        {
+          "task_id": "hc01-class-attr",
+          "category": "coding",
+          "passed": false,
+          "answer": "`[0] True`",
+          "seconds": 14.687000000150874,
+          "error": null
+        },
+        {
+          "task_id": "hc02-gen-send",
+          "category": "coding",
+          "passed": false,
+          "answer": "1, 10, 15",
+          "seconds": 7.922000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hc03-mro",
+          "category": "coding",
+          "passed": false,
+          "answer": "DBA",
+          "seconds": 11.140999999828637,
+          "error": null
+        },
+        {
+          "task_id": "hc04-slice-assign",
+          "category": "coding",
+          "passed": false,
+          "answer": "[0, 'a', 2, 'b', 4, 5]",
+          "seconds": 9.375,
+          "error": null
+        },
+        {
+          "task_id": "hc05-groupby",
+          "category": "coding",
+          "passed": false,
+          "answer": "[('a', 3), ('b', 1), ('c', 2), ('a', 1)]",
+          "seconds": 6.812000000150874,
+          "error": null
+        },
+        {
+          "task_id": "hc06-finally-order",
+          "category": "coding",
+          "passed": true,
+          "answer": "`3 [1, 2, 4]`",
+          "seconds": 7.047000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hc07-bug-mutation",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 6.2189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "hc08-regex-ipv4",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 3.5630000000819564,
+          "error": null
+        },
+        {
+          "task_id": "hc09-json-aggregate",
+          "category": "coding",
+          "passed": false,
+          "answer": "{",
+          "seconds": 3.9839999999385327,
+          "error": null
+        },
+        {
+          "task_id": "hc10-zip-star",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 cba",
+          "seconds": 6.891000000061467,
+          "error": null
+        },
+        {
+          "task_id": "hr01-trailing-zeros",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "31",
+          "seconds": 7.375,
+          "error": null
+        },
+        {
+          "task_id": "hr02-clock",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "352.5",
+          "seconds": 13.593000000109896,
+          "error": null
+        },
+        {
+          "task_id": "hr03-level",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "20",
+          "seconds": 8.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "hr04-dice",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5/36",
+          "seconds": 5.672000000020489,
+          "error": null
+        },
+        {
+          "task_id": "hr05-monty",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2/3",
+          "seconds": 5.984999999869615,
+          "error": null
+        },
+        {
+          "task_id": "hr06-nines",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "<answer>20</answer>",
+          "seconds": 5.733999999938533,
+          "error": null
+        },
+        {
+          "task_id": "hr07-snail",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "6",
+          "seconds": 7.219000000040978,
+          "error": null
+        },
+        {
+          "task_id": "hr08-remainder",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "301",
+          "seconds": 21.030999999959022,
+          "error": null
+        },
+        {
+          "task_id": "hr09-round-table",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "<5040>",
+          "seconds": 5.484000000171363,
+          "error": null
+        },
+        {
+          "task_id": "hr10-boxes",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "<answer>Oranges</answer>",
+          "seconds": 2.4379999998491257,
+          "error": null
+        }
+      ]
+    }
+  ]
+}

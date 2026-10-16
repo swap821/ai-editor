@@ -1,0 +1,64 @@
+{
+  "generated_at": "2026-10-11T09:04:55.263254+00:00",
+  "commit": "7cb550e9b40062189188063a7cea1481e5c1e1d7",
+  "auto_cloud_routing_default": "local-first profile: auto never uses cloud",
+  "offline_and_failover_configuration": "runtime profile 'autonomous' (cloud preferred for coding)",
+  "drills": {
+    "offline": {
+      "verdict": "pass",
+      "why": "answered by the local model; cloud attempts 15, blocked at the socket: 1",
+      "observation": {
+        "drill": "offline",
+        "status": 200,
+        "served_by": [
+          "ollama"
+        ],
+        "answer": "The code prints the string 'Paris' to the console.",
+        "stream_errors": [],
+        "cloud_attempts": 15,
+        "blocked": [
+          "bedrock-runtime.ap-south-1.amazonaws.com"
+        ],
+        "seat": "qwen2.5:3b",
+        "model_errors": []
+      }
+    },
+    "failover": {
+      "verdict": "pass",
+      "why": "answered by the local model; cloud attempts 3",
+      "observation": {
+        "drill": "failover",
+        "status": 200,
+        "served_by": [
+          "ollama"
+        ],
+        "answer": "The code prints the string 'Paris' to the console.",
+        "stream_errors": [],
+        "cloud_attempts": 3,
+        "seat": "qwen2.5:3b",
+        "model_errors": []
+      }
+    },
+    "privacy": {
+      "verdict": "pass",
+      "why": "1 cloud request(s); no credential and no local path in any (the agent's system prompt is sent, scrubbed)",
+      "observation": {
+        "drill": "privacy",
+        "status": 200,
+        "served_by": [
+          "bedrock"
+        ],
+        "answer": "Paris.",
+        "stream_errors": [],
+        "canaries_sent": {
+          "access_key": false,
+          "local_path": false
+        },
+        "system_prompt_sent": true,
+        "cloud_attempts": 1,
+        "seat": "qwen2.5:3b",
+        "model_errors": []
+      }
+    }
+  }
+}

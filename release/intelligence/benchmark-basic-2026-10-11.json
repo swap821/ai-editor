@@ -1,0 +1,4020 @@
+{
+  "generated_at": "2026-10-11T10:23:44.911792+00:00",
+  "tasks": [
+    {
+      "task_id": "c01-genexpr",
+      "category": "coding"
+    },
+    {
+      "task_id": "c02-late-binding",
+      "category": "coding"
+    },
+    {
+      "task_id": "c03-mutable-default",
+      "category": "coding"
+    },
+    {
+      "task_id": "c04-floor-mod",
+      "category": "coding"
+    },
+    {
+      "task_id": "c05-slice",
+      "category": "coding"
+    },
+    {
+      "task_id": "c06-finally",
+      "category": "coding"
+    },
+    {
+      "task_id": "c07-dict-merge",
+      "category": "coding"
+    },
+    {
+      "task_id": "c08-generator",
+      "category": "coding"
+    },
+    {
+      "task_id": "c09-sort-key",
+      "category": "coding"
+    },
+    {
+      "task_id": "c10-bug-mean",
+      "category": "coding"
+    },
+    {
+      "task_id": "c11-bug-bsearch",
+      "category": "coding"
+    },
+    {
+      "task_id": "c12-regex-time",
+      "category": "coding"
+    },
+    {
+      "task_id": "c13-regex-date",
+      "category": "coding"
+    },
+    {
+      "task_id": "c14-json-filter",
+      "category": "coding"
+    },
+    {
+      "task_id": "c15-set-ops",
+      "category": "coding"
+    },
+    {
+      "task_id": "r01-trip",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r02-walls",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r03-youngest",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r04-sequence",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r05-bat-ball",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r06-divisible",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r07-coin",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r08-weekday",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r09-rectangle",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r10-handshakes",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r11-median",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r12-race",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r13-arithmetic",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r14-discount",
+      "category": "reasoning"
+    },
+    {
+      "task_id": "r15-knights",
+      "category": "reasoning"
+    }
+  ],
+  "system_prompt": "Answer the question. You may reason first. Then end your reply with one final line exactly in the form: ANSWER: <answer>",
+  "results": [
+    {
+      "model": "bedrock:qwen.qwen3-coder-480b-a35b-v1:0",
+      "summary": {
+        "coding": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 30,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.886,
+            1.0
+          ]
+        },
+        "median_seconds": 1.8
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 2.265000000130385,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 2.875,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 2.969000000040978,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 2.8589999999385327,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 1.875,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 1.875,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 3.077999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 1.796000000089407,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 2.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.3910000000614673,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 1.828999999910593,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "^([0-1][0-9]|2[0-3]):[0-5][0-9]$",
+          "seconds": 1.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "`^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$`",
+          "seconds": 1.6870000001508743,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 1.1409999998286366,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 1.7339999999385327,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 1.4690000000409782,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3 days",
+          "seconds": 2.0620000001508743,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 1.077999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 2.1090000001713634,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.421000000089407,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 3.828999999910593,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 2.453999999910593,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 1.375,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 1.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 2.3439999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 1.078999999910593,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 1.0,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 1.1089999999385327,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 1.1559999999590218,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "A is a knight",
+          "seconds": 1.6869999999180436,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:moonshotai.kimi-k2.5",
+      "summary": {
+        "coding": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 30,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.886,
+            1.0
+          ]
+        },
+        "median_seconds": 2.0
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 3.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 4.547000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 2.8590000001713634,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 3.875,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 3.828999999910593,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 2.5630000000819564,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 6.109000000171363,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 2.344000000040978,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 2.780999999959022,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 3.1869999999180436,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "seconds": 2.0619999999180436,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "^(?:\\d{4})-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])$",
+          "seconds": 3.0160000000614673,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 1.3439999998081475,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 1.672000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 1.4060000001918525,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3",
+          "seconds": 2.8280000002123415,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 1.5,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 1.8599999998696148,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.9380000000819564,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 1.5309999999590218,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 1.6559999999590218,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 1.171000000089407,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 1.827999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 2.75,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 1.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 1.125,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 1.1879999998491257,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 1.4219999997876585,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "knight",
+          "seconds": 1.9840000001713634,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:global.moonshotai.kimi-k3",
+      "summary": {
+        "coding": {
+          "passed": 0,
+          "tasks": 15,
+          "errors": 15,
+          "accuracy": 0.0,
+          "ci95": [
+            0.0,
+            0.204
+          ]
+        },
+        "reasoning": {
+          "passed": 0,
+          "tasks": 15,
+          "errors": 15,
+          "accuracy": 0.0,
+          "ci95": [
+            0.0,
+            0.204
+          ]
+        },
+        "all": {
+          "passed": 0,
+          "tasks": 30,
+          "errors": 30,
+          "accuracy": 0.0,
+          "ci95": [
+            0.0,
+            0.114
+          ]
+        },
+        "median_seconds": null
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.7810000001918525,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.5779999999795109,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.5630000000819564,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.6560000001918525,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.2649999998975545,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.23500000010244548,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.28199999989010394,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.09399999980814755,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.25,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.07800000021234155,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.23400000017136335,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.09399999980814755,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.10899999993853271,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.28100000019185245,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.2660000000614673,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.2809999999590218,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 2.781999999890104,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.26599999982863665,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.2029999999795109,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.25,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.25,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.2660000000614673,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.26500000013038516,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.10899999993853271,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.25,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.21899999980814755,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.2660000000614673,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.25,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.0940000000409782,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.10899999993853271,
+          "error": "LLMError: Bedrock Converse failed for 'global.moonshotai.kimi-k3': An error occurred (ValidationException) when calling the Converse operation: This model doesn't support"
+        }
+      ]
+    },
+    {
+      "model": "bedrock:moonshot.kimi-k2-thinking",
+      "summary": {
+        "coding": {
+          "passed": 11,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.733,
+          "ci95": [
+            0.48,
+            0.891
+          ]
+        },
+        "reasoning": {
+          "passed": 14,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.933,
+          "ci95": [
+            0.702,
+            0.988
+          ]
+        },
+        "all": {
+          "passed": 25,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 0.833,
+          "ci95": [
+            0.664,
+            0.927
+          ]
+        },
+        "median_seconds": 4.5
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 5.827999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 8.937000000150874,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 4.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 5.484000000171363,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 5.516000000061467,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 3.1719999997876585,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 13.906000000191852,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 14.844000000040978,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 11.453999999910593,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 3.547000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 8.25,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 13.875,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 13.171000000089407,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 2.9839999999385327,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 7.562000000150874,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 3.344000000040978,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3 days",
+          "seconds": 6.655999999959022,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 2.125,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 4.031999999890104,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 2.453999999910593,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 7.0939999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 3.094000000040978,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 2.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 2.468000000109896,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 3.3119999999180436,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 4.358999999938533,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 1.4689999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 3.922000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 2.1880000000819564,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "A is a knight.**",
+          "seconds": 6.688000000081956,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:deepseek.v3.2",
+      "summary": {
+        "coding": {
+          "passed": 14,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.933,
+          "ci95": [
+            0.702,
+            0.988
+          ]
+        },
+        "reasoning": {
+          "passed": 14,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.933,
+          "ci95": [
+            0.702,
+            0.988
+          ]
+        },
+        "all": {
+          "passed": 28,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 0.933,
+          "ci95": [
+            0.787,
+            0.982
+          ]
+        },
+        "median_seconds": 5.3
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 17.984999999869615,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 18.95299999997951,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 6.516000000061467,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 20.516000000061467,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 10.125,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 1.421000000089407,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 31.20299999997951,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 2.234999999869615,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 18.641000000061467,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 3.8589999999385327,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 4.530999999959022,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 0.8280000002123415,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "`^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$`",
+          "seconds": 2.0159999998286366,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 2.219000000040978,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 21.5,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 7.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3",
+          "seconds": 3.547000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 1.4839999999385327,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 2.468000000109896,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 6.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 14.218999999808148,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "\\(\\frac{3}{8}\\)",
+          "seconds": 2.3120000001508743,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 6.140999999828637,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 5.484000000171363,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 3.844000000040978,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 5.093000000109896,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 2.077999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 10.296999999787658,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 2.672000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "knight",
+          "seconds": 10.203000000212342,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:zai.glm-5",
+      "summary": {
+        "coding": {
+          "passed": 13,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.867,
+          "ci95": [
+            0.621,
+            0.963
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 28,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 0.933,
+          "ci95": [
+            0.787,
+            0.982
+          ]
+        },
+        "median_seconds": 2.1
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 2.25,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 2.6880000000819564,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 3.1089999999385327,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 2.1089999999385327,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 1.9060000001918525,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 1.4690000000409782,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 2.3589999999385327,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": false,
+          "answer": "(6, 0)",
+          "seconds": 1.5940000000409782,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 1.9370000001508743,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 0.875,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": false,
+          "answer": "10",
+          "seconds": 1.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "seconds": 2.875,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+          "seconds": 2.1560000001918525,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 1.2189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 2.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 1.047000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3 days",
+          "seconds": 8.093999999808148,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 1.203999999910593,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 2.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5 cents",
+          "seconds": 4.3600000001024455,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 5.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 2.0780000002123415,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 5.359999999869615,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 2.077999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 2.0619999999180436,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 1.3589999999385327,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 0.5310000001918525,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 1.7189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 0.9840000001713634,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "A is a knight.",
+          "seconds": 4.141000000061467,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:mistral.mistral-large-3-675b-instruct",
+      "summary": {
+        "coding": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 30,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.886,
+            1.0
+          ]
+        },
+        "median_seconds": 1.2
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 1.6090000001713634,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 1.875,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 2.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 1.3599999998696148,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 1.2650000001303852,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 1.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 1.3900000001303852,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 1.0159999998286366,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 1.2349999998696148,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 0.7029999999795109,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 1.797000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "^([01][0-9]|2[0-3]):[0-5][0-9]$",
+          "seconds": 1.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+          "seconds": 1.3909999998286366,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 1.1089999999385327,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 1.0629999998491257,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 0.8440000000409782,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3",
+          "seconds": 1.3590000001713634,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 0.5620000001508743,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 1.1409999998286366,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 0.7970000000204891,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 1.3120000001508743,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 3.375,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 0.7339999999385327,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 0.8440000000409782,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 2.827999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 0.9690000000409782,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 0.7029999999795109,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 0.8590000001713634,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 0.6720000000204891,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "A is a knight.",
+          "seconds": 1.3120000001508743,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:mistral.devstral-2-123b",
+      "summary": {
+        "coding": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 30,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.886,
+            1.0
+          ]
+        },
+        "median_seconds": 3.7
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 6.125,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 4.875,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 5.1560000001918525,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 5.797000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 5.25,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 3.6409999998286366,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "`[('a', 3), ('b', 2), ('c', 4)]`",
+          "seconds": 3.922000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 3.047000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 4.952999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 2.547000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 3.6090000001713634,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "^(0[0-9]|1[0-9]|2[0-3]):[0-5][0-9]$",
+          "seconds": 4.6100000001024455,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "`\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])`",
+          "seconds": 4.375,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 3.7189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 6.844000000040978,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 3.625,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3 days",
+          "seconds": 2.6870000001508743,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 2.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 3.968000000109896,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 3.281999999890104,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 3.6560000001918525,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 3.530999999959022,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 3.125,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 5.3439999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10**",
+          "seconds": 10.359999999869615,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 3.0780000002123415,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 1.218000000109896,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 2.5,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "$66",
+          "seconds": 2.2969999997876585,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "A is a knight.",
+          "seconds": 4.202999999979511,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:qwen.qwen3-235b-a22b-2507-v1:0",
+      "summary": {
+        "coding": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 30,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.886,
+            1.0
+          ]
+        },
+        "median_seconds": 2.2
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 3.2189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 4.5,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 3.625,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 4.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 1.875,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 2.234999999869615,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 2.984999999869615,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 1.7190000000409782,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 10.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 0.5779999999795109,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 3.2660000000614673,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "^(?:[01][0-9]|2[0-3]):[0-5][0-9]$",
+          "seconds": 2.719000000040978,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$",
+          "seconds": 2.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 1.172000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 2.625,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 1.3900000001303852,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3",
+          "seconds": 1.968000000109896,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 1.0469999997876585,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 2.155999999959022,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 2.2810000001918525,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 3.281999999890104,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 1.4690000000409782,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 1.4379999998491257,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 2.25,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 2.827999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 1.2809999999590218,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 0.35900000017136335,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 0.7659999998286366,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 1.25,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "A is a knight.",
+          "seconds": 3.155999999959022,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:minimax.minimax-m2.5",
+      "summary": {
+        "coding": {
+          "passed": 14,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.933,
+          "ci95": [
+            0.702,
+            0.988
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 29,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 0.967,
+          "ci95": [
+            0.833,
+            0.994
+          ]
+        },
+        "median_seconds": 3.5
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 4.140000000130385,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 13.125,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 5.312999999849126,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 5.187999999849126,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 3.9219999997876585,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 3.577999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 6.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 4.422000000020489,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 5.484000000171363,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 1.625,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 10.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "r'^(?:[01]\\d|2[0-3]):[0-5]\\d$'",
+          "seconds": 17.140999999828637,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 6.375,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\",\"Zoe\"]",
+          "seconds": 3.0629999998491257,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 4.983999999938533,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 2.844000000040978,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3 days",
+          "seconds": 5.75,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 2.452999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 2.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 2.905999999959022,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46",
+          "seconds": 2.969000000040978,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 1.7340000001713634,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 2.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 3.4380000000819564,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 3.031999999890104,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 2.827999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 2.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 2.077999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 1.875,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "A is a knight",
+          "seconds": 7.890000000130385,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "bedrock:openai.gpt-oss-120b-1:0",
+      "summary": {
+        "coding": {
+          "passed": 14,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.933,
+          "ci95": [
+            0.702,
+            0.988
+          ]
+        },
+        "reasoning": {
+          "passed": 15,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 1.0,
+          "ci95": [
+            0.796,
+            1.0
+          ]
+        },
+        "all": {
+          "passed": 29,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 0.967,
+          "ci95": [
+            0.833,
+            0.994
+          ]
+        },
+        "median_seconds": 0.7
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 1.25,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": true,
+          "answer": "[2, 2, 2]",
+          "seconds": 1.8590000001713634,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 1.1410000000614673,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": true,
+          "answer": "-4 1",
+          "seconds": 1.5940000000409782,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "hfdb",
+          "seconds": 1.1399999998975545,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 0.5470000000204891,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 1.1400000001303852,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 0.8900000001303852,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 1.156999999890104,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 0.375,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 0.4380000000819564,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": true,
+          "answer": "^(?:[01]\\d|2[0-3]):[0-5]\\d$",
+          "seconds": 0.828999999910593,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "r'^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$'",
+          "seconds": 0.7349999998696148,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\",\"Zoe\"]",
+          "seconds": 0.9059999999590218,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 0.5930000001098961,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215 minutes",
+          "seconds": 0.9529999999795109,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3 days",
+          "seconds": 0.625,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 0.7189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 0.5,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 0.5,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "46**",
+          "seconds": 1.0940000000409782,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3/8",
+          "seconds": 0.3440000000409782,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 0.4059999999590218,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 0.7180000001098961,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 0.5779999999795109,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 1.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 0.3119999999180436,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 0.5629999998491257,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 0.5620000001508743,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "knight",
+          "seconds": 0.8600000001024455,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "ollama:qwen2.5:3b",
+      "summary": {
+        "coding": {
+          "passed": 5,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.333,
+          "ci95": [
+            0.152,
+            0.583
+          ]
+        },
+        "reasoning": {
+          "passed": 4,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.267,
+          "ci95": [
+            0.109,
+            0.52
+          ]
+        },
+        "all": {
+          "passed": 9,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 0.3,
+          "ci95": [
+            0.167,
+            0.479
+          ]
+        },
+        "median_seconds": 4.2
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 12.156000000191852,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": false,
+          "answer": "[0, 1, 2]",
+          "seconds": 5.234999999869615,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 5.390000000130385,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": false,
+          "answer": "-4, -1",
+          "seconds": 4.4689999998081475,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": false,
+          "answer": "hgec",
+          "seconds": 3.5310000001918525,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 2.8129999998491257,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 5.562000000150874,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": false,
+          "answer": "6, 6",
+          "seconds": 4.25,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": false,
+          "answer": "`[\"ccc\", \"bb\", \"dd\", \"a\"]`",
+          "seconds": 4.187999999849126,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 0.8440000000409782,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 1.125,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 0.5470000000204891,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": false,
+          "answer": "",
+          "seconds": 0.796000000089407,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": false,
+          "answer": "[",
+          "seconds": 3.3129999998491257,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 8.016000000061467,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 4.202999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 2.3589999999385327,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 2.7810000001918525,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 4.812999999849126,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 3.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 4.719000000040978,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "<answer>3/8<answer>",
+          "seconds": 7.672000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "<Friday>",
+          "seconds": 3.155999999959022,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 6.702999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 6.077999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 4.297000000020489,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 0.2029999999795109,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 2.4840000001713634,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "$66",
+          "seconds": 4.125,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "A is a knave.",
+          "seconds": 5.984999999869615,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "ollama:qwen2.5-coder:7b",
+      "summary": {
+        "coding": {
+          "passed": 11,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.733,
+          "ci95": [
+            0.48,
+            0.891
+          ]
+        },
+        "reasoning": {
+          "passed": 12,
+          "tasks": 15,
+          "errors": 0,
+          "accuracy": 0.8,
+          "ci95": [
+            0.548,
+            0.93
+          ]
+        },
+        "all": {
+          "passed": 23,
+          "tasks": 30,
+          "errors": 0,
+          "accuracy": 0.767,
+          "ci95": [
+            0.591,
+            0.882
+          ]
+        },
+        "median_seconds": 16.6
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": true,
+          "answer": "56",
+          "seconds": 22.812000000150874,
+          "error": null
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": false,
+          "answer": "[3, 3, 3]",
+          "seconds": 9.156999999890104,
+          "error": null
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": true,
+          "answer": "3",
+          "seconds": 19.030999999959022,
+          "error": null
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": false,
+          "answer": "-4 -1",
+          "seconds": 8.937000000150874,
+          "error": null
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": true,
+          "answer": "`hfdb`",
+          "seconds": 16.093999999808148,
+          "error": null
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": true,
+          "answer": "finally",
+          "seconds": 7.563000000081956,
+          "error": null
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": true,
+          "answer": "[('a', 3), ('b', 2), ('c', 4)]",
+          "seconds": 28.671000000089407,
+          "error": null
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": true,
+          "answer": "6 0",
+          "seconds": 13.781999999890104,
+          "error": null
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": true,
+          "answer": "['ccc', 'bb', 'dd', 'a']",
+          "seconds": 31.436999999918044,
+          "error": null
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": true,
+          "answer": "5",
+          "seconds": 4.3280000002123415,
+          "error": null
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": false,
+          "answer": "10",
+          "seconds": 3.0159999998286366,
+          "error": null
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": false,
+          "answer": "^([01]?[0-9]|2[0-3]):([0-5]?[0-9])$",
+          "seconds": 6.234000000171363,
+          "error": null
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": true,
+          "answer": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$",
+          "seconds": 29.82799999997951,
+          "error": null
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": true,
+          "answer": "[\"Adam\", \"Zoe\"]",
+          "seconds": 7.2189999998081475,
+          "error": null
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": true,
+          "answer": "[1, 2, 5] 2",
+          "seconds": 12.531000000191852,
+          "error": null
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "215",
+          "seconds": 14.687999999849126,
+          "error": null
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "3",
+          "seconds": 17.20299999997951,
+          "error": null
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Carol",
+          "seconds": 11.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "42",
+          "seconds": 19.125,
+          "error": null
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "5",
+          "seconds": 17.688000000081956,
+          "error": null
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "",
+          "seconds": 60.890000000130385,
+          "error": null
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "\\(\\frac{3}{8}\\)",
+          "seconds": 24.984999999869615,
+          "error": null
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "Friday",
+          "seconds": 12.358999999938533,
+          "error": null
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "50",
+          "seconds": 32.563000000081956,
+          "error": null
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "10",
+          "seconds": 34.60899999993853,
+          "error": null
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "6",
+          "seconds": 19.219000000040978,
+          "error": null
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "2",
+          "seconds": 2.625,
+          "error": null
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "182",
+          "seconds": 15.327999999979511,
+          "error": null
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": true,
+          "answer": "66",
+          "seconds": 22.733999999938533,
+          "error": null
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": false,
+          "answer": "A is a knave.",
+          "seconds": 29.156000000191852,
+          "error": null
+        }
+      ]
+    },
+    {
+      "model": "ollama:qwen2.5:7b",
+      "summary": {
+        "coding": {
+          "passed": 0,
+          "tasks": 15,
+          "errors": 15,
+          "accuracy": 0.0,
+          "ci95": [
+            0.0,
+            0.204
+          ]
+        },
+        "reasoning": {
+          "passed": 0,
+          "tasks": 15,
+          "errors": 15,
+          "accuracy": 0.0,
+          "ci95": [
+            0.0,
+            0.204
+          ]
+        },
+        "all": {
+          "passed": 0,
+          "tasks": 30,
+          "errors": 30,
+          "accuracy": 0.0,
+          "ci95": [
+            0.0,
+            0.114
+          ]
+        },
+        "median_seconds": null
+      },
+      "outcomes": [
+        {
+          "task_id": "c01-genexpr",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.031999999890103936,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c02-late-binding",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.030999999959021807,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c03-mutable-default",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c04-floor-mod",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.014999999897554517,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c05-slice",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c06-finally",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01500000013038516,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c07-dict-merge",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.015999999828636646,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c08-generator",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c09-sort-key",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01500000013038516,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c10-bug-mean",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.0,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c11-bug-bsearch",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.015999999828636646,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c12-regex-time",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c13-regex-date",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.014999999897554517,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c14-json-filter",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "c15-set-ops",
+          "category": "coding",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01500000013038516,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r01-trip",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.031999999890103936,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r02-walls",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01500000013038516,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r03-youngest",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.015999999828636646,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r04-sequence",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r05-bat-ball",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.0,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r06-divisible",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.014999999897554517,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r07-coin",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.03100000019185245,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r08-weekday",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.015999999828636646,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r09-rectangle",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r10-handshakes",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01500000013038516,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r11-median",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.015999999828636646,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r12-race",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.0,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r13-arithmetic",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r14-discount",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.014999999897554517,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        },
+        {
+          "task_id": "r15-knights",
+          "category": "reasoning",
+          "passed": null,
+          "answer": null,
+          "seconds": 0.01600000006146729,
+          "error": "LLMError: Ollama returned HTTP 404 for model 'qwen2.5:7b': {\"error\":\"model 'qwen2.5:7b' not found\"}"
+        }
+      ]
+    }
+  ]
+}

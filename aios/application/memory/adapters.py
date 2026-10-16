@@ -4,23 +4,30 @@ from __future__ import annotations
 
 import inspect
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Iterable, Optional
+from typing import TYPE_CHECKING, Any, Callable, Iterable, Optional
 
+from aios.application.learning import negative_transfer
 from aios.application.memory import write_budget
 from aios.application.memory.provenance_policy import (
+    cascade_withdrawal,
     fact_digest,
+    lesson_content_key,
     lesson_digest,
+    semantic_content_key,
     semantic_digest,
 )
 from aios.domain.memory import MemoryHit, MemoryRecallContext
 from aios.memory.db import get_connection, init_memory_db
+from aios.memory.learning_journal import record as journal
 from aios.memory.consolidation import MemoryConsolidator
 from aios.memory.compaction import MemoryCompactor
 from aios.memory.development import DevelopmentTracker
 from aios.memory.episodic import EpisodicMemory
 from aios.memory.facts import SemanticFacts
-from aios.memory.mistake import MistakeMemory
+from aios.memory.mistake import MistakeMemory, distinct_lessons
+from aios.memory.relevance import content_hash
 from aios.memory.retrieval import hybrid_search
 from aios.memory.semantic import SemanticMemory
 from aios.memory.skills import SkillMemory
@@ -113,6 +120,7 @@ class LegacySemanticMemoryAdapter:
                 mem_id,
                 semantic_digest(row),
                 transition,
+                content_key=semantic_content_key(row),
                 principal=principal,
             )
             return
@@ -769,20 +777,34 @@ class MistakeMemoryAdapter:
         self.gate = gate
 
     def _admitted(
-        self, items: list[Any], limit: int, principal: Optional[str]
+        self,
+        items: list[Any],
+        limit: int,
+        principal: Optional[str],
+        *,
+        distinct: bool = False,
     ) -> list[Any]:
+        """The first *limit* of *items* the gate admits. With *distinct*, a
+        lesson whose text was already admitted takes no further slot -- decided
+        AFTER the gate, so a refused copy never hides an admitted one."""
         if self.gate is None:
-            return list(items)[:limit]
+            items = list(items)
+            return distinct_lessons(items, limit) if distinct else items[:limit]
         kept: list[Any] = []
+        seen: set[str] = set()
         for item in items:
             mistake_id = int(
                 item["mistake_id"] if "mistake_id" in item.keys() else item["id"]
             )
+            text_key = content_hash(str(item["lesson_text"])) if distinct else ""
+            if distinct and text_key in seen:
+                continue
             row = self.store.get(mistake_id)
             if row is not None and self.gate.admits(
                 "mistake_pool", mistake_id, lesson_digest(row), principal=principal
             ):
                 kept.append(item)
+                seen.add(text_key)
             if len(kept) >= limit:
                 break
         return kept
@@ -814,6 +836,7 @@ class MistakeMemoryAdapter:
                 mistake_id,
                 lesson_digest(row),
                 transition,
+                content_key=lesson_content_key(row),
                 session_id=row["task_id"],
                 principal=principal,
             )
@@ -866,14 +889,17 @@ class MistakeMemoryAdapter:
                 ),
                 limit,
                 principal,
+                distinct=True,
             )
         ]
-        remaining = max(limit - len(pending), 0)
-        verified = self.relevant_verified(query, remaining, principal=principal)
+        verified = self.relevant_verified(query, limit, principal=principal)
         pending_ids = {lesson["mistake_id"] for lesson in pending}
-        return pending + [
-            lesson for lesson in verified if lesson["mistake_id"] not in pending_ids
-        ]
+        # One lesson, one slot: a verified lesson whose text a pending one of
+        # this task already carries adds nothing.
+        return distinct_lessons(
+            pending + [v for v in verified if v["mistake_id"] not in pending_ids],
+            limit,
+        )
 
     def recurring(
         self, limit: int = 3, *, principal: Optional[str]
@@ -909,6 +935,141 @@ class MistakeMemoryAdapter:
 
     def get(self, mistake_id: int) -> Any:
         return self.store.get(mistake_id)
+
+    def admitted(self, mistake_id: int) -> bool:
+        """Would recall admit this lesson now? Ungated, recall admits all."""
+        if self.gate is None:
+            return True
+        row = self.store.get(int(mistake_id))
+        if row is None:
+            return False
+        return bool(
+            self.gate.admits(
+                "mistake_pool",
+                int(mistake_id),
+                lesson_digest(row),
+                principal=row["principal_id"],
+            )
+        )
+
+    def record_derivation(
+        self, *, child: tuple[str, Any], parent: tuple[str, Any], relation: str
+    ) -> None:
+        """Record *child* as derived from *parent*, once."""
+        if self.provenance is None:
+            return
+        store = self.provenance.store
+        known = {(t, i) for t, i, _ in store.children_of(parent[0], str(parent[1]))}
+        if (child[0], str(child[1])) in known:
+            return
+        store.append_derivation(
+            child=(child[0], str(child[1])),
+            parent=(parent[0], str(parent[1])),
+            relation=relation,
+        )
+
+    def forget_stale_pending(
+        self, older_than_days: float, *, dry_run: bool
+    ) -> list[int]:
+        """Plan Phase 6f (GC): forget pending lessons idle for *older_than_days*.
+
+        Idle means no provenance record since the cutoff -- a recurrence or a
+        promotion appends one, while the row's timestamp is only its creation.
+        Returns the ids (removed unless *dry_run*), and journals a removal.
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=older_than_days)
+        idle = [
+            mistake_id
+            for mistake_id in self.store.stale_pending(older_than_days)
+            if not self._active_since(mistake_id, cutoff)
+        ]
+        if dry_run or not idle:
+            return idle
+        removed = list(self.store.forget_pending(idle))
+        journal(
+            "L2",
+            "forgotten",
+            detail={"ids": removed, "older_than_days": older_than_days},
+            db_path=self.store.db_path,
+        )
+        return removed
+
+    def _active_since(self, mistake_id: int, cutoff: datetime) -> bool:
+        """Has this lesson been recorded (recurred, promoted) since *cutoff*?"""
+        if self.provenance is None:
+            return False
+        try:
+            last = self.provenance.store.last_recorded_at(
+                "mistake_pool", str(mistake_id)
+            )
+        except Exception:  # noqa: BLE001 - unreadable: keep it (forgetting is final)
+            return True
+        if last is None:
+            return False
+        return datetime.fromisoformat(last) >= cutoff
+
+    def record_recall_outcome(
+        self,
+        mistake_ids: Any,
+        *,
+        success: bool,
+        principal: Optional[str],
+        baseline: Callable[[str], Optional[float]],
+    ) -> list[int]:
+        """Plan Phase 6d (T13): the negative-transfer quarantine for lessons.
+
+        A verified, signed lesson can still make the turns that recall it
+        worse. Each verifier-judged outcome of a turn that recalled it is
+        counted; *baseline* gives the verified success rate of similar tasks
+        (the planner's own evidence), and the named rule decides. Quarantine is
+        a WITHDRAWAL in the lesson's provenance -- recorded unsigned -- so the
+        recall gate refuses it until the operator re-admits it. Returns the
+        ids quarantined.
+        """
+        quarantined: list[int] = []
+        for item in self.store.record_recall_outcome(
+            mistake_ids, success=success, principal_id=principal
+        ):
+            row = item["row"]
+            mistake_id = int(row["id"])
+            successes, failures = item["successes"], item["failures"]
+            verdict = negative_transfer.assess(
+                successes, successes + failures, baseline(str(row["lesson_text"]))
+            )
+            detail = {"principal": principal, **verdict.as_detail()}
+            if verdict.action == "quarantine":
+                record = (
+                    self.provenance.withdraw(
+                        "mistake_pool",
+                        mistake_id,
+                        lesson_digest(row),
+                        "quarantined",
+                        principal=principal,
+                    )
+                    if self.provenance is not None
+                    else None
+                )
+                # Enforced only if the withdrawal was recorded AND recall is
+                # gated on provenance; otherwise the next outcome tries again.
+                enforced = record is not None and self.gate is not None
+                journal(
+                    "L2",
+                    "quarantined",
+                    subject_id=mistake_id,
+                    detail={**detail, "enforced": enforced},
+                )
+                if enforced:
+                    quarantined.append(mistake_id)
+                    # The twin consolidation made of it carries the same
+                    # content: quarantine it too (RT-28).
+                    cascade_withdrawal(
+                        self.provenance.store,
+                        self.store.db_path,
+                        [("mistake_pool", str(mistake_id))],
+                    )
+            elif verdict.action == "review" and not success:
+                journal("L2", "review_flagged", subject_id=mistake_id, detail=detail)
+        return quarantined
 
     def rows_by_status(self, status: str) -> list[Any]:
         init_memory_db(self.store.db_path)
@@ -958,6 +1119,7 @@ class MistakeMemoryAdapter:
             ),
             limit,
             principal,
+            distinct=True,
         )
 
     def recall(self, query: str, context: MemoryRecallContext) -> tuple[MemoryHit, ...]:

@@ -24,14 +24,17 @@ row breaks the signature again.
         --approver operator:swap --principal operator:swap --apply  # sign
 
 Operator-run only. It signs with ``AIOS_LEARNING_KEY_LIVE`` from YOUR
-environment and refuses without it. It never prints a key. There is no "all":
-every id is named.
+environment or, when that is unset, from the OS credential store where
+``gagos keys generate`` put it (AGENTS.md §VII.4, amended 2026-10-11): read in
+this process and handed to the signer, as the launcher does. It refuses
+without a key, and it never prints one. There is no "all": every id is named.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sqlite3
 import sys
 from pathlib import Path
@@ -213,7 +216,51 @@ def readmit(
         )
         store.append(provenance, signer.sign(provenance))
         done.append(row_id)
+    # Plan Phase 6e: re-admission is the operator's judgment that this
+    # content is sound -- a tombstone on it is lifted, so it may be learned
+    # again.
+    from aios.application.memory.provenance_policy import (
+        lesson_content_key,
+        semantic_content_key,
+    )
+
+    keys = {"mistake_pool": lesson_content_key, "semantic_memory": semantic_content_key}
+    if table in keys:
+        for row_id in done:
+            store.lift_tombstone(
+                table, keys[table](attributed[row_id]), principal=owner
+            )
+    if table == "mistake_pool" and done:
+        # Plan Phase 6d: re-admission is the operator's judgment; outcomes
+        # counted before it do not overrule it. The negative-transfer window
+        # of each re-admitted lesson starts again here.
+        from aios.memory.mistake import MistakeMemory
+
+        MistakeMemory(db_path=db).reset_recall_outcomes(done)
     return done
+
+
+def live_signer(
+    environ: Any = None, keystore: Callable[[], Any] | None = None
+) -> LearningSigner:
+    """The signer for this process: the live seed from the environment, else
+    from the OS credential store. A key generated straight into the store was
+    never seen by anyone, so without this it could never sign a re-admission.
+    """
+    from aios.memory.provenance import KEY_ENV
+
+    env = dict(os.environ if environ is None else environ)
+    name = KEY_ENV["live"]
+    if not env.get(name, "").strip():
+        from aios.operations.keystore import KeystoreUnavailable, default_keystore
+
+        try:
+            stored = (keystore or default_keystore)().get(name)
+        except KeystoreUnavailable:
+            stored = None
+        if stored:
+            env[name] = stored
+    return LearningSigner.from_env(env)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -256,7 +303,7 @@ def main(argv: list[str] | None = None) -> int:
         done = readmit(
             args.memory_db,
             store,
-            LearningSigner.from_env(),
+            live_signer(),
             table=args.table,
             ids=ids,
             approver=args.approver,

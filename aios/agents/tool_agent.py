@@ -96,7 +96,7 @@ from aios.core.cerebellum import (
     REFLEX_AUTHORITY_WITHHELD,
     Cerebellum,
 )
-from aios.core import replay_writes
+from aios.core import replay_writes, turn_failures
 from aios.core.executor import Executor
 from aios.core.injection_scan import detect_injection
 from aios.core.llm import LLMClient, LLMError
@@ -1177,6 +1177,7 @@ class ToolAgent:
                 )
                 yield {
                     "type": "error",
+                    "code": turn_failures.AGENT_LOOP,
                     "text": (
                         f"Agent loop detected: {loop_reason}. Stopped for safety. "
                         "Try rephrasing your request."

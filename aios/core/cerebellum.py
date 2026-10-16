@@ -1031,7 +1031,9 @@ class Cerebellum:
                 return
 
             if failed:
-                self._record_replay_failure(playbook.id)
+                # A replayed step that RAN and failed is observed harm: plan
+                # Phase 6d takes the reflex out of service on the first one.
+                self._record_replay_failure(playbook.id, harm=True)
                 yield {
                     "type": "cerebellum_abort",
                     "step_index": i,
@@ -1410,7 +1412,16 @@ class Cerebellum:
             pb.replay_count += 1
             pb.consecutive_failures = 0
 
-    def _record_replay_failure(self, playbook_id: int) -> None:
+    def _record_replay_failure(self, playbook_id: int, *, harm: bool = False) -> None:
+        """Count a replay that did not complete.
+
+        *harm* -- a replayed step that ran and failed -- takes the reflex out of
+        service at once (plan Phase 6d, threat T13: "first observed harm"). The
+        model answers instead, at the cost of one call, and only the operator's
+        re-activation brings it back. An abstention or a block is not harm: the
+        reflex did not fit here, and it still retires after
+        ``max_consecutive_failures`` of those in a row.
+        """
         if not learning_permitted():
             # The stop freezes learned state: a replay the stop refused is not
             # evidence about the playbook, and nothing about it moves until
@@ -1432,6 +1443,14 @@ class Cerebellum:
                 "SELECT consecutive_failures FROM compiled_playbooks WHERE id = ?",
                 (playbook_id,),
             ).fetchone()
+            if row and harm:
+                self._take_out_of_service(
+                    conn,
+                    playbook_id,
+                    "first observed harm: a replayed step ran and failed",
+                    threshold=1,
+                )
+                return
             if (
                 row
                 and int(row["consecutive_failures"]) >= self.max_consecutive_failures

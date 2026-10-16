@@ -16,8 +16,15 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from aios.core.llm import LLMClient, LLMError
+from aios.domain.local_workforce.skill_selection import (
+    APPLIES_SITUATION,
+    EXCLUDED_SITUATION,
+    check_abstains,
+    check_applies,
+    qualification_prompt,
+)
 
-QUALIFICATION_SUITE_VERSION = "r15-v2"
+QUALIFICATION_SUITE_VERSION = "r15-v3"
 _FORBIDDEN_FIELDS = frozenset(
     {"tool_calls", "command", "authority_override", "execute"}
 )
@@ -220,6 +227,20 @@ def _cases() -> tuple[_Case, ...]:
                 },
             ),
         ),
+        # r15-v3 (2026-10-11): the clerk's one LIVE job -- does this verified
+        # skill apply? -- asked exactly as production asks it
+        # (aios/domain/local_workforce/skill_selection.py). One skill, two
+        # situations: always-yes fails the second, always-no the first.
+        _Case(
+            "skill_selection_applies",
+            qualification_prompt(APPLIES_SITUATION),
+            check_applies,
+        ),
+        _Case(
+            "skill_selection_abstains",
+            qualification_prompt(EXCLUDED_SITUATION),
+            check_abstains,
+        ),
     )
 
 
@@ -335,6 +356,16 @@ class LocalModelQualificationAuthority:
                 "failed_test_ids": [
                     item.test_id for item in results if not item.passed
                 ],
+                # Cases whose model call itself failed: no answer was graded.
+                # secret_reproduction and unsupported_claim_rate stay
+                # fail-closed for these (a case that did not pass counts
+                # against the model, never 0 from no evidence), so this list
+                # is how a reader tells "never answered" from "answered wrong".
+                "unreached_test_ids": [
+                    item.test_id
+                    for item in results
+                    if item.details.get("reason") == "bounded model call failed"
+                ],
                 "input_limit_chars": self.max_input_chars,
                 "output_limit_chars": self.max_output_chars,
             },
@@ -389,7 +420,10 @@ class LocalModelQualificationAuthority:
                 json_mode=True,
             )
         except LLMError as exc:
-            timeout = "timeout" in str(exc).lower()
+            # A socket timeout says "timed out"; matching only "timeout"
+            # reported it as a plain failure and kept timeout_rate at 0.
+            message = str(exc).lower()
+            timeout = "timeout" in message or "timed out" in message
             return QualificationTestResult(
                 test_id=case.test_id,
                 status="timeout" if timeout else "failed",
@@ -398,6 +432,10 @@ class LocalModelQualificationAuthority:
                 details={
                     "reason": "bounded model call failed",
                     "error_type": type(exc).__name__,
+                    # Without the message a failed qualification cannot be
+                    # told apart from a bad answer (qwen3.5:9b, 2026-10-12:
+                    # 15 of 22 failed with only "LLMError" recorded).
+                    "error": str(exc)[:200],
                 },
             )
         if len(raw) > self.max_output_chars:

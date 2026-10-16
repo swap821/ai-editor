@@ -59,6 +59,7 @@ from aios.domain.learning.applicability import (
     ApplicabilityError,
     SkillApplicabilityEngine,
 )
+from aios.application.learning import negative_transfer
 from aios.application.learning.skill_lifecycle import SkillLifecycleAuthority
 from aios.core.verification_strength import VerificationStrength, meets_learning_floor
 from aios.domain.learning.repository import (
@@ -73,6 +74,7 @@ from aios.domain.learning.skill_contracts import BIRTH_STATE
 from aios.domain.memory.contracts import MemoryHit, MemoryRecallContext
 from aios.memory.construction_ledger import record_construction
 from aios.memory.learning_freeze import assert_learning_permitted, learning_permitted
+from aios.memory.learning_journal import record as journal
 from aios.memory.relevance import relevance, skill_signature_v2
 from aios.memory.skills import ReadOnlySkillHistoryError, SkillMemory, _better_recipe
 from aios.security.secret_scanner import scan_and_redact
@@ -244,6 +246,21 @@ class SkillTrailIndex:
                 )
                 """
             )
+            # Plan Phase 6d (T13): outcomes of turns that recalled the skill,
+            # since the operator's LAST activation of it -- the window the
+            # negative-transfer quarantine decides from. Re-activation starts
+            # it again: the operator's judgment is not overruled by evidence
+            # gathered before it.
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS skill_transfer_outcomes (
+                    trail_id INTEGER PRIMARY KEY,
+                    successes INTEGER NOT NULL DEFAULT 0,
+                    failures INTEGER NOT NULL DEFAULT 0,
+                    since TEXT NOT NULL
+                )
+                """
+            )
 
     def trail_for(
         self, skill_id: str, version: int, *, preferred_id: Optional[int] = None
@@ -323,6 +340,42 @@ class SkillTrailIndex:
         )
         with self._connection() as connection:
             connection.execute(sql, (now.isoformat(), int(trail_id)))
+
+    def record_transfer(self, trail_id: int, *, success: bool) -> tuple[int, int]:
+        """Count one recalled-turn outcome into the skill's window; return its
+        (successes, failures) since the operator's last activation."""
+        assert_learning_permitted("skill_transfer_outcomes.record")
+        sql = (
+            "UPDATE skill_transfer_outcomes SET successes = successes + 1 "
+            "WHERE trail_id = ?"
+            if success
+            else "UPDATE skill_transfer_outcomes SET failures = failures + 1 "
+            "WHERE trail_id = ?"
+        )
+        with self._connection() as connection:
+            connection.execute(
+                "INSERT INTO skill_transfer_outcomes (trail_id, since) VALUES (?, ?) "
+                "ON CONFLICT(trail_id) DO NOTHING",
+                (int(trail_id), _utc_now().isoformat()),
+            )
+            connection.execute(sql, (int(trail_id),))
+            row = connection.execute(
+                "SELECT successes, failures FROM skill_transfer_outcomes "
+                "WHERE trail_id = ?",
+                (int(trail_id),),
+            ).fetchone()
+        return int(row[0]), int(row[1])
+
+    def reset_transfer(self, trail_id: int) -> None:
+        """The operator activated the skill again: its window starts now."""
+        assert_learning_permitted("skill_transfer_outcomes.reset")
+        with self._connection() as connection:
+            connection.execute(
+                "INSERT INTO skill_transfer_outcomes (trail_id, since) VALUES (?, ?) "
+                "ON CONFLICT(trail_id) DO UPDATE SET successes = 0, failures = 0, "
+                "since = excluded.since",
+                (int(trail_id), _utc_now().isoformat()),
+            )
 
     def adopt_migrated(self, repository: SkillRepository) -> list[int]:
         """Give every migrated skill a trail at its legacy id. Idempotent."""
@@ -451,6 +504,13 @@ class InstitutionalSkillAdapter:
                 f"only an active skill's activation is signed: {skill_id!r} "
                 f"v{version} is {None if record is None else record.state!r}"
             )
+        # Plan Phase 6d: evidence gathered before the operator's judgment does
+        # not overrule it; the negative-transfer window starts again here.
+        self.trails.reset_transfer(
+            self.trails.trail_for(
+                record.skill_id, record.version, preferred_id=_legacy_id(record)
+            )
+        )
         if self.provenance is None:
             return False
         row_id = skill_row_id(record.skill_id, record.version)
@@ -714,8 +774,55 @@ class InstitutionalSkillAdapter:
             self.lifecycle.apply_reuse_outcome(
                 *key, success=success, reason=None if success else "verification"
             )
+            self._assess_transfer(key, int(trail_id), success=success)
             credited.append(int(trail_id))
         return credited
+
+    def _assess_transfer(
+        self, key: tuple[str, int], trail_id: int, *, success: bool
+    ) -> None:
+        """Plan Phase 6d (T13): the negative-transfer quarantine for skills.
+
+        A skill can be signed, attributed and operator-activated and still make
+        the turns that recall it worse. The window holds the outcomes of those
+        turns since the operator's last activation; the baseline is the skill's
+        OWN record when walked directly -- its counts minus every reuse -- by
+        Laplace's rule of succession. Significantly worse after enough outcomes:
+        suspended (only the operator's re-activation brings it back). Worse on
+        fewer: flagged for his review in the learning journal.
+        """
+        successes, failures = self.trails.record_transfer(trail_id, success=success)
+        record = self.repository.get(*key)
+        if record is None or record.state != ACTIVE:
+            # The lifecycle's own floor already took it out of use.
+            return
+        trail = self.trails.all().get(key) or {}
+        reuse_n = int(trail.get("reuse_success_count", 0)) + int(
+            trail.get("reuse_failure_count", 0)
+        )
+        own_n = max(record.success_count + record.failure_count - reuse_n, 0)
+        own_s = min(
+            max(record.success_count - int(trail.get("reuse_success_count", 0)), 0),
+            own_n,
+        )
+        verdict = negative_transfer.assess(
+            successes,
+            successes + failures,
+            negative_transfer.smoothed_rate(own_s, own_n),
+        )
+        detail = {
+            "skill_id": record.skill_id,
+            "version": record.version,
+            "principal": skill_principal(record),
+            **verdict.as_detail(),
+        }
+        if verdict.action == "quarantine":
+            self.repository.transition_state(
+                record.skill_id, record.version, "suspended"
+            )
+            journal("L3", "quarantined", subject_id=trail_id, detail=detail)
+        elif verdict.action == "review" and not success:
+            journal("L3", "review_flagged", subject_id=trail_id, detail=detail)
 
     # -- reads ----------------------------------------------------------- #
 
