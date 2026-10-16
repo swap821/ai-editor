@@ -1,5 +1,9 @@
 # Exploded Warnings
 
+## STALE AND TRANSIENT INDEX LOCKS ARE DIFFERENT
+
+Two own-worktree zero-byte locks were diagnosed and recoverably preserved2026-10-16 (one from11Oct, one unchanged32minutes). A separate transient lock disappeared untouched. Before Git writes, verify exact per-worktree gitdir, age/content and no open holder; inspect real operation names, not just git.exe presence (15processes were fsmonitor daemons). Never delete a new lock, kill daemons or disable fsmonitor/locking to push. Preserve a diagnosed stale lock under a unique exact metadata path; if the next lock is current/held, stop. The process that left these files is NOT established by this evidence.
+
 ## INTERNAL ERROR TABS ARE NOT A SAFE VIEWPORT TARGET
 
 2026-10-15 and16 browser runs encountered URL-policy blocking on old internal error-page documents, even when the intended target was normal localhost HTTP. Do not automate from those documents or retry through another control mechanism. Keep them inert; use a supported normal task page and require its selected-ID match BEFORE viewport changes. An unrun compact check is unavailable evidence, not a product defect or permission to bypass browser policy.

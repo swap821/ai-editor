@@ -1,6 +1,6 @@
 # GAGOS living-work keyframes — B
 
-> Authoritative current frontend implementation, source proof and open gates: [PHONE checkpoint](PHONE_PRESENCE_2026-10-07.md). The quieter phone-working visual direction is approved toward adoption; normal official-entry implementation is a LOCAL candidate, not publication or release. Original goal/acceptance weights and live/device/human/whole-PR gates remain unchanged. Older dated “current/pending” notes below are historical snapshots, not current-head qualification. Keep new source/result details in that one checkpoint.
+> Authoritative implementation, exact-source verification, publication status and open gates: [PHONE checkpoint](PHONE_PRESENCE_2026-10-07.md). The operator approved the quieter phone-working direction and now authorizes master integration, accepted-lockfile verification and a DRAFT PR. This is an implementation candidate, not release or full-goal acceptance. Original weights and live/device/human/whole-PR gates remain unchanged. Older dated “current/pending” notes below are historical snapshots. Keep current source/results in that one checkpoint.
 
 > Current2026-10-16: the operator approved a phone-only quieter-working-chrome prototype, not these boards or production adoption. Existing owners now have an opt-in More composition; desktop32/68/palette/textures unchanged. [Native prototype and remaining visual-review gate](PHONE_PRESENCE_2026-10-07.md). Older “unanswered” labels are history, not the current permission boundary.
 
