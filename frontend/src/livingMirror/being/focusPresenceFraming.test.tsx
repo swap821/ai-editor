@@ -1179,12 +1179,15 @@ it.each([false, true].flatMap(reduced => [false, true].flatMap(expert =>
         for (let owner: THREE.Object3D | null = object; owner; owner = owner.parent) if (!owner.visible) return;
         const slab = new THREE.Box2(), vertices = object.geometry.getAttribute('position');
         projectionWorld.multiplyMatrices(projectionView, object.matrixWorld);
+        let slabFinite = true, slabDepth = 0;
         for (let vertex = 0; vertex < vertices.count; vertex++) {
           point.fromBufferAttribute(vertices, vertex).applyMatrix4(projectionWorld);
-          expect(Number.isFinite(point.x + point.y + point.z)).toBe(true);
-          expect(Math.abs(point.z)).toBeLessThan(1);
+          slabFinite &&= Number.isFinite(point.x + point.y + point.z);
+          slabDepth = Math.max(slabDepth, Math.abs(point.z));
           slab.expandByPoint(pixel.set((point.x + 1) * stage.width / 2, stage.top + (1 - point.y) * stage.height / 2));
         }
+        expect(slabFinite, 'every painted slab vertex is finite').toBe(true);
+        expect(slabDepth, 'every painted slab vertex stays inside clip depth').toBeLessThan(1);
         const size = slab.getSize(new THREE.Vector2());
         expect(size.x).toBeGreaterThan(0); expect(size.y).toBeGreaterThan(0);
         slabs.push(slab);
