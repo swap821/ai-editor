@@ -129,6 +129,7 @@ export function GuidedApprovalPanel({
 
   useEffect(() => {
     previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const panel = panelRef.current;
     const action = firstActionRef.current;
     const bounds = action?.getBoundingClientRect();
     const viewport = window.visualViewport;
@@ -138,6 +139,10 @@ export function GuidedApprovalPanel({
     // browser reveal a genuinely offscreen action (e.g. a short/IME viewport).
     action?.focus({ preventScroll: !!bounds && bounds.top >= visibleTop && bounds.bottom <= visibleBottom });
     return () => {
+      const active = document.activeElement;
+      // A reader/input/critical owner may already have accepted focus while
+      // the decision settled. Do not overwrite that explicit destination.
+      if (active && active !== document.body && active !== document.documentElement && !panel?.contains(active)) return;
       const previous = previousFocusRef.current;
       if (previous?.isConnected) previous.focus();
     };
