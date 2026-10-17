@@ -375,6 +375,18 @@ export default function GagosChrome({
 
   const ownedInputRef = useRef(null);
   const inputRef = conversationInputRef ?? ownedInputRef;
+  const previousApprovalTokenRef = useRef(null);
+  useEffect(() => {
+    const previous = previousApprovalTokenRef.current;
+    const current = pendingApproval?.token ?? null;
+    previousApprovalTokenRef.current = current;
+    if (!previous || current || emergencyStopped) return;
+    // Dialog cleanup restores a still-usable origin first. An asynchronous
+    // hold can instead disable the old Stop/Send control; recover only page
+    // focus, never a reader, new decision or explicit typing handoff.
+    const active = document.activeElement;
+    if (active === document.body || active === document.documentElement) inputRef.current?.focus();
+  }, [pendingApproval?.token, emergencyStopped, inputRef]);
   const chatContextRef = useRef(null);
   const busyRef = useRef(busy);
   useEffect(() => {
