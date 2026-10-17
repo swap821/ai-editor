@@ -6,6 +6,15 @@ import {
 } from './organismCameraFrame';
 
 describe('deriveOrganismCameraFrame', () => {
+  it('does not reserve space twice when work has its own measured pane', () => {
+    for (const aspect of [460 / 689, 320 / 60, 320 / 146, 245 / 377]) {
+      const frames = [0, 1, 3, 12].map(activeSurfaceCount => deriveOrganismCameraFrame({ aspect, activeSurfaceCount, workPane: true }));
+      expect(frames.every(frame => frame.fov === frames[0].fov && frame.targetY === -0.75)).toBe(true);
+      const horizontal = 2 * Math.atan(Math.tan(frames[0].fov * Math.PI / 360) * aspect) * 180 / Math.PI;
+      expect(horizontal).toBeGreaterThanOrEqual(29.999);
+      expect(frames[0].fov).toBeGreaterThanOrEqual(24);
+    }
+  });
   it('wide desktop = the exact current framing (no regression)', () => {
     const f = deriveOrganismCameraFrame({ aspect: 1.78, activeSurfaceCount: 0 });
     expect(f.fov).toBe(26);

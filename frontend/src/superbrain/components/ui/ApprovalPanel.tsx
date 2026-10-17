@@ -169,15 +169,15 @@ export default function ApprovalPanel({
       <header className="approval-head">
         <span className="approval-title">
           OPERATOR APPROVAL REQUIRED
-          {/* The backend names the exact action — the title says precisely
-              what is being authorized, never a vague ask. */}
           {pending.kind !== 'other' ? ` · ${pending.kind.toUpperCase()}` : ''}
-          {pending.filepath ? ` · ${pending.filepath}` : ''}
         </span>
-        <span className="approval-summary">{pending.summary}</span>
       </header>
 
       <div className="approval-body" role="region" aria-label="Approval request details" tabIndex={0}>
+        {/* Keep the complete server-owned request in one scrollable region.
+            Long paths/summaries cannot erase the body or decision actions. */}
+        {pending.filepath ? <span className="approval-summary">{pending.filepath}</span> : null}
+        <span className="approval-summary">{pending.summary}</span>
         {pending.explanation ? (
           <p className="approval-explanation">{pending.explanation}</p>
         ) : null}

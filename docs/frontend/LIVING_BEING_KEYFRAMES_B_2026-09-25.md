@@ -1,5 +1,9 @@
 # GAGOS living-work keyframes — B
 
+> Authoritative implementation, exact-source verification, publication status and open gates: [PHONE checkpoint](PHONE_PRESENCE_2026-10-07.md). The operator approved the quieter phone-working direction and now authorizes master integration, accepted-lockfile verification and a DRAFT PR. This is an implementation candidate, not release or full-goal acceptance. Original weights and live/device/human/whole-PR gates remain unchanged. Older dated “current/pending” notes below are historical snapshots. Keep current source/results in that one checkpoint.
+
+> Current2026-10-16: the operator approved a phone-only quieter-working-chrome prototype, not these boards or production adoption. Existing owners now have an opt-in More composition; desktop32/68/palette/textures unchanged. [Native prototype and remaining visual-review gate](PHONE_PRESENCE_2026-10-07.md). Older “unanswered” labels are history, not the current permission boundary.
+
 **Status:** Review proposal, not product UI or visual acceptance. The operator selected A → B → C, which authorizes this sequence; it does not approve these compositions or authorize renderer anatomy/material changes.
 
 **Companion board:** [Open the six-cell desktop/mobile keyframe board](LIVING_BEING_KEYFRAMES_B_2026-09-25.svg).

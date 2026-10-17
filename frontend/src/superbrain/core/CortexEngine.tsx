@@ -31,6 +31,8 @@ import { bodyHoldForProjection, bodyMotionProfileForPosture, deriveBodyPosture, 
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getEffectiveOrganismPhase } from '@/lib/conversationPhaseBus';
 import { FeatureGate } from './Performance/FeatureGate';
+import { useTabStore } from '@/lib/tabStore';
+import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 
 import {
   SuperbrainSceneProps,
@@ -72,11 +74,24 @@ function isTextEntryFocused(): boolean {
 }
 
 
-export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web', physical }: SuperbrainSceneProps) {
+export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voyage', surface = 'web', physical, inputAttentionActive = false, attentionTargetRef }: SuperbrainSceneProps) {
+  // The official projection outranks ambient presentation, not explicit user
+  // camera control. Keep the same camera/body owners through hold and release.
+  const bodyMotionHeld = physical?.membrane.state === 'held'
+    || physical?.phase === 'stopped' || physical?.cortex.posture === 'stopped';
+  const workspace = useTabStore();
+  // Reading is local attention, not input capture or backend work. Retained
+  // background work alone cannot hold the voyage; only its valid selection can.
+  const readerAttentionActive = Boolean(
+    workspace.panels?.some(panel => panel.open && panel.id === workspace.focusId)
+    || deriveLivingOrchestration(workspace).focusId,
+  );
+  const motionAttentionActive = inputAttentionActive || readerAttentionActive;
   const activeBoost = mode === 'synthesize' ? 1 : mode === 'orchestrate' ? 0.78 : activity;
   const burstRef = useRef<BurstState>({ lastBurst: 0, intensity: 0 });
   const cameraPushRef = useRef<CameraPushState>({ value: 0 });
   const phoneFocusRef = useRef(false); // private viewport policy; no domain state
+  const workPaneRef = useRef(false); // measured body/reader separation only
   const directivePendingRef = useRef(false);
   const replyGlowRef = useRef(0);
   const metabolismRef = useRef(getTurnMetabolismSnapshot());
@@ -146,8 +161,20 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
   // Burst / knowledge events additionally queue a thought-wave on the cortex,
   // anchored near the matching anatomical region when the event is labeled.
   useEffect(
-    () =>
-      subscribeCognition((event) => {
+    () => {
+      // This legacy channel can refine admitted work, never start or revive it.
+      // Clear queued impulses at the boundary, even if no frame is drawn before
+      // a subsequent projection. The canonical motion profile owns quiet states.
+      const cognitionAllowed = !physical || lifecyclePhaseForPhysicalProjection(physical) === 'working';
+      if (!cognitionAllowed) {
+        directivePendingRef.current = false;
+        replyGlowRef.current = 0;
+        burstRef.current.intensity = 0;
+        waveRef.current.pending.length = 0;
+        uniforms.uWaveTimes.value.fill(-10);
+      }
+      return subscribeCognition((event) => {
+        if (!cognitionAllowed) return;
         // Cinematic priority: during the opening, the scene ignores ambient
         // cognition so the coalescence isn't broken by stray bursts/waves.
         if (postureRef.current.state === LifecycleState.ARRIVING) return;
@@ -237,8 +264,9 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
         const waves = waveRef.current;
         if (waves.pending.length >= 3) return;
         waves.pending.push(waveOriginForLabel(event.label, waves.random));
-      }),
-    [uniforms],
+      });
+    },
+    [uniforms, physical],
   );
 
   // Idle attract-mode input sensing: every user input stamps the controller;
@@ -287,9 +315,21 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     const hold = holdRef.current;
     const metabolism = metabolismRef.current;
     const livePhase = physical ? lifecyclePhaseForPhysicalProjection(physical) : getEffectiveOrganismPhase();
+    const cognitionAllowed = !physical || livePhase === 'working';
     const bodyPosture = deriveBodyPosture({ phase: livePhase, physical });
     const bodyMotion = physical ? bodyMotionProfileForPosture(bodyPosture) : null;
     const bodyHoldActive = bodyHoldForProjection(physical, hold.active);
+    // Frame-time enforcement also covers an impulse queued before admission.
+    // Reduced motion retires travelling waves rather than freezing/replaying one.
+    if (!cognitionAllowed) {
+      directivePendingRef.current = false;
+      replyGlowRef.current = 0;
+      current.intensity = 0;
+    }
+    if (!cognitionAllowed || reducedMotionRef.current) {
+      waveRef.current.pending.length = 0;
+      uniforms.uWaveTimes.value.fill(-10);
+    }
     if (physical) {
       if (bodyHoldActive && !projectedHoldRef.current.active) {
         projectedHoldRef.current.breathAtHold = uniforms.uBreath.value;
@@ -331,8 +371,8 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
 
     // Drop a visual trigger caught just before Pause; never replay old work.
     if (reducedMotionRef.current) directivePendingRef.current = false;
-    if (!reducedMotionRef.current && holding < 0.5 &&
-        (directivePendingRef.current || time - current.lastBurst > 8 + Math.sin(time * 0.13) * 2)) {
+    if (!reducedMotionRef.current && !bodyMotionHeld && holding < 0.5 &&
+        (directivePendingRef.current || (!physical && time - current.lastBurst > 8 + Math.sin(time * 0.13) * 2))) {
       directivePendingRef.current = false;
       current.lastBurst = time;
       current.intensity = 1;
@@ -353,7 +393,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     let arrivalTarget = 0;
     let igniteTarget = 0;
     let awakenTarget = 0;
-    if (posture.state === LifecycleState.ARRIVING) {
+    if (posture.state === LifecycleState.ARRIVING && (!physical || livePhase === 'arrival')) {
       if (reducedMotionRef.current) {
         // Reduced-motion: skip the streaming coalescence/funnel (a vestibular
         // trigger) and show the settled REST state now — final state preserved.
@@ -370,8 +410,8 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
         // Both modes ignite from a seed (the single-shot flash in the cortex).
         igniteTarget = ignitionPulse(sinceState);
       }
-    } else if (posture.state === LifecycleState.ATTENTIVE) {
-      awakenTarget = reducedMotionRef.current ? 1 : awakenNotice(sinceState);
+    } else if (physical ? livePhase === 'attentive' : posture.state === LifecycleState.ATTENTIVE) {
+      awakenTarget = physical || reducedMotionRef.current ? 1 : awakenNotice(sinceState);
     }
     awakenTarget = Math.max(awakenTarget, replyGlowRef.current);
     uniforms.uArrival.value = arrivalTarget;
@@ -410,7 +450,8 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
         ? -Math.sin(THREE.MathUtils.clamp(sinceRest / 0.9, 0, 1) * Math.PI) * 0.16
         : 0;
     // The approval hold freezes the breath exactly where it was caught.
-    uniforms.uBreath.value = reducedMotionRef.current ? 0.5 : Math.max(
+    const bodyStopped = physical?.phase === 'stopped' || physical?.cortex.posture === 'stopped';
+    uniforms.uBreath.value = reducedMotionRef.current || bodyStopped ? 0.5 : Math.max(
       0,
       THREE.MathUtils.lerp(metabolicBreath, breathAtHold, holding) + restExhale,
     );
@@ -479,7 +520,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
     /* ── thought-wave scheduler: Poisson-ish idle waves + event waves ── */
     const waves = waveRef.current;
     if (waves.nextAuto < 0) waves.nextAuto = time + 2 + waves.random() * 3;
-    if (!reducedMotionRef.current && holding < 0.5 && postureRef.current.state !== LifecycleState.ARRIVING && time >= waves.nextAuto) {
+    if (!physical && !reducedMotionRef.current && holding < 0.5 && postureRef.current.state !== LifecycleState.ARRIVING && time >= waves.nextAuto) {
       waves.pending.push(randomWaveOrigin(waves.random));
       waves.nextAuto = time + 3 + waves.random() * 5;
     }
@@ -492,7 +533,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
       idle.lastInputMs = performance.now();
     }
     const idleForS = (performance.now() - idle.lastInputMs) / 1000;
-    const isIdle = !reducedMotionRef.current && idleForS >= IDLE_DELAY_S && !isTextEntryFocused();
+    const isIdle = !physical && !reducedMotionRef.current && idleForS >= IDLE_DELAY_S && !isTextEntryFocused();
     idle.progress = isIdle
       ? Math.min(1, idle.progress + delta / IDLE_EASE_IN_S)
       : Math.max(0, idle.progress - delta / IDLE_EASE_OUT_S);
@@ -544,7 +585,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
               remove the translucent layer from the space). Identity/status live
               in the 2D GagosChrome layer. */}
           <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]} />
-          <PresenceViewport phoneFocusRef={phoneFocusRef} />
+          <PresenceViewport phoneFocusRef={phoneFocusRef} workPaneRef={workPaneRef} />
           <OrbitControls
             ref={orbitRef as never}
             makeDefault
@@ -554,11 +595,12 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
             dampingFactor={0.08}
             minDistance={6}
             maxDistance={40}
-            autoRotate={!reducedMotionRef.current}
+            enabled={!inputAttentionActive}
+            autoRotate={!reducedMotionRef.current && !bodyMotionHeld && !motionAttentionActive}
             autoRotateSpeed={VOYAGE_SPEED}
           />
           {/* Step-1 framing: fill portrait/mobile (fov + target by aspect). */}
-          <OrganismFraming controlsRef={orbitRef} phoneFocusRef={phoneFocusRef} />
+          <OrganismFraming controlsRef={orbitRef} phoneFocusRef={phoneFocusRef} workPaneRef={workPaneRef} />
         </>
       ) : (
         <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />
@@ -603,8 +645,8 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
       <pointLight position={[3.5, 4.0, 3]} intensity={0.7} distance={12} color="#c8a8ff" />
       <pointLight position={[4.2, -2.6, -5]} intensity={0.6 + activeBoost * 0.6} distance={8} color="#ff5c9a" />
 
-      <AmbientFloat paused={reducedMotion} speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
-        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} physical={physical} />
+      <AmbientFloat paused={reducedMotion || bodyMotionHeld || motionAttentionActive} speed={0.46 + activeBoost * 0.18} rotationIntensity={0.025} floatIntensity={0.1}>
+        <BrainModel activity={activeBoost} mode={mode} burst={burstRef} uniforms={uniforms} tier={tier} surface={surface} arrival={arrivalScalarRef} physical={physical} workPaneRef={workPaneRef} inputAttentionActive={inputAttentionActive} attentionTargetRef={attentionTargetRef} />
         {/* Accretion disk overlays the MESH being; in points mode the cloud is the being. */}
         {BEING_MODE !== 'points' && (
           <SubsystemErrorBoundary name="AccretionCore">

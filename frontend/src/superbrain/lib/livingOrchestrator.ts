@@ -87,9 +87,9 @@ export function deriveLivingOrchestration(input: LivingOrchestrationInput): Livi
   const reabsorbing = input.tabs.some((tab) => tab.lifecycle === 'retracting');
   const conductorTabs = [...visibleWorkspaceTabs].sort(compareConductorOrder);
 
-  const requestedFocus = conductorTabs.find((tab) => tab.id === input.focusId);
-  const fallbackFocus = conductorTabs[conductorTabs.length - 1] ?? null;
-  const focusedTab = requestedFocus ?? fallbackFocus;
+  // Conversation and DOM-only panels intentionally have no materialized
+  // attention target. Retaining work must not silently select a scene card.
+  const focusedTab = conductorTabs.find((tab) => tab.id === input.focusId) ?? null;
   const resolvedFocusId = focusedTab?.id ?? null;
   const activeConductionIndex = resolvedFocusId ? conductorTabs.findIndex((tab) => tab.id === resolvedFocusId) : -1;
   const canConduct = conductorTabs.length > 1 && activeConductionIndex >= 0;
@@ -100,14 +100,18 @@ export function deriveLivingOrchestration(input: LivingOrchestrationInput): Livi
     ? conductorTabs[(activeConductionIndex + 1) % conductorTabs.length].id
     : null;
 
-  const waitingTabs = conductorTabs.filter((tab) => tab.id !== resolvedFocusId);
+  // Retiring tissue still occupies a painted placement until its existing
+  // lifecycle clears it. Keep that slot in the same seat order; eligibility
+  // for attention/conduction above continues to exclude retired work.
+  const waitingTabs = [...workspaceTabs].sort(compareConductorOrder).filter((tab) => tab.id !== resolvedFocusId);
   const waitingOrder = new Map(waitingTabs.map((tab, index) => [tab.id, index]));
   const conductorIds = new Set(conductorTabs.map((tab) => tab.id));
   const attention =
     input.attention &&
     input.attention.fromId &&
     conductorIds.has(input.attention.fromId) &&
-    conductorIds.has(input.attention.toId)
+    conductorIds.has(input.attention.toId) &&
+    input.attention.toId === resolvedFocusId
       ? input.attention
       : null;
 

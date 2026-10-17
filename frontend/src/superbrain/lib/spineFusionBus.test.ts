@@ -11,6 +11,10 @@ import {
   setBodyGroupWorldMatrix,
   copyBodyGroupWorldMatrix,
   clearBodyGroupWorldMatrix,
+  setCortexShape,
+  clearCortexShape,
+  copyCortexWorldBounds,
+  copyBodyShapeWorldFrame,
   __resetSpineFusionForTests,
 } from './spineFusionBus';
 
@@ -105,5 +109,36 @@ describe('spineFusionBus', () => {
     expect(new THREE.Vector3().setFromMatrixPosition(target).toArray()).toEqual([7, 0, 0]);
     clearBodyGroupWorldMatrix(newBody);
     expect(copyBodyGroupWorldMatrix(target)).toBe(false);
+  });
+
+  it('keeps the fused envelope independent of the head and resolves its current ancestor frame', () => {
+    const parent = new THREE.Group(), source = new THREE.Group(); parent.add(source);
+    const head = new THREE.Box3(new THREE.Vector3(-1, 0, -0.5), new THREE.Vector3(1, 1, 0.5));
+    const fused = new THREE.Box3(new THREE.Vector3(-1.5, -4, -0.8), new THREE.Vector3(1.5, 1, 0.8));
+    setCortexShape(source, head, fused);
+    head.makeEmpty(); fused.makeEmpty();
+    const local = new THREE.Box3(), world = new THREE.Matrix4(), cortex = new THREE.Box3();
+    expect(copyBodyShapeWorldFrame(local, world)).toBe(true);
+    expect(local.min.toArray()).toEqual([-1.5, -4, -0.8]);
+    expect(local.max.toArray()).toEqual([1.5, 1, 0.8]);
+    parent.position.set(2, 3, 4);
+    expect(copyBodyShapeWorldFrame(local, world)).toBe(true);
+    expect(new THREE.Vector3().setFromMatrixPosition(world).toArray()).toEqual([2, 3, 4]);
+    expect(copyCortexWorldBounds(cortex)).toBe(true);
+    expect(cortex.min.toArray()).toEqual([1, 3, 3.5]);
+    expect(cortex.max.toArray()).toEqual([3, 4, 4.5]);
+    local.makeEmpty(); world.identity();
+    expect(copyBodyShapeWorldFrame(local, world)).toBe(true);
+    expect(local.min.y).toBe(-4);
+    const replacement = new THREE.Group();
+    setCortexShape(replacement, cortex);
+    clearCortexShape(source);
+    expect(copyBodyShapeWorldFrame(local, world)).toBe(true);
+    clearCortexShape(replacement);
+    expect(copyBodyShapeWorldFrame(local, world)).toBe(false);
+    expect(copyCortexWorldBounds(cortex)).toBe(false);
+    setCortexShape(source, local);
+    __resetSpineFusionForTests();
+    expect(copyBodyShapeWorldFrame(local, world)).toBe(false);
   });
 });

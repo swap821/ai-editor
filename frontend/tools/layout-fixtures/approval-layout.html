@@ -61,7 +61,9 @@
         <div class="gagos-chat__context"><p>Optional context scrolls; all content is a CSS fixture.</p><p>Additional context cannot cover the workspace or the organism's pane.</p></div>
         <div class="gagos-bar">
           <input class="gagos-input" aria-label="Fixture draft" placeholder="Unsent CSS fixture draft">
-          <div class="gagos-bar__accessories"><button class="gagos-btn" type="button">Voice</button><button class="gagos-btn" type="button">EN</button></div>
+          <!-- Overflow must remain painted/touchable when the native horizontal
+               scrollbar takes space; two controls alone missed that defect. -->
+          <div class="gagos-bar__accessories"><button class="gagos-btn" type="button">Voice</button><button class="gagos-btn" type="button">EN</button><button class="gagos-btn" type="button">More</button></div>
           <button class="gagos-send" type="button" disabled>Send</button>
         </div>
       </section>

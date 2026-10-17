@@ -42,18 +42,18 @@ export function getMirrorConnectionCopy(
     };
   }
 
-  // A healthy HTTP service can still reject the mirror projection because the
-  // current browser session is unauthenticated. Keep that measured boundary
-  // distinct from offline and from a merely connecting EventSource. The raw
-  // response is technical evidence and never becomes Guided copy.
+  // Access rejection, failed transport and invalid data can all leave the
+  // projection unavailable. That state alone proves neither service reachability
+  // nor an authentication failure; keep the explanation neutral even after a
+  // reconnect replaces the original announcement. Never expose raw errors in Guided.
   const mirrorAccessUnavailable = state.projection === 'unavailable'
     || /(?:http\s*(?:401|403)|unauthori[sz]ed)/i.test(state.lastAnnouncement ?? '');
   if (mirrorAccessUnavailable) {
     return {
       label: 'Operational picture unavailable',
       detail: mode === 'expert'
-        ? 'The service answered, but this session cannot read a confirmed operational picture.'
-        : 'GAGOS is reachable, but the live picture is unavailable in this session.',
+        ? 'The operational picture is unconfirmed. Check the service connection or operator session.'
+        : 'The live picture is unavailable. Check the connection, then try again.',
       tone: 'unavailable',
       canRetry: true,
       technical,

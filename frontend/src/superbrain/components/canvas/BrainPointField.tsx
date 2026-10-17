@@ -7,16 +7,16 @@ import { subscribeCognition } from '@/lib/cognitionBus';
 import * as THREE from 'three';
 import { samplePointField, type PointFieldSource, type PointFieldData } from '@/lib/pointFieldSampler';
 import { buildSpinePoints, BODY_AXIS_MIN, BODY_AXIS_MAX } from '@/lib/spinePointField';
-import { createPointFieldMaterial } from '@/lib/pointFieldMaterial';
+import { createPointFieldMaterial, POINT_SPRITE_LUMINOUS_AREA } from '@/lib/pointFieldMaterial';
 import { pointPresenceHeight, pointViewportScale } from '@/lib/pointViewportScale';
 import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
-import { lifecyclePhaseForPhysicalProjection, type PhysicalBodyProjection } from '@/lib/bodyPosture';
+import { bodyHoldForProjection, lifecyclePhaseForPhysicalProjection, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
-import { setSpineFusion, setCortexAnchor, getCortexAnchor, getBrainDockScale } from '@/lib/spineFusionBus';
+import { setSpineFusion, setCortexAnchor, getCortexAnchor, getBrainDockScale, setCortexShape, clearCortexShape } from '@/lib/spineFusionBus';
 import { getTabStoreSnapshot } from '@/lib/tabStore';
 import { easeOutBack, easeOutExpo, easeOutQuint, flashBell, clamp01 } from '@/lib/motionEasing';
-import { deriveCursorAttention } from '@/lib/cursorAttention';
+import { ATTENTION_BRIGHTEN, deriveCursorAttention } from '@/lib/cursorAttention';
 import { useReducedMotion } from '@/lib/reducedMotion';
 import type { CognitionUniforms } from './SuperbrainScene.LEGACY';
 
@@ -66,6 +66,29 @@ function headCentroid(pos: Float32Array, n: number): [number, number, number] {
   return extremeCentroid(pos, n, false, 0.55);
 }
 
+/** Conservative head footprint in CSS pixels, using the achieved camera and
+ * ancestor dock transform. Eight corners, one reused vector, no DOM/per-point
+ * frame work. Invalid/near-plane projection retains the existing light budget. */
+function projectedCortexArea(points: THREE.Points, bounds: THREE.Box3, camera: THREE.Camera,
+  width: number, height: number, corner: THREE.Vector3): number | null {
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return null;
+  points.updateWorldMatrix(true, false);
+  camera.updateWorldMatrix(true, false);
+  let left = Infinity, right = -Infinity, bottom = Infinity, top = -Infinity;
+  for (let index = 0; index < 8; index++) {
+    corner.set(index & 1 ? bounds.max.x : bounds.min.x,
+      index & 2 ? bounds.max.y : bounds.min.y, index & 4 ? bounds.max.z : bounds.min.z)
+      .applyMatrix4(points.matrixWorld).applyMatrix4(camera.matrixWorldInverse);
+    if (!Number.isFinite(corner.z) || corner.z >= 0) return null;
+    corner.applyMatrix4(camera.projectionMatrix);
+    if (!Number.isFinite(corner.x) || !Number.isFinite(corner.y) || corner.z < -1 || corner.z > 1) return null;
+    left = Math.min(left, corner.x); right = Math.max(right, corner.x);
+    bottom = Math.min(bottom, corner.y); top = Math.max(top, corner.y);
+  }
+  const area = (right - left) * width * (top - bottom) * height / 4;
+  return Number.isFinite(area) && area > 0 ? area : null;
+}
+
 /**
  * The being's flesh as ONE additive point cloud (poster substrate).
  *   'brain' — sampled from the GLB clone; if `spineCount>0` the spine/roots are
@@ -84,6 +107,8 @@ export default function BrainPointField({
   spineScale = 1,
   spineCount = 0,
   physical,
+  pointerAttentionActive = true,
+  intakeAttentionActive = false,
 }: {
   /** processed brain clone (region-colored) — required for kind='brain'. */
   source?: THREE.Object3D;
@@ -98,8 +123,15 @@ export default function BrainPointField({
   spineCount?: number;
   /** Product-derived truth posture; raw buses remain only a standalone-preview fallback. */
   physical?: PhysicalBodyProjection;
+  /** Local presentation focus gate from the body's existing attention owner. */
+  pointerAttentionActive?: boolean;
+  /** Eligible local input from the existing body's permission/Stop-gated
+   * attention owner. Engagement is not backend work or a new task state. */
+  intakeAttentionActive?: boolean;
 }) {
   const materialRef = useRef<THREE.ShaderMaterial>(null);
+  const pointsRef = useRef<THREE.Points>(null);
+  const projectionCorner = useMemo(() => new THREE.Vector3(), []);
   // HESITATION (B3): the bus event arrives off the render clock, so it is
   // flagged pending and stamped with clock time on the next frame.
   const hesitationPendingRef = useRef(false);
@@ -115,9 +147,12 @@ export default function BrainPointField({
   const approvalReleaseRef = useRef(-1); // clock (s) the operator last RELEASED an approval hold (burst)
   const approvalWasHeldRef = useRef(false); // falling-edge detector for approval_hold
   const gl = useThree((s) => s.gl);
+  const getRootState = useThree((s) => s.get);
 
-  const geometry = useMemo(() => {
+  const { geometry, cortexBounds, bodyBounds, cortexSpriteArea } = useMemo(() => {
     let data: PointFieldData;
+    let cortexBounds: THREE.Box3 | null = null;
+    let cortexSpriteArea = 0;
     if (kind === 'spine') {
       data = buildSpinePoints(count, 0x5350494e);
     } else {
@@ -130,6 +165,11 @@ export default function BrainPointField({
       // Publish the brain-head centroid (cloud-local) so reabsorbing motes land in
       // the visible cortex (× the live brain dock scale), not a hardcoded point.
       setCortexAnchor(headCentroid(brain.positions, brain.count));
+      for (const size of brain.sizes) cortexSpriteArea += size * size;
+      cortexBounds = new THREE.Box3().setFromArray(brain.positions);
+      // Existing shader breath + maximum micro-shimmer, not new motion.
+      const radius = Math.max(cortexBounds.min.length(), cortexBounds.max.length());
+      cortexBounds.expandByScalar(radius * 0.014 + 0.006);
       if (spineCount > 0) {
         // FUSE the spine into the brain cloud — the cord grows from the brain's
         // REAL brainstem vertices, so the join is exact and orbit-proof by design.
@@ -166,8 +206,24 @@ export default function BrainPointField({
     g.setAttribute('aScatter', new THREE.BufferAttribute(data.scatter, 3));
     g.setAttribute('aBirth', new THREE.BufferAttribute(data.births, 1));
     g.setAttribute('aBand', new THREE.BufferAttribute(data.bands, 1));
-    return g;
+    // The fused cord must not be dimmed by the head's overlapping sprites.
+    const cortexMask = new Uint8Array(data.count);
+    if (kind === 'brain') cortexMask.fill(1, 0, count);
+    g.setAttribute('aCortex', new THREE.BufferAttribute(cortexMask, 1));
+    const bodyBounds = new THREE.Box3().setFromArray(data.positions);
+    // Same existing breath/micro-shimmer envelope as the head publication;
+    // compute once from the actual fused field, never resample in a frame.
+    const bodyRadius = Math.max(bodyBounds.min.length(), bodyBounds.max.length());
+    bodyBounds.expandByScalar(bodyRadius * 0.014 + 0.006);
+    return { geometry: g, cortexBounds, bodyBounds, cortexSpriteArea };
   }, [source, count, kind, spineScale, spineCount]);
+
+  useEffect(() => {
+    const points = pointsRef.current;
+    if (!points || !cortexBounds) return;
+    setCortexShape(points, cortexBounds, bodyBounds);
+    return () => clearCortexShape(points);
+  }, [geometry, cortexBounds, bodyBounds]);
 
   const material = useMemo(
     () => {
@@ -235,6 +291,28 @@ export default function BrainPointField({
     });
   }, [material, kind]);
 
+  // Projection depends on ancestors animated later in the default frame queue.
+  // Allocate only at the actual draw boundary, after BrainModel/AmbientFloat have
+  // installed this frame's pose. Retain the existing frame/lifecycle/render owner.
+  const allocateCortexLight: THREE.Points['onBeforeRender'] = (_renderer, _scene, camera) => {
+    const u = material.uniforms;
+    u.uCortexProjectionEnergy.value = 1;
+    if (!physical || kind !== 'brain' || !pointsRef.current || !cortexBounds || cortexSpriteArea <= 0) return;
+    const { size: viewport } = getRootState(); // CSS canvas size, not a post-FX buffer size
+    const area = projectedCortexArea(pointsRef.current, cortexBounds, camera,
+      viewport.width, viewport.height, projectionCorner);
+    // Existing pane light remains the ceiling. Head-only allocation leaves the
+    // fused spine, point size, hues, geometry, posture gains and lab look intact.
+    const size = u.uSize.value * u.uViewportScale.value;
+    const dpr = u.uPixelRatio.value;
+    const spriteArea = Math.max(cortexSpriteArea * size * size, count / (dpr * dpr))
+      * POINT_SPRITE_LUMINOUS_AREA;
+    const existingLight = u.uProjectionEnergy.value;
+    if (area !== null && Number.isFinite(spriteArea) && spriteArea > 0 && existingLight > 0) {
+      u.uCortexProjectionEnergy.value = Math.min(1, area / (spriteArea * existingLight));
+    }
+  };
+
   useFrame((state, delta) => {
     // uTime is the shared leaf (advanced by the scene); keep uPixelRatio fresh.
     setDpr();
@@ -265,7 +343,16 @@ export default function BrainPointField({
     // turns deliberately set conversation to 'idle' so the lifecycle drives the
     // body — see GagosChrome). So 'streaming' here means the being is SPEAKING
     // BACK, not working a tab.
-    const replyStreaming = convPhase === 'streaming';
+    // An admitted human hold/Stop outranks a legacy reply signal that has not
+    // cleared yet. Otherwise it can reheat the cortex and start a notice/reply
+    // wave while the rest of the measured body has correctly gone quiet.
+    const bodyAttentionAllowed = !bodyHoldForProjection(physical, false)
+      && physical?.phase !== 'stopped' && physical?.cortex.posture !== 'stopped';
+    // The legacy channel distinguishes speech from admitted work, but cannot
+    // overrule product replay-waiting, stale, refusal, verification or settled
+    // posture. Without a product projection the lab retains its existing bus.
+    const replyStreaming = convPhase === 'streaming' && bodyAttentionAllowed
+      && (!physical || phase === 'working');
     // Orchestrating/working: the brain cloud fades so the inner memory-node lattice
     // shows through (operator's reveal-while-working idea). Gate this on the REAL
     // lifecycle phase only — NEVER on a conversation reply. Previously a chat reply
@@ -329,13 +416,20 @@ export default function BrainPointField({
       // pointer — a gentle floor (≤0.32) that the conversational heat above always
       // dominates. We feed the RAW pointer and let uAwaken's own damp smooth it
       // (so no extra ref); the lean direction lives in the scene (cursorAttention).
+      const humanAttentionAllowed = kind === 'brain' && bodyAttentionAllowed;
       const attn = deriveCursorAttention({
         pointerX: state.pointer.x,
         pointerY: state.pointer.y,
-        active: kind === 'brain',
+        active: humanAttentionAllowed && pointerAttentionActive,
         reducedMotion: reduce,
       });
-      const awakenTarget = Math.max(phaseAwaken, attn.brighten);
+      // Keyboard/touch/voice input has no pointer direction. Its existing
+      // eligible attention relay shares the gentle human-notice floor, not the
+      // operational phase or travelling wake/reply pulse. Blur/hold/Stop release
+      // it through the same envelope; retained draft text is not engagement.
+      const attentionFloor = Math.max(attn.brighten,
+        humanAttentionAllowed && intakeAttentionActive ? ATTENTION_BRIGHTEN : 0);
+      const awakenTarget = Math.max(phaseAwaken, attentionFloor);
       // WAKE CATCH (#wow signature 2): the instant the being NOTICES (phaseAwaken
       // rises 0->1), drive uAwaken through an authored overshoot-catch — easeOutBack
       // ramps it 0 -> ~1.15x -> the held target over the ~340ms notice window, a
@@ -346,7 +440,7 @@ export default function BrainPointField({
       noticeWasOffRef.current = !noticing;
       const sinceNotice = state.clock.elapsedTime - noticeOnsetRef.current;
       if (!reduce && noticing && noticeOnsetRef.current >= 0 && sinceNotice < 0.34) {
-        u.uAwaken.value = Math.max(attn.brighten, awakenTarget * easeOutBack(clamp01(sinceNotice / 0.34), 2.2));
+        u.uAwaken.value = Math.max(attentionFloor, awakenTarget * easeOutBack(clamp01(sinceNotice / 0.34), 2.2));
       } else {
         u.uAwaken.value = reduce
           ? awakenTarget
@@ -405,10 +499,6 @@ export default function BrainPointField({
         ? vertTarget
         : THREE.MathUtils.damp(u.uVertebrae.value, vertTarget, 5, delta);
     }
-    // SPRAY HIDE (operator 2026-06-23): the cauda-equina "tail" (the willow spray +
-    // intake rings at the very bottom) RETRACTS while the being is orchestrating —
-    // any work surface present — so it stops cluttering the bottom behind the active
-    // surface; it unfurls back at rest. Gated on real panel presence (not phase) so
     // EMOTIONAL WEATHER (B2): the mind's live confidence becomes field tension —
     // calm laminar drift when sure, fine-grained shimmer when unsure. Motion
     // only (amplitude/rate of the existing per-point shimmer); hue untouched.
@@ -417,12 +507,15 @@ export default function BrainPointField({
       const tensionTarget = reduce ? 0 : tensionOf(getWeather(), Date.now());
       u.uTension.value = THREE.MathUtils.damp(u.uTension.value, tensionTarget, 1.6, delta);
     }
-    // it stays hidden even when a materialized tab sits idle.
+    // Retained work normally tucks the cauda. When the human returns to the
+    // composer, its existing eligible-attention owner welcomes input through
+    // the SAME material envelope; blur restores the work posture. Never infer
+    // engagement from retained draft text, or alter phase/verification/flow.
     if (u.uSprayHide) {
       const orchestrating = getTabStoreSnapshot().tabs.some(
         (tb) => tb.kind !== 'input' && tb.lifecycle !== 'retracting',
       );
-      const sprayTarget = orchestrating ? 1 : 0;
+      const sprayTarget = orchestrating && !intakeAttentionActive ? 1 : 0;
       u.uSprayHide.value = reduce
         ? sprayTarget
         : THREE.MathUtils.damp(u.uSprayHide.value, sprayTarget, 2.6, delta);
@@ -501,7 +594,8 @@ export default function BrainPointField({
   });
 
   return (
-    <points geometry={geometry} frustumCulled={false} renderOrder={3}>
+    <points ref={pointsRef} geometry={geometry} frustumCulled={false} renderOrder={3}
+      onBeforeRender={allocateCortexLight}>
       <primitive object={material} ref={materialRef} attach="material" />
     </points>
   );

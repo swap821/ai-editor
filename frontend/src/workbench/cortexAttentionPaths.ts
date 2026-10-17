@@ -185,26 +185,6 @@ function clampUnit(value: number): number {
   return Math.max(0, Math.min(1, value));
 }
 
-function normalize(vector: readonly number[]): [number, number, number] {
-  const length = Math.hypot(vector[0], vector[1], vector[2]);
-  if (length < 1e-8) return [0, 0, 0];
-  return [vector[0] / length, vector[1] / length, vector[2] / length];
-}
-
-function addScaled(
-  origin: readonly [number, number, number],
-  direction: readonly [number, number, number],
-  distance: number,
-  lateral: readonly [number, number, number],
-  lateralScale: number,
-): CortexPathPoint {
-  return [
-    origin[0] + direction[0] * distance + lateral[0] * lateralScale,
-    origin[1] + direction[1] * distance + lateral[1] * lateralScale,
-    origin[2] + direction[2] * distance + lateral[2] * lateralScale,
-  ];
-}
-
 /**
  * Gives the cortical current a stable visual bearing toward the focused
  * anatomical seat. Without a workspace target, the existing calm field is
@@ -212,46 +192,50 @@ function addScaled(
  */
 export function deriveCortexAttentionPaths(input: CortexCurrentPathInput): CortexCurrentPath[] {
   const count = input.contactTarget ? 1 : Math.max(1, Math.min(LEGACY_AXES.length, Math.trunc(input.count)));
+  const scratch = new Float64Array(9);
+  return Array.from({ length: count }, (_, index) => {
+    writeCortexAttentionPathTarget(input, index, scratch);
+    return [
+      [scratch[0], scratch[1], scratch[2]],
+      [scratch[3], scratch[4], scratch[5]],
+      [scratch[6], scratch[7], scratch[8]],
+    ];
+  });
+}
+
+/** Same path grammar, written into one existing spring target without frame garbage. */
+export function writeCortexAttentionPathTarget(input: CortexCurrentPathInput, index: number, output: Float64Array): void {
+  const count = input.contactTarget ? 1 : Math.max(1, Math.min(LEGACY_AXES.length, Math.trunc(input.count)));
   const activity = clampUnit(input.activity);
   const convergence = clampUnit(input.convergence);
   const reach = 0.18 + activity * 0.2;
-  const targetVector: CortexPathPoint | null = input.target
-    ? [input.target[0] - input.origin[0], input.target[1] - input.origin[1], input.target[2] - input.origin[2]]
-    : null;
-  const targetLength = targetVector ? Math.hypot(...targetVector) : 0;
-
-  if (!targetVector || targetLength < 1e-8) {
-    return LEGACY_AXES.slice(0, count).map((axis, index) => {
-      const settle = reach * (1 - convergence) * (0.78 + index * 0.06);
-      return [
-        addScaled(input.origin, axis, 0.08, [0, 0, 0], 0),
-        addScaled(input.origin, axis, reach, [0, 0, 0], 0),
-        addScaled(input.origin, axis, settle, [0, 0, 0], 0),
-      ];
-    });
+  const dx = input.target ? input.target[0] - input.origin[0] : 0;
+  const dy = input.target ? input.target[1] - input.origin[1] : 0;
+  const dz = input.target ? input.target[2] - input.origin[2] : 0;
+  const targetLength = Math.hypot(dx, dy, dz);
+  if (!input.target || targetLength < 1e-8) {
+    const axis = LEGACY_AXES[index];
+    for (let point = 0; point < 3; point++) {
+      const distance = point === 0 ? 0.08 : point === 1 ? reach : reach * (1 - convergence) * (0.78 + index * 0.06);
+      for (let dimension = 0; dimension < 3; dimension++) output[point * 3 + dimension] = input.origin[dimension] + axis[dimension] * distance;
+    }
+    return;
   }
-
-  const direction = normalize(targetVector);
-  const reference: CortexPathPoint = Math.abs(direction[1]) > 0.92 ? [1, 0, 0] : [0, 1, 0];
-  const side = normalize([
-    direction[1] * reference[2] - direction[2] * reference[1],
-    direction[2] * reference[0] - direction[0] * reference[2],
-    direction[0] * reference[1] - direction[1] * reference[0],
-  ]);
-  const offsets = count === 3 ? [-1, 0, 1] : count === 2 ? [-0.5, 0.5] : [0];
+  const x = dx / targetLength, y = dy / targetLength, z = dz / targetLength;
+  const vertical = Math.abs(y) > 0.92;
+  const sideX = vertical ? 0 : -z, sideY = vertical ? z : 0, sideZ = vertical ? -y : x;
+  const sideLength = Math.hypot(sideX, sideY, sideZ);
+  const sx = sideX / sideLength, sy = sideY / sideLength, sz = sideZ / sideLength;
   const targetedReach = input.contactTarget
     ? targetLength
     : Math.min(0.78, targetLength * (0.54 + activity * 0.04));
-
-  return offsets.map((offset, index) => {
-    const fan = offset * 0.045;
-    const settle = input.contactTarget
-      ? targetedReach
-      : targetedReach * (1 - convergence * 0.28) * (0.98 + index * 0.01);
-    return [
-      addScaled(input.origin, direction, Math.min(0.08, targetedReach * 0.16), side, fan * 0.35),
-      addScaled(input.origin, direction, targetedReach * 0.62, side, fan),
-      addScaled(input.origin, direction, settle, side, input.contactTarget ? 0 : fan * (1 - convergence)),
-    ];
-  });
+  const fan = (count === 1 ? 0 : index - (count - 1) / 2) * 0.045;
+  for (let point = 0; point < 3; point++) {
+    const distance = point === 0 ? Math.min(0.08, targetedReach * 0.16) : point === 1 ? targetedReach * 0.62
+      : input.contactTarget ? targetedReach : targetedReach * (1 - convergence * 0.28) * (0.98 + index * 0.01);
+    const lateral = point === 0 ? fan * 0.35 : point === 1 ? fan : input.contactTarget ? 0 : fan * (1 - convergence);
+    output[point * 3] = input.origin[0] + x * distance + sx * lateral;
+    output[point * 3 + 1] = input.origin[1] + y * distance + sy * lateral;
+    output[point * 3 + 2] = input.origin[2] + z * distance + sz * lateral;
+  }
 }

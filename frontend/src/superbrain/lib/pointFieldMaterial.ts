@@ -1,6 +1,18 @@
 // frontend/src/superbrain/lib/pointFieldMaterial.ts
 import * as THREE from 'three';
 
+const GLOW_POWER = 2.4, CORE_POWER = 9;
+const GLOW_WEIGHT = 0.62, CORE_WEIGHT = 0.85;
+// Integral over the unit point square: radial t=(1-2r), disk radius1/2.
+// Source RGB contains intensity; non-premultiplied additive SRC_ALPHA multiplies
+// it again. Integrate (glow + core)^2, including the cross-term, without changing
+// the shader's existing radial recipe or blending. ∫ t^p dA = π/(2(p+1)(p+2)).
+export const POINT_SPRITE_LUMINOUS_AREA = Math.PI / 2 * (
+  GLOW_WEIGHT * GLOW_WEIGHT / ((2 * GLOW_POWER + 1) * (2 * GLOW_POWER + 2))
+  + 2 * GLOW_WEIGHT * CORE_WEIGHT / ((GLOW_POWER + CORE_POWER + 1) * (GLOW_POWER + CORE_POWER + 2))
+  + CORE_WEIGHT * CORE_WEIGHT / ((2 * CORE_POWER + 1) * (2 * CORE_POWER + 2))
+);
+
 export interface PointFieldUniformOverrides {
   uTime?: { value: number };
   uPostureColor?: { value: THREE.Color };
@@ -28,6 +40,7 @@ const VERTEX = /* glsl */ `
                              // 1 = maximally unsure — the per-point shimmer sharpens
                              // (amplitude + rate). Motion only; hue untouched (sacred palette).
   attribute float aSize;
+  attribute float aCortex;   // 1 sampled head, 0 fused cord; separate light allocation
   attribute vec3 aColor;
   attribute vec3 aNormal;    // surface normal — breathe displaces along it
   attribute float aPhase;    // 0..2π per-point desync (shimmer + twinkle seed)
@@ -35,6 +48,7 @@ const VERTEX = /* glsl */ `
   attribute vec3 aScatter;   // unit scatter dir (arrival origin / reabsorb exit)
   attribute float aBirth;    // 0..1 per-point stagger
   varying vec3 vColor;
+  varying float vCortex;
   varying float vViewZ;
   varying float vBand;
   varying float vSeed;
@@ -42,6 +56,7 @@ const VERTEX = /* glsl */ `
   varying float vAxis;       // raw normalized body axis (0 roots -> 1 cortex) for ignite weighting
   void main() {
     vColor = aColor;
+    vCortex = aCortex;
     vSeed = aPhase;
     vAxis = aBand;
     vec3 p = position;
@@ -94,6 +109,7 @@ const VERTEX = /* glsl */ `
 const FRAGMENT = /* glsl */ `
   precision highp float;
   varying vec3 vColor;
+  varying float vCortex;
   varying float vViewZ;
   varying float vBand;
   varying float vSeed;
@@ -103,6 +119,7 @@ const FRAGMENT = /* glsl */ `
   uniform float uGlowMul;
   uniform float uViewportScale;
   uniform float uProjectionEnergy; // accumulated light budget, independent of legible point footprint
+  uniform float uCortexProjectionEnergy; // achieved head overlap limit; fused spine remains unchanged
   uniform float uFogDensity;
   uniform float uTime;
   uniform float uBodyOpacity; // 1 = solid; <1 dims the cloud so inner memory-nodes show through
@@ -128,9 +145,9 @@ const FRAGMENT = /* glsl */ `
     float d = length(gl_PointCoord - 0.5);
     if (d > 0.5) discard;
     float t = clamp(1.0 - d * 2.0, 0.0, 1.0);
-    float glow = pow(t, 2.4);                 // wide soft halo
-    float core = pow(t, 9.0);                  // tight bright core
-    float intensity = glow * 0.62 + core * 0.85;
+    float glow = pow(t, ${GLOW_POWER.toFixed(1)});                 // wide soft halo
+    float core = pow(t, ${CORE_POWER.toFixed(1)});                  // tight bright core
+    float intensity = glow * ${GLOW_WEIGHT.toFixed(2)} + core * ${CORE_WEIGHT.toFixed(2)};
     // gentle desynced twinkle
     intensity *= 0.82 + 0.18 * sin(uTime * 0.7 + vSeed);
     // Energy-restore (x1.6): vColor * uPostureColor multiplies two sub-1 colors,
@@ -207,7 +224,7 @@ const FRAGMENT = /* glsl */ `
     // Preserve light per projected area in a tiny presence band, rather than
     // adding the full-size cloud's energy into a handful of white pixels.
     // Scalar-only: region/posture hues, sampled colors and textures stay intact.
-    emissive *= uProjectionEnergy;
+    emissive *= uProjectionEnergy * mix(1.0, uCortexProjectionEnergy, vCortex);
     // P2.1 DEPTH HAZE (poster depth-slab): distant points recede toward zero so the
     // being reads as a VOLUME in space, not a flat decal. Additive-correct (dim, not
     // alpha-blend). uFogStart/Density/Strength are live __POINTFIELD dials; strength 0
@@ -242,6 +259,7 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
       uSize: { value: 2.8 },       // finer puncta (poster's dense fine-dot read; pairs with the 200k+ count on the RTX 3050)
       uViewportScale: { value: 1 }, // set by the mounted canvas; authored uSize stays tunable
       uProjectionEnergy: { value: 1 }, // mounted presence owner sets product light allocation
+      uCortexProjectionEnergy: { value: 1 }, // default/standalone preserves the authored field
       uAttenK: { value: 0.2 },     // weak depth; 0 = fully flat
       uFogDensity: { value: 0.12 },// depth-haze falloff rate (was 0.02 + unused); pairs with uFogStart/uHazeStrength for the poster depth slab. Dial: window.__POINTFIELD.uFogDensity
       uGlowMul: { value: 1.35 },   // RTX-tuned crisp (was 2.55): lower emission so the dense cortex shows folds + the node lattice instead of a white-haze bloom. Still >1 so PostFX Bloom catches the brightest cores. Dial: window.__POINTFIELD.uGlowMul
@@ -279,6 +297,6 @@ export function createPointFieldMaterial(overrides: PointFieldUniformOverrides =
     toneMapped: false,
     blending: THREE.AdditiveBlending,
   });
-  material.customProgramCacheKey = () => 'pointfield_v21';
+  material.customProgramCacheKey = () => 'pointfield_v22';
   return material;
 }

@@ -38,6 +38,138 @@ function mountWork() {
   return hook;
 }
 
+it('opens work for a new explicit submission from Conversation without treating later content as selection', async () => {
+  const { result: work } = mountWork();
+  act(() => focusWorkspace(null));
+  await act(async () => { await work.current.submit('create requested.py'); });
+  const requested = getTabStoreSnapshot().tabs.find((tab) => tab.content?.filepath === 'requested.py')!;
+  expect(getTabStoreSnapshot().focusId).toBe(requested.id);
+  expect(screen.getByText('print("completed")')).toBeVisible();
+});
+
+it.each([false, true])('merges a terminal actual-path result without stealing Conversation (return=%s)', async (returnToConversation) => {
+  const { result: work } = mountWork();
+  let existing!: ReturnType<typeof showContentSurface>;
+  act(() => { existing = showContentSurface({ filepath: 'actual.py', code: 'old actual work', language: 'python' }, { seatIndex: 2 }); });
+  let finish!: (value: Awaited<ReturnType<typeof sendDirective>>) => void;
+  vi.mocked(sendDirective).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  let turn!: Promise<void>;
+  act(() => { turn = work.current.submit('create guessed.py'); });
+  const writing = getTabStoreSnapshot().tabs.find((tab) => tab.id !== existing.id)!;
+  act(() => focusWorkspace(writing.id));
+  if (returnToConversation) fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
+  await act(async () => {
+    finish({ ok: true, paused: false, answer: '', emittedCode: { code: 'updated actual work', filepath: 'actual.py', language: 'python' } });
+    await turn;
+  });
+  expect(getTabStoreSnapshot().focusId).toBe(returnToConversation ? null : existing.id);
+  expect(getTabStoreSnapshot().tabs.find((tab) => tab.id === existing.id)?.content)
+    .toMatchObject({ code: 'updated actual work', filepath: 'actual.py', streaming: false });
+  expect(getTabStoreSnapshot().tabs.filter((tab) => tab.content?.filepath === 'actual.py')).toHaveLength(1);
+  if (returnToConversation) {
+    expect(screen.queryByRole('region', { name: 'Selected workspace' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'actual.py' }));
+  }
+  expect(screen.getByText('updated actual work')).toBeVisible();
+});
+
+it.each([
+  [false, 'source'], [false, 'conversation'], [false, 'other'],
+  [true, 'source'], [true, 'conversation'], [true, 'other'],
+] as const)('settles a streamed duplicate source without losing its result or selection (full=%s, focus=%s)', async (full, focus) => {
+  const { result: work } = mountWork();
+  let existing!: ReturnType<typeof showContentSurface>;
+  let other!: ReturnType<typeof showContentSurface>;
+  act(() => {
+    if (full) {
+      for (let n = 0; n < 12; n++) {
+        const saved = showContentSurface({ filepath: `saved${n}.py`, language: 'python', code: 'older result' });
+        closeWorkspace(saved.id);
+        finishMaterializedTabRetraction(saved.id, getTabStoreSnapshot().tabs.find((tab) => tab.id === saved.id)?.retractionToken);
+      }
+    }
+    existing = showContentSurface({ filepath: 'actual.py', code: 'old actual work', language: 'python' });
+    other = showContentSurface({ filepath: 'other.py', code: 'unrelated work', language: 'python' });
+  });
+  let finish!: (value: Awaited<ReturnType<typeof sendDirective>>) => void;
+  vi.mocked(sendDirective).mockImplementationOnce((_text, _signal, onChunk) => {
+    onChunk?.('```python\nprint("partial")');
+    return new Promise((resolve) => { finish = resolve; });
+  });
+  let turn!: Promise<void>;
+  act(() => { turn = work.current.submit('create guessed.py'); });
+  const writing = getTabStoreSnapshot().tabs.find((tab) => tab.content?.filepath === 'guessed.py')!;
+  act(() => focusWorkspace(focus === 'source' ? writing.id : focus === 'other' ? other.id : null));
+  const complete = 'print("partial")\nprint("finished")';
+  await act(async () => {
+    finish({ ok: true, paused: false, answer: '', emittedCode: { code: complete, filepath: 'actual.py', language: 'python' } });
+    await turn;
+  });
+  const snapshot = getTabStoreSnapshot();
+  const source = snapshot.tabs.find((tab) => tab.id === writing.id)!;
+  const expectVisibleSource = () => {
+    const selected = screen.getByRole('region', { name: 'Selected workspace' });
+    expect(selected).toHaveAttribute('data-workspace-id', writing.id);
+    const reader = selected.querySelector('.lm-surface__body:not([hidden]) pre')!;
+    expect(reader.textContent).toBe(complete);
+    expect(reader).toBeVisible();
+  };
+  expect(source.content).toMatchObject({ code: complete, filepath: 'actual.py', streaming: false });
+  expect(snapshot.tabs.find((tab) => tab.id === existing.id)?.content).toMatchObject({ code: complete, streaming: false });
+  expect(snapshot.tabs.find((tab) => tab.id === other.id)?.content?.code).toBe('unrelated work');
+  expect(isWorkMaterializationClaimed()).toBe(false);
+  expect(work.current.busy).toBe(false);
+  expect(snapshot.focusId).toBe(focus === 'source' ? full ? writing.id : existing.id : focus === 'other' ? other.id : null);
+  if (full) {
+    expect(source.lifecycle).not.toBe('retracting');
+    expect(snapshot.recoverableTabs).toHaveLength(12);
+    expect(snapshot.recoveryIssue).toBe('capacity');
+    expect(work.current.workTabIdsRef.current).toContain(writing.id);
+    if (focus === 'source') expectVisibleSource();
+  } else {
+    expect(source.lifecycle).toBe('retracting');
+    expect(snapshot.recoverableTabs?.find((tab) => tab.id === writing.id)?.content)
+      .toMatchObject({ code: complete, filepath: 'actual.py', streaming: false });
+    expect(work.current.workTabIdsRef.current).not.toContain(writing.id);
+    act(() => finishMaterializedTabRetraction(writing.id, source.retractionToken));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Workspaces' })).getByRole('button', { name: 'Recent observations' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Reopen actual.py' }));
+    expect(getTabStoreSnapshot().focusId).toBe(writing.id);
+    expect(getTabStoreSnapshot().tabs.find((tab) => tab.id === writing.id)?.content)
+      .toMatchObject({ code: complete, streaming: false });
+    expectVisibleSource();
+  }
+});
+
+it.each([false, true])('settles a closed in-flight duplicate without reopening it (geometry retired=%s)', async (geometryRetired) => {
+  const { result: work } = mountWork();
+  let existing!: ReturnType<typeof showContentSurface>;
+  act(() => { existing = showContentSurface({ filepath: 'actual.py', code: 'old work', language: 'python' }); });
+  let finish!: (value: Awaited<ReturnType<typeof sendDirective>>) => void;
+  vi.mocked(sendDirective).mockImplementationOnce((_text, _signal, onChunk) => {
+    onChunk?.('```python\nprint("partial")');
+    return new Promise((resolve) => { finish = resolve; });
+  });
+  let turn!: Promise<void>;
+  act(() => { turn = work.current.submit('create guessed.py'); });
+  const writing = getTabStoreSnapshot().tabs.find((tab) => tab.id !== existing.id)!;
+  act(() => {
+    focusWorkspace(writing.id);
+    closeWorkspace(writing.id);
+    if (geometryRetired) finishMaterializedTabRetraction(writing.id, getTabStoreSnapshot().tabs.find((tab) => tab.id === writing.id)?.retractionToken);
+  });
+  await act(async () => {
+    finish({ ok: true, paused: false, answer: '', emittedCode: { code: 'complete actual work', filepath: 'actual.py', language: 'python' } });
+    await turn;
+  });
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().recoverableTabs?.find((tab) => tab.id === writing.id)?.content)
+    .toMatchObject({ code: 'complete actual work', filepath: 'actual.py', streaming: false });
+  expect(getTabStoreSnapshot().tabs.find((tab) => tab.id === existing.id)?.content?.code).toBe('complete actual work');
+  expect(screen.queryByRole('region', { name: 'Selected workspace' })).not.toBeInTheDocument();
+  expect(isWorkMaterializationClaimed()).toBe(false);
+});
+
 it('keeps an interrupted partial readable and explicitly incomplete through Close and Reopen', async () => {
   const { result: work } = mountWork();
   vi.mocked(sendDirective).mockImplementationOnce(async (_text, _signal, onChunk) => {

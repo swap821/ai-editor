@@ -157,13 +157,13 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     expect(coordinates[2][2]).toBeCloseTo(expectedPath[2][2], 8);
   });
 
-  it('redirects cortical attention to the intake while a human draft is present', async () => {
+  it('redirects cortical attention only while local input owns engagement, then returns to the reader', async () => {
     showContentSurface(
       { code: 'export const answer = 42;', language: 'typescript', filepath: 'answer.ts' },
       { seatIndex: 11 },
     );
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
-    const view = render(<SuperbrainReactiveEffects inputDraftPresent />);
+    const view = render(<SuperbrainReactiveEffects inputAttentionActive />);
 
     const currents = view.container.querySelectorAll('[data-testid="cortex-current"]');
     expect(currents).toHaveLength(1);
@@ -185,6 +185,20 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     expect(view.container.querySelector('mesh[name="cortex-attention-pulse"]')).toBe(returningPulse);
     expect(returningPulse?.visible).toBe(true);
     expect(view.container.querySelector('[data-testid="physical-conductor-path"]')).not.toBeNull();
+    const returnedCurrents = view.container.querySelectorAll('[data-testid="cortex-current"]');
+    expect(returnedCurrents).toHaveLength(3);
+    expect([...returnedCurrents].every((line) => Number(line.getAttribute('data-opacity')) < 0.32)).toBe(true);
+    const physical = derivePhysicalSnapshot(mockBeing.current);
+    const expected = deriveCortexAttentionPaths({
+      origin: getCortexAnchor().map((value) => value * getBrainDockScale()) as [number, number, number],
+      target: SEGMENT_ANCHORS[11].clone().multiplyScalar(getBrainDockScale()).toArray() as [number, number, number],
+      activity: physical.cortex.activity, convergence: physical.cortex.convergence, count: 3,
+    });
+    // The first current keeps its in-flight geometry for the interruptible
+    // spring. This DOM harness does not advance GPU frames; the new fan paths
+    // must already use the reader target rather than another intake transit.
+    expect(returnedCurrents[0]).toBe(current);
+    expect([...returnedCurrents].slice(1).map((line) => JSON.parse(line.getAttribute('data-coordinates') ?? '[]'))).toEqual(expected.slice(1));
   });
 
   it('does not aim at a background result when selected History has no body anchor', async () => {
@@ -228,7 +242,7 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     expect(derivePhysicalSnapshot({ ...mockBeing.current, taskState: 'needs-permission' }).conductor.posture).toBe('held');
   });
 
-  it('routes body attention to a held approval seat without changing workspace focus', async () => {
+  it.each([false, true])('routes body attention to a held approval seat without changing workspace focus (input engaged: %s)', async (inputAttentionActive) => {
     const work = showContentSurface(
       { code: 'export const answer = 42;', language: 'typescript', filepath: 'answer.ts' },
       { seatIndex: 3 },
@@ -255,7 +269,7 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     };
 
     const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
-    const view = render(<SuperbrainReactiveEffects />);
+    const view = render(<SuperbrainReactiveEffects inputAttentionActive={inputAttentionActive} />);
 
     expect(view.container.querySelector('[data-testid="approval-seat-boundary"]')?.getAttribute('name'))
       .toBe('approval-seat-boundary-6');

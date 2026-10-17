@@ -18,7 +18,7 @@ function set(next: ReplyVoiceState): void {
 function ingest(event: { type: string; source?: string; data?: { phase?: string; reply?: string; text?: string } }): void {
   if (event.type !== 'voice-speaking') return;
   const p = event.data?.phase ?? '';
-  if (p === 'question') { set({ phase: 'idle', text: '', since: nowMs() }); return; }
+  if (p === 'question' || p === 'stopped') { set({ phase: 'idle', text: '', since: nowMs() }); return; }
   if (p === 'reply') { set({ phase: 'streaming', text: String(event.data?.reply ?? ''), since: nowMs() }); return; }
   if (p === 'reply-complete') { set({ phase: 'complete', text: state.text, since: nowMs() }); return; }
   // Slice 2 TTS loop: the being keeps glowing while the reply is spoken aloud.

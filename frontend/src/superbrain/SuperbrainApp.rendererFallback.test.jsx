@@ -26,15 +26,16 @@ vi.mock('@/components/ui/BootSequence', () => ({
 }));
 
 vi.mock('@/components/canvas/WorkspaceCanvas', () => ({
-  default: ({ children }) => {
+  default: ({ children, inputAttentionActive = false }) => {
     if (rendererFailureState.value) throw new Error('renderer subtree failed');
-    return <div className="scene-layer"><canvas aria-hidden="true" />{children}</div>;
+    return <div className="scene-layer" data-input-attention={String(inputAttentionActive)}><canvas aria-hidden="true" />{children}</div>;
   },
 }));
 
 vi.mock('../workbench/GagosChrome', () => ({
-  default: ({ beingFocused = false, onBeingFocusChange = () => {} }) => (
+  default: ({ beingFocused = false, onBeingFocusChange = () => {}, onInputAttentionChange = () => {} }) => (
     <div data-testid="gagos-chrome">
+      <input aria-label="Fixture input" onFocus={() => onInputAttentionChange(true)} onBlur={() => onInputAttentionChange(false)} />
       <button
         type="button"
         aria-pressed={beingFocused}
@@ -48,7 +49,7 @@ vi.mock('../workbench/GagosChrome', () => ({
 }));
 
 vi.mock('../workbench/SuperbrainReactiveEffects', () => ({
-  default: () => null,
+  default: ({ inputAttentionActive = false }) => <span data-testid="attention-projection" data-active={String(inputAttentionActive)} />,
 }));
 
 // WorkspaceCanvas above is a DOM fault harness, not an R3F root. Keep the
@@ -123,6 +124,23 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     document.body.innerHTML = '';
     restoreWindowDescriptor('visualViewport', originalVisualViewport);
     restoreWindowDescriptor('innerHeight', originalInnerHeight);
+  });
+
+  it('relays only local engagement through the existing product scene prop', async () => {
+    // Prop wiring qualification only. Actual input ownership and current
+    // targets are covered separately; this fault harness does not render GPU.
+    render(<SuperbrainApp />);
+    const input = screen.getByRole('textbox', { name: 'Fixture input' });
+    await waitFor(() => expect(screen.getByTestId('attention-projection')).toHaveAttribute('data-active', 'false'));
+    expect(document.querySelector('.scene-layer')).toHaveAttribute('data-input-attention', 'false');
+    fireEvent.focus(input);
+    expect(screen.getByTestId('attention-projection')).toHaveAttribute('data-active', 'true');
+    expect(document.querySelector('.scene-layer')).toHaveAttribute('data-input-attention', 'true');
+    fireEvent.change(input, { target: { value: 'unsent' } });
+    fireEvent.blur(input);
+    expect(screen.getByTestId('attention-projection')).toHaveAttribute('data-active', 'false');
+    expect(document.querySelector('.scene-layer')).toHaveAttribute('data-input-attention', 'false');
+    expect(input).toHaveValue('unsent');
   });
 
   it('keeps the app composer within the visible viewport while a text field is focused', async () => {

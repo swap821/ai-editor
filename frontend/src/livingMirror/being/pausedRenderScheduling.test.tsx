@@ -54,8 +54,12 @@ extend({ Group: THREE.Group, Mesh: THREE.Mesh, Color: THREE.Color, Fog: THREE.Fo
   MeshStandardMaterial: THREE.MeshStandardMaterial, AmbientLight: THREE.AmbientLight,
   DirectionalLight: THREE.DirectionalLight, PointLight: THREE.PointLight });
 vi.mock('@/components/QualityTierProvider', () => ({
-  QualityTierProvider: ({ children }: { children: ReactNode }) => children,
-  useQualityTier: () => ({ tier: 'high', perfTier: 'high', baseTier: 'high', generating: false }),
+  // Fixed-tier scheduling fixture; real preference ownership is tested with
+  // the installed Canvas/context bridge in renderingQualityBridge.test.jsx.
+  QualityTierBoundary: ({ children }: { children: ReactNode }) => children,
+  useQualityTier: () => ({ tier: 'high', perfTier: 'high', baseTier: 'high', generating: false,
+    preference: 'high', autoRevision: 0,
+    autoProfile: { stage: 0, multisampling: 4, skyTier: 'high', densityTier: 'high', dpr: [1, 1.5] } }),
 }));
 // Keep the actual engine, body transforms, clock/uniforms and nerve consumers.
 // Assets, point content, FX and controls are substituted: no GPU/anatomy proof.

@@ -2,6 +2,7 @@ import { beforeEach, expect, it } from 'vitest';
 import {
   __resetTabStoreForTests,
   beginRetractingMaterializedTab,
+  clearMaterializedTab,
   closeWorkspace,
   focusWorkspace,
   focusNextMaterializedTab,
@@ -12,10 +13,48 @@ import {
   openWorkspacePanel,
   pinWorkspace,
   showContentSurface,
+  showReplySurface,
   upsertInputSurface,
 } from './tabStore';
 import { useMirrorStore } from './mirrorStore';
 beforeEach(() => __resetTabStoreForTests());
+it.each(['same-file', 'new-file', 'unnamed', 'reply'] as const)('keeps explicit Conversation selected when %s content arrives', (kind) => {
+  const first = showContentSurface({ filepath: 'a.py', code: 'first', language: 'python' });
+  focusWorkspace(null);
+  const incoming = kind === 'reply' ? showReplySurface('A real reply') : showContentSurface({
+    filepath: kind === 'same-file' ? 'a.py' : kind === 'unnamed' ? '' : 'b.py',
+    code: 'new content', language: 'python', ...(kind === 'unnamed' ? { sourceEventId: 7 } : {}),
+  });
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().attention).toBeNull();
+  expect(getFocusedMaterializedTab()).toBeNull();
+  expect(getTabStoreSnapshot().tabs.map((tab) => tab.id)).toEqual(kind === 'same-file' ? [first.id] : [first.id, incoming.id]);
+  expect(getTabStoreSnapshot().tabs.find((tab) => tab.id === incoming.id)?.content?.code)
+    .toBe(kind === 'reply' ? 'A real reply' : 'new content');
+  focusWorkspace(incoming.id);
+  expect(getFocusedMaterializedTab()?.id).toBe(incoming.id);
+});
+
+it('respects Conversation even before the first result and resets that choice at whole-session cleanup', () => {
+  focusWorkspace(null);
+  const first = showContentSurface({ filepath: 'first.py', code: 'first', language: 'python' });
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().tabs.map((tab) => tab.id)).toEqual([first.id]);
+  clearMaterializedTab();
+  const nextSession = showContentSurface({ filepath: 'next.py', code: 'next', language: 'python' });
+  expect(getFocusedMaterializedTab()?.id).toBe(nextSession.id);
+});
+
+it.each(['result', 'panel'] as const)('does not undo an explicit %s dismissal on the next content arrival', (kind) => {
+  const first = showContentSurface({ filepath: 'a.py', code: 'first', language: 'python' });
+  if (kind === 'panel') { openWorkspacePanel('missions', 'Missions'); closeWorkspace('missions'); }
+  else closeWorkspace(first.id);
+  const incoming = showContentSurface({ filepath: 'b.py', code: 'background', language: 'python' });
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().tabs.find((tab) => tab.id === incoming.id)?.content?.code).toBe('background');
+  if (kind === 'result') expect(getTabStoreSnapshot().recoverableTabs?.map((tab) => tab.id)).toEqual([first.id]);
+});
+
 it('background output and a second surface preserve the operator-selected workspace', () => {
   const first = showContentSurface({ filepath: 'a.py', code: 'first', language: 'python' });
   focusWorkspace(first.id); pinWorkspace(first.id);
@@ -96,13 +135,13 @@ it('does not treat transient intake as a focused workspace when no work surface 
   expect(getTabStoreSnapshot().focusId).toBeNull();
 });
 
-it('uses the conductor seat order when resolving focus without an explicit selection', () => {
+it('keeps conversation unselected until an explicit conductor command enters seat order', () => {
   upsertInputSurface('Build the living workspace');
   const first = showContentSurface({ filepath: 'first.py', code: 'first', language: 'python' }, { seatIndex: 2 });
   const last = showContentSurface({ filepath: 'last.py', code: 'last', language: 'python' }, { seatIndex: 4 });
   focusWorkspace(null);
 
-  expect(getFocusedMaterializedTab()?.id).toBe(last.id);
+  expect(getFocusedMaterializedTab()).toBeNull();
   expect(focusNextMaterializedTab()?.id).toBe(first.id);
   expect(focusPreviousMaterializedTab()?.id).toBe(last.id);
 });

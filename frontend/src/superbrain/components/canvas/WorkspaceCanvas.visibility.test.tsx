@@ -56,7 +56,8 @@ vi.mock('@react-three/fiber', async () => {
 vi.mock('@/components/QualityTierProvider', async () => {
   const React = await import('react');
   return {
-    QualityTierProvider: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
+    // Fixed-tier scheduling fixture, not owner/context-bridge qualification.
+    QualityTierBoundary: ({ children }: { children: React.ReactNode }) => React.createElement(React.Fragment, null, children),
     useQualityTier: () => ({ tier: 'high', perfTier: 'high' }),
   };
 });

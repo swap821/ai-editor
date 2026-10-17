@@ -75,7 +75,7 @@ async function stream(token: string) {
   await waitFor(() => expect(streams.has(token)).toBe(true));
   return streams.get(token)!;
 }
-async function heldWork(mode: ExperienceMode, closeInitial = true, initialEvent: 'code' | 'code_chunk' = 'code_chunk') {
+async function heldWork(mode: ExperienceMode, closeInitial = true, initialEvent: 'code' | 'code_chunk' = 'code_chunk', beforePermission?: () => void) {
   localStorage.setItem(EXPERIENCE_MODE_STORAGE_KEY, mode);
   const { default: GagosChrome } = await import('./GagosChrome');
   const { LivingWorkspaceShell } = await import('../livingMirror/LivingWorkspaceShell');
@@ -86,6 +86,7 @@ async function heldWork(mode: ExperienceMode, closeInitial = true, initialEvent:
   const initial = await stream('initial');
   await act(async () => {
     initial.frame(initialEvent, { code: 'print("partial")', language: 'python', filepath: 'src/gated_file.py' });
+    beforePermission?.();
     initial.frame('human_required', permission());
     if (closeInitial) initial.end();
   });
@@ -103,6 +104,46 @@ async function allow(decision: HTMLElement) {
 function retained(id: string) {
   return getTabStoreSnapshot().tabs.find((record) => record.id === id)!;
 }
+
+it.each([
+  ['beginner', 'reject'], ['expert', 'reject'], ['beginner', 'authorize'], ['expert', 'authorize'],
+] as const)('%s returns typing focus after %s when the previous busy control becomes disabled', async (mode, decision) => {
+  // A real asynchronous permission frame can arrive while Stop has keyboard
+  // focus. On hold it becomes disabled Send (the submitted draft is empty).
+  // No fixture-toolbar focus, mocked focus API or dialog replacement is used.
+  const work = await heldWork(mode, true, 'code_chunk', () => screen.getByRole('button', { name: 'Stop' }).focus());
+  const input = screen.getByRole('textbox', { name: 'Talk to GAGOS' });
+  const action = within(work.decision).getByRole('button', { name: decision === 'reject' ? /^(Don't allow|REJECT)$/ : /^(Allow once|AUTHORIZE)$/ });
+  action.focus(); fireEvent.click(action);
+  if (decision === 'authorize') {
+    const replay = await stream('first-token');
+    await act(async () => {
+      replay.frame('code_chunk', { code: 'print("finished")', language: 'python', filepath: 'src/gated_file.py' });
+      replay.end();
+    });
+  }
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('');
+  expect(retained(work.id).content?.code).toBe(decision === 'reject' ? 'print("partial")' : 'print("finished")');
+  expect(getPendingApproval()).toBeNull();
+});
+
+it.each(['beginner', 'expert'] as const)('%s preserves an explicit composer handoff while a decision settles', async mode => {
+  const work = await heldWork(mode, true, 'code_chunk', () => screen.getByRole('button', { name: 'Stop' }).focus());
+  const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Keep this explicit typing draft.' } });
+  input.setSelectionRange(5, 13);
+  await act(async () => {
+    const reject = within(work.decision).getByRole('button', { name: /^(Don't allow|REJECT)$/ });
+    reject.focus(); fireEvent.click(reject); input.focus();
+  });
+  await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('Keep this explicit typing draft.');
+  expect([input.selectionStart, input.selectionEnd]).toEqual([5, 13]);
+  expect(retained(work.id).content?.code).toBe('print("partial")');
+});
 
 it.each([
   ['beginner', 'pass'], ['expert', 'pass'], ['beginner', 'fail'], ['expert', 'fail'],

@@ -15,11 +15,12 @@ export interface WorkspaceConnectionInput {
   canvas: ConnectionRect;
   plane: ConnectionRect;
   overlay: ConnectionRect;
+  occluders?: readonly ConnectionRect[];
 }
 
 /** Geometry only: a focused workspace is not evidence of backend activity. */
 export function projectWorkspaceConnection(input: WorkspaceConnectionInput, scratch = input.origin.clone()): WorkspaceConnectionGeometry | null {
-  const { origin, bodyWorld, dockScale, camera, canvas, plane, overlay } = input;
+  const { origin, bodyWorld, dockScale, camera, canvas, plane, overlay, occluders = [] } = input;
   if (![canvas, plane, overlay].every((rect) =>
     [rect.left, rect.top, rect.width, rect.height].every(Number.isFinite) && rect.width > 0 && rect.height > 0)
     || !Number.isFinite(dockScale) || dockScale <= 0
@@ -55,6 +56,11 @@ export function projectWorkspaceConnection(input: WorkspaceConnectionInput, scra
     // Never invent an exposed socket when the body is behind the reading plane.
     return null;
   }
+  // The contact bead reaches 3px around its endpoint, 2px outside the reader.
+  // A decision painted on that rim must not appear fed by an older reader's
+  // seat. Leave exposed reader edges intact; never infer a new decision seat.
+  if (occluders.some(rect => endX + 3 >= rect.left && endX - 3 <= rect.left + rect.width
+    && endY + 3 >= rect.top && endY - 3 <= rect.top + rect.height)) return null;
   if (x < overlay.left || x > overlay.left + overlay.width || y < overlay.top || y > overlay.top + overlay.height) return null;
   const round = (value: number) => Math.round(value * 2) / 2;
   const source = { x: round(x - overlay.left), y: round(y - overlay.top) };

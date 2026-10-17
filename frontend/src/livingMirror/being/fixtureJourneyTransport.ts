@@ -1,6 +1,6 @@
 /** Development wire fixture. No backend operation or permission is performed. */
 export type FixtureOutcome = 'unverified' | 'verified' | 'failed';
-export interface FixtureJourneyState { pending: boolean; waitingForDecision: boolean; outcome: FixtureOutcome; label: string }
+export interface FixtureJourneyState { pending: boolean; waitingForDecision: boolean; observedStop: boolean; outcome: FixtureOutcome; label: string }
 const FILEPATH = 'fixture/hello.py';
 const FINAL_CODE = 'print("Hello from the fixture")\n';
 const json = (data: object, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
@@ -11,7 +11,7 @@ export function isFixtureRenderAsset(url: URL, origin: string, method: string) {
 }
 
 export function createFixtureJourneyTransport(options: { assetFetch: typeof fetch; origin: string }) {
-  let state: FixtureJourneyState = { pending: false, waitingForDecision: false, outcome: 'unverified', label: 'Type an example request in the real composer.' };
+  let state: FixtureJourneyState = { pending: false, waitingForDecision: false, observedStop: false, outcome: 'unverified', label: 'Type an example request in the real composer.' };
   const listeners = new Set<() => void>();
   const sources = new Set<FixtureEventSource>();
   const history: WireFrame[] = [];
@@ -165,7 +165,19 @@ export function createFixtureJourneyTransport(options: { assetFetch: typeof fetc
     EventSource: FixtureEventSource as unknown as typeof EventSource,
     subscribe: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     getSnapshot: () => state,
-    advance: () => { if (disposed) return; const next = queued.shift(); next?.run(); pending(); },
+    advance: () => { if (disposed || state.observedStop) return; const next = queued.shift(); next?.run(); pending(); },
+    // Observation driver ONLY. It enters through the same fixture wire and
+    // mirror admission as the other examples; never invokes a real Stop/Clear
+    // command, writes a product store directly or grants a clear capability.
+    observeStop: (engaged: boolean) => {
+      if (disposed || typeof engaged !== 'boolean' || state.observedStop === engaged) return;
+      update({ observedStop: engaged, label: engaged
+        ? 'Fixture Stop observed. No backend command or worker termination is confirmed.'
+        : 'Fixture Clear observed. Nothing restarts automatically.' });
+      emit(engaged ? 'governance.emergency_stop.engaged' : 'governance.emergency_stop.cleared', {
+        fixture: true, reason: 'Fixture observation only; no real Stop/Clear command or permission.',
+      });
+    },
     setOutcome: (outcome: FixtureOutcome) => { if (!queued.length && !held && !stopStream && ['unverified', 'verified', 'failed'].includes(outcome)) update({ outcome }); },
     dispose: () => { disposed = true; stopStream?.(); releaseHeld(); sources.forEach((source) => source.close()); queued.length = 0; held = null; update({ pending: false, waitingForDecision: false }); listeners.clear(); },
   };

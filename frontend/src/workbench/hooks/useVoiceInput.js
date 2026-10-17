@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { transcribeAudio, AIOS_BASE } from '../../superbrain/lib/aiosAdapter';
-import { setBackendTTS } from '../voiceSpeak';
+import { interruptSpeech, setBackendTTS } from '../voiceSpeak';
 
 /** One microphone owner. Browser recognition is an explicitly selected route. */
 export function useVoiceInput({ voiceLang, busyRef, inputRef, setDraft }) {
@@ -48,7 +48,12 @@ export function useVoiceInput({ voiceLang, busyRef, inputRef, setDraft }) {
     const Recognition = window.SpeechRecognition ?? window.webkitSpeechRecognition;
     const rec = new Recognition();
     rec.continuous = false; rec.interimResults = true; rec.lang = voiceLang;
-    rec.onstart = () => { if (alive.current) { setListening(true); setVoiceState('capturing · browser recognition'); } };
+    rec.onstart = () => {
+      if (!alive.current || !isHoldingMicRef.current || recognitionRef.current !== rec) return;
+      // Interrupt only observed capture, not a request that may be refused.
+      interruptSpeech();
+      setListening(true); setVoiceState('capturing · browser recognition');
+    };
     rec.onend = () => { isHoldingMicRef.current = false; if (alive.current) setListening(false); };
     rec.onerror = (event) => { isHoldingMicRef.current = false; if (alive.current) { setListening(false); setVoiceError(`Browser recognition failed: ${event.error || 'unavailable'}`); setVoiceState('capture failed'); } };
     rec.onresult = (event) => {
@@ -101,7 +106,7 @@ export function useVoiceInput({ voiceLang, busyRef, inputRef, setDraft }) {
             setVoiceState(result.text.trim() ? 'transcript ready · review before sending' : 'no speech detected'); inputRef.current?.focus();
           }).catch(() => { if (alive.current && !request.signal.aborted && generation.current === epoch) { setVoiceError('Local transcription failed. Your previous draft is retained.'); setVoiceState('transcription failed'); } });
       };
-      recorderRef.current = recorder; recorder.start(); setListening(true); setVoiceState('capturing · local microphone');
+      recorderRef.current = recorder; recorder.start(); interruptSpeech(); setListening(true); setVoiceState('capturing · local microphone');
       try {
         const context = new AudioContext(); const analyser = context.createAnalyser(); analyser.fftSize = 256;
         context.createMediaStreamSource(stream).connect(analyser);
