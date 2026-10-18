@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from aios.domain.workspaces import StagedWorkspace
+from aios.security import scope_lock
 
 
 class WorkspacePathViolation(ValueError):
@@ -89,7 +90,9 @@ class StagedWorkspaceAuthority:
                 baseline_digest=baseline,
             )
             self._write_metadata(lease)
+            self._admit(destination)
         except BaseException:
+            scope_lock.retire_staged_workspace(destination)
             if destination.exists():
                 shutil.rmtree(destination, ignore_errors=True)
             try:
@@ -118,6 +121,8 @@ class StagedWorkspaceAuthority:
             or not workspace_path.is_dir()
         ):
             raise WorkspacePathViolation("workspace metadata path escapes manager root")
+        # Admissions live in memory: after a restart, the reload re-admits.
+        self._admit(workspace_path)
         return lease
 
     def for_mission(self, mission_id: str) -> StagedWorkspace | None:
@@ -210,6 +215,7 @@ class StagedWorkspaceAuthority:
             ) from exc
         if retain:
             return
+        scope_lock.retire_staged_workspace(path)
         shutil.rmtree(path, ignore_errors=False)
         self._mission_leases.pop(lease.mission_id, None)
         marker = self._mission_markers / lease.mission_id
@@ -217,6 +223,18 @@ class StagedWorkspaceAuthority:
             marker.rmdir()
         except FileNotFoundError:
             pass
+
+    def _admit(self, workspace: Path) -> None:
+        """Admit a minted workspace as a scope a mission may bind (§VIII B,
+        2026-10-18). Only from a staging root the scope lock pins; a manager
+        over any other root (a test's tmp dir, runtime proofs) mints workspaces
+        no task can bind outside the declared scope roots."""
+        if not scope_lock.is_pinned_staging_root(self.root):
+            return
+        try:
+            scope_lock.admit_staged_workspace(workspace, staging_root=self.root)
+        except ValueError as exc:
+            raise WorkspacePathViolation(f"workspace not admissible: {exc}") from exc
 
     def _enrolled_root(self, project_root: str | Path) -> Path:
         resolved = Path(project_root).resolve()

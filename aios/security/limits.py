@@ -80,7 +80,10 @@ def _env_scope_roots(name: str, default: tuple[Path, ...]) -> tuple[Path, ...]:
 #: Router task classes eligible for cloud routing. An unrecognised entry is
 #: DROPPED rather than accepted, so a typo cannot widen egress.
 _VALID_ROUTER_TASKS: Final[frozenset[str]] = frozenset(
-    {"coding", "reasoning", "research", "vision", "long_context"}
+    # "clerical": §VIII, operator-approved 2026-10-18
+    # (docs/security/PROPOSAL_CLERICAL_EGRESS_CLASS.md). Opt-in only: no
+    # default includes it, so nothing local today becomes cloud-eligible.
+    {"coding", "reasoning", "research", "vision", "long_context", "clerical"}
 )
 
 

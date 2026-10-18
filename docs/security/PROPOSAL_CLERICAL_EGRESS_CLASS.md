@@ -1,5 +1,10 @@
 # Proposal: a `clerical` cloud-egress class, for the cloud clerk only when needed
 
+> **APPLIED 2026-10-18** as proposed (one name added to `_VALID_ROUTER_TASKS`; in
+> no default). The cloud-clerk escalation it describes is NOT built. Record:
+> `release/section-viii/2026-10-18-scope-b-and-clerical-egress.md`. The text below
+> is the proposal as written on 2026-10-12.
+
 **Status: Propose. It awaits the operator's Human Review → Approve.**
 - Written 2026-10-12 by the coding agent.
 - `aios/security/limits.py` is frozen (AGENTS.md §VIII). The agent cannot apply
