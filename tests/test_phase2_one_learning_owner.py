@@ -150,6 +150,8 @@ _OWNERS: dict[str, set[str]] = {
     "playbook_blobs": {"aios/core/replay_writes.py"},
     "approved_write_decisions": {"aios/core/replay_writes.py"},
     "approved_edit_decisions": {"aios/core/replay_writes.py"},
+    # Phase 5: exact command decisions a human made.
+    "approved_command_decisions": {"aios/core/replay_commands.py"},
     "learning_events": {"aios/memory/learning_journal.py"},
     "institutional_skills": {"aios/domain/learning/repository.py"},
     "expert_trajectories": {"aios/domain/learning/trajectory_repository.py"},

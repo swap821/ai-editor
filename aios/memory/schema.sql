@@ -400,6 +400,22 @@ CREATE TABLE IF NOT EXISTS approved_edit_decisions (
 CREATE INDEX IF NOT EXISTS idx_approved_edit_path
     ON approved_edit_decisions(workspace, path);
 
+-- == Exact COMMAND decisions a human already made (plan Phase 5) =============
+-- The command twin of the two tables above (aios/core/replay_commands.py).
+-- One row: this principal approved running EXACTLY this command string, in this
+-- workspace, through a server-issued capability, and it ran clean. A compiled
+-- reflex may then replay that command (YELLOW only; RED never) without a new
+-- approval -- only while AIOS_REPLAY_APPROVED_COMMANDS is on. A failed replay
+-- deletes the row.
+CREATE TABLE IF NOT EXISTS approved_command_decisions (
+    signature    TEXT PRIMARY KEY,  -- sha256(workspace | principal | command)
+    workspace    TEXT NOT NULL,
+    principal    TEXT NOT NULL,
+    command      TEXT NOT NULL,
+    approved_at  DATETIME DEFAULT CURRENT_TIMESTAMP,
+    approval_ref TEXT
+);
+
 -- == Safe curriculum =========================================================
 -- Curriculum tasks never auto-execute. Verified live outcomes matching a task
 -- update its evidence; a level is mastered only after training passes plus a
