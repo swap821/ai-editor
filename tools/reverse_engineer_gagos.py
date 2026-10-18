@@ -311,7 +311,14 @@ def resolve_client(model_id: str, *, timeout_s: int):
 
     from aios import config as _config
 
-    return BedrockClient(model=model_id, region=_config.BEDROCK_REGION), model_id
+    # The attempt's own budget, not botocore's 60-second default: a thinking
+    # teacher was cut off and silently re-sent at 60 s (2026-10-18).
+    return (
+        BedrockClient(
+            model=model_id, region=_config.BEDROCK_REGION, timeout_s=timeout_s
+        ),
+        model_id,
+    )
 
 
 def run_self_check(corpus) -> tuple[bool, str]:
