@@ -96,7 +96,7 @@ from aios.core.cerebellum import (
     REFLEX_AUTHORITY_WITHHELD,
     Cerebellum,
 )
-from aios.core import replay_writes, turn_failures
+from aios.core import replay_commands, replay_writes, turn_failures
 from aios.core.executor import Executor
 from aios.core.injection_scan import detect_injection
 from aios.core.llm import LLMClient, LLMError
@@ -1298,6 +1298,7 @@ class ToolAgent:
                 else:
                     output, status, failed = self._dispatch(name, args)
                     self._count_unattended(name, args, status)
+                    self._record_command_approval(name, args, status, failed)
                 if status == "approval":
                     _target = str(args.get("filepath") or args.get("command") or "")
                     earned = name in (
@@ -2118,13 +2119,17 @@ class ToolAgent:
 
         The playbook stays compiled: withholding says nothing about whether it
         is right, and approval provenance (plan Phase 5) is what can
-        re-authorise it.
+        re-authorise it -- a YELLOW step this principal approved, exactly, in
+        this workspace (`_command_is_authorised`) is not withheld.
         """
         for index, step in enumerate(getattr(playbook, "steps", []) or []):
             if step.tool_name not in ("execute_terminal", "verify"):
                 continue
             command = str(step.args.get("command", ""))
             if classify(command).zone is Zone.YELLOW:
+                if self._command_is_authorised(command):
+                    # A human approved exactly this command here (plan Phase 5).
+                    continue
                 return {
                     "type": "cerebellum_abort",
                     "step_index": index,
@@ -2139,6 +2144,83 @@ class ToolAgent:
                     ),
                 }
         return None
+
+    def _command_is_authorised(self, command: str) -> bool:
+        """Did this principal approve exactly this command here (plan Phase 5)?
+
+        The one question both replay checks ask -- the preflight withhold and
+        the dispatch -- so the two can never disagree about a step.
+        """
+        try:
+            return replay_commands.is_approved_command(
+                command,
+                principal=self.principal,
+                db_path=config.MEMORY_DB_PATH,
+                emergency_stop=self._write_stop(),
+            )
+        except Exception as exc:  # noqa: BLE001 - an unreadable record grants nothing
+            logger.warning("could not read command approvals", exc_info=exc)
+            return False
+
+    def _replay_approved_command(
+        self, name: str, command: str
+    ) -> tuple[str, str, bool]:
+        """Run a replayed command a human approved, exactly as that approval did.
+
+        Through the same handlers a live approval uses (`execute_approved` for a
+        terminal command; `approved=True` for verify), with a one-off approval
+        scoped to THIS call -- `self.approved_commands` is not touched, so
+        nothing leaks into the LLM loop if the replay aborts later. The executor
+        still applies scope, the emergency stop, and RED refusal.
+
+        Anything but a clean run withdraws the decision.
+        """
+        if name == "verify":
+            output, status, failed = self._verify(command, approved=True)
+        else:
+            output, status, failed, control = (
+                tool_handlers.execute_terminal_with_control(
+                    command,
+                    approved_commands={*self.approved_commands, command},
+                    executor=self.executor,
+                    session_id=self.session_id,
+                )
+            )
+            self._last_refusal_control = control
+        if failed or status != "ok":
+            try:
+                replay_commands.revoke_command_decision(
+                    command, principal=self.principal, db_path=config.MEMORY_DB_PATH
+                )
+            except Exception as exc:  # noqa: BLE001 - the replay result stands
+                logger.warning("could not withdraw a command approval", exc_info=exc)
+        return output, status, failed
+
+    def _record_command_approval(
+        self, name: str, args: dict[str, Any], status: str, failed: bool
+    ) -> None:
+        """Remember a command a human approved, once it has run clean.
+
+        Only a command in ``approved_commands`` qualifies: on the live path that
+        set is filled solely from consumed capability tokens (raw approved
+        payloads are refused with 400). Best-effort, like the write records: the
+        command already ran and was audited, and failing the turn because a
+        convenience record could not be written would be the wrong trade.
+        """
+        command = str(args.get("command", ""))
+        if name not in ("execute_terminal", "verify"):
+            return
+        if command not in self.approved_commands or failed or status != "ok":
+            return
+        try:
+            replay_commands.record_command_approval(
+                command,
+                principal=self.principal,
+                db_path=config.MEMORY_DB_PATH,
+                emergency_stop=self._write_stop(),
+            )
+        except Exception as exc:  # noqa: BLE001 - never break an approved command
+            logger.warning("could not record the approved command", exc_info=exc)
 
     def _dispatch_approved(
         self, name: str, args: dict[str, Any]
@@ -2155,20 +2237,28 @@ class ToolAgent:
         ``pytest`` in a live turn. The learning red-team reel measured both
         halves (RT-05, RT-06: ``docs/security/LEARNING_THREAT_MODEL.md``).
 
-        So, until approval provenance for commands exists (plan Phase 5), no
-        replayed command is pre-approved. A GREEN command still runs, and a
-        reflex made only of GREEN steps still serves a whole turn with no model
-        call. A step that needs approval is WITHHELD: the replay aborts naming
-        ``reflex_authority``, the turn falls through to the model, and whatever
-        the model proposes pauses for a human like any turn. Operator decision
-        2026-09-25: "a reflex may auto-approve only a step a human approved, in
-        a compatible scope".
+        So no replayed command is pre-approved by the skill's history. A GREEN
+        command still runs, and a reflex made only of GREEN steps still serves a
+        whole turn with no model call. A step that needs approval is WITHHELD:
+        the replay aborts naming ``reflex_authority``, the turn falls through to
+        the model, and whatever the model proposes pauses for a human like any
+        turn. Operator decision 2026-09-25: "a reflex may auto-approve only a
+        step a human approved, in a compatible scope".
 
-        RED is refused exactly as before; nothing here approves anything.
+        That one exception is approval provenance (plan Phase 5,
+        ``aios.core.replay_commands``): when THIS principal approved EXACTLY
+        this command, in this workspace, through a capability token, and the
+        deployment opted in, the step runs as that approval did. If it then
+        fails, the decision is withdrawn and the next replay asks again.
+
+        RED is refused exactly as before; nothing here approves it.
         """
         if self.allowed_tools is not None and name not in self.allowed_tools:
             return self._dispatch(name, args)
         if name in ("verify", "execute_terminal"):
+            command = str(args.get("command", ""))
+            if self._command_is_authorised(command):
+                return self._replay_approved_command(name, command)
             output, status, failed = self._dispatch(name, args)
             if status == "approval":
                 return (

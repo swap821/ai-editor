@@ -4,8 +4,8 @@
   {
    "id": "0b1:replay pre-approves commands again",
    "file": "aios/agents/tool_agent.py",
-   "old": "        if name in (\"verify\", \"execute_terminal\"):\n            output, status, failed = self._dispatch(name, args)",
-   "new": "        if name == \"verify\":\n            return self._verify(str(args.get(\"command\", \"\")), approved=True)\n        if name == \"execute_terminal\":\n            command = str(args.get(\"command\", \"\"))\n            return tool_handlers.execute_terminal(\n                command, approved_commands={command}, executor=self.executor,\n                session_id=self.session_id,\n            )\n        if False:\n            output, status, failed = self._dispatch(name, args)",
+   "old": "        if name in (\"verify\", \"execute_terminal\"):\n            command = str(args.get(\"command\", \"\"))\n            if self._command_is_authorised(command):\n                return self._replay_approved_command(name, command)\n            output, status, failed = self._dispatch(name, args)",
+   "new": "        if name == \"verify\":\n            return self._verify(str(args.get(\"command\", \"\")), approved=True)\n        if name == \"execute_terminal\":\n            command = str(args.get(\"command\", \"\"))\n            return tool_handlers.execute_terminal(\n                command, approved_commands={command}, executor=self.executor,\n                session_id=self.session_id,\n            )\n        if False:\n            command = str(args.get(\"command\", \"\"))\n            if self._command_is_authorised(command):\n                return self._replay_approved_command(name, command)\n            output, status, failed = self._dispatch(name, args)",
    "tests": [
     "tests/test_agents_pkg_gaps.py"
    ],
@@ -5572,8 +5572,8 @@
   {
    "id": "gen:tool_agent:ToolAgent._dispatch_approved:2168:always",
    "file": "aios/agents/tool_agent.py",
-   "old": "        RED is refused exactly as before; nothing here approves anything.\n        \"\"\"\n        if self.allowed_tools is not None and name not in self.allowed_tools:\n",
-   "new": "        RED is refused exactly as before; nothing here approves anything.\n        \"\"\"\n        if (True):\n",
+   "old": "        RED is refused exactly as before; nothing here approves it.\n        \"\"\"\n        if self.allowed_tools is not None and name not in self.allowed_tools:\n",
+   "new": "        RED is refused exactly as before; nothing here approves it.\n        \"\"\"\n        if (True):\n",
    "tests": [
     "tests/test_agents_pkg_gaps.py",
     "tests/test_phase5c_composition_cap.py",
@@ -5588,8 +5588,8 @@
   {
    "id": "gen:tool_agent:ToolAgent._dispatch_approved:2168:never",
    "file": "aios/agents/tool_agent.py",
-   "old": "        RED is refused exactly as before; nothing here approves anything.\n        \"\"\"\n        if self.allowed_tools is not None and name not in self.allowed_tools:\n",
-   "new": "        RED is refused exactly as before; nothing here approves anything.\n        \"\"\"\n        if (False):\n",
+   "old": "        RED is refused exactly as before; nothing here approves it.\n        \"\"\"\n        if self.allowed_tools is not None and name not in self.allowed_tools:\n",
+   "new": "        RED is refused exactly as before; nothing here approves it.\n        \"\"\"\n        if (False):\n",
    "tests": [
     "tests/test_agents_pkg_gaps.py",
     "tests/test_phase4a_recall_envelope.py",
@@ -8600,6 +8600,302 @@
    ],
    "also": [],
    "note": "generated (twin): MistakeMemoryAdapter.record_derivation line 941 condition forced False: self.provenance is None"
+  },
+  {
+   "id": "gen:replay_commands:record_command_approval:91:always",
+   "file": "aios/core/replay_commands.py",
+   "old": "    \"\"\"\n    if not principal or not _approvable(command):\n",
+   "new": "    \"\"\"\n    if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: record_command_approval line 91 condition forced True: not principal or not _approvable(command)"
+  },
+  {
+   "id": "gen:replay_commands:record_command_approval:91:never",
+   "file": "aios/core/replay_commands.py",
+   "old": "    \"\"\"\n    if not principal or not _approvable(command):\n",
+   "new": "    \"\"\"\n    if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: record_command_approval line 91 condition forced False: not principal or not _approvable(command)"
+  },
+  {
+   "id": "gen:replay_commands:record_command_approval:93:always",
+   "file": "aios/core/replay_commands.py",
+   "old": "    if not principal or not _approvable(command):\n        return False\n    if not _stop_permits_writing(emergency_stop):\n",
+   "new": "    if not principal or not _approvable(command):\n        return False\n    if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: record_command_approval line 93 condition forced True: not _stop_permits_writing(emergency_stop)"
+  },
+  {
+   "id": "gen:replay_commands:record_command_approval:93:never",
+   "file": "aios/core/replay_commands.py",
+   "old": "    if not principal or not _approvable(command):\n        return False\n    if not _stop_permits_writing(emergency_stop):\n",
+   "new": "    if not principal or not _approvable(command):\n        return False\n    if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: record_command_approval line 93 condition forced False: not _stop_permits_writing(emergency_stop)"
+  },
+  {
+   "id": "gen:replay_commands:record_command_approval:95:always",
+   "file": "aios/core/replay_commands.py",
+   "old": "        return False\n    if scan_and_redact(command).detected:\n",
+   "new": "        return False\n    if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: record_command_approval line 95 condition forced True: scan_and_redact(command).detected"
+  },
+  {
+   "id": "gen:replay_commands:record_command_approval:95:never",
+   "file": "aios/core/replay_commands.py",
+   "old": "        return False\n    if scan_and_redact(command).detected:\n",
+   "new": "        return False\n    if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: record_command_approval line 95 condition forced False: scan_and_redact(command).detected"
+  },
+  {
+   "id": "gen:replay_commands:is_approved_command:128:always",
+   "file": "aios/core/replay_commands.py",
+   "old": "    \"\"\"\n    if enabled is None:\n",
+   "new": "    \"\"\"\n    if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: is_approved_command line 128 condition forced True: enabled is None"
+  },
+  {
+   "id": "gen:replay_commands:is_approved_command:128:never",
+   "file": "aios/core/replay_commands.py",
+   "old": "    \"\"\"\n    if enabled is None:\n",
+   "new": "    \"\"\"\n    if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: is_approved_command line 128 condition forced False: enabled is None"
+  },
+  {
+   "id": "gen:replay_commands:is_approved_command:130:always",
+   "file": "aios/core/replay_commands.py",
+   "old": "        enabled = config.REPLAY_APPROVED_COMMANDS_ENABLED\n    if not enabled or not principal:\n",
+   "new": "        enabled = config.REPLAY_APPROVED_COMMANDS_ENABLED\n    if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: is_approved_command line 130 condition forced True: not enabled or not principal"
+  },
+  {
+   "id": "gen:replay_commands:is_approved_command:130:never",
+   "file": "aios/core/replay_commands.py",
+   "old": "        enabled = config.REPLAY_APPROVED_COMMANDS_ENABLED\n    if not enabled or not principal:\n",
+   "new": "        enabled = config.REPLAY_APPROVED_COMMANDS_ENABLED\n    if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: is_approved_command line 130 condition forced False: not enabled or not principal"
+  },
+  {
+   "id": "gen:replay_commands:is_approved_command:132:always",
+   "file": "aios/core/replay_commands.py",
+   "old": "    if not enabled or not principal:\n        return False\n    if not _stop_permits_writing(emergency_stop):\n",
+   "new": "    if not enabled or not principal:\n        return False\n    if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: is_approved_command line 132 condition forced True: not _stop_permits_writing(emergency_stop)"
+  },
+  {
+   "id": "gen:replay_commands:is_approved_command:132:never",
+   "file": "aios/core/replay_commands.py",
+   "old": "    if not enabled or not principal:\n        return False\n    if not _stop_permits_writing(emergency_stop):\n",
+   "new": "    if not enabled or not principal:\n        return False\n    if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: is_approved_command line 132 condition forced False: not _stop_permits_writing(emergency_stop)"
+  },
+  {
+   "id": "gen:replay_commands:is_approved_command:134:always",
+   "file": "aios/core/replay_commands.py",
+   "old": "        return False\n    if not _approvable(command):\n",
+   "new": "        return False\n    if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: is_approved_command line 134 condition forced True: not _approvable(command)"
+  },
+  {
+   "id": "gen:replay_commands:is_approved_command:134:never",
+   "file": "aios/core/replay_commands.py",
+   "old": "        return False\n    if not _approvable(command):\n",
+   "new": "        return False\n    if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: is_approved_command line 134 condition forced False: not _approvable(command)"
+  },
+  {
+   "id": "gen:replay_commands:revoke_command_decision:147:always",
+   "file": "aios/core/replay_commands.py",
+   "old": "    \"\"\"Withdraw the decision for exactly this command. True if one was removed.\"\"\"\n    if not principal:\n",
+   "new": "    \"\"\"Withdraw the decision for exactly this command. True if one was removed.\"\"\"\n    if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: revoke_command_decision line 147 condition forced True: not principal"
+  },
+  {
+   "id": "gen:replay_commands:revoke_command_decision:147:never",
+   "file": "aios/core/replay_commands.py",
+   "old": "    \"\"\"Withdraw the decision for exactly this command. True if one was removed.\"\"\"\n    if not principal:\n",
+   "new": "    \"\"\"Withdraw the decision for exactly this command. True if one was removed.\"\"\"\n    if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: revoke_command_decision line 147 condition forced False: not principal"
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._withheld_reflex_step:2130:always",
+   "file": "aios/agents/tool_agent.py",
+   "old": "            if classify(command).zone is Zone.YELLOW:\n                if self._command_is_authorised(command):\n",
+   "new": "            if classify(command).zone is Zone.YELLOW:\n                if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._withheld_reflex_step line 2130 condition forced True: self._command_is_authorised(command)"
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._withheld_reflex_step:2130:never",
+   "file": "aios/agents/tool_agent.py",
+   "old": "            if classify(command).zone is Zone.YELLOW:\n                if self._command_is_authorised(command):\n",
+   "new": "            if classify(command).zone is Zone.YELLOW:\n                if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._withheld_reflex_step line 2130 condition forced False: self._command_is_authorised(command)"
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._replay_approved_command:2178:always",
+   "file": "aios/agents/tool_agent.py",
+   "old": "        \"\"\"\n        if name == \"verify\":\n",
+   "new": "        \"\"\"\n        if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._replay_approved_command line 2178 condition forced True: name == \"verify\""
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._replay_approved_command:2178:never",
+   "file": "aios/agents/tool_agent.py",
+   "old": "        \"\"\"\n        if name == \"verify\":\n",
+   "new": "        \"\"\"\n        if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._replay_approved_command line 2178 condition forced False: name == \"verify\""
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._replay_approved_command:2190:always",
+   "file": "aios/agents/tool_agent.py",
+   "old": "            self._last_refusal_control = control\n        if failed or status != \"ok\":\n",
+   "new": "            self._last_refusal_control = control\n        if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._replay_approved_command line 2190 condition forced True: failed or status != \"ok\""
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._replay_approved_command:2190:never",
+   "file": "aios/agents/tool_agent.py",
+   "old": "            self._last_refusal_control = control\n        if failed or status != \"ok\":\n",
+   "new": "            self._last_refusal_control = control\n        if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._replay_approved_command line 2190 condition forced False: failed or status != \"ok\""
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._record_command_approval:2211:always",
+   "file": "aios/agents/tool_agent.py",
+   "old": "        command = str(args.get(\"command\", \"\"))\n        if name not in (\"execute_terminal\", \"verify\"):\n",
+   "new": "        command = str(args.get(\"command\", \"\"))\n        if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._record_command_approval line 2211 condition forced True: name not in (\"execute_terminal\", \"verify\")"
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._record_command_approval:2211:never",
+   "file": "aios/agents/tool_agent.py",
+   "old": "        command = str(args.get(\"command\", \"\"))\n        if name not in (\"execute_terminal\", \"verify\"):\n",
+   "new": "        command = str(args.get(\"command\", \"\"))\n        if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._record_command_approval line 2211 condition forced False: name not in (\"execute_terminal\", \"verify\")"
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._record_command_approval:2213:always",
+   "file": "aios/agents/tool_agent.py",
+   "old": "            return\n        if command not in self.approved_commands or failed or status != \"ok\":\n",
+   "new": "            return\n        if (True):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._record_command_approval line 2213 condition forced True: command not in self.approved_commands or failed or status != \"ok\""
+  },
+  {
+   "id": "gen:tool_agent:ToolAgent._record_command_approval:2213:never",
+   "file": "aios/agents/tool_agent.py",
+   "old": "            return\n        if command not in self.approved_commands or failed or status != \"ok\":\n",
+   "new": "            return\n        if (False):\n",
+   "tests": [
+    "tests/test_replay_approved_commands.py",
+    "tests/test_agents_pkg_gaps.py"
+   ],
+   "also": [],
+   "note": "generated: ToolAgent._record_command_approval line 2213 condition forced False: command not in self.approved_commands or failed or status != \"ok\""
   }
  ],
  "retired": [
@@ -9080,6 +9376,16 @@
    "aios/application/memory/provenance_policy.py::ProvenanceWriter.withdraw",
    "aios/core/cerebellum.py::Cerebellum._record_replay_failure",
    "aios/application/turns/generate_pipeline.py::_similar_task_baseline"
+  ],
+  "T4 replayed-command approval provenance (plan Phase 5)": [
+   "aios/core/replay_commands.py::_approvable",
+   "aios/core/replay_commands.py::record_command_approval",
+   "aios/core/replay_commands.py::is_approved_command",
+   "aios/core/replay_commands.py::revoke_command_decision",
+   "aios/agents/tool_agent.py::ToolAgent._command_is_authorised",
+   "aios/agents/tool_agent.py::ToolAgent._replay_approved_command",
+   "aios/agents/tool_agent.py::ToolAgent._record_command_approval",
+   "aios/agents/tool_agent.py::ToolAgent._withheld_reflex_step"
   ]
  }
 }

@@ -764,3 +764,43 @@ organs.*
   - Consolidation records the derivation, the graph's first live producer.
 - **Held** by `learning_revocation` and `negative_transfer_quarantine` on the
   twin's own `withdrawn` record.
+
+## Replayed commands may reuse a human's approval, 2026-10-18 (T4, Phase 5)
+
+- **What was missing.** T4's control names "per-step approval provenance". It
+  existed for writes (`replay_writes`), and not for commands. So since Phase 0b
+  every replayed command that needs approval has been withheld. No reflex with
+  a YELLOW step could serve a turn, and L5 could not be earned: all eight
+  review-ready skills have such a step.
+- **The control** (`aios/core/replay_commands.py`):
+  - **What is recorded.** One row means: this principal approved EXACTLY this
+    command string, in this workspace, and it ran clean.
+  - **Where a row comes from.** It is recorded only from `approved_commands`,
+    which the live path fills solely from consumed capability tokens (raw
+    approved payloads get a 400).
+  - **When a replay may run it.** The preflight and the dispatcher ask the same
+    question (`ToolAgent._command_is_authorised`), so they cannot disagree.
+    A replay runs the command unattended only if:
+    - the step is YELLOW;
+    - the stop is wired and not engaged;
+    - `AIOS_REPLAY_APPROVED_COMMANDS` is on. It is off by default; turning it
+      on is the operator's act.
+  - **Revocation.** A replay that fails deletes the row.
+  - **Unchanged.** RED stays refused by the executor whatever the record says.
+    Any drift (one space, another principal, another workspace) asks again.
+- **Residual risk, accepted and stated.**
+  - An approval covers a command, not a skill. Any activated reflex whose step
+    is that exact command, in that workspace, may replay it.
+  - This is bounded by activation: a reflex exists only for a skill the
+    operator activated (Phase 2, slice 2.4c-B).
+  - So a harness-learned skill gains nothing until he both activates it and
+    has approved its exact command.
+  - RT-06's scenario holds by construction (no human, no row). It is not re-run
+    here.
+- **Tests:** `tests/test_replay_approved_commands.py`, 37 tests.
+  - The L5 shape: a reflex whose only step is a human-approved YELLOW `verify`
+    serves the turn with zero model calls.
+  - Every way the old behaviour must hold.
+  - 14 hand mutants, all killed.
+  - The catalogue gains the group "T4 replayed-command approval provenance",
+    with 26 generated mutants over its decision points.

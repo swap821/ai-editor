@@ -1430,6 +1430,7 @@ RT07_MEMORY_TABLES: tuple[str, ...] = (
     "playbook_blobs",
     "approved_write_decisions",
     "approved_edit_decisions",
+    "approved_command_decisions",
     # Append-only: it grows only when a learning transition really happened.
     "learning_events",
     # Phase 3b: signed provenance and derivations, created by the store

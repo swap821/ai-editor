@@ -332,6 +332,15 @@ REPLAY_APPROVED_WRITES_ENABLED: Final[bool] = _env_bool(
     "AIOS_REPLAY_APPROVED_WRITES", False
 )
 
+# Replayed COMMANDS (plan Phase 5; aios/core/replay_commands.py): a compiled
+# reflex may run a YELLOW command unattended only if the same principal approved
+# exactly that command, in this workspace, through a capability token. Default
+# OFF for the same reason as writes: a path that runs commands with no human is
+# the operator's to turn on (AIOS_REPLAY_APPROVED_COMMANDS=1).
+REPLAY_APPROVED_COMMANDS_ENABLED: Final[bool] = _env_bool(
+    "AIOS_REPLAY_APPROVED_COMMANDS", False
+)
+
 # Mandatory plan stage (Product-Phase-1 close-out): run the deterministic
 # Planner unconditionally on every non-reflex /api/generate turn and surface
 # the confidence-partitioned plan as a `plan` SSE event + advisory context.
@@ -919,6 +928,7 @@ __all__ = [
     "SKILL_REUSE_DEMOTE_NET_FAILURES",
     "EARNED_AUTONOMY_ENABLED",
     "REPLAY_APPROVED_WRITES_ENABLED",
+    "REPLAY_APPROVED_COMMANDS_ENABLED",
     "EARNED_AUTONOMY_MIN_SUCCESSES",
     "NARRATIVE_SELF_ENABLED",
     "SWARM_MAX_WORKERS",
