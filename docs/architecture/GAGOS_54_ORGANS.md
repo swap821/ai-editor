@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `570e1071dc0bc31e69b59c684c6037ee4d9eb48dd09353b99bd4ef4f0707e409`
+- **Source ledger sha256:** `b2a39b93440177639cd1e836f7a577b66fe71164fde5fef46053b41e8b063734`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -833,7 +833,7 @@ re-audits recorded above.
 | 10 | Mission Authority | `MissionAuthority` | `cb19e19ef2c7` | live |
 | 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `cb19e19ef2c7` | live |
 | 12 | Worker Foundry | `WorkerFoundryAuthority` | `cb19e19ef2c7` | live |
-| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `33b3b7940cce` | live |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `703029b2cb95` | live |
 | 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `699b54493cd9` | live |
 | 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `cb19e19ef2c7` | live |
 | 16 | Promotion Authority (construction) | `PromotionAuthority` | `cb19e19ef2c7` | live |
@@ -864,7 +864,7 @@ re-audits recorded above.
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `0d85919fda58` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `a6beaad5182f` | live |
-| 52 | Observability and Health Organ | `ObservabilityAuthority` | `33b3b7940cce` | live |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `703029b2cb95` | live |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `08978eeefd37` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `0d85919fda58` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
