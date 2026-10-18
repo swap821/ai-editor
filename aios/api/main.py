@@ -26,25 +26,22 @@ import hashlib
 import json
 import re
 import sqlite3
-import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterator, Literal, Optional, Any, Sequence, cast
+from typing import Literal, Optional, Any, Sequence
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 import aios
 from aios import config
 from aios.logging_config import configure_logging, get_logger
 from aios.agents.reflection_agent import ReflectionAgent
-from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
@@ -57,7 +54,6 @@ from aios.core.planner import (
     serialize_plan,
 )
 from aios.core.events import (
-    event_for_sse,
     CanonicalEvent,
     CanonicalEventType,
     TrustLevel,
@@ -167,17 +163,13 @@ from aios.domain.capabilities.contracts import CapabilityBinding
 from aios.domain.capabilities.digest import payload_digest, resource_digest
 from aios.domain.identity.models import Principal
 from aios.core.alignment import (
-    AlignmentInterpreter,
     apply_user_corrections,
     frame_from_state,
 )
 from aios.core.native_planner import NativePlanner
 from aios.memory.db import get_connection, init_memory_db
-from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.compaction import MemoryCompactor
 from aios.application.memory.adapters import MemoryCompactionAdapter
-from aios.memory.consolidation import MemoryConsolidator
-from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.relevance import signature as task_signature
 from aios.memory.embeddings import VectorIndex
@@ -548,27 +540,44 @@ from aios.api.http_middleware import (  # noqa: E402,F401
 )
 
 
-def get_compactor() -> MemoryCompactor:
-    """Provide the audited memory-forgetting service backed by live stores.
+# Slices 2-3 of the main.py split (2026-10-18): the turn endpoints and their
+# shared machinery live in aios/api/turn_http.py and aios/api/routes/{generate,chat}.py.
+# Re-exported: generate_pipeline's _LIVE_NAMES seam and tests read them here.
+from aios.api.turn_http import (  # noqa: F401 -- re-exported
+    CHAT_SYSTEM_PROMPT,
+    ChatRequest,
+    GenerateRequest,
+    _COMPACTOR,
+    _COMPACTOR_LOCK,
+    _CONVERSATION_HITS,
+    _CONVERSATION_RATE_MAX,
+    _CONVERSATION_RATE_WINDOW_S,
+    _EPISODIC,
+    _IMAGE_BLOCK_KEYS,
+    _MEMORY_AUTHORITY,
+    _SEMANTIC,
+    _STEP_EVENTS,
+    _VECTOR_INDEX,
+    _WORKING,
+    _build_turn_context,
+    _check_prompt_injection,
+    _enforce_conversation_rate_limit,
+    _generate_action_envelope,
+    _generate_capability_binding,
+    _message_context_chars,
+    _messages_have_images,
+    _sse,
+    _sse_writer,
+    _stream_chat_chunks,
+    _to_chat_messages,
+    _validate_generate_action_payload,
+    get_compactor,
+)
+from aios.api.routes.generate import generate, api_router as _generate_router  # noqa: F401
+from aios.api.routes.chat import chat, api_router as _chat_router  # noqa: F401
 
-    Returns a process-wide singleton so that working-session touch timestamps
-    from ``/api/generate`` and ``/api/v1/chat`` survive into later compaction
-    requests.
-    """
-    global _COMPACTOR
-    if _COMPACTOR is None:
-        with _COMPACTOR_LOCK:
-            if _COMPACTOR is None:
-                _COMPACTOR = MemoryCompactor(
-                    working=_WORKING,
-                    semantic=_SEMANTIC,
-                    episodic=_EPISODIC,
-                    index=_VECTOR_INDEX,
-                )
-                get_memory_authority().register_adapter(
-                    "compaction", MemoryCompactionAdapter(_COMPACTOR)
-                )
-    return _COMPACTOR
+app.include_router(_generate_router)
+app.include_router(_chat_router)
 
 
 # --------------------------------------------------------------------------- #
@@ -581,163 +590,6 @@ class MemoryCompactRequest(BaseModel):
         True,
         description="When True, preview what would be removed. False performs the sweep.",
     )
-
-
-class GenerateRequest(BaseModel):
-    """Body for ``/api/generate`` — the conversational chat endpoint.
-
-    ``messages`` is the front-end's running history in the shape
-    ``[{"role": "user"|"assistant", "content": [{"text": "..."}]}]``.
-    ``model_id`` is the UI's selected model id (e.g. ``ollama.llama3.2:3b``);
-    the ``ollama.`` prefix is stripped, while an explicit non-local id requires
-    configured Bedrock and never silently changes providers.
-    """
-
-    messages: list[dict[str, Any]] = Field(
-        default_factory=lambda: cast(list[dict[str, Any]], [])
-    )
-    model_id: Optional[str] = Field(None, alias="modelId")
-    session_id: str = Field("ui-session", alias="sessionId")
-    approval_tokens: list[str] = Field(default_factory=list, alias="approvalTokens")
-    #: Commands the human has authorised for this turn. When the agent pauses on
-    #: a YELLOW command, the frontend re-sends the turn with that command added
-    #: here so it actually runs (resumable in-chat approval — blueprint Q5).
-    approved_commands: list[str] = Field(default_factory=list, alias="approvedCommands")
-    #: File edits the human has authorised this turn (the edit analog of
-    #: ``approvedCommands``), each ``{filepath, old_string, new_string}``.
-    approved_edits: list[dict[str, Any]] = Field(
-        default_factory=list, alias="approvedEdits"
-    )
-    #: New files the human has authorised this turn (the create analog of
-    #: ``approvedEdits``), each ``{filepath, content}``.
-    approved_creations: list[dict[str, Any]] = Field(
-        default_factory=list, alias="approvedCreations"
-    )
-    #: Experimental role-pass selector. It is intentionally not production
-    #: selected until WorkerFoundry owns its lifecycle.
-    role_pass: bool = Field(False, alias="rolePass")
-    #: Experimental swarm selector. It is intentionally not production selected
-    #: until WorkerFoundry owns its lifecycle. Takes precedence over rolePass
-    #: when both are set for the refusal message.
-    swarm: bool = Field(False, alias="swarm")
-    #: Explicitly opt into mission authority for this turn.  The route no
-    #: longer upgrades every forge request to mission mode implicitly.
-    mission_requested: bool = Field(False, alias="missionRequested")
-    #: Explicit governance semantics are separate from mission semantics.
-    governance_requested: bool = Field(False, alias="governanceRequested")
-
-    model_config = {"populate_by_name": True}
-
-
-def _generate_capability_binding(
-    principal: Principal,
-    action_type: str,
-    payload: dict[str, Any],
-    *,
-    route: str = "/api/generate",
-) -> CapabilityBinding:
-    """Bind one generate approval to the authenticated human and exact action."""
-    if action_type not in {"command", "edit", "create"}:
-        raise CapabilityError(f"unsupported generate capability action: {action_type}")
-    return CapabilityBinding(
-        operator_id=principal.principal_id,
-        device_id=principal.device_id,
-        authentication_event_id=principal.authentication_event_id,
-        session_id=principal.session_id,
-        action_type=action_type,
-        route=route,
-        http_method="POST",
-        payload_digest=payload_digest(payload),
-        resource_digest=resource_digest({"workspace": "training_ground"}),
-        mission_id=None,
-        contract_digest=None,
-        policy_version="v1",
-        scope="training_ground/",
-        verification_requirement=(
-            "command_exit_zero"
-            if action_type == "command"
-            else "write_auto_verify_pass"
-        ),
-        constitution_digest=principal.constitution_digest or None,
-    )
-
-
-def _generate_action_envelope(
-    principal: Principal,
-    request: Request,
-    action_type: str,
-    payload: dict[str, Any],
-) -> ActionEnvelope:
-    """Build the R4 envelope for one streamed generate approval."""
-    return ActionEnvelope(
-        route="/api/generate",
-        action_type=ActionType.GENERATE,
-        http_method="POST",
-        payload=payload,
-        principal=EnvelopePrincipal(
-            session_id=principal.session_id,
-            actor_source="session",
-            client_ip=principal.client_address or "127.0.0.1",
-        ),
-        request_id=principal.request_id or request.headers.get("x-request-id"),
-        operator_id=principal.principal_id,
-        device_id=principal.device_id,
-        authentication_event_id=principal.authentication_event_id,
-        resource={"workspace": "training_ground"},
-        requested_capability=f"generate.{action_type}",
-        correlation_id=(
-            request.headers.get("x-correlation-id")
-            or principal.request_id
-            or request.headers.get("x-request-id")
-            or str(uuid.uuid4())
-        ),
-    )
-
-
-def _validate_generate_action_payload(
-    action_type: str,
-    payload: object,
-) -> dict[str, Any]:
-    """Accept only the server-issued payload shapes the tool loop can replay."""
-    if not isinstance(payload, dict):
-        raise CapabilityError("generate capability payload is not an object")
-    required = {
-        "command": ("command",),
-        "edit": ("filepath", "old_string", "new_string"),
-        "create": ("filepath", "content"),
-    }.get(action_type)
-    if required is None or any(
-        not isinstance(payload.get(key), str) for key in required
-    ):
-        raise CapabilityError("generate capability payload is malformed")
-    if any(
-        not str(payload[key]).strip()
-        for key in required
-        if key in {"command", "filepath"}
-    ):
-        raise CapabilityError("generate capability payload contains an empty target")
-    return dict(payload)
-
-
-class ChatRequest(BaseModel):
-    """Body for ``/api/v1/chat`` — the lean Hinglish conversational endpoint.
-
-    Conversation only (the GAGOS voice mind): a single ``transcript``
-    line from the operator + an optional ``sessionId``. It reuses the multi-LLM
-    router (privacy gate intact), memory recall, and REAL personalization facts,
-    then streams one reply. NO file-write or coding tools run here — this is talk,
-    not the agentic forge.
-    """
-
-    transcript: str = Field(
-        ...,
-        max_length=2000,
-        description="The operator's spoken/typed turn (input-shielded: capped length).",
-    )
-    session_id: str = Field("voice-session", alias="sessionId")
-    model_id: Optional[str] = Field(None, alias="modelId")
-
-    model_config = {"populate_by_name": True}
 
 
 class TerminalRequest(BaseModel):
@@ -781,257 +633,10 @@ def memory_compact(
     return JSONResponse(content=result, status_code=status_code)
 
 
-# --------------------------------------------------------------------------- #
-# Front-end bridge: model discovery, conversational chat, UI terminal
-# These three endpoints back the React UI's main surfaces. The ``/api/v1/*``
-# routes above expose individual subsystems; these compose them for the UI.
-# --------------------------------------------------------------------------- #
-def _to_chat_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    """Flatten the UI history (``content`` arrays) into Ollama chat messages."""
-    out: list[dict[str, Any]] = []
-    for msg in messages:
-        role = msg.get("role")
-        if role not in ("user", "assistant"):
-            continue
-        content = msg.get("content")
-        if isinstance(content, str):
-            text = content
-        elif isinstance(content, list):
-            content_list: list[Any] = cast(list[Any], content)
-            text_parts: list[str] = [
-                cast(dict[str, Any], c).get("text", "")
-                for c in content_list
-                if isinstance(c, dict)
-            ]
-            text = " ".join(text_parts).strip()
-        else:
-            text = ""
-        if text:
-            out.append({"role": role, "content": text})
-    return out
-
-
-def _message_context_chars(messages: list[dict[str, Any]]) -> int:
-    """Total characters of text the turn is carrying, history included.
-
-    The routing signal for ``long_context`` is a MEASUREMENT, not a phrase:
-    "summarise this huge file" and a pasted 200k-character file are the same
-    routing decision, and only one of them says so in words. Counting the whole
-    history rather than the last message is the point — a long conversation is a
-    long-context problem even when the final turn is three words.
-    """
-    total = 0
-    for msg in messages:
-        content = msg.get("content")
-        if isinstance(content, str):
-            total += len(content)
-        elif isinstance(content, list):
-            for block in cast(list[Any], content):
-                if isinstance(block, dict):
-                    total += len(str(cast(dict[str, Any], block).get("text") or ""))
-    return total
-
-
-#: Content-block keys that mean an image is present. Kept as data because the
-#: shape differs by client (Bedrock Converse, Anthropic, OpenAI all spell it
-#: differently) and a new one should be a one-line addition, not a rewrite.
-_IMAGE_BLOCK_KEYS = ("image", "image_url", "inline_data", "source")
-
-
-def _messages_have_images(messages: list[dict[str, Any]]) -> bool:
-    """Whether any message actually carries an image block.
-
-    Vision routing keys off this and never off wording: "look at this
-    screenshot" with no screenshot is not a vision turn, and sending it to a
-    vision model on the strength of the phrase is guessing dressed as
-    classification.
-
-    HONEST LIMIT: the frontend does not send image blocks today —
-    ``_to_chat_messages`` reads ``block["text"]`` and drops everything else — so
-    this returns False on every current request. It is the detector half of a
-    path whose other half does not exist yet, tested directly so it is correct
-    the day one arrives, rather than a claim that vision routing works now.
-    """
-    for msg in messages:
-        content = msg.get("content")
-        if not isinstance(content, list):
-            continue
-        for block in cast(list[Any], content):
-            if isinstance(block, dict) and any(
-                key in cast(dict[str, Any], block) for key in _IMAGE_BLOCK_KEYS
-            ):
-                return True
-    return False
-
-
-def _sse(
-    event: str,
-    data: dict[str, Any],
-    *,
-    turn_id: Optional[str] = None,
-    seq: Optional[int] = None,
-) -> str:
-    """Format one Server-Sent Event frame.
-
-    All newline characters (\\n, \\r) in the JSON payload are escaped to \\n
-    and \\r so that an LLM output cannot inject fake SSE events by embedding
-    ``\\n\\nevent: approve\\ndata: {...}`` inside a data field.
-    """
-    if turn_id is not None and seq is not None:
-        event_obj = event_for_sse(event, data, turn_id=turn_id, seq=seq)
-        data = event_obj.to_sse_payload()
-
-        bus = get_cortex_bus()
-        if bus is not None:
-            # Opportunistic mapping to a canonical event for the truthful journal
-            canonical_type = event
-            if event == "turn.started":
-                canonical_type = CanonicalEventType.TURN_STARTED.value
-            elif event == "route":
-                canonical_type = CanonicalEventType.ROUTE_SELECTED.value
-            elif event == "human_required":
-                canonical_type = CanonicalEventType.APPROVAL_REQUIRED.value
-            elif event == "done":
-                canonical_type = CanonicalEventType.TURN_COMPLETED.value
-            elif event == "error":
-                canonical_type = CanonicalEventType.TURN_FAILED.value
-            elif event == "injection_detected":
-                # An injection seen in TOOL OUTPUT. Recorded as an observation,
-                # not a decision, so it is admissible under the cortex-bus law
-                # ("carries what HAPPENED, never what is PERMITTED") -- the
-                # `security.` prefix is deliberately outside
-                # _AUTHORITY_EVENT_PREFIXES. Before 2026-09-03 an injection left
-                # no trace at all, on any channel.
-                canonical_type = CanonicalEventType.SECURITY_INJECTION_DETECTED.value
-
-            canonical = CanonicalEvent(
-                event_type=canonical_type,
-                phase=event_obj.phase.value,
-                status=(
-                    "completed"
-                    if event == "done"
-                    else "failed"
-                    if event == "error"
-                    else "in_progress"
-                ),
-                trust=TrustLevel.ADVISORY.value,
-                source="aios.api.main.sse",
-                session_id=turn_id,
-                turn_id=turn_id,
-                sequence=seq,
-                payload=data,
-            )
-            try:
-                bus.append(canonical)
-            except Exception:
-                # Not re-raised: a rejected/failed cortex-bus mirror-mapping
-                # must never break the real SSE response the operator is
-                # waiting on. Logged (not silently dropped) because a
-                # rejection here is a real gap in the truthful mirror, not
-                # noise -- e.g. "human_required" maps to "approval.required",
-                # which CortexBus.append() always refuses (an authority-
-                # bearing prefix), so this canonical event never reaches
-                # the mirror stream today.
-                logger.debug(
-                    "cortex_bus_mirror_append_failed",
-                    extra={"sse_event": event, "canonical_type": canonical_type},
-                    exc_info=True,
-                )
-    payload = json.dumps(data, ensure_ascii=False)
-    # Defensive: escape any literal newlines that would break the SSE frame.
-    payload = payload.replace("\r", "\\r").replace("\n", "\\n")
-    return f"event: {event}\ndata: {payload}\n\n"
-
-
-def _sse_writer(turn_id: str) -> Callable[[str, dict[str, Any]], str]:
-    seq = 0
-
-    def write(event: str, data: dict[str, Any]) -> str:
-        nonlocal seq
-        seq += 1
-        return _sse(event, data, turn_id=turn_id, seq=seq)
-
-    return write
-
-
-#: Agent event type -> SSE event name the front-end's stream reader understands.
-_STEP_EVENTS = {"tool_call", "tool_result", "tool_blocked"}
-
-#: Process-wide memory facades are all authority-owned adapters.  The
-#: compatibility names remain because the compactor and legacy tests consume
-#: these narrow interfaces.
-_MEMORY_AUTHORITY = get_memory_authority()
-_EPISODIC = _MEMORY_AUTHORITY.adapters["episodic"]
-_WORKING = _MEMORY_AUTHORITY.adapters["working"]
-_SEMANTIC = _MEMORY_AUTHORITY.adapters["semantic"]
-
-#: FAISS vector index exposed by the authority-owned semantic adapter.
-_VECTOR_INDEX = _SEMANTIC.index
-
-#: Process-wide audited memory compactor so working-session touch timestamps are
-#: preserved across independent FastAPI dependency injections.
-_COMPACTOR: Optional[MemoryCompactor] = None
-_COMPACTOR_LOCK = threading.Lock()
-
-
 # ── TurnCoordinator helpers ──────────────────────────────────────────────────
 # Slice 6: both /api/generate and /api/v1/chat resolve through one coordinator.
 # The routes stay thin HTTP adapters; the coordinator owns turn identity, mode
 # classification, and the common event contract.
-
-
-def _build_turn_context(
-    session_id: str,
-    directive: str,
-    *,
-    model_id: Optional[str] = None,
-    approval_tokens: Optional[list[str]] = None,
-    mission_requested: bool = False,
-    governance_requested: bool = False,
-    data_classification: str = "PROJECT_INTERNAL",
-    operator_id: str | None = None,
-    project_id: str | None = None,
-) -> TurnContext:
-    """Create a canonical TurnContext for the current directive."""
-    mode = TurnCoordinator.classify_mode(
-        directive,
-        mission_requested=mission_requested,
-        governance_requested=governance_requested,
-    )
-    return TurnContext(
-        turn_id=str(uuid.uuid4()),
-        session_id=session_id,
-        operator_id=operator_id,
-        project_id=project_id,
-        directive=directive,
-        mode=mode,
-        model_id=model_id,
-        approval_tokens=tuple(approval_tokens or []),
-        data_classification=data_classification,
-        correlation_id=str(uuid.uuid4()),
-    )
-
-
-#: System prompt for the lean conversational endpoint (the GAGOS voice mind,
-#: Slice 1). It is CONVERSATION, not the coding forge: no file edits, no tool
-#: loop — just a warm, technically deep Hinglish chat. The operator-facts context
-#: block (REAL approved facts only; absent when none) is appended at request time,
-#: and the honesty law is stated inline so the model never invents personal facts.
-CHAT_SYSTEM_PROMPT = (
-    "Tu GAGOS hai — operator ka personal AI-OS, 'the voyaging mind'. Tera naam HAMESHA "
-    "GAGOS hai; tu KABHI khud ko 'Jarvis' ya kisi aur naam se nahi bulata. Tu ek saathi ki "
-    "tarah baat karta hai: natural HINGLISH mein (English aur Hindi ka fluid mix), "
-    "jaise operator khud likhta/bolta hai — uske tone aur mix ko match kar. "
-    "Concise reh, warm reh, lekin technically deep — code, architecture, ya kuch "
-    "bhi discuss kar sakta hai gehrai se. "
-    "Yeh sirf baat-cheet hai, coding forge NAHI: tu koi file edit/create nahi karta, "
-    "koi tool ya terminal nahi chalata, sirf jawaab deta hai. Agar operator ko "
-    "actual code likhwana/chalwana ho, use politely batao ki woh main forge "
-    "(generate) flow se kare. "
-    "Personalization: neeche diye gaye operator ke REAL facts hi use kar; agar koi "
-    "fact nahi diya gaya to koi personal baat invent mat kar — honest reh, "
-    "generic reh."
-)
 
 
 from aios.api.turn_pipeline import (
@@ -1046,7 +651,6 @@ from aios.api.turn_pipeline import (
     _latest_user,
     _make_confirm_hook,
     _make_failure_hook,
-    _operator_facts_block,
     _recall_facts,
     _recall_lessons,
     _recall_memory,
@@ -1059,423 +663,6 @@ from aios.api.turn_pipeline import (
     _verify_target_keys,
     _workflow_step,
 )
-
-
-@app.post("/api/generate", dependencies=[Depends(enforce_action_boundary)])
-def generate(
-    req: GenerateRequest,
-    request: Request,
-    _principal: Principal = Depends(require_privileged_operator),
-    client: OllamaClient = Depends(get_ollama_client),
-    bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
-    gemini: Optional[GeminiClient] = Depends(get_gemini_client),
-    openai_client: Optional[Any] = Depends(get_openai_client),
-    anthropic_client: Optional[Any] = Depends(get_anthropic_client),
-    vertex_maas_client: Optional[Any] = Depends(get_vertex_maas_client),
-    executor: Executor = Depends(get_executor),
-    indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
-    reflector: Optional[ReflectionAgent] = Depends(get_reflection_agent),
-    snapshot: Callable[..., object] = Depends(get_edit_snapshot),
-    planner_llm: LLMClient = Depends(get_llm_client),
-    capabilities: CapabilityAuthority = Depends(get_capability_authority),
-    broker: ActionBroker = Depends(get_action_broker),
-    mistakes: MistakeMemory = Depends(get_mistake_memory),
-    development: DevelopmentTracker = Depends(get_development_tracker),
-    skills: SkillMemory = Depends(get_skill_memory),
-    swarm_patterns: SwarmPatternMemory = Depends(get_swarm_pattern_memory),
-    autonomy: AutonomyLedger = Depends(get_autonomy),
-    curriculum: CurriculumManager = Depends(get_curriculum_manager),
-    cerebellum: Cerebellum = Depends(get_cerebellum),
-    native_planner: NativePlanner = Depends(get_native_planner),
-    consolidator: MemoryConsolidator = Depends(get_memory_consolidator),
-    conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
-    alignment_evaluation: AlignmentEvaluationStore = Depends(
-        get_alignment_evaluation_store
-    ),
-    alignment_interpreter: Optional[AlignmentInterpreter] = Depends(
-        get_alignment_interpreter
-    ),
-    facts: SemanticFacts = Depends(get_semantic_facts),
-    memory_authority=Depends(get_memory_authority),
-    compactor: MemoryCompactor = Depends(get_compactor),
-    emergency_stop=Depends(get_emergency_stop),
-    representative_context_store=Depends(get_representative_context_store),
-) -> StreamingResponse:
-    """Run the agentic tool loop with memory, streaming it to the UI as SSE.
-
-    Pipeline per turn (blueprint stages 4 -> ... -> consolidation):
-      1. Recall relevant semantic memories and inject them into the agent's
-         context (surfaced as a ``query_knowledge`` step when anything is found).
-      2. Persist the user turn to L2 episodic memory.
-      3. Run the agentic tool loop (``read_file``/``read_directory``/
-         ``execute_terminal``, all gated + audited), forwarding tool activity as
-         ``step`` frames, the validated advisory interpretation as an
-         ``alignment`` frame, the answer as ``text_chunk`` frames, any code as
-         a ``code`` frame, and finishing with ``done`` (or ``error``).
-      4. Persist the assistant's final answer to L2 episodic memory and embed the
-         completed turn into L3 semantic memory (self-reinforcing recall).
-    """
-    # Organ 32 / foundation law "human can stop, revoke and correct".
-    #
-    # The forge is the highest-traffic model path in the repo and had NO
-    # emergency-stop check on its model call at all: the stop is only reached
-    # from CapabilityAuthority.issue()/.consume(), which a read-only GREEN turn
-    # never triggers, and ToolAgent.run() does not enter the gateway. So the
-    # agent kept reasoning after the operator hit stop.
-    EmergencyStopHardWiringAuthority.assert_operational(
-        emergency_stop, boundary="api-main"
-    )
-
-    chat_messages = _to_chat_messages(req.messages)
-    user_text = _latest_user(chat_messages)
-    # Agentic generation can execute tools and therefore must be bound to the
-    # authenticated operator session.  The legacy body sessionId remains part
-    # of the request model for compatibility, but it is never authoritative.
-    session_id = _principal.session_id
-    _enforce_conversation_rate_limit(session_id)
-    if len(user_text) > 2000:
-        raise HTTPException(status_code=422, detail="Input exceeds 2000 characters.")
-    if injection_reason := _check_prompt_injection(user_text):
-        raise HTTPException(
-            status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}"
-        )
-
-    ctx = _build_turn_context(
-        session_id,
-        user_text,
-        model_id=req.model_id,
-        approval_tokens=req.approval_tokens,
-        mission_requested=req.mission_requested,
-        governance_requested=req.governance_requested,
-    )
-    runtime = RuntimeDeps(
-        llm_client=client,
-        chat_client=client,
-        bedrock=bedrock,
-        gemini=gemini,
-        openai_client=openai_client,
-        anthropic_client=anthropic_client,
-        vertex_maas_client=vertex_maas_client,
-        executor=executor,
-        indexer=indexer,
-        reflector=reflector,
-        snapshot=snapshot,
-        planner_llm=planner_llm,
-        mistakes=mistakes,
-        development=development,
-        skills=skills,
-        swarm_patterns=swarm_patterns,
-        autonomy=autonomy,
-        curriculum=curriculum,
-        cerebellum=cerebellum,
-        consolidator=consolidator,
-        conversation_state=conversation_state,
-        alignment_evaluation=alignment_evaluation,
-        alignment_interpreter=alignment_interpreter,
-        facts=facts,
-        memory_authority=memory_authority,
-        compactor=compactor,
-        extra={
-            "route": "/api/generate",
-            "request_model": req,
-            "http_request": request,
-            "principal": _principal,
-            "capabilities": capabilities,
-            "broker": broker,
-            "emergency_stop": emergency_stop,
-            "representative_context_store": representative_context_store,
-        },
-    )
-    from aios.application.turns.generate_pipeline import (
-        prepare_generate_state,
-        stream_generate,
-    )
-
-    turn = TurnCoordinator(
-        deps=runtime,
-        handlers=production_handlers(
-            stream_generate,
-            preparer=prepare_generate_state,
-        ),
-    ).coordinate(ctx)
-    return StreamingResponse(
-        turn.events,
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
-
-
-# --- /api/v1/chat input-shield: per-session sliding-window flood throttle ----
-# The voice/chat path is the one endpoint that takes free-form operator text and
-# fans it straight at a (possibly cloud) provider with the operator's recalled
-# facts attached. The Pydantic ``max_length`` cap bounds a single turn; this
-# bounds the RATE so a stuck client (or a tab left auto-sending) cannot flood the
-# router. It is deliberately lightweight and in-process (best-effort, per-worker),
-# distinct from the durable security RateLimiter that governs RED actions.
-_CONVERSATION_RATE_WINDOW_S = 60.0
-_CONVERSATION_RATE_MAX = 30
-_CONVERSATION_HITS: dict[str, list[float]] = {}
-
-
-def _enforce_conversation_rate_limit(session_id: str) -> None:
-    """Raise HTTP 429 if a session exceeds ``_CONVERSATION_RATE_MAX`` turns per window.
-
-    A simple monotonic sliding window keyed by session id. Best-effort and
-    in-process; the deterministic security cage (gateway, scope lock, audit) is
-    unaffected — this only protects the conversational fan-out from flooding.
-    """
-    now = time.monotonic()
-    cutoff = now - _CONVERSATION_RATE_WINDOW_S
-    # BUG-F fix: evict fully-expired sessions so the map can't grow without bound
-    # as fresh session ids keep arriving (each browser session mints a new one).
-    # Previously every session left a key forever. This bounds the map to
-    # sessions active within the window.
-    for sid in [
-        s for s, ts in _CONVERSATION_HITS.items() if not any(t > cutoff for t in ts)
-    ]:
-        del _CONVERSATION_HITS[sid]
-    hits = [t for t in _CONVERSATION_HITS.get(session_id, ()) if t > cutoff]
-    if len(hits) >= _CONVERSATION_RATE_MAX:
-        _CONVERSATION_HITS[session_id] = hits
-        raise HTTPException(
-            status_code=429,
-            detail=(
-                "Too many conversation turns; slow down. "
-                f"Limit is {_CONVERSATION_RATE_MAX} per {int(_CONVERSATION_RATE_WINDOW_S)}s."
-            ),
-        )
-    hits.append(now)
-    _CONVERSATION_HITS[session_id] = hits
-
-
-def _check_prompt_injection(text: str) -> Optional[str]:
-    """Return the gateway reason if *text* is a prompt injection, else None.
-
-    Thin wrapper over ``aios.core.injection_scan.detect_injection`` so this
-    route and the TOOL-OUTPUT path share one predicate. That module reuses the
-    public ``classify()`` API without editing frozen-core gateway code, and
-    ignores non-injection RED results so normal conversation is not blocked.
-    """
-    # Delegates to the shared predicate so user input and TOOL OUTPUT cannot
-    # drift apart. Two callers, one derivation: a differential "do these layers
-    # agree?" gap is the shape that has produced real containment escapes here.
-    return detect_injection(text)
-
-
-def _stream_chat_chunks(
-    chat_client: Any,
-    messages: list[dict[str, Any]],
-    *,
-    model: str,
-) -> Iterator[str]:
-    """Yield real chat chunks when available, else preserve word streaming."""
-    stream_fn = getattr(chat_client, "stream_chat", None)
-    if callable(stream_fn):
-        for chunk in stream_fn(messages, tools=None, model=model):
-            text = str(chunk)
-            if text:
-                yield text
-        return
-
-    reply = chat_client.chat(messages, tools=None, model=model)
-    text = str((reply or {}).get("content", "")).strip() or "(no answer)"
-    for word in re.findall(r"\S+\s*", text):
-        yield word
-
-
-@app.post("/api/v1/chat", dependencies=[Depends(enforce_action_boundary)])
-def chat(
-    req: ChatRequest,
-    request: Request,
-    client: OllamaClient = Depends(get_ollama_client),
-    bedrock: Optional[BedrockClient] = Depends(get_bedrock_client),
-    gemini: Optional[GeminiClient] = Depends(get_gemini_client),
-    openai_client: Optional[Any] = Depends(get_openai_client),
-    anthropic_client: Optional[Any] = Depends(get_anthropic_client),
-    vertex_maas_client: Optional[Any] = Depends(get_vertex_maas_client),
-    indexer: Optional[SemanticMemory] = Depends(get_semantic_indexer),
-    facts: SemanticFacts = Depends(get_semantic_facts),
-    compactor: MemoryCompactor = Depends(get_compactor),
-    memory_authority=Depends(get_memory_authority),
-    human_state_store=Depends(get_human_state_hypothesis_store),
-    human_state_interpreter=Depends(get_human_state_interpreter_authority),
-    principal: Principal | None = Depends(get_optional_principal),
-    constitution_authority=Depends(get_constitution_authority),
-    preference_store=Depends(get_operator_preference_store),
-    preference_authority=Depends(get_operator_taste_model_authority),
-    project_passport_store=Depends(get_project_passport_store),
-    project_passport_authority=Depends(get_project_understanding_authority),
-    correction_store=Depends(get_correction_record_store),
-    correction_authority=Depends(get_correction_lineage_authority),
-    conversation_state: ConversationStateStore = Depends(get_conversation_state_store),
-    representative_context_store=Depends(get_representative_context_store),
-    emergency_stop=Depends(get_emergency_stop),
-) -> StreamingResponse:
-    """Stream a lean Hinglish conversational reply (the GAGOS voice mind).
-
-    This is CONVERSATION, not the agentic forge: it reuses the cross-provider
-    router (so the operator's local-first privacy gate is fully intact), recalls
-    relevant memory, and injects REAL personalization facts, then calls the chat
-    client ONCE for a single reply — NO ``ToolAgent`` loop, NO file-write/coding
-    tools. Providers with streaming support forward real chunks; non-streaming
-    clients fall back to word-by-word chunks so every route keeps one wire shape.
-    Frames, in order:
-
-      * ``turn.started`` — the turn has begun.
-      * ``human_state``  — organ 30's advisory, non-authoritative guess at the
-        operator's state (``HumanStateHypothesis.as_dict()``); always visible
-        and user-correctable, never gates or grants anything.
-      * ``route``        — the provider/model that served + a privacy indicator.
-      * ``text_chunk``   — the reply, as a sequence of ``{"text": ...}`` frames.
-      * ``done``         — terminal frame (``{}``), or ``error`` on transport failure.
-
-    The user + assistant turns are persisted to L2 episodic memory, the
-    human-state hypothesis is persisted to its own append-only history
-    (best-effort), and the completed turn is embedded into L3
-    (self-reinforcing recall), exactly like ``/api/generate``. Best-effort
-    persistence never breaks the chat.
-    """
-    # Organ 32 / foundation law "human can stop, revoke and correct".
-    #
-    # This dependency was already injected here, but it was only ever handed to
-    # AuthenticatedChatRepresentation -- so an ANONYMOUS turn (principal None)
-    # reached a live, possibly cloud, provider with the stop engaged, and the
-    # reply reached the client. Measured, not inferred: with the stop engaged
-    # the provider spy was still called and its text still streamed back.
-    #
-    # Chat is a GREEN action, so it never issues or consumes a capability, and
-    # assert_operational() is only reached from CapabilityAuthority.issue()/
-    # .consume(). The gateway checks the stop too, but the anonymous path never
-    # enters the gateway. Nothing on this route checked it.
-    #
-    # Routing anonymous chat through the gateway needs an answer to "what is an
-    # anonymous caller's identity digest?", which is a real open design
-    # question. Refusing to serve ANY chat turn while the operator has hit stop
-    # does not -- so it is not deferred with it. EmergencyStopError is already
-    # mapped to a 503 by the handler above.
-    EmergencyStopHardWiringAuthority.assert_operational(
-        emergency_stop, boundary="api-main"
-    )
-
-    session_id = (
-        principal.session_id
-        if principal is not None
-        else _session_id_from_request(request, req.session_id)
-    )
-    authority_adapters = getattr(memory_authority, "adapters", {})
-    if "compaction" in authority_adapters and memory_authority.owns_store(
-        "compaction", compactor
-    ):
-        memory_authority.touch_working_session(session_id)
-    else:
-        compactor.touch_working_session(session_id)
-    _enforce_conversation_rate_limit(session_id)
-    user_text = req.transcript.strip()
-    if injection_reason := _check_prompt_injection(user_text):
-        raise HTTPException(
-            status_code=400, detail=f"[SECURITY BLOCK] {injection_reason}"
-        )
-
-    ctx = _build_turn_context(
-        session_id,
-        user_text,
-        model_id=req.model_id,
-        approval_tokens=[],
-        operator_id=principal.principal_id if principal is not None else None,
-    )
-
-    authenticated_representation = (
-        AuthenticatedChatRepresentation(
-            principal=principal,
-            constitution_authority=constitution_authority,
-            preference_store=preference_store,
-            preference_authority=preference_authority,
-            project_passport_authority=project_passport_authority,
-            project_passport_store=project_passport_store,
-            correction_authority=correction_authority,
-            correction_store=correction_store,
-            conversation_state=conversation_state,
-            representative_context_store=representative_context_store,
-            emergency_stop=emergency_stop,
-        )
-        if principal is not None
-        else None
-    )
-
-    # The application handler owns provider selection, prompt construction,
-    # streaming, persistence, and terminal lifecycle.  The HTTP route only
-    # supplies validated input plus injected infrastructure callbacks.
-    from aios.application.turns.conversation_pipeline import stream_conversation
-
-    task = infer_task(user_text)
-    turn = TurnCoordinator(
-        deps=RuntimeDeps(
-            bedrock=bedrock,
-            gemini=gemini,
-            openai_client=openai_client,
-            anthropic_client=anthropic_client,
-            vertex_maas_client=vertex_maas_client,
-            indexer=indexer,
-            facts=facts,
-            memory_authority=memory_authority,
-            compactor=compactor,
-            extra={
-                "route": "/api/v1/chat",
-                "user_text": user_text,
-                "model_id": req.model_id,
-                "task": task,
-                "select_chat_client": lambda selected_task: _select_chat_client(
-                    req.model_id,
-                    client,
-                    bedrock,
-                    gemini=gemini,
-                    openai=openai_client,
-                    anthropic=anthropic_client,
-                    task=selected_task,
-                    data_classification=ctx.data_classification,
-                ),
-                "active_route": _active_route,
-                "sse_writer": _sse_writer,
-                "stream_chat_chunks": _stream_chat_chunks,
-                "ollama_client": client,
-                "ollama_model": config.LLM_MODEL,
-                "emergency_stop": emergency_stop,
-                "record_episode": _record_episode,
-                "interpret_human_state": human_state_interpreter.classify,
-                "record_human_state": lambda sid, tid, hyp: _record_human_state(
-                    sid, tid, hyp, store=human_state_store
-                ),
-                "authenticated_representation": authenticated_representation,
-                "index_turn": _index_turn,
-                "operator_facts_block": _operator_facts_block,
-                "recall_memory": _recall_memory,
-                # Plan Phase 4c: whose turn this is; None (unauthenticated)
-                # recalls no learned row and records unattributed ones.
-                "principal_id": (
-                    str(principal.principal_id) if principal is not None else None
-                ),
-                "chat_system_prompt": CHAT_SYSTEM_PROMPT,
-                "facts_auto_extract": config.FACTS_AUTO_EXTRACT,
-                "facts_auto_extract_max": config.FACTS_AUTO_EXTRACT_MAX_PER_TURN,
-                "cortex_bus": _cortex_bus,
-                "logger": logger,
-                "telemetry": telemetry,
-                "task_signature": task_signature,
-                "ollama_provider": router.PROVIDER_OLLAMA,
-                "auto_ids": _AUTO_IDS,
-            },
-        ),
-        # Every mode streams as conversation here: this route is talk only.
-        # With no factory, a read-only directive ("what is ...", "explain
-        # ...") classified ADVISORY found no stream and raised -- a 500 for
-        # the most ordinary questions (found by tools/model_call_inventory.py).
-        handlers=production_handlers(stream_conversation),
-    ).coordinate(ctx)
-    return StreamingResponse(
-        turn.events,
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-    )
 
 
 class HumanStateCorrectionRequest(BaseModel):

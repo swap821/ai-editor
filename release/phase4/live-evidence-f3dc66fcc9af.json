@@ -1,0 +1,49 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-10-18T17:06:40+00:00",
+  "tip_sha": "f3dc66fcc9af93f51644c444986762ad9290c170",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip f3dc66fcc9af93f51644c444986762ad9290c170",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 25,
+      "name": "Constitutional Kernel",
+      "passed": true,
+      "command": "ConstitutionalKernelAuthority.get_active_snapshot after enroll",
+      "evidence": "enrolled+authenticated session_ok=True; active_snapshot version=1 digest="
+    },
+    {
+      "organ_id": 26,
+      "name": "Emergency Stop Organ (full boundary hard-wiring)",
+      "passed": true,
+      "command": "EmergencyStopHardWiringAuthority.assert_operational",
+      "evidence": "EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency"
+    },
+    {
+      "organ_id": 30,
+      "name": "Communication and Human-State Interpreter",
+      "passed": true,
+      "command": "HumanStateInterpreterAuthority.classify",
+      "evidence": "classify ASAP => state=rushed conf=0.6; noted => state=neutral"
+    },
+    {
+      "organ_id": 42,
+      "name": "Recovery and Resumption",
+      "passed": true,
+      "command": "RecoveryResumptionAuthority journal append+verify real SQLite",
+      "evidence": "transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}"
+    },
+    {
+      "organ_id": 52,
+      "name": "Observability and Health Organ",
+      "passed": true,
+      "command": "ObservabilityAuthority.health + TestClient GET /health",
+      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': 'ba6e4367-c18f-402e-9726-61b81267aacf'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}

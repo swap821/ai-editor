@@ -28,6 +28,10 @@ ALLOWED_CLIENT_IMPORTERS = {
     # not.
     "aios/core/vertex_maas.py",
     "aios/api/main.py",  # Legacy compat, needs migration
+    # The turn routes moved out of main.py (2026-10-18) with the same
+    # Depends-injected client annotations main.py had; same legacy status.
+    "aios/api/routes/generate.py",
+    "aios/api/routes/chat.py",
     "aios/api/routes/models.py",  # Legacy compat, needs migration
     "aios/core/failover.py",
     # Slice 30: local-model adapters. Each constructs an OllamaClient bound
