@@ -1,0 +1,21 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-10-18T19:40:49+00:00",
+  "tip_sha": "8c256207c54329a1e44afe20f6260ab9cbbf05d6",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 8c256207c54329a1e44afe20f6260ab9cbbf05d6",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 57,
+      "name": "Reflex Authority",
+      "passed": true,
+      "command": "Cerebellum + InstitutionalSkillAdapter",
+      "evidence": "Cerebellum on real SQLite: an unactivated candidate compiled nothing; after the operator's activation the owner's request fired the reflex, another principal's turn and quoted text did not; it survived a restart; retired, it stayed retired for a new instance (skill suspended)"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}
