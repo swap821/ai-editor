@@ -188,7 +188,19 @@ def test_organ_57_the_live_turn_matches_through_the_authoritys_cerebellum() -> N
     cerebellum = get_cerebellum()
     assert cerebellum is adapters["cerebellum"].store
     assert cerebellum._reflex_gate is adapters["skills"]
-    generate = [r for r in app.routes if getattr(r, "path", "") == "/api/generate"]
+
+    def routes(entries):
+        # Since the main.py split (slices 2-3) the turn route is on an included
+        # router; FastAPI keeps those behind lazy `_IncludedRouter` wrappers.
+        for entry in entries:
+            yield entry
+            inner = getattr(entry, "original_router", None)
+            if inner is not None:
+                yield from routes(inner.routes)
+
+    generate = [
+        r for r in routes(app.routes) if getattr(r, "path", "") == "/api/generate"
+    ]
     assert generate, "the live turn route exists"
     calls = {d.call for r in generate for d in r.dependant.dependencies}
     assert get_cerebellum in calls

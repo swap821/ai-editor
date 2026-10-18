@@ -23,11 +23,11 @@ from fastapi import Request
 from fastapi.testclient import TestClient
 
 import aios.api.main as main
+import aios.api.turn_http as turn_http  # owns the conversation throttle (main split)
 import aios.security.gateway as gateway
 from aios.api.deps import get_session_manager
 from aios.api.main import (
     _CONVERSATION_HITS,
-    _CONVERSATION_RATE_MAX,
     app,
     get_alignment_interpreter,
     get_bedrock_client,
@@ -232,7 +232,7 @@ def test_flood_throttled_with_429(
     shield_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """The first N turns in a window pass; the next is 429."""
-    monkeypatch.setattr(main, "_CONVERSATION_RATE_MAX", 3)
+    monkeypatch.setattr(turn_http, "_CONVERSATION_RATE_MAX", 3)
     session = "gen-flood"
     for _ in range(3):
         ok = shield_client.post("/api/generate", json=_generate("hi", session))
@@ -246,7 +246,7 @@ def test_throttle_is_per_session(
     shield_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """One flooded session must not throttle a different session."""
-    monkeypatch.setattr(main, "_CONVERSATION_RATE_MAX", 3)
+    monkeypatch.setattr(turn_http, "_CONVERSATION_RATE_MAX", 3)
     flooded = _bind_fresh_session(shield_client)
     for _ in range(3):
         shield_client.post("/api/generate", json=_generate("hi", flooded))
@@ -265,7 +265,7 @@ def test_throttle_window_expiry_lets_traffic_resume(
     shield_client: TestClient, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Once the sliding window advances past old hits, traffic resumes."""
-    monkeypatch.setattr(main, "_CONVERSATION_RATE_MAX", 3)
+    monkeypatch.setattr(turn_http, "_CONVERSATION_RATE_MAX", 3)
     session = _bind_fresh_session(shield_client)
     clock = {"t": 1000.0}
     monkeypatch.setattr(main.time, "monotonic", lambda: clock["t"])
