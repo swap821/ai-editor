@@ -237,9 +237,19 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
                 reason="a dead-import repair needs one staged workspace, "
                 "not the staging root",
             )
+        target_real = os.path.realpath(str(target_path))
+        if not target_real.startswith(project_real + os.sep):
+            return ExecutorResult(
+                job_id=job.job_id,
+                status="failed",
+                isolation_verified=False,
+                started_at=started,
+                ended_at=utc_now(),
+                reason="the repair target is outside its staged workspace",
+            )
         try:
             new_content = remove_dead_imports(
-                content, path=target_path, project_root=Path(project_real)
+                content, path=Path(target_real), project_root=Path(project_real)
             ).content
         except RepairRefused as exc:
             return ExecutorResult(
