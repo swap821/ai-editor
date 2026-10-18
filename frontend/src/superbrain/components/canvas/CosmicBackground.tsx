@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { useEffect, useMemo, useRef, type MutableRefObject } from 'react';
 import { createSeededRandom } from '@/lib/seededRandom';
 import { subscribeCognition } from '@/lib/cognitionBus';
-import type { QualityTier } from '@/components/QualityTierProvider';
+import { useQualityTier, type QualityTier } from '@/components/QualityTierProvider';
 import { useFrame } from '@react-three/fiber';
 import { pointPresenceHeight, pointViewportScale } from '@/lib/pointViewportScale';
 import { BACKDROP_CONTROL_LIMIT, useBackdropControlMask } from './useBackdropControlMask';
@@ -124,6 +124,11 @@ function Starfield({
     geom.setAttribute('aSize', new THREE.BufferAttribute(sizes, 1));
     return geom;
   }, [count]);
+
+  // This memoized geometry is supplied as a prop, not an R3F-owned child.
+  // Retire each replaced buffer and the final one; keep the shared atlas and
+  // the persistent field/material alive across ordinary quality changes.
+  useEffect(() => () => stars.dispose(), [stars]);
 
   const uniforms = useMemo(() => ({
     uTime: STARFIELD_TIME_UNIFORM,
@@ -400,9 +405,11 @@ export default function CosmicBackground({
   /** OS reduced-motion: freezes the looming star-stream (vestibular safety). */
   reducedMotion?: boolean;
 }) {
+  const { preference, autoProfile } = useQualityTier();
+  const skyTier = preference === 'auto' ? autoProfile.skyTier : tier;
   return (
     <group>
-      <Starfield count={STAR_COUNTS[tier]} arrival={arrival} reducedMotion={reducedMotion} />
+      <Starfield count={STAR_COUNTS[skyTier]} arrival={arrival} reducedMotion={reducedMotion} />
     </group>
   );
 }

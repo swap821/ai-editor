@@ -7,6 +7,7 @@ import {
   focusMaterializedTab,
   focusNextMaterializedTab,
   focusPreviousMaterializedTab,
+  focusWorkspace,
   getFocusedMaterializedTab,
   getFirstMaterializedTab,
   getMaterializedTabByKind,
@@ -90,6 +91,31 @@ describe('tabStore', () => {
     });
   });
 
+
+  it('returns to conversation without focusing or discarding retained results, then explicitly re-enters conduction', () => {
+    const lower = showContentSurface({ code: 'c', language: 'python', filepath: 'c.py' }, { seatIndex: 5 });
+    const upper = showContentSurface({ code: 'a', language: 'python', filepath: 'a.py' }, { seatIndex: 2 });
+    const middle = showContentSurface({ code: 'b', language: 'python', filepath: 'b.py' }, { seatIndex: 3 });
+    for (const tab of [lower, upper, middle]) setMaterializedTabLifecycle(tab.id, 'live', 25);
+    focusMaterializedTab(middle.id);
+    const retained = getTabStoreSnapshot().tabs;
+
+    focusWorkspace(null);
+    expect(getTabStoreSnapshot().focusId).toBeNull();
+    expect(getTabStoreSnapshot().attention).toBeNull();
+    expect(getFocusedMaterializedTab()).toBeNull();
+    expect(getTabStoreSnapshot().tabs).toBe(retained);
+    expect(focusNextMaterializedTab()?.id).toBe(upper.id);
+    expect(getTabStoreSnapshot().attention).toMatchObject({ fromId: null, toId: upper.id, direction: 'forward' });
+    expect(focusNextMaterializedTab()?.id).toBe(middle.id);
+
+    focusWorkspace(null);
+    expect(getFocusedMaterializedTab()).toBeNull();
+    expect(focusPreviousMaterializedTab()?.id).toBe(lower.id);
+    expect(getTabStoreSnapshot().attention).toMatchObject({ fromId: null, toId: lower.id, direction: 'backward' });
+    expect(getTabStoreSnapshot().tabs).toEqual(retained);
+  });
+
   it('updates an existing content tab with the same filepath instead of duplicating it', () => {
     const first = showContentSurface({ code: 'a', language: 'python', filepath: 'a.py' }, { bornAt: 1, seatIndex: 2 });
     const updated = showContentSurface({ code: 'b', language: 'python', filepath: 'a.py' }, { bornAt: 2 });
@@ -157,7 +183,9 @@ describe('tabStore', () => {
       content: { code: 'new result', filepath: 'a.py' },
     });
     expect(revived.phaseStartedAt).toBeGreaterThan(40);
-    expect(getTabStoreSnapshot().focusId).toBe(original.id);
+    expect(getTabStoreSnapshot().focusId).toBeNull();
+    focusWorkspace(original.id);
+    expect(getFocusedMaterializedTab()?.id).toBe(original.id);
   });
 
   it('revives a renewed approval request instead of letting its old retraction hide it', () => {

@@ -67,7 +67,7 @@ describe('mirror connection copy', () => {
     });
   });
 
-  it('distinguishes reachable service health from unavailable mirror access', () => {
+  it('keeps unavailable mirror access distinct from a confirmed live picture', () => {
     expect(getMirrorConnectionCopy({
       ...base,
       connection: 'connecting',
@@ -75,9 +75,25 @@ describe('mirror connection copy', () => {
       lastAnnouncement: 'Snapshot unavailable (HTTP 401).',
     }, 'beginner')).toMatchObject({
       label: 'Operational picture unavailable',
-      detail: 'GAGOS is reachable, but the live picture is unavailable in this session.',
+      detail: 'The live picture is unavailable. Check the connection, then try again.',
       tone: 'unavailable',
       canRetry: true,
+    });
+  });
+
+  it('does not let an old access error override a freshly confirmed projection', () => {
+    expect(getMirrorConnectionCopy({
+      ...base,
+      status: 'online',
+      connection: 'connected',
+      projection: 'fresh',
+      snapshotReceivedAt: '2026-09-21T12:00:00.000Z',
+      lastEventId: 19,
+      lastAnnouncement: 'Snapshot unavailable (HTTP 401).',
+    }, 'beginner')).toMatchObject({
+      label: 'GAGOS is ready',
+      tone: 'ready',
+      canRetry: false,
     });
   });
 

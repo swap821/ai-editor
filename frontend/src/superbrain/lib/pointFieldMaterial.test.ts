@@ -46,6 +46,6 @@ describe('createPointFieldMaterial', () => {
     const m = createPointFieldMaterial();
     expect(m.uniforms.uGlowMul.value).toBeGreaterThan(1.0);
     expect(m.uniforms.uProjectionEnergy.value).toBe(1);
-    expect(m.customProgramCacheKey()).toBe('pointfield_v21');
+    expect(m.customProgramCacheKey()).toBe('pointfield_v22');
   });
 });

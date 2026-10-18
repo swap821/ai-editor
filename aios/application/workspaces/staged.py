@@ -51,6 +51,17 @@ class StagedWorkspaceAuthority:
         ):
             raise WorkspacePathViolation("mission id contains unsafe path characters")
         source = self._enrolled_root(project_root)
+        if _is_within(self.root, source):
+            # The copy would contain itself. Measured 2026-10-12 with the
+            # production layout (DATA_DIR=<project>/data, staging under it,
+            # the project enrolled): the stage nested its own output until the
+            # Windows path limit and died with FileNotFoundError -- so every
+            # live repair of GAGOS's own checkout failed before it began.
+            raise WorkspacePathViolation(
+                "the staging root lies inside the project it would copy; enroll a "
+                "project that does not contain it (AIOS_MAINTENANCE_PROJECT_ROOT, "
+                "e.g. a clean git worktree) or move AIOS_DATA_DIR outside it"
+            )
         if mission_id in self._mission_leases:
             raise WorkspaceCollision(f"mission already owns a workspace: {mission_id}")
         existing = self._find_metadata(mission_id)

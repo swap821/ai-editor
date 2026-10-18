@@ -1418,7 +1418,7 @@ def get_promotion_authority(
 
             workspace_manager = StagedWorkspaceManager(
                 config.DATA_DIR / "staged_maintenance",
-                enrolled_roots=(config.PROJECT_ROOT,),
+                enrolled_roots=_maintenance_enrolled_roots(),
             )
             _promotion_authority = PromotionAuthority(
                 workspace_manager=workspace_manager,
@@ -1545,11 +1545,25 @@ def get_checkpoint_restorer(
 def get_promotion_smoke_verifier(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[Any], bool]:
-    """Provide canonical promotion smoke verifier."""
+    """Provide canonical promotion smoke verifier.
+
+    Until 2026-10-12 this passed any target that existed and lacked the two
+    maintenance markers -- no parse, no import, no test -- so a repair that
+    broke the code would have been promoted as verified. It now also requires
+    the Python targets to compile, import, and pass the project's tests that
+    exercise them (aios/application/promotion/smoke.py); the report of every
+    step is kept under DATA_DIR/maintenance_smoke.
+    """
 
     def verify_smoke(request: Any) -> bool:
+        import logging
+        import time
+
+        from aios.application.promotion.smoke import python_smoke
+
         project_root = Path(request.project_root).resolve()
-        for target in getattr(request, "required_targets", ()):
+        targets = tuple(getattr(request, "required_targets", ()))
+        for target in targets:
             target_path = project_root / target
             if not target_path.exists() or not target_path.is_file():
                 return False
@@ -1559,9 +1573,35 @@ def get_promotion_smoke_verifier(
                 or "TODO_MAINTENANCE_DEFECT" in content
             ):
                 return False
-        return True
+        report = python_smoke(
+            project_root, targets, timeout_s=config.MAINTENANCE_SMOKE_TIMEOUT_S
+        )
+        try:
+            out = config.DATA_DIR / "maintenance_smoke"
+            out.mkdir(parents=True, exist_ok=True)
+            stamp = time.strftime("%Y%m%dT%H%M%S")
+            mission = str(getattr(request, "mission_id", "unknown"))
+            (out / f"{mission}-{stamp}.json").write_text(
+                report.to_json(), encoding="utf-8"
+            )
+        except OSError:
+            logging.getLogger(__name__).warning(
+                "could not record the promotion smoke report"
+            )
+        return report.passed
 
     return verify_smoke
+
+
+def _maintenance_enrolled_roots() -> tuple[Path, ...]:
+    """The maintenance project first -- the maintenance routes treat
+    ``enrolled_roots[0]`` as primary -- then this checkout, which stays
+    enrolled for the paths that already stage it."""
+    roots = (
+        config.MAINTENANCE_PROJECT_ROOT.resolve(),
+        config.PROJECT_ROOT.resolve(),
+    )
+    return tuple(dict.fromkeys(roots))
 
 
 def get_private_executor_service() -> Any:
@@ -1609,7 +1649,7 @@ def get_worker_foundry(
 
             workspace_manager = StagedWorkspaceManager(
                 config.DATA_DIR / "staged_maintenance",
-                enrolled_roots=(config.PROJECT_ROOT,),
+                enrolled_roots=_maintenance_enrolled_roots(),
             )
             code_strategy = ProductionCodeWorkerStrategy(
                 workspace_manager=workspace_manager
@@ -1817,7 +1857,7 @@ def get_maintenance_convergence_service(
     if workspace_manager is None:
         workspace_manager = StagedWorkspaceManager(
             config.DATA_DIR / "staged_maintenance",
-            enrolled_roots=(config.PROJECT_ROOT,),
+            enrolled_roots=_maintenance_enrolled_roots(),
         )
 
     mission_service = MissionService(

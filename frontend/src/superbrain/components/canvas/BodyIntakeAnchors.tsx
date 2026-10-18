@@ -1,7 +1,9 @@
 import { useLayoutEffect, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { Matrix4, Vector3 } from 'three';
-import { copyBodyGroupWorldMatrix, getBrainDockScale } from '@/lib/spineFusionBus';
+import { copyBodyGroupWorldMatrix, getBrainDockScale, getCaudaIntakePresence, getSpineFusion } from '@/lib/spineFusionBus';
+import { CORD_Z, SEGMENT_BOTTOM_Y } from '@/lib/spineAnatomy';
+import { readBeingMode } from '@/lib/beingMode';
 import { getStemAnchor, setStemAnchor, type StemAnchor } from '@/lib/stemAnchorBus';
 import { getFunnelAnchor, setFunnelAnchor, type FunnelAnchor } from '@/lib/funnelAnchorBus';
 import { intakeNerveDrive } from '@/lib/intakeNerveDrive';
@@ -16,6 +18,7 @@ export default function BodyIntakeAnchors({ physical, reducedMotion }: {
   physical?: PhysicalBodyProjection;
   reducedMotion: boolean;
 }) {
+  const points = readBeingMode() === 'points';
   const matrix = useRef(new Matrix4());
   const stemPoint = useRef(new Vector3());
   const funnelPoint = useRef(new Vector3());
@@ -41,6 +44,7 @@ export default function BodyIntakeAnchors({ physical, reducedMotion }: {
     if (size.width <= 0 || size.height <= 0 || !Number.isFinite(dockScale) || dockScale <= 0 || !copyBodyGroupWorldMatrix(matrix.current)) {
       s.visible = f.visible = false;
       f.intake = f.flow = 0;
+      f.presence = 0;
       setStemAnchor(s); setFunnelAnchor(f);
       return;
     }
@@ -53,8 +57,24 @@ export default function BodyIntakeAnchors({ physical, reducedMotion }: {
     setStemAnchor(s);
 
     const dial = typeof window !== 'undefined' ? (window as { __FUNNEL_Y?: number }).__FUNNEL_Y : undefined;
-    const localY = typeof dial === 'number' && Number.isFinite(dial) ? dial : -0.85;
-    funnelPoint.current.set(0, localY * dockScale, 0).applyMatrix4(matrix.current);
+    const fusion = getSpineFusion();
+    f.presence = 1;
+    if (typeof dial === 'number' && Number.isFinite(dial)) {
+      // Keep the explicit authoring dial's existing brain-local meaning.
+      funnelPoint.current.set(0, dial, 0);
+    } else if (points && fusion.ready) {
+      // The visible lower cord is in fused point-field space, not the old
+      // mesh's brain-local socket. Use the same cauda junction and weld as
+      // its generated anatomy before applying dock, posture and voyage.
+      funnelPoint.current.set(fusion.weld[0],
+        SEGMENT_BOTTOM_Y * fusion.spineScale + fusion.weld[1],
+        CORD_Z * fusion.spineScale + fusion.weld[2]);
+      f.presence = getCaudaIntakePresence();
+    } else {
+      // Existing mesh/no-fusion authoring path; no fabricated point weld.
+      funnelPoint.current.set(0, -0.85, 0);
+    }
+    funnelPoint.current.multiplyScalar(dockScale).applyMatrix4(matrix.current);
     f.world[0] = funnelPoint.current.x;
     f.world[1] = funnelPoint.current.y;
     f.world[2] = funnelPoint.current.z;

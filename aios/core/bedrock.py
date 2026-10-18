@@ -317,6 +317,27 @@ _TEMPERATURE_REJECTED = re.compile(
 )
 
 
+def bedrock_runtime_config(timeout_s: float) -> Any:
+    """The botocore settings for a Converse client: wait as long as the caller does.
+
+    boto3's defaults are a 60-second read timeout and the "legacy" retry mode,
+    which makes up to five attempts and counts a read timeout as retryable. A
+    thinking model (Kimi K3) often takes longer than a minute to answer, so its
+    request was cut off at 60 s and silently re-sent -- each attempt paid for --
+    until five had failed: measured 2026-10-18 as practice attempts dying with
+    "Read timeout" at 307-312 s, under a 420 s per-attempt budget the caller
+    never got to use. The read timeout is now the caller's own, and at most
+    three attempts are made (throttling still gets two retries).
+    """
+    from botocore.config import Config
+
+    return Config(
+        read_timeout=max(float(timeout_s), 1.0),
+        connect_timeout=10,
+        retries={"mode": "standard", "total_max_attempts": 3},
+    )
+
+
 class BedrockClient:
     """:class:`~aios.agents.tool_agent.ChatClient` backed by Bedrock Converse."""
 
@@ -330,11 +351,13 @@ class BedrockClient:
         client: Optional[Any] = None,
         ctrl_client: Optional[Any] = None,
         privacy_audit_tracker: Optional[PrivacyAuditTracker] = None,
+        timeout_s: float = config.LLM_REQUEST_TIMEOUT_S,
     ) -> None:
         self.model = model
         self.region = region
         self.max_tokens = max_tokens
         self.temperature = temperature
+        self.timeout_s = timeout_s
         #: Control-plane client (``bedrock``) for model discovery — created lazily
         #: in :meth:`list_models` so it's only needed if discovery is used.
         self._ctrl_client = ctrl_client
@@ -351,7 +374,11 @@ class BedrockClient:
                 raise LLMError(
                     "boto3 is required for AWS Bedrock; pip install boto3"
                 ) from exc
-            self._client = boto3.client("bedrock-runtime", region_name=region or None)
+            self._client = boto3.client(
+                "bedrock-runtime",
+                region_name=region or None,
+                config=bedrock_runtime_config(timeout_s),
+            )
 
     def _send(self, call: Any, kwargs: dict[str, Any]) -> Any:
         """One Converse request. A model that rejects ``temperature`` is

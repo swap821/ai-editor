@@ -169,9 +169,9 @@ export default function PostFX() {
 }
 
 function PostFXPipeline() {
-  // Post-FX extras follow the PERF tier (they may breathe while the model
-  // thinks); the scene's geometry follows the structural tier elsewhere.
-  const { perfTier: tier } = useQualityTier();
+  // Manual profiles retain their authored chain. Auto keeps the complete
+  // palette/texture chain and relieves only optional input-buffer MSAA.
+  const { perfTier: tier, preference, autoProfile } = useQualityTier();
 
   // Point-field being uses a gentler bloom so the glow hugs the body; the mesh
   // being keeps the hot cinematic bloom. Selected by the ?being= substrate flag.
@@ -187,7 +187,7 @@ function PostFXPipeline() {
     // 4x MSAA on the composer's input buffer (high tier only — a lift,
     // never a degrade): with the composer mounted, geometry never touches
     // the canvas backbuffer, so this is the only AA that reaches edges.
-    <EffectComposer multisampling={tier === 'high' ? 4 : 0}>
+    <EffectComposer multisampling={preference === 'auto' ? autoProfile.multisampling : tier === 'high' ? 4 : 0}>
       {/* Bloom: threshold 1.0 + smoothing 0.9 → knee = smoothstep(1.0, 1.9,
           sceneLuma), sampled PRE-exposure (Bloom runs before the AgX
           ToneMapping that consumes exposure). Co-designed with the cortex

@@ -154,24 +154,46 @@ describe('GagosChrome W3 status chrome', () => {
     expect(document.activeElement).toBe(input);
   });
 
-  it('shares only draft presence with the organism scene and clears it with the draft', async () => {
-    const reportDraftPresence = vi.fn();
+  it('releases local input attention on blur without clearing or sending the draft', async () => {
+    const reportInputAttention = vi.fn();
     const { default: GagosChrome } = await import('./GagosChrome');
-    render(<GagosChrome onDraftPresenceChange={reportDraftPresence} />);
+    render(<GagosChrome onInputAttentionChange={reportInputAttention} />);
 
     const input = screen.getByLabelText('Talk to GAGOS');
     await act(async () => {
+      fireEvent.focus(input);
       fireEvent.change(input, { target: { value: 'a local draft' } });
     });
 
-    expect(reportDraftPresence).toHaveBeenLastCalledWith(true);
-    expect(reportDraftPresence).not.toHaveBeenCalledWith('a local draft');
+    expect(reportInputAttention).toHaveBeenLastCalledWith(true);
+    expect(reportInputAttention).not.toHaveBeenCalledWith('a local draft');
 
     await act(async () => {
-      fireEvent.change(input, { target: { value: '' } });
+      fireEvent.blur(input);
     });
 
-    expect(reportDraftPresence.mock.calls).toEqual([[true], [false]]);
+    expect(reportInputAttention.mock.calls).toEqual([[true], [false]]);
+    expect(input).toHaveValue('a local draft');
+    expect(sendDirective).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.focus(input); });
+    expect(reportInputAttention.mock.calls).toEqual([[true], [false], [true]]);
+    await act(async () => { fireEvent.change(input, { target: { value: '' } }); });
+    expect(input).toHaveValue('');
+    expect(reportInputAttention.mock.calls).toEqual([[true], [false], [true]]);
+  });
+
+  it('acknowledges empty input focus without inventing model activity', async () => {
+    const reportInputAttention = vi.fn();
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome onInputAttentionChange={reportInputAttention} />);
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => { fireEvent.focus(input); });
+    expect(reportInputAttention).toHaveBeenLastCalledWith(true);
+    expect(input).toHaveValue('');
+    expect(screen.queryByText('GAGOS is thinking')).not.toBeInTheDocument();
+    expect(sendDirective).not.toHaveBeenCalled();
+    await act(async () => { fireEvent.blur(input); });
+    expect(reportInputAttention.mock.calls).toEqual([[true], [false]]);
   });
 
   it('describes a measured health response as reachable rather than current', async () => {

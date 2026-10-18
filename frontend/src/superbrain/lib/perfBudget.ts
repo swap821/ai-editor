@@ -1,7 +1,10 @@
-// perfBudget — the 60fps relief valve's pure math + budget (poster-gap audit P2.3).
+// perfBudget — retained MANUAL DPR profiles (poster-gap audit P2.3).
+// Default Auto stages live in renderQualityPolicy.ts: optional MSAA/sky, DPR,
+// then fused point density. Regional anatomy/color/texture remain intact.
+// Historical "resolution only" comments below describe manual relief only.
 //
-// THE GUARANTEE, made real: when the measured frame rate sags, RESOLUTION gives
-// to recover it — and ONLY resolution. The structural tier (geometry, particle
+// When measured frame pacing sags, RESOLUTION gives to relieve it — and ONLY
+// resolution. This is not a universal FPS guarantee. The structural tier (geometry, particle
 // counts, the sky) stays exactly where the operator's FIDELITY click put it, and
 // hue/palette/textures are never touched. This is the FIDELITY-SACRED-vs-smooth
 // resolution: let the device-pixel-ratio breathe (a runtime-only lever, never

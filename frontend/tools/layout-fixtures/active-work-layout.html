@@ -17,9 +17,18 @@
     <div class="lm-scene" aria-hidden="true"></div>
     <div class="lm-shell" data-experience-mode="expert">
       <header class="lm-header">
-        <div class="lm-brand"><h1>GAGOS</h1></div>
+        <div class="lm-brand"><h1>GAGOS</h1><span class="lm-subtitle">Local-first intelligence. Human authority.</span></div>
         <aside class="lm-stop" aria-label="Fixture emergency controls"><button type="button">Emergency stop</button><button type="button">Details</button></aside>
       </header>
+      <nav class="lm-navigation" aria-label="Fixture workspace navigation">
+        <button type="button">Conversation</button>
+        <div class="lm-expert-group lm-expert-group--primary"><span class="lm-expert-group__label">Task</span><button type="button">Missions</button><button type="button">Project files</button><button type="button">Experience</button><button type="button">Recent observations</button></div>
+        <details class="lm-expert-group"><summary>Intelligence</summary><div class="lm-expert-group__items"><button type="button">Local workforce</button><button type="button">Hiring</button><button type="button">Council deliberation</button></div></details>
+        <details class="lm-expert-group"><summary>Authority</summary></details>
+        <details class="lm-expert-group"><summary>Memory</summary></details>
+        <details class="lm-expert-group"><summary>Evidence</summary></details>
+        <button type="button">Pause ambient motion</button>
+      </nav>
       <aside class="lm-workspace-rail" aria-label="Fixture workspace switcher">
         <button type="button" aria-current="true">Recent observations</button>
         <button type="button">Project files</button>
@@ -56,6 +65,14 @@
       </aside>
     </div>
     <div class="gagos-chrome">
+      <div class="gagos-experience-switch">
+        <div class="gagos-experience-mode" role="group" aria-label="Fixture experience mode">
+          <span class="gagos-experience-mode__label">How you work</span>
+          <div class="gagos-experience-mode__choices"><button type="button" class="gagos-experience-mode__choice">Guided</button><button type="button" class="gagos-experience-mode__choice is-active">Expert / Mirror</button></div>
+          <span class="gagos-experience-mode__state">Full operational mirror</span>
+        </div>
+        <button type="button" class="gagos-focus-toggle">Focus</button>
+      </div>
       <aside class="gagos-status" aria-label="Fixture status"><span class="gagos-pill">offline</span><span class="gagos-pill">supervised</span></aside>
       <section class="gagos-chat" aria-label="Fixture composer">
         <div class="gagos-chat__context"><p>Optional context scrolls; all content is a CSS fixture.</p><p>Additional context cannot cover the workspace or the organism's pane.</p></div>

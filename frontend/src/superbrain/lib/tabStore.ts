@@ -92,6 +92,10 @@ export interface TabSnapshot {
   tabs: MaterializedTabRecord[];
   focusId: string | null;
   attention: AttentionTransfer | null;
+  /** Explicit Conversation/dismissal is different from initial no-selection.
+   * Content may arrive and stay reachable, but cannot select itself afterward.
+   * Whole-session privacy cleanup resets this local presentation preference. */
+  contentAutofocusSuppressed?: boolean;
   panels?: WorkspacePanel[];
   selectedMissionId?: string | null;
   /** Session-only content retained by the same owner, never scene entities. */
@@ -280,7 +284,8 @@ export function focusWorkspace(id: string | null): void {
   if (panel?.seatIndex === null) {
     openWorkspacePanel(panel.id, panel.title, panel.kind, panel.file);
   } else if (id === null || panel) {
-    replaceSnapshot({ ...snapshot, focusId: id, attention: null });
+    replaceSnapshot({ ...snapshot, focusId: id, attention: null,
+      ...(id === null ? { contentAutofocusSuppressed: true } : {}) });
   } else if (snapshot.recoverableTabs?.some((tab) => tab.id === id)) {
     reopenMaterializedTab(id);
   } else focusMaterializedTab(id);
@@ -288,7 +293,9 @@ export function focusWorkspace(id: string | null): void {
 
 export function closeWorkspace(id: string): void {
   if (snapshot.panels?.some((panel) => panel.id === id)) {
-    replaceSnapshot({ ...snapshot, panels: snapshot.panels.map((p) => p.id === id ? { ...p, open: false } : p), focusId: snapshot.focusId === id ? null : snapshot.focusId });
+    replaceSnapshot({ ...snapshot, panels: snapshot.panels.map((p) => p.id === id ? { ...p, open: false } : p),
+      focusId: snapshot.focusId === id ? null : snapshot.focusId,
+      ...(snapshot.focusId === id ? { contentAutofocusSuppressed: true } : {}) });
   } else beginRetractingMaterializedTab(id);
 }
 
@@ -322,7 +329,7 @@ function focusMaterializedTabWithDirection(id: string, direction: AttentionTrans
     return;
   }
   const fromId = deriveLivingOrchestration(snapshot).focusId;
-  // Scene fallback attention is not the DOM selection (e.g. History is open).
+  // DOM-only selection (e.g. History) is not a materialized attention target.
   if (snapshot.focusId === current.id) return;
   replaceSnapshot({
     tabs: snapshot.tabs,
@@ -341,14 +348,16 @@ export function focusMaterializedTab(id: string): void {
 }
 
 export function focusNextMaterializedTab(): MaterializedTabRecord | null {
-  const nextId = deriveLivingOrchestration(snapshot).nextFocusId;
+  const orchestration = deriveLivingOrchestration(snapshot);
+  const nextId = orchestration.nextFocusId ?? (orchestration.focusId ? null : orchestration.conductorOrder[0]);
   if (!nextId) return getFocusedMaterializedTab();
   focusMaterializedTabWithDirection(nextId, 'forward');
   return getFocusedMaterializedTab();
 }
 
 export function focusPreviousMaterializedTab(): MaterializedTabRecord | null {
-  const previousId = deriveLivingOrchestration(snapshot).previousFocusId;
+  const orchestration = deriveLivingOrchestration(snapshot);
+  const previousId = orchestration.previousFocusId ?? (orchestration.focusId ? null : orchestration.conductorOrder[orchestration.conductorOrder.length - 1]);
   if (!previousId) return getFocusedMaterializedTab();
   focusMaterializedTabWithDirection(previousId, 'backward');
   return getFocusedMaterializedTab();
@@ -441,7 +450,7 @@ export function showContentSurface(
       // An in-flight same-file turn resumes the existing identity, not a
       // second hidden DOM copy with the same key.
       recoverableTabs: snapshot.recoverableTabs?.filter((tab) => tab.id !== current.id),
-      focusId: snapshot.focusId ?? next.id,
+      focusId: snapshot.focusId ?? (snapshot.contentAutofocusSuppressed ? null : next.id),
       attention: keepAttentionForTabs(snapshot.attention, tabs),
     });
     return next;
@@ -450,7 +459,7 @@ export function showContentSurface(
   const tabs = [...snapshot.tabs, tab];
   replaceSnapshot({
     tabs,
-    focusId: snapshot.focusId ?? tab.id,
+    focusId: snapshot.focusId ?? (snapshot.contentAutofocusSuppressed ? null : tab.id),
     attention: keepAttentionForTabs(snapshot.attention, tabs),
   });
   return tab;
@@ -614,6 +623,7 @@ export function beginRetractingMaterializedTab(id?: string, phaseStartedAt = per
     recoverableTabs,
     recoveryIssue: null,
     focusId: snapshot.focusId === current.id ? null : snapshot.focusId,
+    ...(snapshot.focusId === current.id ? { contentAutofocusSuppressed: true } : {}),
     attention: keepAttentionForTabs(snapshot.attention, tabs),
   });
   // A readable-only overflow result has no renderer to retire its geometry.
@@ -657,7 +667,8 @@ export function forgetRecoverableMaterializedTab(id: string): void {
 
 export function clearMaterializedTab(id?: string): void {
   if (!id) {
-    replaceSnapshot({ tabs: [], recoverableTabs: [], recoveryIssue: null, workResultOutcome: null, focusId: null, attention: null });
+    replaceSnapshot({ tabs: [], recoverableTabs: [], recoveryIssue: null, workResultOutcome: null, focusId: null,
+      attention: null, contentAutofocusSuppressed: false });
     return;
   }
   const tabs = snapshot.tabs.filter((tab) => tab.id !== id);

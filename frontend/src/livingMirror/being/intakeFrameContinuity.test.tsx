@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import CortexEngine from '../../superbrain/core/CortexEngine';
 import { SCENE_UNIFORMS } from '../../superbrain/components/canvas/SuperbrainScene.LEGACY';
-import { __resetSpineFusionForTests, setBodyGroupWorldMatrix } from '../../superbrain/lib/spineFusionBus';
+import { __resetSpineFusionForTests, setBodyGroupWorldMatrix, setSpineFusion } from '../../superbrain/lib/spineFusionBus';
 import { __resetStemAnchorForTests, getStemAnchor } from '../../superbrain/lib/stemAnchorBus';
 import { __resetFunnelAnchorForTests, getFunnelAnchor } from '../../superbrain/lib/funnelAnchorBus';
 import { __resetTabStoreForTests, showContentSurface } from '../../superbrain/lib/tabStore';
@@ -151,7 +151,13 @@ describe('intake attachment through the rendered engine', () => {
     } finally { await act(async () => { root.unmount(); }); host.remove(); }
   });
 
-  it.each([false, true])('matches this frame of the scaled/floating body with composer=%s', async (composer) => {
+  it.each([[false, false], [true, false], [false, true], [true, true]] as const)(
+    'matches this frame of the scaled/floating body with composer=%s, fused cauda=%s', async (composer, fused) => {
+    // Independently hand-derived from the generated cord's lower junction:
+    // (0,-2.85,-0.42) * 0.4 + (0.07,-0.2,-0.03).
+    // Keep both original legacy/no-fusion cases; they are not anatomy proof.
+    const funnelLocal = fused ? new THREE.Vector3(0.07, -1.34, -0.198) : new THREE.Vector3(0, -0.85, 0);
+    if (fused) setSpineFusion(0.4, [0.07, -0.2, -0.03]);
     const canvas = document.createElement('canvas');
     const root = createRoot(canvas);
     const store = _roots.get(canvas)!.store;
@@ -167,7 +173,7 @@ describe('intake attachment through the rendered engine', () => {
         // Independently transform the authored local sockets through the actual
         // inner visual group, outer posture and floating parent seen by render.
         const stemWorld = field.localToWorld(new THREE.Vector3(0, -0.35, 0));
-        const funnelWorld = field.localToWorld(new THREE.Vector3(0, -0.85, 0));
+        const funnelWorld = field.localToWorld(funnelLocal.clone());
         const stemNdc = stemWorld.project(renderedCamera);
         const stem = getStemAnchor();
         const funnel = getFunnelAnchor();

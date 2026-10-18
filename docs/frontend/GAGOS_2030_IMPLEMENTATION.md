@@ -941,6 +941,8 @@ replay/live-barrier, and rollback evidence remain backend/session-owned.
 
 ### Operational picture unavailable boundary — 2026-09-23
 
+> Wording superseded on 2026-10-16: unavailable projection alone does not prove service reachability. The local candidate now uses neutral recovery copy; see [current phone/frontend proof](PHONE_PRESENCE_2026-10-07.md). The dated runtime observations and results below remain history.
+
 The first implementation keyed the unavailable copy only to the raw 401
 announcement, but the existing mirror client can replace that announcement
 with a later reconnect message. The presentation copy now also treats the

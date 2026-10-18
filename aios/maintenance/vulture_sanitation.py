@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Literal, Mapping, Pattern
 
+from aios.maintenance.dead_imports import ExternalImportIndex, find_dead_imports
 from aios.security import gateway
 from aios.security.secret_scanner import scan_and_redact
 
@@ -187,13 +188,22 @@ class VultureScanner:
         findings.extend(self.scan_targets(targets).findings)
         return VultureReport(findings=tuple(findings))
 
-    def scan_code_paths(self, paths: Iterable[Path | str]) -> VultureReport:
+    def scan_code_paths(
+        self, paths: Iterable[Path | str], *, importers_root: Path | str | None = None
+    ) -> VultureReport:
         """Read Python files and propose local code hygiene findings only.
 
         This intentionally stops at evidence. It does not edit files, run tests,
         invoke formatters, or quarantine anything.
+
+        *importers_root*: the project the scanned files belong to. When given,
+        a name another file takes FROM the scanned module (``from mod import
+        name``, or ``"mod.name"`` as a monkeypatch target) is a live re-export,
+        not dead -- read-only, by AST and text over that root.
         """
 
+        root = Path(importers_root).resolve() if importers_root is not None else None
+        index = ExternalImportIndex(root) if root is not None else None
         findings: list[VultureFinding] = []
         for raw_path in sorted((Path(p) for p in paths), key=lambda p: p.as_posix()):
             target_id = raw_path.as_posix()
@@ -214,7 +224,11 @@ class VultureScanner:
 
             findings.extend(self._scan_text(target_id, payload))
             if raw_path.suffix == ".py":
-                findings.extend(self._scan_python_ast(target_id, payload))
+                findings.extend(
+                    self._scan_python_ast(
+                        target_id, payload, index=index, path=raw_path
+                    )
+                )
 
         return VultureReport(findings=tuple(findings))
 
@@ -272,7 +286,12 @@ class VultureScanner:
         return tuple(findings)
 
     def _scan_python_ast(
-        self, target_id: str, payload: str
+        self,
+        target_id: str,
+        payload: str,
+        *,
+        index: ExternalImportIndex | None = None,
+        path: Path | None = None,
     ) -> tuple[VultureFinding, ...]:
         try:
             tree = ast.parse(payload)
@@ -288,27 +307,16 @@ class VultureScanner:
                 ),
             )
 
-        imported: dict[str, int] = {}
-        used_names: set[str] = set()
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    name = alias.asname or alias.name.split(".", 1)[0]
-                    imported.setdefault(name, node.lineno)
-            elif isinstance(node, ast.ImportFrom):
-                for alias in node.names:
-                    if alias.name == "*":
-                        continue
-                    name = alias.asname or alias.name
-                    imported.setdefault(name, node.lineno)
-            elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
-                used_names.add(node.id)
-
+        # The one definition of "dead" (aios/maintenance/dead_imports.py),
+        # shared with the executor's REMOVE_DEAD_IMPORTS_V1. Without a
+        # project index the judgement is this file alone, and says so.
+        if index is not None and path is not None:
+            dead = index.dead_in(path, payload)
+        else:
+            dead = find_dead_imports(tree, payload.splitlines())
         findings: list[VultureFinding] = []
-        for name in sorted(imported):
-            if name in used_names or name.startswith("_"):
-                continue
-            line_no = imported[name]
+        for name in sorted(dead):
+            line_no = dead[name]
             findings.append(
                 VultureFinding(
                     target_id=f"{target_id}:import:{name}",
@@ -326,8 +334,10 @@ def scan_vulture_targets(targets: Mapping[str, str]) -> VultureReport:
     return VultureScanner().scan_targets(targets)
 
 
-def scan_vulture_code_paths(paths: Iterable[Path | str]) -> VultureReport:
-    return VultureScanner().scan_code_paths(paths)
+def scan_vulture_code_paths(
+    paths: Iterable[Path | str], *, importers_root: Path | str | None = None
+) -> VultureReport:
+    return VultureScanner().scan_code_paths(paths, importers_root=importers_root)
 
 
 def _clip(text: str, limit: int = 180) -> str:

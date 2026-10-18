@@ -49,6 +49,7 @@ describe('GuidedApprovalPanel observability', () => {
   });
 
   it('keeps keyboard focus inside the approval boundary', async () => {
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus');
     render(<GuidedApprovalPanel pending={pending} onSettled={() => {}} />);
     const dialog = screen.getByRole('alertdialog', { name: 'GAGOS permission request' });
     const readingRegion = screen.getByRole('region', { name: 'Permission request details' });
@@ -56,6 +57,9 @@ describe('GuidedApprovalPanel observability', () => {
     const deny = screen.getByRole('button', { name: "Don't allow" });
 
     await waitFor(() => expect(allow).toHaveFocus());
+    // A short app may already expose decision and Stop. Focusing the action
+    // must not auto-scroll the whole app underneath its reserved fixture band.
+    expect(focus).toHaveBeenCalledWith({ preventScroll: true });
 
     deny.focus();
     fireEvent.keyDown(dialog, { key: 'Tab' });

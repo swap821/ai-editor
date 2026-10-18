@@ -7,10 +7,11 @@
 // Rendered (in MaterializationLayer / groupRef space) per retracting tab; CPU-
 // animated (≤80 motes, cheap) so it needs no shader plumbing.
 
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { getCortexAnchor, getBrainDockScale } from '@/lib/spineFusionBus';
+import { getCortexAnchor, getBrainDockScale, getSpineFusion } from '@/lib/spineFusionBus';
+import { SEGMENT_ANCHORS } from '@/lib/spineAnatomy';
 
 const COUNT = 72;
 
@@ -25,6 +26,7 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
 
 export default function ReabsorptionParticles({
   origin,
+  seatIndex,
   startedAt,
   durationMs = 1300,
   color = '#5ef0b0',
@@ -32,6 +34,9 @@ export default function ReabsorptionParticles({
 }: {
   /** where the slab feeds the spine (the tab's fused vertebra anchor). */
   origin: [number, number, number];
+  /** Same admitted vertebral identity as the work socket; explicit unseated
+   * placements retain their existing local origin. */
+  seatIndex?: number | null;
   startedAt: number;
   durationMs?: number;
   color?: string;
@@ -57,6 +62,10 @@ export default function ReabsorptionParticles({
     g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(COUNT * 3), 3));
     return g;
   }, []);
+  // Geometry supplied as an object prop is not a reconciler-owned child.
+  // Release this buffer on both completed return and interrupted Reopen;
+  // pointsMaterial remains owned/disposed by R3F's JSX child lifecycle.
+  useEffect(() => () => geometry.dispose(), [geometry]);
 
   // SPINE-CURVE ROUTE (poster phase 7): the motes don't cut a straight diagonal —
   // they puff off the vertebra, converge to the spine centerline, then ride UP it
@@ -65,7 +74,8 @@ export default function ReabsorptionParticles({
   // The 4 control points are RE-AIMED each frame so the route's HEAD tracks the
   // LIVE cortex (the brain shrinks/voyages/crowns every frame) — the fix for the
   // money-shot miss where the old hardcoded target left the motes flying into empty
-  // space. origin (the vertebra) is static; the upper 3 points follow the cortex.
+  // space. A seated departure follows the SAME live fusion/dock as its socket;
+  // explicit unseated placements keep their authored local origin.
   const [ox, oy, oz] = origin;
   const curve = useMemo(
     () =>
@@ -93,9 +103,19 @@ export default function ReabsorptionParticles({
     const ty = ay * ds;
     const tz = az * ds;
     const cp = curve.points;
-    cp[0].set(ox, oy, oz); // the dissolving slab's vertebra (static)
-    cp[1].set(tx + (ox - tx) * 0.5, oy + (ty - oy) * 0.18, tz + (oz - tz) * 0.5); // pull toward the spine
-    cp[2].set(tx, oy + (ty - oy) * 0.58, tz); // on the spine centerline, risen partway
+    const seat = typeof seatIndex === 'number' && Number.isInteger(seatIndex) ? SEGMENT_ANCHORS[seatIndex] : undefined;
+    if (seat) {
+      cp[0].copy(seat);
+      const fusion = getSpineFusion();
+      if (fusion.ready) {
+        cp[0].multiplyScalar(fusion.spineScale);
+        cp[0].x += fusion.weld[0]; cp[0].y += fusion.weld[1]; cp[0].z += fusion.weld[2];
+      }
+      cp[0].multiplyScalar(ds);
+    } else cp[0].set(ox, oy, oz);
+    const sx = cp[0].x, sy = cp[0].y, sz = cp[0].z;
+    cp[1].set(tx + (sx - tx) * 0.5, sy + (ty - sy) * 0.18, tz + (sz - tz) * 0.5); // pull toward the spine
+    cp[2].set(tx, sy + (ty - sy) * 0.58, tz); // on the spine centerline, risen partway
     cp[3].set(tx, ty, tz); // home into the brain
     curve.updateArcLengths(); // re-aimed → recompute the arc-length LUT for an even rise
     const pos = geometry.attributes.position.array as Float32Array;

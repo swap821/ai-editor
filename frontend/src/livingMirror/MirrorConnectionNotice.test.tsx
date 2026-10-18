@@ -19,6 +19,7 @@ beforeEach(() => {
     lastEventId: null,
     compatibility: null,
     approvalRequired: false,
+    lastAnnouncement: null,
   });
   startMirrorClient.mockClear();
   stopMirrorClient.mockClear();
@@ -29,6 +30,33 @@ afterEach(() => {
 });
 
 describe('MirrorConnectionNotice', () => {
+  it.each([
+    ['beginner', 'Failed to fetch'],
+    ['expert', 'Failed to fetch'],
+    ['beginner', 'Snapshot schema is incomplete; operational state remains unavailable.'],
+    ['expert', 'Snapshot schema is incomplete; operational state remains unavailable.'],
+    ['beginner', 'Event connection interrupted; displayed records are last-known.'],
+    ['expert', 'Event connection interrupted; displayed records are last-known.'],
+  ] as const)('does not invent service reachability in %s after %s', (mode, reason) => {
+    render(<MirrorConnectionNotice experienceMode={mode} />);
+
+    act(() => {
+      useMirrorStore.getState().setConnection('connecting');
+      useMirrorStore.getState().markStale(reason);
+    });
+
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('Operational picture unavailable');
+    expect(notice).not.toHaveTextContent(/reachable|service answered|continuity has been confirmed/i);
+    expect(notice).not.toHaveTextContent(reason);
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeEnabled();
+    if (mode === 'expert') {
+      expect(notice).toHaveTextContent('transport connecting; projection unavailable; cursor unavailable');
+    } else {
+      expect(notice).not.toHaveTextContent('transport connecting');
+    }
+  });
+
   it('shows a newcomer a truthful recovery action', () => {
     render(<MirrorConnectionNotice />);
 

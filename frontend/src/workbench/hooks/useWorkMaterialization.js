@@ -113,6 +113,7 @@ export function useWorkMaterialization({
   setOnline,
   setMilestones,
   chatModelId,
+  emergencyStopped = false,
 }) {
   const [messages, setMessages] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -186,24 +187,30 @@ export function useWorkMaterialization({
   }, [messages]);
 
   const stopTurn = useCallback(() => {
-    if (!busyRef.current) return;
-    const token = turnTokenRef.current;
-    // Invalidate callbacks before aborting: even a synchronously delivered
-    // abort callback must not mutate the retained result or a subsequent turn.
-    turnTokenRef.current += 1;
-    settlePartialWork(token, 'cancelled');
-    if (abortRef.current) abortRef.current.abort();
-    busyRef.current = false;
-    setBusy(false);
-    releaseWorkMaterialization();
-    setConversationPhase('idle');
+    if (busyRef.current) {
+      const token = turnTokenRef.current;
+      // Invalidate callbacks before aborting: even a synchronously delivered
+      // abort callback must not mutate the retained result or a subsequent turn.
+      turnTokenRef.current += 1;
+      settlePartialWork(token, 'cancelled');
+      if (abortRef.current) abortRef.current.abort();
+      busyRef.current = false;
+      setBusy(false);
+      releaseWorkMaterialization();
+      setConversationPhase('idle');
+      pushMessage('gagos', 'Generation cancelled locally; backend termination is unconfirmed.');
+    }
+    // Audio/glyph output can outlive the finished network request. The same
+    // explicit stop retires queued/playing output without deleting DOM history.
     publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0, data: { phase: 'stopped' } });
-    pushMessage('gagos', 'Generation cancelled locally; backend termination is unconfirmed.');
   }, [pushMessage, settlePartialWork]);
 
   const submit = useCallback(async (raw) => {
     const text = String(raw ?? '').trim();
-    if (!text || busyRef.current) return;
+    // Known Stop blocks every entry point BEFORE consuming the draft,
+    // changing generation/history or allocating a work surface. Unknown is
+    // not an observed latch; the backend remains the authority either way.
+    if (!text || busyRef.current || emergencyStopped) return;
     const workIntent = isWorkIntent(text);
 
     const token = turnTokenRef.current + 1;
@@ -236,11 +243,15 @@ export function useWorkMaterialization({
     try {
       if (workIntent) {
         claimWorkMaterialization();
+        const requestFromConversation = getTabStoreSnapshot().focusId === null;
         const writeSeat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
         const writingTab = showContentSurface(
           { code: '', language: 'text', filepath: workFilepath(text), streaming: true },
           getContentSurfacePlacement(writeSeat),
         );
+        // A new human submission may open its work immediately. Later stream
+        // arrival cannot repeat this choice after the human returns elsewhere.
+        if (requestFromConversation && getTabStoreSnapshot().focusId === null) focusMaterializedTab(writingTab.id);
         activeWorkRef.current = { id: writingTab.id, token };
         const retained = getTabStoreSnapshot();
         const records = new Map(retained.tabs.map((tab) => [tab.id, tab]));
@@ -348,10 +359,26 @@ export function useWorkMaterialization({
             );
             const targetId = dup ? dup.id : writingTab.id;
             if (dup) {
+              // Transfer an attended placeholder, not an explicit return to
+              // Conversation or another reader while this request was in flight.
+              const wasAttended = getTabStoreSnapshot().focusId === writingTab.id;
+              const sourceSnapshot = getTabStoreSnapshot();
+              const source = [...sourceSnapshot.tabs, ...(sourceSnapshot.recoverableTabs || [])]
+                .find((tab) => tab.id === writingTab.id);
+              if (source?.content) {
+                // Settle readable source work with this turn's complete snapshot
+                // before retirement. A full recovery cache must leave a truthful,
+                // readable result in place, not an orphaned partial stream. Empty
+                // placeholders stay empty so retirement need not consume storage.
+                const readable = Boolean(source.content.code || source.content.verifyOutput);
+                updateMaterializedTab(writingTab.id, { content: readable
+                  ? { code, language, filepath, streaming: false }
+                  : { ...source.content, streaming: false } });
+              }
               if (beginRetractingMaterializedTab(writingTab.id)) {
                 workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== writingTab.id);
               }
-              if (!getTabStoreSnapshot().focusId) focusMaterializedTab(dup.id);
+              if (wasAttended && !getTabStoreSnapshot().focusId) focusMaterializedTab(dup.id);
             }
             updateMaterializedTab(targetId, { content: { code, language, filepath, streaming: false } });
             activeWorkRef.current = null;
@@ -456,7 +483,7 @@ export function useWorkMaterialization({
         setBusy(false);
       }
     }
-  }, [pushMessage, setOnline, setMilestones, chatModelId, settlePartialWork]);
+  }, [pushMessage, setOnline, setMilestones, chatModelId, settlePartialWork, emergencyStopped]);
 
   return {
     messages,

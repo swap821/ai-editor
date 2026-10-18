@@ -17,8 +17,9 @@
  * sendVoiceTurn) and publishes the same cognition events (directive /
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
+import { CompactWorkingChrome } from '../livingMirror/CompactWorkingChrome';
 import {
   cancelPendingApproval,
   getPendingApproval,
@@ -59,9 +60,22 @@ import { useCognitionBus, formatActiveBrainChip } from './hooks/useCognitionBus'
 import { useWorkMaterialization, workFilepath, extractStreamingCode } from './hooks/useWorkMaterialization';
 import { useVoiceInput } from './hooks/useVoiceInput';
 import { ExperienceModeSwitch } from '../livingMirror/ExperienceModeSwitch';
+import { isWorkspacePanelVisible } from '../livingMirror/experience/workspaceVisibility';
 import { BootstrapReadiness } from '../livingMirror/BootstrapReadiness';
 import { StarterPaths } from '../livingMirror/StarterPaths';
 import GuidedApprovalPanel from '../livingMirror/GuidedApprovalPanel';
+
+// Keyboard focus must reveal a whole accessory, not just its clipped centre.
+// Scroll this row only; scrollIntoView can move the app/Stop/held decision.
+function revealAccessoryFocus(event) {
+  const row = event.currentTarget;
+  const target = event.target;
+  if (!(target instanceof HTMLElement) || row.clientWidth <= 0 || row.scrollWidth <= row.clientWidth) return;
+  const left = row.getBoundingClientRect().left + row.clientLeft;
+  const bounds = target.getBoundingClientRect();
+  if (bounds.left < left) row.scrollLeft += bounds.left - left;
+  else if (bounds.right > left + row.clientWidth) row.scrollLeft += bounds.right - left - row.clientWidth;
+}
 import { GuidedAccountPanel } from '../livingMirror/GuidedAccountPanel';
 import { presentVoiceStatus, voiceStatusNeedsAttention } from '../livingMirror/voicePresentation';
 import { ReceiptCard } from '../livingMirror/experience/ReceiptCard';
@@ -244,7 +258,8 @@ function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
 /**
  * @param {{ integrated?: boolean, experienceMode?: string,
  *   onExperienceModeChange?: (mode: string) => void,
- *   onDraftPresenceChange?: (present: boolean) => void,
+ *   onInputAttentionChange?: (active: boolean) => void,
+ *   conversationInputRef?: import('react').RefObject<HTMLInputElement | null>,
  *   beingFocused?: boolean,
  *   onBeingFocusChange?: (focused: boolean) => void }} props
  */
@@ -252,9 +267,12 @@ export default function GagosChrome({
   integrated = false,
   experienceMode = 'beginner',
   onExperienceModeChange = () => {},
-  onDraftPresenceChange,
+  onInputAttentionChange,
+  conversationInputRef,
   beingFocused = false,
   onBeingFocusChange = () => {},
+  compactWorkingChrome = false,
+  onCompactControlsHost,
 }) {
   const guided = experienceMode === 'beginner';
   const [focused, setFocused] = useState(false);
@@ -270,6 +288,7 @@ export default function GagosChrome({
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
   const [receipt, setReceipt] = useState(null);
+  const [receiptHost, setReceiptHost] = useState(null);
   const receiptInputRef = useRef(null);
   const approvalRunsRef = useRef(new Map());
   // Organ 30: which message's human-state correction picker is open (at most
@@ -345,17 +364,29 @@ export default function GagosChrome({
     setOnline,
     setMilestones,
     chatModelId,
+    emergencyStopped,
   });
 
-  const lastReportedDraftPresenceRef = useRef(false);
-  useEffect(() => {
-    const nextPresence = draft.trim().length > 0;
-    if (lastReportedDraftPresenceRef.current === nextPresence) return;
-    lastReportedDraftPresenceRef.current = nextPresence;
-    onDraftPresenceChange?.(nextPresence);
-  }, [draft, onDraftPresenceChange]);
+  useLayoutEffect(() => {
+    // An observed global latch stops this local stream/output before paint.
+    // This does not engage/clear the server latch or certify worker termination.
+    if (emergencyStopped) stopTurn();
+  }, [emergencyStopped, stopTurn]);
 
-  const inputRef = useRef(null);
+  const ownedInputRef = useRef(null);
+  const inputRef = conversationInputRef ?? ownedInputRef;
+  const previousApprovalTokenRef = useRef(null);
+  useEffect(() => {
+    const previous = previousApprovalTokenRef.current;
+    const current = pendingApproval?.token ?? null;
+    previousApprovalTokenRef.current = current;
+    if (!previous || current || emergencyStopped) return;
+    // Dialog cleanup restores a still-usable origin first. An asynchronous
+    // hold can instead disable the old Stop/Send control; recover only page
+    // focus, never a reader, new decision or explicit typing handoff.
+    const active = document.activeElement;
+    if (active === document.body || active === document.documentElement) inputRef.current?.focus();
+  }, [pendingApproval?.token, emergencyStopped, inputRef]);
   const chatContextRef = useRef(null);
   const busyRef = useRef(busy);
   useEffect(() => {
@@ -379,8 +410,34 @@ export default function GagosChrome({
     setDraft,
   });
 
-  const { tabs: liveTabs, recoverableTabs = [] } = useTabStore();
+  // Local attention is engagement, not unsent text or model work. A retained
+  // draft must not keep the body's intake current lit after returning to a
+  // reader. Relay only a boolean; the scene's permission/Stop gates still win.
+  const inputAttentionActive = focused || listening;
+  const lastReportedInputAttentionRef = useRef(false);
+  useEffect(() => {
+    if (lastReportedInputAttentionRef.current === inputAttentionActive) return;
+    lastReportedInputAttentionRef.current = inputAttentionActive;
+    onInputAttentionChange?.(inputAttentionActive);
+  }, [inputAttentionActive, onInputAttentionChange]);
+
+  const { tabs: liveTabs, recoverableTabs = [], panels: workspacePanels = [], focusId: workspaceFocusId } = useTabStore();
+  const receiptTargetId = receipt?.targetTabId;
+  const bindReceiptRoot = useCallback((element) => {
+    // One current receipt, one matching selected reader. A foreign workspace,
+    // Conversation or missing host keeps the original conversation fallback.
+    // Event-bound DOM placement only: no new semantic owner or frame query.
+    const target = element && integrated && receiptTargetId && receiptTargetId === workspaceFocusId
+      ? [...document.querySelectorAll('.lm-artifact-receipt-host')].find((host) => host.dataset.artifactId === receiptTargetId)
+      : null;
+    setReceiptHost(target ?? null);
+  }, [integrated, receiptTargetId, workspaceFocusId]);
   const beingWorking = liveTabs.some((t) => t.kind !== 'input' && t.lifecycle !== 'retracting');
+  // Guided navigation is intentionally hidden. Recent remains its ordinary
+  // return path from Conversation to open work as well as saved results.
+  const recentWorkAvailable = recoverableTabs.length > 0
+    || liveTabs.some((tab) => tab.kind === 'content' && tab.lifecycle !== 'retracting')
+    || workspacePanels.some((panel) => panel.open && isWorkspacePanelVisible(panel, 'beginner'));
 
   // A completed replay is deliberately held as unverified until a real
   // verifier enriches the same materialized tab. No visual receipt is allowed
@@ -408,7 +465,7 @@ export default function GagosChrome({
     if (el && typeof window !== 'undefined' && window.matchMedia('(min-width: 641px)').matches) {
       el.focus();
     }
-  }, []);
+  }, [inputRef]);
 
   // Poll backend /health
   useEffect(() => {
@@ -509,7 +566,7 @@ export default function GagosChrome({
     setHintDismissed(true);
   }, []);
 
-  const canSend = draft.trim().length > 0 && !busy;
+  const canSend = draft.trim().length > 0 && !busy && !emergencyStopped;
 
   const closeBond = useCallback(() => {
     setBondOpen(false);
@@ -521,7 +578,9 @@ export default function GagosChrome({
     onExperienceModeChange('expert');
   }, [closeBond, onExperienceModeChange]);
 
-  const statusAnnouncement = online === null
+  const statusAnnouncement = emergencyStopped
+    ? 'Emergency stop is engaged. New requests are blocked.'
+    : online === null
     ? 'Checking the GAGOS connection'
     : !online
       ? 'GAGOS is offline'
@@ -756,6 +815,12 @@ export default function GagosChrome({
     pushMessage('gagos', `↳ ${verb} ${target}.`);
   };
 
+  const experienceControls = <div className="gagos-experience-switch">
+    <ExperienceModeSwitch mode={experienceMode} onChange={onExperienceModeChange} />
+    {integrated ? <button type="button" className="gagos-focus-toggle" aria-pressed={beingFocused}
+      aria-label={beingFocused ? 'Return to full workspace controls' : 'Focus on the being; hide conversation history and workspace navigation'}
+      onClick={() => onBeingFocusChange(!beingFocused)}>{beingFocused ? 'Full view' : 'Focus'}</button> : null}
+  </div>;
   return (
     <div
       className="gagos-chrome"
@@ -828,22 +893,10 @@ export default function GagosChrome({
         ) : null}
       </header>
 
-      <div className="gagos-experience-switch">
-        <ExperienceModeSwitch mode={experienceMode} onChange={onExperienceModeChange} />
-        {integrated ? (
-          <button
-            type="button"
-            className="gagos-focus-toggle"
-            aria-pressed={beingFocused}
-            aria-label={beingFocused
-              ? 'Return to full workspace controls'
-              : 'Focus on the being; hide conversation history and workspace navigation'}
-            onClick={() => onBeingFocusChange(!beingFocused)}
-          >
-            {beingFocused ? 'Full view' : 'Focus'}
-          </button>
-        ) : null}
-      </div>
+      {compactWorkingChrome ? <CompactWorkingChrome
+        onHost={onCompactControlsHost} blocked={!!pendingApproval || emergencyStopped || bondOpen}>
+        {experienceControls}
+      </CompactWorkingChrome> : experienceControls}
 
       {verifyToast ? (
         <div
@@ -899,6 +952,11 @@ export default function GagosChrome({
 
       <section className="gagos-chat" aria-label="Conversation">
         <div id="gagos-chat-context" className="gagos-chat__context" ref={chatContextRef}>
+          {emergencyStopped ? (
+            <p id="gagos-stop-request-hold" className="gagos-voice-note">
+              Emergency stop is engaged. New requests cannot be sent; your draft is kept. Use the emergency stop control to clear it, then send explicitly.
+            </p>
+          ) : null}
           {!showWelcomeBeforeVoiceStatus ? voiceStatusNode : null}
           {!showWelcomeBeforeVoiceStatus ? voiceDetailsNode : null}
           {listening && <button type="button" onClick={stopMic}>Stop microphone</button>}
@@ -958,7 +1016,7 @@ export default function GagosChrome({
                         {renderWithRedactionChips(sanitizeToText(m.text))}
                         {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
                         {m.retry ? (
-                          <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
+                          <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} disabled={emergencyStopped} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
                             Retry
                           </button>
                         ) : null}
@@ -994,6 +1052,8 @@ export default function GagosChrome({
           {receipt ? (
             <ReceiptCard
               receipt={receipt}
+              host={receiptHost}
+              onRootChange={bindReceiptRoot}
               onReview={reviewReceiptTarget}
               onCheck={() => {
                 // Commit the restored reader and its normal heading-focus
@@ -1059,13 +1119,17 @@ export default function GagosChrome({
               }
             }}
             aria-label="Talk to GAGOS"
+            aria-describedby={emergencyStopped ? 'gagos-stop-request-hold' : undefined}
           />
-          <div className="gagos-bar__accessories">
-          {integrated && guided && recoverableTabs.length > 0 && <button
+          <div className="gagos-bar__accessories" onFocusCapture={revealAccessoryFocus}>
+          {emergencyStopped ? (
+            <span className="gagos-voice-note" aria-hidden="true">Stopped · draft kept</span>
+          ) : null}
+          {integrated && guided && recentWorkAvailable && <button
             type="button"
             className="gagos-btn gagos-recent"
             aria-label="Recent activity"
-            title="Reopen closed results in Recent activity"
+            title="Review open work or reopen closed results in Recent activity"
             onClick={() => openWorkspacePanel('history', 'Recent activity')}
           >Recent</button>}
           {voiceSupported || backendVoice.stt ? (

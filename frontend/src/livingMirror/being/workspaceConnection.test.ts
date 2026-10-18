@@ -52,4 +52,10 @@ describe('workspace connection projection', () => {
     expect(projectWorkspaceConnection({ ...input, plane: { left: 100, top: 100, width: 400, height: 400 } })).toBeNull();
     expect(projectWorkspaceConnection({ ...input, canvas: { ...canvas, height: 0 } })).toBeNull();
   });
+  it('does not connect a retained reader rim painted over by a decision, but keeps an exposed rim', () => {
+    const input = { origin: new Vector3(), bodyWorld: new Matrix4(), dockScale: 1, camera, canvas, plane, overlay };
+    expect(projectWorkspaceConnection({ ...input, occluders: [{ left: 600, top: 100, width: 600, height: 600 }] })).toBeNull();
+    const exposed = projectWorkspaceConnection({ ...input, occluders: [{ left: 600, top: 400, width: 600, height: 300 }] });
+    expect(exposed?.target).toEqual({ x: 578, y: 240 });
+  });
 });

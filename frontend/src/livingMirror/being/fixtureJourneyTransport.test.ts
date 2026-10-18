@@ -30,6 +30,29 @@ it('delegates only same-origin static assets, never backend reads, writes, or re
   ]) expect((await transport.fetch(url, { method })).ok).toBe(false);
   expect(assetFetch).toHaveBeenCalledTimes(1);
 });
+it('admits idempotent observation-only Stop/Clear, denies real commands, and stays inert after disposal', async () => {
+  const { transport, assetFetch } = fixture();
+  vi.stubGlobal('fetch', transport.fetch); vi.stubGlobal('EventSource', transport.EventSource);
+  __resetAiosAdapterForTests(); useMirrorStore.setState(useMirrorStore.getInitialState(), true);
+  await startMirrorClient(); await new Promise(resolve => setTimeout(resolve, 0));
+  transport.observeStop(true); transport.observeStop(true);
+  expect(transport.getSnapshot().observedStop).toBe(true);
+  expect(useMirrorStore.getState().recentEvents.filter(event => event.type === 'governance.emergency_stop.engaged')).toHaveLength(1);
+  expect(useMirrorStore.getState().lastEventId).toBe(1);
+  for (const action of ['engage', 'clear']) {
+    const command = await transport.fetch(`/api/v1/governance/emergency-stop/${action}`, { method: 'POST', body: '{}' });
+    expect(command.status).toBe(503);
+    expect(await command.json()).toMatchObject({ detail: 'Not provided by the isolated fixture. No backend request was sent.' });
+  }
+  transport.observeStop(false); transport.observeStop(false);
+  expect(transport.getSnapshot().observedStop).toBe(false);
+  expect(useMirrorStore.getState().recentEvents.filter(event => event.type === 'governance.emergency_stop.cleared')).toHaveLength(1);
+  expect(useMirrorStore.getState().lastEventId).toBe(2);
+  transport.dispose(); transport.observeStop(true); transport.advance();
+  expect(transport.getSnapshot().observedStop).toBe(false);
+  expect(useMirrorStore.getState().lastEventId).toBe(2);
+  expect(assetFetch).not.toHaveBeenCalled();
+});
 it('holds real adapter output for permission and lets only the matching local replay complete', async () => {
   const { transport, assetFetch } = fixture(); vi.stubGlobal('fetch', transport.fetch);
   __resetAiosAdapterForTests();

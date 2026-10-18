@@ -233,6 +233,10 @@ def load_provider_env(path: Path) -> list[str]:
     return sorted(set(names))
 
 
+#: Suffix on an `ollama.<tag>` spec: ask the model not to think.
+NOTHINK = "@nothink"
+
+
 def resolve_client(model_id: str, *, timeout_s: int):
     """The client for *model_id*, using the product's own prefix dispatch.
 
@@ -260,6 +264,13 @@ def resolve_client(model_id: str, *, timeout_s: int):
         from aios.core.llm import OllamaClient
 
         tag = model_id[len("ollama.") :]
+        # `ollama.<tag>@nothink` sends think=false (D12). A thinking model left
+        # at its default spent 51-64 s reasoning before each short answer
+        # (qwen3.5:9b, 2026-10-12). Spelled in the spec, so every trail row
+        # that names the model also says how it was called.
+        if tag.endswith(NOTHINK):
+            tag = tag[: -len(NOTHINK)]
+            return OllamaClient(model=tag, timeout_s=timeout_s, think=False), tag
         return OllamaClient(model=tag, timeout_s=timeout_s), tag
 
     prefixes = {
@@ -300,7 +311,14 @@ def resolve_client(model_id: str, *, timeout_s: int):
 
     from aios import config as _config
 
-    return BedrockClient(model=model_id, region=_config.BEDROCK_REGION), model_id
+    # The attempt's own budget, not botocore's 60-second default: a thinking
+    # teacher was cut off and silently re-sent at 60 s (2026-10-18).
+    return (
+        BedrockClient(
+            model=model_id, region=_config.BEDROCK_REGION, timeout_s=timeout_s
+        ),
+        model_id,
+    )
 
 
 def run_self_check(corpus) -> tuple[bool, str]:

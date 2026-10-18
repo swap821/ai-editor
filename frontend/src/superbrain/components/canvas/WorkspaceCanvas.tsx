@@ -1,17 +1,18 @@
 'use client';
 import { subscribeCognition } from '@/lib/cognitionBus';
 
-import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode } from 'react';
+import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
 import { WebGLErrorBoundary, WebGLFallback } from './WebGLErrorBoundary';
 import CortexEngine from '../../core/CortexEngine';
 import type { PhysicalBodyProjection } from '../../lib/bodyPosture';
+import type { WorkPlaneAttentionTarget } from '../../lib/brainAttentionPosture';
 import { type BrainSurface, type SkyMode } from './SuperbrainScene.LEGACY';
 import type { CognitiveMode } from '@/components/ui/SuperbrainHUD';
 import {
-  QualityTierProvider,
+  QualityTierBoundary,
   useQualityTier,
 } from '@/components/QualityTierProvider';
 import TierGovernor from './TierGovernor';
@@ -32,25 +33,29 @@ import {
  *  frame has painted before the crossfade. Pure additive signal: no render. */
 function ReadySignal() {
   const fired = useRef(false);
-  useFrame(() => {
+  useFrame((state) => {
     if (fired.current) return;
     fired.current = true;
     if (typeof window !== 'undefined') {
-      window.requestAnimationFrame(() => window.dispatchEvent(new Event('gagos:ready')));
+      const canvas = state.gl.domElement;
+      window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('gagos:ready', { detail: { canvas } })));
     }
   });
   return null;
 }
 
-export default function WorkspaceCanvas({ children, booted = false, physical }: {
+export default function WorkspaceCanvas({ children, booted = false, physical, inputAttentionActive = false, attentionTargetRef }: {
   children?: ReactNode;
   booted?: boolean;
   physical?: PhysicalBodyProjection;
+  /** Local focus/capture only; never draft content or backend activity. */
+  inputAttentionActive?: boolean;
+  attentionTargetRef?: MutableRefObject<WorkPlaneAttentionTarget | null>;
 }) {
   return (
-    <QualityTierProvider>
-      <WorkspaceInner booted={booted} physical={physical}>{children}</WorkspaceInner>
-    </QualityTierProvider>
+    <QualityTierBoundary>
+      <WorkspaceInner booted={booted} physical={physical} inputAttentionActive={inputAttentionActive} attentionTargetRef={attentionTargetRef}>{children}</WorkspaceInner>
+    </QualityTierBoundary>
   );
 }
 
@@ -95,13 +100,15 @@ function isWebGLAvailable(): boolean {
   }
 }
 
-function WorkspaceInner({ children, booted, physical }: {
+function WorkspaceInner({ children, booted, physical, inputAttentionActive, attentionTargetRef }: {
   children?: ReactNode;
   booted: boolean;
   physical?: PhysicalBodyProjection;
+  inputAttentionActive: boolean;
+  attentionTargetRef?: MutableRefObject<WorkPlaneAttentionTarget | null>;
 }) {
   const [webglAvailable] = useState(() => isWebGLAvailable());
-  const { tier, perfTier } = useQualityTier();
+  const { tier, perfTier, preference, autoProfile } = useQualityTier();
   const sleeping = useFeatureGate();
   const mode: CognitiveMode = 'orchestrate';
   const activity = 0.72;
@@ -205,7 +212,7 @@ function WorkspaceInner({ children, booted, physical }: {
               tabIndex={-1}
               aria-hidden="true"
               camera={{ position: [0, 0.25, 8.5], fov: CAMERA.fov, near: CAMERA.near, far: CAMERA.far }}
-              dpr={TIER_DPR[perfTier]}
+              dpr={preference === 'auto' ? autoProfile.dpr : TIER_DPR[perfTier]}
               onCreated={handleCreated}
               gl={{
                 // The composer owns AA (4x MSAA on its input buffer at high
@@ -228,9 +235,10 @@ function WorkspaceInner({ children, booted, physical }: {
                   is unaffected, only the empty space goes true black. */}
               <color attach="background" args={['#000000']} />
               <fog attach="fog" args={['#000000', 50, 150]} />
-              <TierGovernor />
+              <TierGovernor densityChangesAllowed={!inputAttentionActive && physical?.membrane.state !== 'held'
+                && physical?.phase !== 'stopped' && physical?.cortex.posture !== 'stopped'} />
               <Suspense fallback={null}>
-                <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} physical={physical} />
+                <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} physical={physical} inputAttentionActive={inputAttentionActive} attentionTargetRef={attentionTargetRef} />
                 <ReadySignal />
                 {/* Product-side forge ports (editor/preview) mount here, INSIDE the
                     one canvas, so the canon nerves plug into them. Renders nothing
