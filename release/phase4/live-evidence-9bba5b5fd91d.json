@@ -1,0 +1,21 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-10-18T11:45:26+00:00",
+  "tip_sha": "9bba5b5fd91dcf072986bbc4a174d368ca90f71e",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 9bba5b5fd91dcf072986bbc4a174d368ca90f71e",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 50,
+      "name": "Provenance and Explanation Surface",
+      "passed": true,
+      "command": "PrivacyAuditTracker.record + reopen real SQLite",
+      "evidence": "rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-nqawq0h9\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}
