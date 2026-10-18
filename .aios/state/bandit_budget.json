@@ -47,6 +47,7 @@
     "B310:aios/core/llm.py": 7,
     "B310:aios/core/openai_compat.py": 2,
     "B404:aios/application/governance/organ_ledger.py": 1,
+    "B404:aios/application/promotion/smoke.py": 1,
     "B404:aios/core/executor.py": 1,
     "B404:aios/infrastructure/executor/docker_runner.py": 1,
     "B404:aios/launcher.py": 1,

@@ -200,7 +200,9 @@ class MaintenanceConvergenceService:
         self.scan_repository.save(scan)
         try:
             raw_findings = tuple(
-                self._maintenance_force.run_bounded_scan(contract, scanner)
+                self._maintenance_force.run_bounded_scan(
+                    contract, scanner, target_id=target_id
+                )
             )
             for finding in raw_findings:
                 if (

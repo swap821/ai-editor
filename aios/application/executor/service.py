@@ -18,6 +18,12 @@ from aios.domain.executor import ExecutorJob, ExecutorResult
 from aios.domain.executor import ExecutorCapability, ResourceLimits
 from aios.infrastructure.executor.argv import parse_argv
 from aios.infrastructure.executor.workspace import resolve_staged_workspace
+from aios.maintenance.repair_operations import (
+    REGISTERED_REPAIR_OPERATIONS,
+    REMOVE_DEAD_IMPORTS_V1,
+    RepairRefused,
+    remove_dead_imports,
+)
 from aios.operations.tracing import get_trace_context
 
 
@@ -441,7 +447,7 @@ def execute_registered_repair_operation(job: ExecutorJob) -> ExecutorResult:
         raise IsolationUnavailable("executor job is not a valid repair operation")
 
     op_id = job.argv[1]
-    if op_id != "REMOVE_MAINTENANCE_MARKER_V1":
+    if op_id not in REGISTERED_REPAIR_OPERATIONS:
         raise IsolationUnavailable(f"unsupported repair operation: {op_id!r}")
 
     target_rel = job.argv[2]
@@ -472,18 +478,29 @@ def execute_registered_repair_operation(job: ExecutorJob) -> ExecutorResult:
         raise IsolationUnavailable("original content digest mismatch")
 
     content = original_bytes.decode("utf-8", errors="replace")
-    new_content = (
-        content.replace("# DEFECT_MARKER: fix_required\n", "")
-        .replace("# DEFECT_MARKER: fix_required", "")
-        .replace("TODO_MAINTENANCE_DEFECT\n", "")
-        .replace("TODO_MAINTENANCE_DEFECT", "")
-    )
+    if op_id == REMOVE_DEAD_IMPORTS_V1:
+        try:
+            new_content = remove_dead_imports(
+                content, path=target_path, project_root=workspace_root
+            ).content
+        except RepairRefused as exc:
+            raise IsolationUnavailable(f"repair refused: {exc}") from exc
+    else:
+        new_content = (
+            content.replace("# DEFECT_MARKER: fix_required\n", "")
+            .replace("# DEFECT_MARKER: fix_required", "")
+            .replace("TODO_MAINTENANCE_DEFECT\n", "")
+            .replace("TODO_MAINTENANCE_DEFECT", "")
+        )
     changed = new_content != content
-    after_digest = hashlib.sha256(new_content.encode("utf-8")).hexdigest()
+    after_bytes = new_content.encode("utf-8")
+    after_digest = hashlib.sha256(after_bytes).hexdigest()
 
     if changed:
         tmp_target = target_path.with_suffix(target_path.suffix + ".tmp")
-        tmp_target.write_text(new_content, encoding="utf-8")
+        # Bytes, not write_text: text mode on Windows turns every "\n" into
+        # "\r\n", so a CRLF file came back "\r\r\n" and its digest lied.
+        tmp_target.write_bytes(after_bytes)
         tmp_target.replace(target_path)
 
     out_payload = json.dumps(

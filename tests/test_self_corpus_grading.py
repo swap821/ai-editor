@@ -43,6 +43,13 @@ def _run(cwd: Path, *args: str) -> str:
     ).stdout
 
 
+@pytest.fixture(autouse=True)
+def _no_wait_between_hollow_reruns(monkeypatch):
+    from tools import self_corpus_grading
+
+    monkeypatch.setattr(self_corpus_grading, "HOLLOW_RETRY_WAITS_S", (0.0, 0.0))
+
+
 @pytest.fixture()
 def corpus(tmp_path):
     """A miniature stand-in for this repository: source plus an existing suite."""
@@ -567,7 +574,8 @@ class TestAHollowRunIsNotAVerdict:
 
         def only_the_mutated_run_dies(*args, **kwargs):
             calls["n"] += 1
-            if calls["n"] == 2:  # clean, MUTATED, guard
+            # clean, then the MUTATED run and both of its re-runs, then guard
+            if 2 <= calls["n"] <= 4:
                 return SuiteResult(passed=0, failed=0, errors=0, returncode=1, tail="")
             return run_suite(*args, **kwargs)
 
@@ -598,7 +606,7 @@ class TestAHollowRunIsNotAVerdict:
 
         def only_the_mutated_run_dies(*args, **kwargs):
             calls["n"] += 1
-            if calls["n"] == 2:
+            if 2 <= calls["n"] <= 4:  # the mutated run, and both re-runs
                 return SuiteResult(passed=0, failed=0, errors=0, returncode=1, tail="")
             return run_suite(*args, **kwargs)
 
@@ -612,6 +620,66 @@ class TestAHollowRunIsNotAVerdict:
                 guard_selection=["tests/test_existing.py"],
             )
         assert (corpus.root / "calc.py").read_text(encoding="utf-8") == before
+
+    def test_one_hollow_run_is_measured_again_not_the_end_of_the_run(
+        self, corpus, monkeypatch
+    ) -> None:
+        """2026-10-12: one dead guard-suite run (rc 0xC0000142) aborted the D12
+        cloud practice 31 minutes into 136 targets. A hollow run measured
+        nothing, so the same measurement is taken again; the verdict comes from
+        the real run, and the re-run is on the record."""
+        from tools.self_corpus import SuiteResult, run_suite
+        from tools import self_corpus_grading
+
+        selection = _write_agent_test(
+            corpus,
+            "from calc import add\n\n\ndef test_a():\n    assert add(1, 1) == 2\n",
+        )
+        calls = {"n": 0}
+
+        def the_guard_run_dies_once(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 3:  # clean, mutated, GUARD (first try)
+                return SuiteResult(passed=0, failed=0, errors=0, returncode=1, tail="")
+            return run_suite(*args, **kwargs)
+
+        monkeypatch.setattr(self_corpus_grading, "run_suite", the_guard_run_dies_once)
+        verdict = grade_pin_test(
+            corpus,
+            new_test=selection,
+            target_module="calc.py",
+            target_function="add",
+            guard_selection=["tests/test_existing.py"],
+        )
+        assert verdict.earned and calls["n"] == 4
+        assert any("re-ran" in note and "guard suite" in note for note in verdict.notes)
+
+    def test_a_run_that_stays_hollow_aborts_after_bounded_reruns(
+        self, corpus, monkeypatch
+    ) -> None:
+        from tools.self_corpus import SuiteResult
+        from tools import self_corpus_grading
+
+        selection = _write_agent_test(
+            corpus,
+            "from calc import add\n\n\ndef test_a():\n    assert add(1, 1) == 2\n",
+        )
+        calls = {"n": 0}
+
+        def always_hollow(*args, **kwargs):
+            calls["n"] += 1
+            return SuiteResult(passed=0, failed=0, errors=0, returncode=1, tail="")
+
+        monkeypatch.setattr(self_corpus_grading, "run_suite", always_hollow)
+        with pytest.raises(CorpusError, match="no output at all"):
+            grade_pin_test(
+                corpus,
+                new_test=selection,
+                target_module="calc.py",
+                target_function="add",
+                guard_selection=["tests/test_existing.py"],
+            )
+        assert calls["n"] == 1 + len(self_corpus_grading.HOLLOW_RETRY_WAITS_S)
 
 
 class TestAHangingTestCannotStallTheRun:
