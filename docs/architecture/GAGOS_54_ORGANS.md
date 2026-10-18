@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `2209a50d1726dfb4c78bd6c0f31bd02ce8219799a39eae36cee9f2d8ced8ac41`
+- **Source ledger sha256:** `0e67cc5904b04b731b5b7b9241f62253cfa74feb9a519ec9ce1ed9b6d0c12183`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -868,7 +868,7 @@ re-audits recorded above.
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `08978eeefd37` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `0d85919fda58` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
-| 57 | Reflex Authority | `Cerebellum` | `70ce9bc6d82a` | live |
+| 57 | Reflex Authority | `Cerebellum` | `8c256207c543` | live |
 | 58 | Recall Isolation | `RecallGate` | `366b377acc1d` | live |
 | 59 | Learning Freeze | `LearningFreezeAuthority` | `97bb80800929` | live |
 
