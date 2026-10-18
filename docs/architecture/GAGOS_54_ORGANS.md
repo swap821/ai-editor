@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `0e67cc5904b04b731b5b7b9241f62253cfa74feb9a519ec9ce1ed9b6d0c12183`
+- **Source ledger sha256:** `35a5257c260922b188fa99fe0f37dc08ceec678b4a15da5af70f1faf187f5932`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -834,7 +834,7 @@ re-audits recorded above.
 | 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `cb19e19ef2c7` | live |
 | 12 | Worker Foundry | `WorkerFoundryAuthority` | `cb19e19ef2c7` | live |
 | 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `64f78f3bfefa` | live |
-| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `64f78f3bfefa` | live |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `30c6d622708a` | live |
 | 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `cb19e19ef2c7` | live |
 | 16 | Promotion Authority (construction) | `PromotionAuthority` | `cb19e19ef2c7` | live |
 | 17 | Cortex Observation Bus | `CortexBusAuthority` | `cb19e19ef2c7` | live |

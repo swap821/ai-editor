@@ -1,0 +1,21 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-10-18T19:49:51+00:00",
+  "tip_sha": "30c6d622708abac007f6f5b1198d8c26629f921c",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 30c6d622708abac007f6f5b1198d8c26629f921c",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 14,
+      "name": "Staged Workspace Manager (construction)",
+      "passed": true,
+      "command": "StagedWorkspaceAuthority.stage+load real disk",
+      "evidence": "staged lease_id=1d35c3dd482c49b3b0ebdb0a08eecf88 mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-reosu1cx\\staged-root\\1d35c3dd482c49b3b0ebdb0a08eecf88 baseline=6fc358b543368ecf\u2026"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}
