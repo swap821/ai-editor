@@ -1,4 +1,4 @@
-# §VIII authorization: a bound scope only narrows, except into a staged workspace GAGOS minted; `clerical` becomes an opt-in egress class
+# §VIII authorization: a bound scope only narrows, except into a staged workspace GAGOS minted
 
 **Authorized by the operator in-session on 2026-10-18.**
 - He chose **"B: workspace-as-scope"** for the scope proposal
@@ -12,7 +12,6 @@
 ## Frozen paths changed under this authorization
 
 - `aios/security/scope_lock.py`
-- `aios/security/limits.py`
 
 They are named verbatim because `scripts/check_frozen_core.py` requires it.
 
@@ -93,22 +92,19 @@ declares the tmp root, so each binding is a narrowing inside it. One assertion
 that depended on the real default (`training_ground`) now uses the two
 workspaces instead. Its other 11 tests are unchanged.
 
-## 2. `clerical` cloud-egress class
+## 2. `clerical` cloud-egress class: withdrawn from this change
 
-`_VALID_ROUTER_TASKS` gains `"clerical"`, and nothing else changes.
-- It is in no default. `ROUTER_CLOUD_TASKS` still defaults to `()`, and the
-  operator's own setting (`reasoning,coding`) does not include it.
-- Clerk work leaves the machine only after he adds `clerical` to
-  `AIOS_ROUTER_CLOUD_TASKS` in his own environment.
-- A typo is still dropped.
+He also asked for the clerk egress proposal (#486) to be applied, and the first
+push of this PR did apply it. CI's routing-reachability guard then failed
+(`tests/test_fleet_routing_is_task_aware.py::TestEveryRouterTaskIsReachable`).
+Every class the router accepts must be producible by some input, and must not
+be normalised into another class. Nothing produces `clerical` until the
+cloud-clerk escalation exists.
 
-`tests/test_clerical_egress_class.py` covers items 1 and 3 of the proposal's
-test plan. Item 2 is `tests/test_guardrails_ignore_dotenv.py`, which is
-unchanged and passes. Item 4 is this record.
-
-The cloud-clerk escalation itself (weak profiles only, after a local failure,
-behind `constitution.allows("clerical")`) is product code. It is **not built
-here.**
+Exempting it would weaken a guard written on purpose ("a declared-but-unreachable
+branch is not a feature"). So `aios/security/limits.py` is unchanged here, and
+`clerical` ships together with the escalation that produces it, under its own
+§VIII record.
 
 ## What still needs the operator
 
