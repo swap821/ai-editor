@@ -193,7 +193,9 @@ def edit_file(
         )
 
     updated = surgery.updated_content
-    assert updated is not None
+    if updated is None:
+        # Explicit, not `assert`: asserts vanish under `python -O` (bandit B101).
+        return (f"[ERROR] Could not apply edit to {filepath}.", "blocked", False)
     diff = "".join(
         difflib.unified_diff(
             current.splitlines(keepends=True),
