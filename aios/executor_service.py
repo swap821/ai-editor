@@ -14,6 +14,7 @@ import json
 import os
 import tempfile
 from datetime import datetime, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, Header, HTTPException, Request
 
@@ -220,9 +221,25 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
     if op_id == REMOVE_DEAD_IMPORTS_V1:
         # The staged workspace is a full copy of the project, so the rule
         # judges "dead" against every importer -- the vulture's own judgement.
+        # It reads every Python file under the project root, so that root must
+        # be ONE staged workspace strictly INSIDE the staging root:
+        # resolve_staged_workspace also admits the staging root itself, which
+        # here would index every mission's copy at once and misname modules.
+        staged_real = os.path.realpath(staged_root)
+        project_real = os.path.realpath(str(workspace_root))
+        if not project_real.startswith(staged_real + os.sep):
+            return ExecutorResult(
+                job_id=job.job_id,
+                status="failed",
+                isolation_verified=False,
+                started_at=started,
+                ended_at=utc_now(),
+                reason="a dead-import repair needs one staged workspace, "
+                "not the staging root",
+            )
         try:
             new_content = remove_dead_imports(
-                content, path=target_path, project_root=workspace_root
+                content, path=target_path, project_root=Path(project_real)
             ).content
         except RepairRefused as exc:
             return ExecutorResult(

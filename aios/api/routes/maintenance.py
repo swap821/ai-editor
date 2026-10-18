@@ -169,12 +169,11 @@ def start_bounded_scan(
     enrolled_roots = getattr(service.workspace_manager, "enrolled_roots", ())
     primary_root = enrolled_roots[0] if enrolled_roots else config.PROJECT_ROOT
     target_path = _validate_target_bounded(payload.target_id, primary_root)
+    allowed_root = target_path if target_path.is_dir() else target_path.parent
     if _project_rooted(scanner_fn):
         # Reads the whole project, reports on the target (the scan context
         # carries target_id): see vulture_dead_import_scanner.
         allowed_root = Path(primary_root).resolve()
-    else:
-        allowed_root = target_path if target_path.is_dir() else target_path.parent
 
     contract = BoundedScanContract(
         allowed_root=str(allowed_root),

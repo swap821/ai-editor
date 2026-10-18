@@ -135,12 +135,17 @@ def attributes_used_through(tree: ast.AST, aliases: set[str]) -> set[str]:
 
 
 def python_files(root: Path) -> list[Path]:
-    """The project's Python sources, sorted; dot-directories and caches skipped."""
+    """The project's Python sources, sorted; dot-directories and caches skipped.
+
+    A symlink is never followed: a linked file could point outside the
+    project, and staged workspaces refuse links anyway.
+    """
     root = root.resolve()
     return [
         path
         for path in sorted(root.rglob("*.py"))
-        if not any(
+        if not path.is_symlink()
+        and not any(
             part.startswith(".") or part in SKIP_DIRS
             for part in path.relative_to(root).parts
         )

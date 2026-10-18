@@ -64,6 +64,7 @@ from aios.executor_service import execute_registered_operation_in_service
 from aios.infrastructure.missions.sqlite_mission_repository import (
     SqliteMissionRepository,
 )
+from aios.maintenance.dead_imports import dead_imports_in, python_files
 from aios.maintenance.repair_operations import (
     REMOVE_DEAD_IMPORTS_V1,
     remove_dead_imports,
@@ -284,6 +285,29 @@ def test_an_unregistered_operation_is_still_refused(tmp_path, monkeypatch) -> No
         _job(root, "pkg/mod.py", op="DELETE_EVERYTHING_V1")
     )
     assert result.status == "failed" and "unsupported" in result.reason
+
+
+def test_the_staging_root_itself_is_not_a_project(tmp_path, monkeypatch) -> None:
+    # resolve_staged_workspace admits the staging root; indexing it would read
+    # every mission's copy and misname every module.
+    root = _project(tmp_path)
+    monkeypatch.setenv("AIOS_EXECUTOR_WORKSPACE_ROOT", str(tmp_path))
+    result = execute_registered_operation_in_service(_job(root, "pkg/mod.py"))
+    assert result.status == "failed" and "staging root" in result.reason
+    assert (root / "pkg/mod.py").read_text(encoding="utf-8") == MOD
+
+
+def test_the_index_never_follows_a_symlinked_file(tmp_path) -> None:
+    root = _project(tmp_path / "p")
+    outside = tmp_path / "outside.py"
+    outside.write_text("from pkg.mod import json\n", encoding="utf-8")
+    try:
+        (root / "pkg" / "linked.py").symlink_to(outside)
+    except OSError:
+        pytest.skip("this machine cannot create symlinks")
+    assert root / "pkg" / "linked.py" not in python_files(root)
+    # The linked file's import is not seen, so json stays dead.
+    assert "json" in dead_imports_in(MOD, path=root / "pkg/mod.py", project_root=root)
 
 
 # ----------------------------------------------------------------- staging, smoke
