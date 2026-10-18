@@ -272,8 +272,10 @@ def run_chain(
             corpus.root, limit=targets, offset=offset, repo=REPO_ROOT
         )
 
+        dead_streak = 0
         for target in chosen:
             print(f"  {target.label}")
+            first_attempt = len(attempts)
             test_rel = _test_filename(target)
             verify_command = _pin_verify_command(test_rel)
             # `pending` is the fail->confirm tracker the turn path keeps in
@@ -393,6 +395,8 @@ def run_chain(
                     links["skill_acquisition"].refs.append(f"skill {skill_id}")
                 if tier_earned:
                     break
+
+            dead_streak = count_unreached(dead_streak, attempts[first_attempt:])
 
         # --- A verify-only arc, so L5 has something it CAN replay ----------
         # `tests/test_code_chunking.py` is real, fast and dependency-free, and
@@ -1127,6 +1131,37 @@ def retry_transient(call, *, waits=None, sleep=None):
                 raise
             (sleep or time.sleep)(wait)
     raise AssertionError("unreachable")
+
+
+#: Consecutive targets on which NO model was reached -- every attempt, by every
+#: tier, a model_error -- before the run stops. 2026-10-18: the provider began
+#: refusing every inference ("ValidationException: Operation not allowed", all
+#: models, both regions) and the practice raced on, 819 refusals in two minutes,
+#: filing targets no model ever saw. Transient refusals are retried before an
+#: attempt is recorded, so they never reach this count; three in a row tells a
+#: blocked provider from one unlucky target.
+UNREACHED_TARGETS_BEFORE_STOP = 3
+
+
+class ProviderUnavailable(CorpusError):
+    """Every model call is being refused: stop, rather than record refusals."""
+
+
+def count_unreached(streak: int, target_attempts: list[Attempt]) -> int:
+    """The new streak of targets no model reached; raise when it is too long."""
+    if not target_attempts or any(a.reached_model for a in target_attempts):
+        return 0
+    streak += 1
+    if streak >= UNREACHED_TARGETS_BEFORE_STOP:
+        said = next(
+            (n for a in reversed(target_attempts) for n in a.notes if n), "no detail"
+        )
+        raise ProviderUnavailable(
+            f"no model was reached on {streak} consecutive targets -- every call "
+            f"was refused (last: {said[:300]}). The provider is unavailable; the "
+            "run stops rather than record targets no model ever saw."
+        )
+    return streak
 
 
 def attempt_with_retry(*args, waits=None, sleep=None, **kwargs):
