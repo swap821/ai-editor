@@ -797,10 +797,17 @@ organs.*
     has approved its exact command.
   - RT-06's scenario holds by construction (no human, no row). It is not re-run
     here.
-- **Tests:** `tests/test_replay_approved_commands.py`, 37 tests.
+- **Tests:** `tests/test_replay_approved_commands.py`, 41 tests.
   - The L5 shape: a reflex whose only step is a human-approved YELLOW `verify`
     serves the turn with zero model calls.
   - Every way the old behaviour must hold.
   - 14 hand mutants, all killed.
   - The catalogue gains the group "T4 replayed-command approval provenance",
     with 26 generated mutants over its decision points.
+  - The probe run on the 26 new entries and the 3 re-anchored ones killed all
+    29.
+  - Its first run left 4 survivors, each a real test gap, now closed:
+    - an anonymous revoke keyed like a principal named "None";
+    - a clean replay that would also revoke;
+    - the verify and terminal replay paths swapped;
+    - a non-command tool minting an approval.

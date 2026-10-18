@@ -245,6 +245,21 @@ class TestTheRecord:
                 == 0
             )
 
+    def test_no_principal_cannot_withdraw_anyones_approval(self, db) -> None:
+        """`f"{None}"` is "None": without the principal check, an anonymous
+        revoke would key exactly like a principal literally named "None"."""
+        _record(db, principal="None")
+        assert not replay_commands.revoke_command_decision(
+            YELLOW, principal=None, db_path=db
+        )
+        assert replay_commands.is_approved_command(
+            YELLOW,
+            principal="None",
+            db_path=db,
+            enabled=True,
+            emergency_stop=UNGOVERNED_FIXTURE,
+        )
+
     def test_revocation(self, db) -> None:
         _record(db)
         assert replay_commands.revoke_command_decision(
@@ -309,6 +324,22 @@ class TestRecordingFromALiveTurn:
 
     def test_an_anonymous_approval_is_not(self, db) -> None:
         assert self._turn(db, approved=[YELLOW], principal=None) == []
+
+    def test_a_non_command_tool_never_mints_one(self, db) -> None:
+        """Only execute_terminal and verify run commands; a stray `command`
+        argument on any other tool is not an approval of anything."""
+        executor, _calls = _executor()
+        agent = _agent(
+            NoLLM(), executor, approved_commands=[YELLOW], principal=PRINCIPAL
+        )
+        agent._record_command_approval("read_file", {"command": YELLOW}, "ok", False)
+        with get_connection(db) as conn:
+            assert (
+                conn.execute(
+                    "SELECT COUNT(*) FROM approved_command_decisions"
+                ).fetchone()[0]
+                == 0
+            )
 
     def test_a_clean_run_no_human_approved_is_not(self, db) -> None:
         """Running clean is not the qualification; a human's approval is. An
@@ -391,6 +422,26 @@ class TestReplay:
         assert abort["preflight"] is True
         assert captured == [] and runner_calls == []
         assert len(chat.calls) == 1, "the turn falls through to the model"
+
+    @pytest.mark.parametrize(
+        "tool, command",
+        [("execute_terminal", YELLOW), ("verify", YELLOW_VERIFY)],
+    )
+    def test_a_replay_runs_exactly_as_its_live_approval_did_and_keeps_it(
+        self, db, enabled, tool, command
+    ) -> None:
+        """Same handler, same output, as the human-approved live call -- and a
+        clean replay leaves the decision in place for the next one."""
+        _record(db, command)
+        live_executor, _ = _executor()
+        live = _agent(
+            NoLLM(), live_executor, approved_commands=[command], principal=PRINCIPAL
+        )._dispatch(tool, {"command": command})
+        replay_executor, _ = _executor()
+        agent = _agent(NoLLM(), replay_executor, principal=PRINCIPAL)
+        replayed = agent._dispatch_approved(tool, {"command": command})
+        assert replayed == live
+        assert agent._command_is_authorised(command), "a clean replay revoked it"
 
     def test_a_failed_replay_withdraws_the_decision(self, db, enabled) -> None:
         _record(db)
