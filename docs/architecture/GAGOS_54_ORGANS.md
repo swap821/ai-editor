@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `1e2b5abe89858ca55f3368c770ff0c6d17fb64cd5e792990bbf2d36e109254cb`
+- **Source ledger sha256:** `7624c9c7bf1cbf4d7efa4fc08e17052c27e06d1d5edf447decfdf6d3b891f233`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -863,7 +863,7 @@ re-audits recorded above.
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `59ce79b34e4e` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `0d85919fda58` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
-| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `9bba5b5fd91d` | live |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `ececec7af631` | live |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `4bb19773539c` | live |
 | 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `08978eeefd37` | live |
 | 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `0d85919fda58` | live |
