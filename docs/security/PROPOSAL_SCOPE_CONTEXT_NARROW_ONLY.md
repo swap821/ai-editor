@@ -1,5 +1,12 @@
 # Proposal (§VIII): a bound scope may only narrow
 
+> **APPLIED 2026-10-18 — design B (workspace-as-scope), with three hardenings the
+> proposal did not have:** the admissible staging roots are pinned inside the
+> scope lock, not passed by the caller; an empty scope refuses every command;
+> junctions are refused like symlinks. Record:
+> `release/section-viii/2026-10-18-scope-b-and-clerical-egress.md`. The text below
+> is the proposal as written on 2026-10-12.
+
 *Status: PROPOSED 2026-10-12, not applied. `aios/security/scope_lock.py` is
 frozen core, so only the operator applies a change to it.*
 

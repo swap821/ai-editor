@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import contextvars
 import hashlib
+import os
 import re
 import shlex
 import threading
@@ -224,10 +225,90 @@ class ScopeLockAuthority:
     :data:`_SCOPE_LOCK`.
     """
 
-    def __init__(self, roots: Iterable[str | Path] | None = None) -> None:
+    def __init__(
+        self,
+        roots: Iterable[str | Path] | None = None,
+        *,
+        staging_roots: Iterable[str | Path] | None = None,
+    ) -> None:
         self._lock = threading.RLock()
         initial = roots if roots is not None else config.SCOPE_ROOTS
         self._scope_roots: list[Path] = [Path(p).resolve() for p in initial]
+        #: Staged workspaces the workspace authority minted (real paths). A
+        #: BOUND scope may name one of these even outside the declared roots
+        #: (§VIII, operator decision 2026-10-18: "B: workspace-as-scope").
+        self._admitted_workspaces: set[str] = set()
+        #: The ONLY directories a workspace may be admitted from. Pinned here,
+        #: not taken from the caller: if the caller named the staging root,
+        #: naming any directory would admit any 32-hex child of it.
+        pinned = (
+            staging_roots
+            if staging_roots is not None
+            else (
+                config.DATA_DIR / "staged_maintenance",
+                config.EXECUTOR_WORKSPACE_ROOT,
+            )
+        )
+        self._staging_roots: frozenset[str] = frozenset(
+            os.path.realpath(str(p)) for p in pinned
+        )
+
+    def is_pinned_staging_root(self, root: str | Path) -> bool:
+        """Whether *root* is a staging root workspaces may be admitted from."""
+        return os.path.realpath(str(root)) in self._staging_roots
+
+    def admit_staged_workspace(
+        self, workspace: str | Path, *, staging_root: str | Path
+    ) -> Path:
+        """Admit one staged workspace as a root a task may bind.
+
+        Called by the workspace authority when it mints (or reloads) a lease.
+        Admission checks the SHAPE of what it mints, so a confused caller cannot
+        admit an arbitrary directory (a drive root, the project, a home folder):
+
+        * the staging root is one this authority PINNED at construction;
+        * the workspace is a real directory, not a symlink;
+        * it is a DIRECT child of the staging root, never the root itself;
+        * its name is a 32-hex lease id -- what the authority names a lease.
+
+        Raises ``ValueError`` when any of these fails, and admits nothing.
+        """
+        raw = Path(workspace)
+        # A link (symlink, or a Windows junction, which is_symlink() does not
+        # report) could make another lease-shaped directory look minted here.
+        isjunction = getattr(os.path, "isjunction", None)  # Python >= 3.12
+        if raw.is_symlink() or (isjunction is not None and isjunction(str(raw))):
+            raise ValueError("a linked workspace cannot be admitted")
+        real = os.path.realpath(str(raw))
+        root = os.path.realpath(str(staging_root))
+        if root not in self._staging_roots:
+            raise ValueError("workspaces are admitted only from a pinned staging root")
+        if not Path(real).is_dir():
+            raise ValueError("a staged workspace must be an existing directory")
+        if os.path.dirname(real) != root:
+            raise ValueError(
+                "a staged workspace must be a direct child of its staging root"
+            )
+        if not re.fullmatch(r"[0-9a-f]{32}", os.path.basename(real)):
+            raise ValueError("a staged workspace must be named by its 32-hex lease id")
+        with self._lock:
+            self._admitted_workspaces.add(real)
+        return Path(real)
+
+    def retire_staged_workspace(self, workspace: str | Path) -> None:
+        """Withdraw an admission (the lease was cleaned up). Idempotent."""
+        with self._lock:
+            self._admitted_workspaces.discard(os.path.realpath(str(workspace)))
+
+    def _bindable(self, root: Path) -> bool:
+        """A bound root is honoured only inside a declared root or an admitted
+        workspace. Anything else is DROPPED: a binding narrows, never widens."""
+        with self._lock:
+            declared = tuple(self._scope_roots)
+            admitted = tuple(self._admitted_workspaces)
+        return any(_is_within(root, d) for d in declared) or any(
+            _is_within(root, Path(a)) for a in admitted
+        )
 
     def set_scope_roots(self, roots: Iterable[str | Path]) -> tuple[Path, ...]:
         """Replace the declared scope roots (session init). Returns the new roots."""
@@ -239,9 +320,7 @@ class ScopeLockAuthority:
             self._scope_roots.extend(resolved)
             return tuple(self._scope_roots)
 
-    def get_scope_roots(
-        self, scope: Optional[ScopeContext] = None
-    ) -> tuple[Path, ...]:
+    def get_scope_roots(self, scope: Optional[ScopeContext] = None) -> tuple[Path, ...]:
         """Return the scope roots in force, in precedence order.
 
         1. an EXPLICIT ``scope`` argument -- unambiguous, and the only form that
@@ -259,12 +338,16 @@ class ScopeLockAuthority:
 
         With no argument and no binding this returns precisely what it always
         returned.
+
+        A bound or explicit scope is FILTERED (§VIII, 2026-10-18): only its roots
+        inside a declared root or an admitted staged workspace survive. Before,
+        it REPLACED the declared roots, so binding any directory widened
+        containment to it. If nothing survives the result is empty, and every
+        check fails closed -- an empty scope contains nothing.
         """
-        if scope is not None:
-            return scope.roots
-        active = _ACTIVE_SCOPE.get()
-        if active is not None:
-            return active.roots
+        bound = scope if scope is not None else _ACTIVE_SCOPE.get()
+        if bound is not None:
+            return tuple(root for root in bound.roots if self._bindable(root))
         with self._lock:
             return tuple(self._scope_roots)
 
@@ -336,14 +419,18 @@ class ScopeLockAuthority:
 
             for root in roots:
                 if _is_within(resolved, root):
-                    return ScopeResult(True, str(resolved), "Path within declared scope.")
+                    return ScopeResult(
+                        True, str(resolved), "Path within declared scope."
+                    )
             return ScopeResult(
                 False,
                 str(resolved),
                 f"Path '{resolved}' escapes all declared scope roots.",
             )
         except Exception as exc:  # noqa: BLE001 - fail-closed on any error
-            return ScopeResult(False, "", f"Path resolution failed (fail-closed): {exc}")
+            return ScopeResult(
+                False, "", f"Path resolution failed (fail-closed): {exc}"
+            )
 
     def command_stays_in_scope(
         self, command: str, *, scope: Optional[ScopeContext] = None
@@ -362,6 +449,13 @@ class ScopeLockAuthority:
         ``~`` home reference is refused outright. Returns at the first offending word;
         fail-closed (unbalanced quotes fall back to a whitespace split).
         """
+        # An EMPTY scope -- a bound scope none of whose roots survived the
+        # narrow-only filter (§VIII, 2026-10-18) -- runs NOTHING. Without this,
+        # a command with no path words would pass every check below and run
+        # in the fallback cwd: the empty scope would contain nothing but
+        # execute anything.
+        if not self.get_scope_roots(scope):
+            return CommandScopeResult(False, "No scope root in force (fail-closed).")
         # The §VIII self-apply verify suite is exempt, by EXACT string identity.
         #
         # It is the one command that legitimately runs repo-wide: it executes the
@@ -452,6 +546,21 @@ def set_scope_roots(roots: Iterable[str | Path]) -> tuple[Path, ...]:
 def get_scope_roots(scope: Optional[ScopeContext] = None) -> tuple[Path, ...]:
     """Return the scope roots in force. See :meth:`ScopeLockAuthority.get_scope_roots`."""
     return _SCOPE_LOCK.get_scope_roots(scope)
+
+
+def admit_staged_workspace(workspace: str | Path, *, staging_root: str | Path) -> Path:
+    """Admit a minted staged workspace as bindable. See the authority's method."""
+    return _SCOPE_LOCK.admit_staged_workspace(workspace, staging_root=staging_root)
+
+
+def retire_staged_workspace(workspace: str | Path) -> None:
+    """Withdraw a staged workspace's admission (its lease was cleaned up)."""
+    _SCOPE_LOCK.retire_staged_workspace(workspace)
+
+
+def is_pinned_staging_root(root: str | Path) -> bool:
+    """Whether workspaces may be admitted from *root*. See the authority."""
+    return _SCOPE_LOCK.is_pinned_staging_root(root)
 
 
 @contextmanager

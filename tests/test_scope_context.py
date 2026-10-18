@@ -45,12 +45,24 @@ def restore_scope() -> Iterator[None]:
 
 
 @pytest.fixture()
-def workspaces(tmp_path: Path) -> tuple[Path, Path]:
+def workspaces(tmp_path: Path) -> Iterator[tuple[Path, Path]]:
+    """Two workspaces INSIDE the declared scope.
+
+    Since the narrow-only change (§VIII, 2026-10-18) a binding can only narrow:
+    binding a directory outside every declared root yields an empty scope (see
+    tests/test_scope_narrow_only.py). So the declared root is the tmp dir, and
+    each binding below is a narrowing inside it.
+    """
     a = tmp_path / "project-a"
     b = tmp_path / "project-b"
     a.mkdir()
     b.mkdir()
-    return a, b
+    previous = scope_lock.get_scope_roots()
+    scope_lock.set_scope_roots([tmp_path])
+    try:
+        yield a, b
+    finally:
+        scope_lock.set_scope_roots(previous)
 
 
 # --------------------------------------------------------------------------- #
@@ -75,15 +87,16 @@ def test_with_no_scope_and_no_binding_nothing_changed() -> None:
 def test_a_bound_scope_confines_containment_and_then_releases(
     workspaces: tuple[Path, Path], restore_scope: None
 ) -> None:
-    a, _ = workspaces
+    a, b = workspaces
     default = scope_lock.get_scope_roots()
 
     with scope_lock.scope_context([a]):
         assert scope_lock.get_scope_roots() == (a.resolve(),)
-        assert classify("touch training_ground/x.py").zone is Zone.RED
+        assert classify(f"touch {a}/x.py").zone is Zone.YELLOW
+        assert classify(f"touch {b}/x.py").zone is Zone.RED
 
     assert scope_lock.get_scope_roots() == default
-    assert classify("touch training_ground/x.py").zone is Zone.YELLOW
+    assert classify(f"touch {b}/x.py").zone is Zone.YELLOW
 
 
 def test_the_binding_is_released_even_when_the_block_raises(

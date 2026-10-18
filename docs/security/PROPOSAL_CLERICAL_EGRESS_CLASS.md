@@ -1,5 +1,14 @@
 # Proposal: a `clerical` cloud-egress class, for the cloud clerk only when needed
 
+> **Approved by the operator 2026-10-18; NOT applied on its own, on purpose.**
+> Applying it alone (PR #509, first push) failed
+> `tests/test_fleet_routing_is_task_aware.py::TestEveryRouterTaskIsReachable`:
+> every class `_VALID_ROUTER_TASKS` accepts must be producible by some input,
+> and must not be normalised into another class. Nothing produces `clerical`
+> until the cloud-clerk escalation below exists, so the class ships WITH that
+> escalation, in one change, not before it. The text below is the proposal as
+> written on 2026-10-12.
+
 **Status: Propose. It awaits the operator's Human Review → Approve.**
 - Written 2026-10-12 by the coding agent.
 - `aios/security/limits.py` is frozen (AGENTS.md §VIII). The agent cannot apply
