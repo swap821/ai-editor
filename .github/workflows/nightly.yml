@@ -87,7 +87,15 @@ jobs:
         env:
           AIOS_OLLAMA_MODEL: qwen2.5:0.5b
         run: |
-          docker exec ollama ollama pull "${AIOS_OLLAMA_MODEL}"
+          # The model registry answers 503 now and then (2026-10-12: #490 and
+          # #495 both failed here, on infrastructure). A pull is idempotent, so
+          # retry a few times before calling the job failed.
+          for attempt in 1 2 3 4 5; do
+            docker exec ollama ollama pull "${AIOS_OLLAMA_MODEL}" && break
+            if [ "$attempt" = 5 ]; then echo "ollama pull failed 5 times"; exit 1; fi
+            echo "ollama pull failed (attempt $attempt); retrying in $((attempt * 20))s"
+            sleep $((attempt * 20))
+          done
           # `pull` only downloads. The FIRST chat also pays model-load-into-RAM,
           # which on a 2-core runner pushed the first turn past the LLM timeout
           # and failed a job for infrastructure reasons. Warm it here.
@@ -224,7 +232,15 @@ jobs:
         env:
           AIOS_OLLAMA_MODEL: qwen2.5:0.5b
         run: |
-          docker exec ollama ollama pull "${AIOS_OLLAMA_MODEL}"
+          # The model registry answers 503 now and then (2026-10-12: #490 and
+          # #495 both failed here, on infrastructure). A pull is idempotent, so
+          # retry a few times before calling the job failed.
+          for attempt in 1 2 3 4 5; do
+            docker exec ollama ollama pull "${AIOS_OLLAMA_MODEL}" && break
+            if [ "$attempt" = 5 ]; then echo "ollama pull failed 5 times"; exit 1; fi
+            echo "ollama pull failed (attempt $attempt); retrying in $((attempt * 20))s"
+            sleep $((attempt * 20))
+          done
           docker exec ollama ollama run "${AIOS_OLLAMA_MODEL}" "say ok" || true
 
       - name: Start the backend
