@@ -677,13 +677,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6 exit=0; artifact=release/phase4/live-evidence-33b3b7940cce.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)",
+        "commit_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ExecutorServiceAuthority class defined in production_entrypoints ['aios/executor_service.py'] (Decision A / enforce_owner_attestation)",
@@ -1784,7 +1784,7 @@
     ],
     "live_evidence": [
       {
-        "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model CI's local-clerk-live job runs -- at branch tip 699b54493cd97bd8033529f8f019b5d7f5826214 (the maintenance self-repair PR changed aios/api/deps.py, one of this organ's entrypoints). tests/test_model_passport_live_integration.py's passport projection and refusal cases ran and PASSED (10 passed, 0 failed, 0 skipped); JUnit committed as release/organ-33-37/clerk-junit-699b54493cd9.xml. command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= -rs --junit-xml=release/organ-33-37/clerk-junit-699b54493cd9.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gather at master's tip after the squash.",
+        "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model CI's local-clerk-live job runs -- at commit 699b54493cd97bd8033529f8f019b5d7f5826214 (the maintenance self-repair PR changed aios/api/deps.py, one of this organ's entrypoints). All 10 ran and PASSED (0 failed, 0 skipped): tests/test_local_clerk_integration.py::test_the_local_runtime_is_actually_reachable, tests/test_local_clerk_integration.py::test_a_real_local_model_answers_a_real_prompt, tests/test_local_clerk_integration.py::test_the_qualification_suite_runs_against_a_live_model, tests/test_local_clerk_integration.py::test_the_dispatcher_honours_the_live_verdict, tests/test_local_clerk_integration.py::test_deterministic_code_still_wins_over_a_live_model, tests/test_local_clerk_integration.py::test_the_live_verdict_is_recorded_as_evidence, tests/test_model_passport_live_integration.py::test_reconcile_discovers_the_live_model_rather_than_a_seeded_row, tests/test_model_passport_live_integration.py::test_the_passport_faithfully_projects_a_real_qualification_run, tests/test_model_passport_live_integration.py::test_a_role_the_live_evidence_does_not_back_is_refused, tests/test_model_passport_live_integration.py::test_an_unregistered_model_has_no_passport. JUnit committed as release/organ-33-37/clerk-junit-699b54493cd9.xml. command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= -rs --junit-xml=release/organ-33-37/clerk-junit-699b54493cd9.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gather at master's tip after the squash.",
         "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
         "proof_level": "live"
       }
@@ -2255,13 +2255,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6 exit=0; artifact=release/phase4/live-evidence-33b3b7940cce.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
+        "commit_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 RecoveryResumptionAuthority class defined in production_entrypoints ['aios/api/routes/council.py', 'aios/api/routes/maintenance.py', 'aios/council/council_orchestrator.py'] (Decision A / enforce_owner_attestation)",
@@ -2785,13 +2785,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': '6cd28b3c-fa1b-4e20-93a0-3a8eaf4071be'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6 exit=0; artifact=release/phase4/live-evidence-33b3b7940cce.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': '5280b7f1-b2ab-402c-bab6-77f3bb023f29'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
+        "commit_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ObservabilityAuthority class defined in production_entrypoints ['aios/api/main.py', 'aios/council/queen_service.py', 'aios/operations/tracing.py'] (Decision A / enforce_owner_attestation)",
