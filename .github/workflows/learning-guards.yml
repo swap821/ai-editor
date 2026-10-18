@@ -56,6 +56,19 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      # The reel's mission children run with HF_HUB_OFFLINE=1 (no network), so
+      # the embedding model must already be in the cache. On the first scheduled
+      # run (2026-10-18) it was not: RT-27 and RT-28 were "not reached" with
+      # "couldn't connect to huggingface.co" -- a measurement that never
+      # happened, which the gate rightly fails. Download it here, with retries.
+      - name: Warm the embedding model cache (mission children run offline)
+        run: |
+          for attempt in 1 2 3; do
+            python -c "from aios import config; from sentence_transformers import SentenceTransformer; SentenceTransformer(config.EMBEDDING_MODEL)" && break
+            if [ "$attempt" = 3 ]; then echo "embedding model download failed 3 times"; exit 1; fi
+            sleep $((attempt * 20))
+          done
+
       - name: Run the reel (structural missions; behavioural are blocked with no model)
         run: >
           python tools/learning_redteam_runner.py run --timeout 900
