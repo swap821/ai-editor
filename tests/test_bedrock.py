@@ -521,3 +521,53 @@ def test_list_models_falls_back_to_curated_range_on_control_plane_error() -> Non
     assert len(models) > 1  # a RANGE, never just the one default
     assert models == CURATED_MODELS
     assert all(m.get("id") and m.get("name") for m in models)
+
+
+def test_the_runtime_client_waits_as_long_as_the_caller(monkeypatch) -> None:
+    """2026-10-18: boto3's defaults (60 s read timeout, legacy retries -- five
+    attempts, read timeouts among them) cut a thinking teacher off at 60 s and
+    re-sent it until five had failed, ~310 s into a 420 s attempt budget."""
+    import boto3
+
+    seen = {}
+
+    def fake_client(service, **kwargs):
+        seen["service"] = service
+        seen.update(kwargs)
+        return FakeBedrock({})
+
+    monkeypatch.setattr(boto3, "client", fake_client)
+    BedrockClient(model="m", region="us-east-1", timeout_s=420)
+    cfg = seen["config"]
+    assert seen["service"] == "bedrock-runtime"
+    assert cfg.read_timeout == 420
+    assert cfg.retries == {"mode": "standard", "total_max_attempts": 3}
+
+
+def test_the_default_wait_is_the_configured_llm_timeout(monkeypatch) -> None:
+    import boto3
+
+    from aios import config
+
+    seen = {}
+    monkeypatch.setattr(
+        boto3, "client", lambda service, **kw: seen.update(kw) or FakeBedrock({})
+    )
+    BedrockClient(model="m", region="r")
+    assert seen["config"].read_timeout == config.LLM_REQUEST_TIMEOUT_S
+
+
+def test_the_practice_harness_gives_bedrock_its_own_attempt_budget(
+    monkeypatch,
+) -> None:
+    import boto3
+
+    from aios.api import deps
+    from tools.reverse_engineer_gagos import resolve_client
+
+    # Bedrock "configured", without real credentials or a network call.
+    monkeypatch.setattr(deps, "get_bedrock_client", lambda: object())
+    monkeypatch.setattr(boto3, "client", lambda service, **kw: FakeBedrock({}))
+    client, model = resolve_client("qwen.qwen3-coder-30b-a3b-v1:0", timeout_s=420)
+    assert model == "qwen.qwen3-coder-30b-a3b-v1:0"
+    assert client.timeout_s == 420
