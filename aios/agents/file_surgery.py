@@ -49,7 +49,9 @@ def _find_closest_context_window(
     if not current_lines:
         return 0, 0, ""
 
-    norm_target = " ".join(_normalize_line(line) for line in old_lines if _normalize_line(line))
+    norm_target = " ".join(
+        _normalize_line(line) for line in old_lines if _normalize_line(line)
+    )
     if not norm_target:
         return 0, min(len(current_lines), 10), "".join(current_lines[:10])
 
@@ -203,7 +205,8 @@ def _match_tier_4_ast(
     matching_nodes = [
         node
         for node in ast.walk(curr_tree)
-        if isinstance(node, type(target_node)) and getattr(node, "name", None) == target_name
+        if isinstance(node, type(target_node))
+        and getattr(node, "name", None) == target_name
     ]
 
     if len(matching_nodes) != 1:
@@ -244,7 +247,11 @@ def perform_file_surgery(
         )
 
     # Replay tolerance
-    if new_string and new_string in current_content and old_string not in current_content:
+    if (
+        new_string
+        and new_string in current_content
+        and old_string not in current_content
+    ):
         return SurgeryResult(
             status="replay",
             updated_content=current_content,
