@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { approvePendingApproval, rejectPendingApproval } from '@/lib/aiosAdapter';
 import { deriveMaterializedSurfacePose } from '@/lib/materializedSurfacePose';
 import { WAITING_POINTS_SURFACE_SCALE } from '@/lib/livingWorkspaceLayout';
+import { retargetTubeGeometry } from '@/lib/retargetTubeGeometry';
 import {
   buildFocusedHudUmbilicalCurve,
   FOCUSED_HUD_NERVE_GAP,
@@ -1570,10 +1571,15 @@ export default function MaterializedTab({
             curveRef.current = c;
             if (tubeRef.current) {
               const previous = hudTubeGeometryRef.current;
-              const next = new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
+              const next = previous ?? new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
+              if (previous) {
+                retargetTubeGeometry(previous, c, tubeRadius);
+                // Replacement used the constructor default after this frame's
+                // lifecycle reveal; preserve that ordering while reusing buffers.
+                previous.setDrawRange(0, Infinity);
+              }
               hudTubeGeometryRef.current = next;
               tubeRef.current.geometry = next;
-              previous?.dispose();
             }
             lastHudLocalRef.current = _hudEndpoint.clone();
             lastHudOriginRef.current = _hudOrigin.clone();

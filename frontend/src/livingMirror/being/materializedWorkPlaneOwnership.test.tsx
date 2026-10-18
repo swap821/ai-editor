@@ -89,6 +89,92 @@ async function mount(reducedMotion: boolean, withReader = true, experienceMode: 
   return { first, dom, scene, sync, overlayRef, store, close: async () => { await act(async () => root.unmount()); dom.unmount(); } };
 }
 
+it.each([false, true])('retargets a moving HUD nerve without replacing its geometry or buffers (reduced=%s)', async reducedMotion => {
+  const view = await mount(reducedMotion, true, 'beginner', false, true);
+  let dispose: ReturnType<typeof vi.spyOn> | undefined;
+  let closed = false;
+  try {
+    act(() => {
+      const other = showContentSurface({ filepath: 'allocation-peer.txt', language: 'text', code: 'peer' }, getContentSurfacePlacement(8));
+      setMaterializedTabLifecycle(other.id, 'live'); focusWorkspace(other.id);
+    });
+    await view.sync();
+    const owner = view.scene.children.find(node => node.getObjectByName('text:first.txt'))!;
+    const tube = owner.children.find(node => node instanceof THREE.Mesh && node.renderOrder === 6) as THREE.Mesh<THREE.TubeGeometry>;
+    const geometry = tube.geometry, material = tube.material;
+    const position = geometry.getAttribute('position'), normal = geometry.getAttribute('normal');
+    if (!(position instanceof THREE.BufferAttribute)) throw new Error('TubeGeometry must own a non-interleaved position buffer');
+    if (!(normal instanceof THREE.BufferAttribute)) throw new Error('TubeGeometry must own a non-interleaved normal buffer');
+    const uv = geometry.getAttribute('uv'), index = geometry.getIndex()!;
+    const buffers = [position.array, normal.array, uv.array, index.array];
+    const originalPositions = Array.from(position.array);
+    const version = position.version, normalVersion = normal.version;
+    geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+    dispose = vi.spyOn(geometry, 'dispose');
+    for (const scale of [0.73, 0.91, 0.64]) {
+      act(() => setBrainDockScale(scale));
+      await view.sync();
+      expect(tube.geometry).toBe(geometry);
+      expect(tube.material).toBe(material);
+      expect([geometry.getAttribute('position'), geometry.getAttribute('normal'), geometry.getAttribute('uv'), geometry.getIndex()])
+        .toEqual([position, normal, uv, index]);
+      for (const [at, attribute] of [position, normal, uv, index].entries()) expect(attribute.array).toBe(buffers[at]);
+      // Seat2 is independent of the curve factory and buffer updater.
+      const anchor = new THREE.Vector3(0, -0.92 - 1.93 * 2 / 11, -0.42 + 0.04 * Math.sin(Math.PI * 2 / 11)).multiplyScalar(scale);
+      expect(geometry.parameters.path.getPoint(0).distanceTo(anchor)).toBeLessThan(1e-6);
+      expect(position.count).toBe(363); expect(index.count).toBe(1920);
+      const reference = new THREE.TubeGeometry(geometry.parameters.path, 32, geometry.parameters.radius, 10, false);
+      try {
+        for (const name of ['position', 'normal', 'uv']) expect(Array.from(geometry.getAttribute(name).array)).toEqual(Array.from(reference.getAttribute(name).array));
+        expect(Array.from(index.array)).toEqual(Array.from(reference.getIndex()!.array));
+        reference.computeBoundingBox(); reference.computeBoundingSphere();
+        expect(geometry.boundingBox).toEqual(reference.boundingBox);
+        expect(geometry.boundingSphere).toEqual(reference.boundingSphere);
+      } finally { reference.dispose(); }
+      expect(dispose).not.toHaveBeenCalled();
+    }
+    expect(Array.from(position.array)).not.toEqual(originalPositions);
+    expect(position.version).toBeGreaterThan(version);
+    expect(normal.version).toBeGreaterThan(normalVersion);
+    await view.close(); closed = true;
+    expect(dispose).toHaveBeenCalledTimes(1);
+  } finally { if (!closed) await view.close(); dispose?.mockRestore(); }
+});
+
+it.each(['reaching', 'retracting'] as const)('preserves the replacement-frame draw range during HUD %s', async lifecycle => {
+  let now = 10000;
+  vi.spyOn(performance, 'now').mockImplementation(() => now);
+  const view = await mount(false, true, 'beginner', false, true);
+  try {
+    act(() => {
+      const other = showContentSurface({ filepath: 'draw-range-peer.txt', language: 'text', code: 'peer' }, getContentSurfacePlacement(8));
+      setMaterializedTabLifecycle(other.id, 'live'); focusWorkspace(other.id);
+    });
+    await view.sync();
+    const owner = view.scene.children.find(node => node.getObjectByName('text:first.txt'))!;
+    const tube = owner.children.find(node => node instanceof THREE.Mesh && node.renderOrder === 6) as THREE.Mesh<THREE.TubeGeometry>;
+    const geometry = tube.geometry;
+    act(() => {
+      if (lifecycle === 'retracting') closeWorkspace(view.first.id);
+      else setMaterializedTabLifecycle(view.first.id, lifecycle, now);
+    });
+    now += lifecycle === 'reaching' ? 150 : 1000;
+    await view.sync();
+    // A settled frame has the original partial lifecycle reveal.
+    act(() => advance(1, false, view.store.getState()));
+    expect(geometry.drawRange.count).toBeGreaterThan(0);
+    expect(geometry.drawRange.count).toBeLessThan(geometry.getIndex()!.count);
+    act(() => setBrainDockScale(0.64));
+    await view.sync();
+    expect(tube.geometry).toBe(geometry);
+    // The predecessor installed a fresh TubeGeometry after the reveal step.
+    expect(geometry.drawRange).toEqual({ start: 0, count: Infinity });
+    act(() => advance(1, false, view.store.getState()));
+    expect(geometry.drawRange.count).toBeGreaterThan(0);
+    expect(geometry.drawRange.count).toBeLessThan(geometry.getIndex()!.count);
+  } finally { await view.close(); }
+});
+
 it.each([[false, 3], [true, 3], [false, 11], [true, 11]] as const)('fits and separates background slab vertices through current camera pane, focus and resize (reduced=%s, waiting=%s)', async (reducedMotion, backgroundCount) => {
   // This case observes the still-painted closing slab as well as its eventual
   // disappearance. Async renderer work must not choose that lifecycle instant.
@@ -397,7 +483,7 @@ it.each([false, true])('actual orchestration retains each workspace nerve/socket
   } finally { await view.close(); }
 });
 
-it.each([false, true])('restores the one-workspace fallback socket and disposes only owned HUD tubes on replacement and retirement (reduced=%s)', async reducedMotion => {
+it.each([false, true])('reuses the live HUD tube and restores the one-workspace fallback socket with once-only retirement disposal (reduced=%s)', async reducedMotion => {
   const view = await mount(reducedMotion, true, 'beginner', false, true);
   const disposals: ReturnType<typeof vi.spyOn>[] = [];
   let closed = false;
@@ -423,9 +509,8 @@ it.each([false, true])('restores the one-workspace fallback socket and disposes 
       laterId = later.id; setMaterializedTabLifecycle(laterId, 'live');
     });
     await view.sync();
-    expect.soft(disposeInitial).toHaveBeenCalledTimes(1);
-    const replacement = tube.geometry;
-    const disposeReplacement = vi.spyOn(replacement, 'dispose'); disposals.push(disposeReplacement);
+    expect(tube.geometry).toBe(initialHud);
+    expect(disposeInitial).not.toHaveBeenCalled();
     act(() => {
       for (const id of [otherId, laterId]) {
         closeWorkspace(id);
@@ -446,7 +531,8 @@ it.each([false, true])('restores the one-workspace fallback socket and disposes 
     const fallbackOrigin = new THREE.Vector3(...getTabStoreSnapshot().tabs[0].originLocal);
     expect.soft(tube.geometry.parameters.path.getPoint(0).distanceTo(fallbackOrigin)).toBeLessThan(1e-6);
     expect.soft(socket.position.distanceTo(fallbackOrigin)).toBeLessThan(1e-6);
-    expect.soft(disposeReplacement).toHaveBeenCalledTimes(1);
+    expect.soft(disposeInitial).toHaveBeenCalledTimes(1);
+    expect(tube.geometry).not.toBe(initialHud);
     // Return to orchestration, then unmount with a live dynamic tube installed.
     act(() => {
       const final = showContentSurface({ filepath: 'final.txt', language: 'text', code: 'final result' }, getContentSurfacePlacement(8));
@@ -454,10 +540,10 @@ it.each([false, true])('restores the one-workspace fallback socket and disposes 
     });
     await view.sync();
     const finalHud = tube.geometry, disposeFinal = vi.spyOn(finalHud, 'dispose'); disposals.push(disposeFinal);
+    expect(finalHud).not.toBe(initialHud);
     await view.close(); closed = true;
     expect.soft(disposeFinal).toHaveBeenCalledTimes(1);
     expect.soft(disposeInitial).toHaveBeenCalledTimes(1);
-    expect.soft(disposeReplacement).toHaveBeenCalledTimes(1);
   } finally { if (!closed) await view.close(); for (const spy of disposals) spy.mockRestore(); }
 });
 

@@ -75,8 +75,12 @@ async function mount(reduced = false, isolate = false, narrow = false, responsiv
   if (!officialEntry) expect(screen.getByText('Fixture—not backend work')).toBeVisible();
 }
 async function advance() {
-  await waitFor(() => expect(screen.getByRole('button', { name: 'Advance fixture' })).toBeEnabled());
-  fireEvent.click(screen.getByRole('button', { name: 'Advance fixture' }));
+  // This is the fixture's transport control, not a product action. Scope the
+  // accessible query to its real labeled owner instead of naming every hidden
+  // Expert control in the app for each wait/click. Keep normal visibility checks.
+  const controls = within(screen.getByRole('complementary', { name: 'Isolated development journey' }));
+  await waitFor(() => expect(controls.getByRole('button', { name: 'Advance fixture' })).toBeEnabled());
+  fireEvent.click(controls.getByRole('button', { name: 'Advance fixture' }));
   await act(async () => {});
 }
 // Development observation only: actual mirror admission, DOM/body projection,
@@ -189,14 +193,15 @@ async function start(previewSelected = true) {
 it.each([false, true])('keeps explicit Conversation through admitted permission/replay/stream/outcome (reduced=%s)', async (reduced) => {
   await mount(reduced); await start();
   const tab = getTabStoreSnapshot().tabs.find((record) => record.kind === 'content')!;
-  fireEvent.click(screen.getByRole('button', { name: 'Expert / Mirror' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Conversation' }));
+  const mode = (name: 'Guided' | 'Expert / Mirror') => within(screen.getByRole('group', { name: 'Experience mode' })).getByRole('button', { name });
+  fireEvent.click(mode('Expert / Mirror'));
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Workspaces' })).getByRole('button', { name: 'Conversation' }));
   const intake = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
   fireEvent.change(intake, { target: { value: 'Keep this next draft unsent.' } });
   intake.setSelectionRange(5, 14);
   expect(getTabStoreSnapshot().focusId).toBeNull();
   const heldApproval = getPendingApproval();
-  fireEvent.click(screen.getByRole('button', { name: 'Guided' }));
+  fireEvent.click(mode('Guided'));
   expect(document.querySelector('.lm-app')).toHaveAttribute('data-working', 'false');
   expect(document.querySelector('.lm-app')).toHaveAttribute('data-being-task-state', 'needs-permission');
   expect(getTabStoreSnapshot().focusId).toBeNull();
@@ -205,7 +210,7 @@ it.each([false, true])('keeps explicit Conversation through admitted permission/
   expect(screen.queryByRole('region', { name: 'Selected workspace' })).not.toBeInTheDocument();
   expect(intake).toHaveValue('Keep this next draft unsent.');
   expect([intake.selectionStart, intake.selectionEnd]).toEqual([5, 14]);
-  fireEvent.click(screen.getByRole('button', { name: 'Expert / Mirror' }));
+  fireEvent.click(mode('Expert / Mirror'));
   // A held decision stays accessible despite leaving its work reader.
   fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'AUTHORIZE' }));
   await advance(); await advance(); await advance();
@@ -218,8 +223,8 @@ it.each([false, true])('keeps explicit Conversation through admitted permission/
   const completed = getTabStoreSnapshot().tabs.find((record) => record.id === tab.id)!;
   expect(completed.content).toMatchObject({ code: 'print("Hello from the fixture")\n', filepath: 'fixture/hello.py', streaming: false });
   expect(getTabStoreSnapshot().tabs.filter((record) => record.kind === 'content')).toHaveLength(1);
-  fireEvent.click(screen.getByRole('button', { name: 'Guided' }));
-  fireEvent.click(screen.getByRole('button', { name: 'Review' }));
+  fireEvent.click(mode('Guided'));
+  fireEvent.click(within(screen.getByRole('region', { name: 'Conversation' })).getByRole('button', { name: 'Review' }));
   expect(getTabStoreSnapshot().focusId).toBe(tab.id);
   expect(screen.getByText('print("Hello from the fixture")')).toBeVisible();
   expect(intake).toHaveValue('Keep this next draft unsent.');
