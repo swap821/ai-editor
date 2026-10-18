@@ -816,3 +816,22 @@ live store, made after his re-admission.
    to show a benefit, if there is one.
 4. **Null results:** a null result on all four members is a possible honest
    outcome, and would be reported as such.
+
+**Amended 2026-10-18, before any D12 judged run: a hollow suite run is measured
+again.**
+- **What happened.** The D12 cloud practice (one worker, Kimi K3 teaching)
+  aborted 31 minutes into its 136 targets. One run of the pre-existing guard
+  suite died before pytest printed anything (Windows rc `0xC0000142`, DLL
+  init failed). The grader rightly refused to score that run, but its only
+  response was to end the whole run.
+- **The change** (`tools/self_corpus_grading.py`, used by practice and by the
+  judged harness alike). A HOLLOW run (no output at all, so it measured
+  nothing) is run again, up to twice, after 10 s and then 30 s. Each re-run is
+  written into the verdict's notes. A run that stays hollow still aborts, as
+  before.
+- **Why it cannot favour an arm.** It applies identically to ON, OFF and
+  PLACEBO. It changes no verdict a non-hollow run would give. And it never
+  turns a hollow run into a score: the verdict always comes from a run that
+  reported. It replaces an abort with a measurement, not a failure with a pass.
+- **The practice run is re-run from the start** with the same command. The
+  aborted run's partial store is kept, labelled invalid, as before.
