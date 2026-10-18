@@ -26,25 +26,22 @@ import hashlib
 import json
 import re
 import sqlite3
-import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Iterator, Literal, Optional, Any, Sequence, cast
+from typing import Literal, Optional, Any, Sequence
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
 import aios
 from aios import config
 from aios.logging_config import configure_logging, get_logger
 from aios.agents.reflection_agent import ReflectionAgent
-from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.agents.tool_agent import ToolAgent
 from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import Cerebellum
@@ -57,7 +54,6 @@ from aios.core.planner import (
     serialize_plan,
 )
 from aios.core.events import (
-    event_for_sse,
     CanonicalEvent,
     CanonicalEventType,
     TrustLevel,
@@ -167,17 +163,13 @@ from aios.domain.capabilities.contracts import CapabilityBinding
 from aios.domain.capabilities.digest import payload_digest, resource_digest
 from aios.domain.identity.models import Principal
 from aios.core.alignment import (
-    AlignmentInterpreter,
     apply_user_corrections,
     frame_from_state,
 )
 from aios.core.native_planner import NativePlanner
 from aios.memory.db import get_connection, init_memory_db
-from aios.memory.alignment_evaluation import AlignmentEvaluationStore
 from aios.memory.compaction import MemoryCompactor
 from aios.application.memory.adapters import MemoryCompactionAdapter
-from aios.memory.consolidation import MemoryConsolidator
-from aios.memory.conversation import ConversationStateStore
 from aios.memory.curriculum import CurriculumManager
 from aios.memory.relevance import signature as task_signature
 from aios.memory.embeddings import VectorIndex
@@ -659,7 +651,6 @@ from aios.api.turn_pipeline import (
     _latest_user,
     _make_confirm_hook,
     _make_failure_hook,
-    _operator_facts_block,
     _recall_facts,
     _recall_lessons,
     _recall_memory,
