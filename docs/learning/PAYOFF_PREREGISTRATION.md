@@ -835,3 +835,33 @@ again.**
   reported. It replaces an abort with a measurement, not a failure with a pass.
 - **The practice run is re-run from the start** with the same command. The
   aborted run's partial store is kept, labelled invalid, as before.
+
+**Amended 2026-10-18, before any D12 judged run: the same models, reached
+through us-east-1 with the operator's IAM key.**
+- **What happened.** Between 13 and 18 October, Bedrock stopped running models
+  for the stored Bedrock API key (account 908499290745): every model, every
+  region answered "Operation not allowed". Practice run #3 was stopped by hand
+  after 819 refusals in two minutes; it is kept as
+  `invalid-bedrock-blocked-practice-cloud`. Two other routes were checked and
+  were also closed:
+  - a second key is explicitly denied by its AWS organisation's policy;
+  - NVIDIA retired Kimi K3 on 2026-10-15.
+- **The route now.** An IAM access key in account 424123861008, region
+  **us-east-1** (the plan said ap-south-1).
+  - Before practice used it, it was checked live: Kimi K3 (global profile) and
+    Qwen3-Coder-30B each answered 5 of 5.
+  - It was only usable after the operator fixed the IAM user's permissions
+    boundary and attached a Bedrock policy.
+- **What did not change.** The model ids are the same:
+  - student `qwen.qwen3-coder-30b-a3b-v1:0`;
+  - teacher `global.moonshotai.kimi-k3`;
+  - ladder, retries, timeouts and targets.
+
+  Only the account and the entry region differ. The teacher's global profile
+  already routed across regions, which this plan accepted for practice code.
+- **The run.** Practice run #4 started at 2026-10-18 14:57 IST from harness
+  `83f8c3ce` (it includes the hollow-run re-measure and the
+  provider-unavailable stop). Its launch record names the route and
+  credential, never the key.
+- **Judged runs** will state the account and region they ran through in their
+  run records.
