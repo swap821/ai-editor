@@ -9,7 +9,12 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from aios import config
+from aios.domain.maintenance.scanners import VULTURE_DEAD_IMPORT_SCANNER_ID
 from aios.domain.workers.worker_contract import WorkerStrategyName
+from aios.maintenance.repair_operations import (
+    REMOVE_DEAD_IMPORTS_V1,
+    REMOVE_MAINTENANCE_MARKER_V1,
+)
 
 
 class WorkerExecutionResult(BaseModel):
@@ -68,10 +73,13 @@ class ProductionCodeWorkerStrategy:
                 )
             workspace_root = Path(raw_root).resolve()
 
-        project_root = config.PROJECT_ROOT.resolve()
+        enrolled = {
+            config.PROJECT_ROOT.resolve(),
+            config.MAINTENANCE_PROJECT_ROOT.resolve(),
+        }
 
         # Enforce boundary: worker MUST operate in staged workspace, never directly in project root
-        if workspace_root == project_root:
+        if workspace_root in enrolled:
             raise ValueError(
                 "Worker strategy cannot operate directly on enrolled project root"
             )
@@ -86,8 +94,16 @@ class ProductionCodeWorkerStrategy:
                 content = target_path.read_bytes()
                 expected_digest = hashlib.sha256(content).hexdigest()
 
+        # The operation follows from which admitted scanner raised the finding;
+        # the executor then decides what to change from the workspace itself,
+        # so this choice cannot widen a repair beyond its operation.
+        operation_id = (
+            REMOVE_DEAD_IMPORTS_V1
+            if metadata.get("scanner_id") == VULTURE_DEAD_IMPORT_SCANNER_ID
+            else REMOVE_MAINTENANCE_MARKER_V1
+        )
         proposal = {
-            "operation_id": "REMOVE_MAINTENANCE_MARKER_V1",
+            "operation_id": operation_id,
             "target_rel": target_rel,
             "expected_digest": expected_digest,
             "allowed_markers": [
@@ -99,9 +115,7 @@ class ProductionCodeWorkerStrategy:
             "workspace_root": str(workspace_root),
         }
 
-        summary = (
-            f"Proposed repair operation REMOVE_MAINTENANCE_MARKER_V1 for {target_rel}"
-        )
+        summary = f"Proposed repair operation {operation_id} for {target_rel}"
         output_digest = hashlib.sha256(summary.encode("utf-8")).hexdigest()
 
         worker_id_val = (

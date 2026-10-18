@@ -18,8 +18,15 @@ class ScanExecutionError(RuntimeError):
 class BoundedScanContext:
     """Read-only scanner input that enforces the scan contract during reads."""
 
-    def __init__(self, contract: BoundedScanContract) -> None:
+    def __init__(
+        self, contract: BoundedScanContract, *, target_id: str | None = None
+    ) -> None:
         self.contract = contract
+        # What the scan is ABOUT, when narrower than what it may READ: a rescan
+        # of one repaired file still needs the whole project to judge it (a
+        # project-rooted scanner), but must report on that file alone. A
+        # scanner that ignores it scans the whole root, as before.
+        self.target_id = target_id
         self.root = Path(contract.allowed_root).resolve()
         if not self.root.exists():
             raise ScanExecutionError("allowed_root does not exist")
@@ -124,6 +131,8 @@ class AutonomousMaintenanceForce:
         self,
         contract: BoundedScanContract,
         scanner_func: Callable[..., Sequence[MaintenanceFinding]],
+        *,
+        target_id: str | None = None,
     ) -> Sequence[MaintenanceFinding]:
         """Safely execute a scanner within the boundaries of the contract.
 
@@ -138,7 +147,9 @@ class AutonomousMaintenanceForce:
         try:
             if not inspect.signature(scanner_func).parameters:
                 raise ScanExecutionError("scanner must accept BoundedScanContext")
-            raw_findings = scanner_func(BoundedScanContext(contract))
+            raw_findings = scanner_func(
+                BoundedScanContext(contract, target_id=target_id)
+            )
         except Exception as e:
             if isinstance(e, ScanExecutionError):
                 raise

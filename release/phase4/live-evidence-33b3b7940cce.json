@@ -1,0 +1,35 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-10-18T04:26:04+00:00",
+  "tip_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 13,
+      "name": "Isolated Executor Service (construction)",
+      "passed": true,
+      "command": "ExecutorServiceAuthority.execute fail-closed",
+      "evidence": "ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)"
+    },
+    {
+      "organ_id": 42,
+      "name": "Recovery and Resumption",
+      "passed": true,
+      "command": "RecoveryResumptionAuthority journal append+verify real SQLite",
+      "evidence": "transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}"
+    },
+    {
+      "organ_id": 52,
+      "name": "Observability and Health Organ",
+      "passed": true,
+      "command": "ObservabilityAuthority.health + TestClient GET /health",
+      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': '5280b7f1-b2ab-402c-bab6-77f3bb023f29'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}
