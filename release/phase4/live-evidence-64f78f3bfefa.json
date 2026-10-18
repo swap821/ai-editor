@@ -1,0 +1,91 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-10-18T05:41:20+00:00",
+  "tip_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 13,
+      "name": "Isolated Executor Service (construction)",
+      "passed": true,
+      "command": "ExecutorServiceAuthority.execute fail-closed",
+      "evidence": "ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)"
+    },
+    {
+      "organ_id": 14,
+      "name": "Staged Workspace Manager (construction)",
+      "passed": true,
+      "command": "StagedWorkspaceAuthority.stage+load real disk",
+      "evidence": "staged lease_id=102d07e741c14f38a5bf17376cb846c5 mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-rbdlmn8u\\staged-root\\102d07e741c14f38a5bf17376cb846c5 baseline=6fc358b543368ecf\u2026"
+    },
+    {
+      "organ_id": 25,
+      "name": "Constitutional Kernel",
+      "passed": true,
+      "command": "ConstitutionalKernelAuthority.get_active_snapshot after enroll",
+      "evidence": "enrolled+authenticated session_ok=True; active_snapshot version=1 digest="
+    },
+    {
+      "organ_id": 26,
+      "name": "Emergency Stop Organ (full boundary hard-wiring)",
+      "passed": true,
+      "command": "EmergencyStopHardWiringAuthority.assert_operational",
+      "evidence": "EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency"
+    },
+    {
+      "organ_id": 27,
+      "name": "Operator Taste Model",
+      "passed": true,
+      "command": "OperatorTasteModelAuthority.record + reopen SQLite",
+      "evidence": "saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=278528"
+    },
+    {
+      "organ_id": 28,
+      "name": "Project Understanding Organ",
+      "passed": true,
+      "command": "ProjectUnderstandingAuthority.record_scan + reopen SQLite",
+      "evidence": "record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28"
+    },
+    {
+      "organ_id": 29,
+      "name": "Correction and Interpretation-Lineage Organ",
+      "passed": true,
+      "command": "CorrectionLineageAuthority.lineage_for_session + reopen SQLite",
+      "evidence": "lineage_revisions=[2, 1] db_bytes=110592"
+    },
+    {
+      "organ_id": 34,
+      "name": "Cloud Budget and Provider-Health Organ",
+      "passed": true,
+      "command": "ProviderHealthBudgetAuthority circuit open",
+      "evidence": "after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-10-18T05:41:16+00:00'"
+    },
+    {
+      "organ_id": 38,
+      "name": "Durable Local-Clerk Provenance and Continuity Organ",
+      "passed": true,
+      "command": "ClerkProvenanceAuthority.record_advisory_job + reopen SQLite",
+      "evidence": "job_provenance after reopen status='rejected'"
+    },
+    {
+      "organ_id": 42,
+      "name": "Recovery and Resumption",
+      "passed": true,
+      "command": "RecoveryResumptionAuthority journal append+verify real SQLite",
+      "evidence": "transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}"
+    },
+    {
+      "organ_id": 52,
+      "name": "Observability and Health Organ",
+      "passed": true,
+      "command": "ObservabilityAuthority.health + TestClient GET /health",
+      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': 'a9fd184c-6ee4-43e0-a0f5-ec62ce1c52a7'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}

@@ -677,13 +677,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 703029b2cb953d3ebd0ce514a139632cf1d741eb: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 703029b2cb953d3ebd0ce514a139632cf1d741eb exit=0; artifact=release/phase4/live-evidence-703029b2cb95.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)",
-        "commit_sha": "703029b2cb953d3ebd0ce514a139632cf1d741eb",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; ExecutorServiceAuthority.execute fail-closed => ExecutorServiceAuthority.execute refused unauthenticated/unconfigured job with HTTP 503 detail='executor authentication is not configured' (construction fail-closed; live Docker isolation is organ 40)",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "703029b2cb953d3ebd0ce514a139632cf1d741eb",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ExecutorServiceAuthority class defined in production_entrypoints ['aios/executor_service.py'] (Decision A / enforce_owner_attestation)",
@@ -716,13 +716,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; StagedWorkspaceAuthority.stage+load real disk => staged lease_id=845af844f9404011a3a4b60489bd76ac mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-swbxkoii\\staged-root\\845af844f9404011a3a4b60489bd76ac baseline=6fc358b543368ecf\u2026",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; StagedWorkspaceAuthority.stage+load real disk => staged lease_id=102d07e741c14f38a5bf17376cb846c5 mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-rbdlmn8u\\staged-root\\102d07e741c14f38a5bf17376cb846c5 baseline=6fc358b543368ecf\u2026",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 StagedWorkspaceAuthority class defined in production_entrypoints ['aios/application/workspaces/staged.py'] (Decision A / enforce_owner_attestation)",
@@ -1375,13 +1375,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalKernelAuthority class defined in production_entrypoints ['aios/application/governance/constitution_authority.py', 'aios/infrastructure/governance/constitution_snapshot_store.py', 'aios/domain/governance/constitution.py'] (Decision A / enforce_owner_attestation)",
@@ -1426,13 +1426,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; EmergencyStopHardWiringAuthority.assert_operational => EmergencyStopHardWiringAuthority.assert_operational accepted real EmergencyStopController and refused non-checkable dependency",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 EmergencyStopHardWiringAuthority class defined in production_entrypoints ['aios/runtime/intelligence_gateway.py', 'aios/application/learning/service.py', 'aios/application/maintenance/service.py'] (Decision A / enforce_owner_attestation)",
@@ -1478,13 +1478,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=278528",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; OperatorTasteModelAuthority.record + reopen SQLite => saved preference_id=pref-p4-27; reopen_active=['pref-p4-27'] db_bytes=278528",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 OperatorTasteModelAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
@@ -1526,13 +1526,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; ProjectUnderstandingAuthority.record_scan + reopen SQLite => record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; ProjectUnderstandingAuthority.record_scan + reopen SQLite => record_scan revision=1 diff_keys=['added', 'changed_fields', 'is_first_scan', 'removed']; reopen status projectId=proj-p4-28",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ProjectUnderstandingAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
@@ -1577,13 +1577,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; CorrectionLineageAuthority.lineage_for_session + reopen SQLite => lineage_revisions=[2, 1] db_bytes=110592",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; CorrectionLineageAuthority.lineage_for_session + reopen SQLite => lineage_revisions=[2, 1] db_bytes=110592",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 CorrectionLineageAuthority class defined in production_entrypoints ['aios/domain/memory/human_representation.py', 'aios/application/memory/human_representation.py', 'aios/infrastructure/memory/human_representation_store.py'] (Decision A / enforce_owner_attestation)",
@@ -1784,13 +1784,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model CI's local-clerk-live job runs -- at commit 699b54493cd97bd8033529f8f019b5d7f5826214 (the maintenance self-repair PR changed aios/api/deps.py, one of this organ's entrypoints). All 10 ran and PASSED (0 failed, 0 skipped): tests/test_local_clerk_integration.py::test_the_local_runtime_is_actually_reachable, tests/test_local_clerk_integration.py::test_a_real_local_model_answers_a_real_prompt, tests/test_local_clerk_integration.py::test_the_qualification_suite_runs_against_a_live_model, tests/test_local_clerk_integration.py::test_the_dispatcher_honours_the_live_verdict, tests/test_local_clerk_integration.py::test_deterministic_code_still_wins_over_a_live_model, tests/test_local_clerk_integration.py::test_the_live_verdict_is_recorded_as_evidence, tests/test_model_passport_live_integration.py::test_reconcile_discovers_the_live_model_rather_than_a_seeded_row, tests/test_model_passport_live_integration.py::test_the_passport_faithfully_projects_a_real_qualification_run, tests/test_model_passport_live_integration.py::test_a_role_the_live_evidence_does_not_back_is_refused, tests/test_model_passport_live_integration.py::test_an_unregistered_model_has_no_passport. JUnit committed as release/organ-33-37/clerk-junit-699b54493cd9.xml. command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= -rs --junit-xml=release/organ-33-37/clerk-junit-699b54493cd9.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`. Re-gather at master's tip after the squash.",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Live local-clerk qualification against a REAL Ollama daemon at http://127.0.0.1:11434 with a real qwen2.5:0.5b -- the same model CI's local-clerk-live job runs -- at master's tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c, re-gathered after #495 was squash-merged (which orphaned the branch commit the previous row cited). All 10 ran and PASSED (0 failed, 0 skipped): tests/test_local_clerk_integration.py::test_the_local_runtime_is_actually_reachable, tests/test_local_clerk_integration.py::test_a_real_local_model_answers_a_real_prompt, tests/test_local_clerk_integration.py::test_the_qualification_suite_runs_against_a_live_model, tests/test_local_clerk_integration.py::test_the_dispatcher_honours_the_live_verdict, tests/test_local_clerk_integration.py::test_deterministic_code_still_wins_over_a_live_model, tests/test_local_clerk_integration.py::test_the_live_verdict_is_recorded_as_evidence, tests/test_model_passport_live_integration.py::test_reconcile_discovers_the_live_model_rather_than_a_seeded_row, tests/test_model_passport_live_integration.py::test_the_passport_faithfully_projects_a_real_qualification_run, tests/test_model_passport_live_integration.py::test_a_role_the_live_evidence_does_not_back_is_refused, tests/test_model_passport_live_integration.py::test_an_unregistered_model_has_no_passport. JUnit committed as release/organ-33-37/clerk-junit-64f78f3bfefa.xml. command=`AIOS_OLLAMA_INTEGRATION=1 AIOS_OLLAMA_MODEL=qwen2.5:0.5b OLLAMA_HOST=http://127.0.0.1:11434 python -m pytest -q -o addopts= -rs --junit-xml=release/organ-33-37/clerk-junit-64f78f3bfefa.xml tests/test_local_clerk_integration.py tests/test_model_passport_live_integration.py`.",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ModelPassportAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/passport.py', 'aios/application/models/passport_authority.py'] (Decision A / enforce_owner_attestation)",
@@ -1802,7 +1802,7 @@
       "C7": "PASS \u2014 integration_tests resolve on disk and executed: tests/test_local_workforce_api.py and tests/test_runtime_intelligence_gateway.py in the gate's own run, and tests/test_model_passport_live_integration.py in the local-clerk-live job, merged into the gate via --extra-junit (env-gated on AIOS_OLLAMA_INTEGRATION, so it is all-skipped in the gate's own pytest run and must be counted from the real run).",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS \u2014 no residual known_blockers. Failure-path coverage is real rather than nominal: the live suite asserts the REFUSAL path in two directions -- a model that fails qualification must project admission_status='revoked' with suite_version and last_qualified_at NULL, and a claim on profiles the live evidence does not back must raise UnsupportedJobProfileClaim.",
-      "C10": "PASS \u2014 proof_level=live evidence from a real Ollama daemon and a real qwen2.5:0.5b at 699b54493cd97bd8033529f8f019b5d7f5826214 (10 passed / 0 skipped, release/organ-33-37/clerk-junit-699b54493cd9.xml).",
+      "C10": "PASS \u2014 proof_level=live evidence from a real Ollama daemon and a real qwen2.5:0.5b at 64f78f3bfefaede4111dcc285a47c66d0ee0887c (10 passed / 0 skipped, release/organ-33-37/clerk-junit-64f78f3bfefa.xml).",
       "C11": "PASS - last_verified_sha=cdfd7d16d2f64601b9275e0382f44a3981c14e03",
       "C12": "PASS - cdfd7d16d2f64601b9275e0382f44a3981c14e03 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed 2e5d89807fbb -> cdfd7d16d2f6 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 6 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     }
@@ -1829,13 +1829,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-10-12T18:47:32+00:00'",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; ProviderHealthBudgetAuthority circuit open => after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-10-18T05:41:16+00:00'",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ProviderHealthBudgetAuthority class defined in production_entrypoints ['aios/domain/models/contracts.py', 'aios/application/models/health.py', 'aios/core/failover.py'] (Decision A / enforce_owner_attestation)",
@@ -2002,13 +2002,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 699b54493cd97bd8033529f8f019b5d7f5826214: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 699b54493cd97bd8033529f8f019b5d7f5826214 exit=0; artifact=release/phase4/live-evidence-699b54493cd9.json; ClerkProvenanceAuthority.record_advisory_job + reopen SQLite => job_provenance after reopen status='rejected'",
-        "commit_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; ClerkProvenanceAuthority.record_advisory_job + reopen SQLite => job_provenance after reopen status='rejected'",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "699b54493cd97bd8033529f8f019b5d7f5826214",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ClerkProvenanceAuthority class defined in production_entrypoints ['aios/infrastructure/storage/migrations/0005_local_workforce_provenance.py', 'aios/infrastructure/local_workforce/sqlite_store.py', 'aios/application/local_workforce/provenance.py'] (Decision A / enforce_owner_attestation)",
@@ -2255,13 +2255,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 33b3b7940cceb220613e92947c55d9b3dd7b60d6 exit=0; artifact=release/phase4/live-evidence-33b3b7940cce.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
-        "commit_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; RecoveryResumptionAuthority journal append+verify real SQLite => transitions=2 verify=JournalChainStatus(verified=2, unverifiable_legacy=0) report={'interrupted_mission_ids': ['m-p4-42'], 'interrupted_count': 1, 'integrity': 'verified', 'verified_entries': 2, 'unverifiable_legacy_entries': 0}",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "33b3b7940cceb220613e92947c55d9b3dd7b60d6",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 RecoveryResumptionAuthority class defined in production_entrypoints ['aios/api/routes/council.py', 'aios/api/routes/maintenance.py', 'aios/council/council_orchestrator.py'] (Decision A / enforce_owner_attestation)",
@@ -2785,13 +2785,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 703029b2cb953d3ebd0ce514a139632cf1d741eb: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 703029b2cb953d3ebd0ce514a139632cf1d741eb exit=0; artifact=release/phase4/live-evidence-703029b2cb95.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': '4c67463e-012a-47c1-b4f3-2c9f44f5b5ab'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
-        "commit_sha": "703029b2cb953d3ebd0ce514a139632cf1d741eb",
+        "description": "Phase 4 absolute live run on tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 64f78f3bfefaede4111dcc285a47c66d0ee0887c exit=0; artifact=release/phase4/live-evidence-64f78f3bfefa.json; ObservabilityAuthority.health + TestClient GET /health => /health status=ok version=0.1.0; authority.health={'trace': {'request_id': 'a9fd184c-6ee4-43e0-a0f5-ec62ce1c52a7'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)",
+        "commit_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "703029b2cb953d3ebd0ce514a139632cf1d741eb",
+    "last_verified_sha": "64f78f3bfefaede4111dcc285a47c66d0ee0887c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ObservabilityAuthority class defined in production_entrypoints ['aios/api/main.py', 'aios/council/queen_service.py', 'aios/operations/tracing.py'] (Decision A / enforce_owner_attestation)",
