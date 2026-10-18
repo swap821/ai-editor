@@ -12,6 +12,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
+from aios.maintenance.dead_imports import (
+    ExternalImportIndex,
+    IndexBoundExceeded,
+    dead_imports_in,
+)
 from aios.maintenance.vulture_sanitation import scan_vulture_code_paths
 
 
@@ -77,6 +84,37 @@ def test_monkeypatch_targets_and_alias_access_keep_a_name_alive(tmp_path) -> Non
         "    other.c\n",
     )
     assert _dead([mod], tmp_path) == {"d"}
+
+
+def test_an_alias_from_the_parent_package_is_seen_without_the_dotted_name(
+    tmp_path,
+) -> None:
+    # The importer never spells "pkg.mod": the first index skipped such files.
+    mod = _write(tmp_path, "pkg/mod.py", "from json import a, b\n")
+    _write(tmp_path, "tests/test_z.py", "from pkg import mod\nmod.a\n")
+    assert _dead([mod], tmp_path) == {"b"}
+
+
+def test_the_index_reads_each_project_file_once(tmp_path) -> None:
+    mods = [
+        _write(tmp_path, f"pkg/m{i}.py", "from json import dumps\n") for i in range(6)
+    ]
+    index = ExternalImportIndex(tmp_path)
+    for path in mods:
+        index.names_imported_from(path)
+    assert index.files_read == len(mods)
+
+
+def test_a_project_larger_than_the_bound_is_refused_not_half_indexed(tmp_path) -> None:
+    mods = [_write(tmp_path, f"pkg/m{i}.py", "import json\n") for i in range(3)]
+    with pytest.raises(IndexBoundExceeded):
+        ExternalImportIndex(tmp_path, max_files=2).names_imported_from(mods[0])
+
+
+def test_the_vulture_and_the_rule_agree(tmp_path) -> None:
+    mod = _write(tmp_path, "pkg/mod.py", "import os, json  # noqa: E401\nos.sep\n")
+    rule = dead_imports_in(mod.read_text(), path=mod, project_root=tmp_path)
+    assert set(rule) == _dead([mod], tmp_path) == {"json"}
 
 
 def test_on_main_the_vulture_spares_what_tests_reach_through_it() -> None:

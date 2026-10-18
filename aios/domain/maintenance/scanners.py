@@ -106,10 +106,122 @@ def deterministic_config_scanner(context: Any) -> Sequence[MaintenanceFinding]:
     return tuple(findings)
 
 
+VULTURE_DEAD_IMPORT_SCANNER_ID = "vulture_dead_imports"
+VULTURE_DEAD_IMPORT_SCANNER_VERSION = "1"
+PROJECT_ROOT_MARKERS = ("pyproject.toml", "setup.py", "setup.cfg")
+
+
+def vulture_dead_import_scanner(context: Any) -> Sequence[MaintenanceFinding]:
+    """The vulture's dead imports as maintenance findings: one finding per file.
+
+    Added 2026-10-12 for GAGOS's first self-maintenance mission. The rule is
+    the vulture's own (aios/maintenance/dead_imports.py), the one the repair
+    operation REMOVE_DEAD_IMPORTS_V1 removes by -- so a repair can never
+    delete what this scanner did not call dead.
+
+    PROJECT-ROOTED. An import is alive when any file of the project takes it
+    (tests patch ``main.scan_and_redact``), so a scan rooted in a subdirectory
+    would call live re-exports dead. The contract's allowed_root must
+    therefore be a project root; anything else fails the scan. Every read --
+    the cross-file index's included -- goes through the bounded context, so
+    the contract's file, byte and deadline limits hold, and a project larger
+    than them fails the scan instead of returning a partial answer.
+
+    The context's ``target_id`` narrows what is REPORTED (a rescan of the
+    repaired file), never what is read.
+    """
+    from aios.domain.maintenance.service import BoundedScanContext
+    from aios.maintenance.dead_imports import ExternalImportIndex, python_files
+
+    if not isinstance(context, BoundedScanContext):
+        raise ValueError("the dead-import scanner reads only through a bounded context")
+    root = context.root
+    if not root.is_dir() or not any((root / m).is_file() for m in PROJECT_ROOT_MARKERS):
+        raise ValueError(
+            "the dead-import scanner must be rooted at a project root "
+            f"({' / '.join(PROJECT_ROOT_MARKERS)}): importers outside a subtree "
+            "are invisible from inside it"
+        )
+
+    texts: dict[Path, str] = {}
+
+    def read(path: Path) -> str:
+        if path not in texts:
+            texts[path] = context.read_text(path.relative_to(root))
+        return texts[path]
+
+    sources = python_files(root)
+    target = (context.target_id or "").replace("\\", "/").strip("/")
+    if target in ("", "."):
+        reported = sources
+    else:
+        wanted = (root / target).resolve()
+        try:
+            wanted.relative_to(root)
+        except ValueError as exc:
+            raise ValueError("scan target escapes the project root") from exc
+        reported = [p for p in sources if p == wanted or wanted in p.parents]
+
+    index = ExternalImportIndex(root, read=read)
+    for path in sources:  # read everything up front: the bounds apply to all of it
+        read(path)
+    source_digest = hashlib.sha256(
+        "".join(
+            f"{p.relative_to(root).as_posix()}:"
+            f"{hashlib.sha256(texts[p].encode('utf-8')).hexdigest()}\n"
+            for p in sources
+        ).encode("utf-8")
+    ).hexdigest()
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+
+    findings: list[MaintenanceFinding] = []
+    for path in reported:
+        text = texts[path]
+        try:
+            dead = index.dead_in(path, text)  # the vulture's own judgement
+        except SyntaxError:
+            continue  # not this scanner's finding
+        if not dead:
+            continue
+        rel = path.relative_to(root).as_posix()
+        names = sorted(dead)
+        fingerprint = hashlib.sha256(
+            f"{VULTURE_DEAD_IMPORT_SCANNER_ID}:{rel}:dead_imports".encode("utf-8")
+        ).hexdigest()
+        findings.append(
+            MaintenanceFinding(
+                finding_id=f"finding-{fingerprint[:12]}",
+                fingerprint=fingerprint,
+                scanner_id=VULTURE_DEAD_IMPORT_SCANNER_ID,
+                scanner_version=VULTURE_DEAD_IMPORT_SCANNER_VERSION,
+                kind="dead_import",
+                severity="LOW",
+                confidence=1.0,
+                evidence_quality="DETERMINISTIC",
+                target_id=rel,
+                target_digest=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                source_digest=source_digest,
+                first_seen=now,
+                last_seen=now,
+                occurrence_count=1,
+                status="OPEN",
+                deterministic_evidence=(
+                    f"{len(names)} dead import(s) in {rel}: {', '.join(names)}"
+                ),
+            )
+        )
+    return tuple(findings)
+
+
+# Read by the maintenance routes: scan from the project root, report on the target.
+vulture_dead_import_scanner.project_rooted = True  # type: ignore[attr-defined]
+
+
 def get_admitted_scanners() -> dict[str, Callable[[Any], Sequence[MaintenanceFinding]]]:
     """Return dictionary of admitted scanner adapters."""
     return {
         ADMITTED_SCANNER_ID: deterministic_config_scanner,
+        VULTURE_DEAD_IMPORT_SCANNER_ID: vulture_dead_import_scanner,
     }
 
 

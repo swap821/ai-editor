@@ -38,6 +38,7 @@ from __future__ import annotations
 import ast
 import hashlib
 import subprocess
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -231,6 +232,39 @@ def _refuse_hollow(result, what: str) -> None:
         )
 
 
+#: Waits before re-running a HOLLOW suite run. A hollow run is the runner
+#: dying before pytest said a word -- on this laptop, Windows rc 0xC0000142
+#: (DLL init failed) under load -- and it killed the D12 cloud practice 31
+#: minutes into 136 targets on 2026-10-12. It measured nothing, so running it
+#: again is the SAME measurement, not a second chance for the model. Only a
+#: run that stays hollow aborts. Read at call time, so tests can zero it.
+HOLLOW_RETRY_WAITS_S: tuple[float, ...] = (10.0, 30.0)
+
+
+def _run_measured(
+    corpus: Corpus,
+    selection: list[str],
+    what: str,
+    notes: list[str],
+    *,
+    timeout: int | None = None,
+):
+    """`run_suite`, re-run while hollow (bounded), then `_refuse_hollow`."""
+    kwargs = {} if timeout is None else {"timeout": timeout}
+    result = run_suite(corpus, selection, **kwargs)
+    for wait in HOLLOW_RETRY_WAITS_S:
+        if not result.hollow:
+            break
+        notes.append(
+            f"the runner died without output for {what} "
+            f"(rc={result.returncode}); re-ran after {wait:g}s"
+        )
+        time.sleep(wait)
+        result = run_suite(corpus, selection, **kwargs)
+    _refuse_hollow(result, what)
+    return result
+
+
 #: How long a MODEL-WRITTEN pin test may run. A real one finishes in seconds
 #: (about 5 s on this machine); one that starts a server or waits on input
 #: never finishes, and without a bound it stalls the whole run (2026-09-27,
@@ -258,8 +292,13 @@ def grade_pin_test(
     """
     verdict = PinVerdict()
 
-    clean = run_suite(corpus, new_test, timeout=PIN_TEST_TIMEOUT_S)
-    _refuse_hollow(clean, "the agent's new test")
+    clean = _run_measured(
+        corpus,
+        new_test,
+        "the agent's new test",
+        verdict.notes,
+        timeout=PIN_TEST_TIMEOUT_S,
+    )
     verdict.passes_clean = clean.green
     if not clean.green:
         verdict.notes.append(f"clean run not green: {clean.tail}")
@@ -275,10 +314,15 @@ def grade_pin_test(
     module_path = corpus.root / Path(target_module)
     mutation = mutate_function(module_path, target_function)
     try:
-        mutated = run_suite(corpus, new_test, timeout=PIN_TEST_TIMEOUT_S)
-        # Checked INSIDE the try so `restore()` still runs: leaving the corpus
+        # Measured INSIDE the try so `restore()` still runs: leaving the corpus
         # mutated would break every later attempt in the run.
-        _refuse_hollow(mutated, "the mutated negative control")
+        mutated = _run_measured(
+            corpus,
+            new_test,
+            "the mutated negative control",
+            verdict.notes,
+            timeout=PIN_TEST_TIMEOUT_S,
+        )
         # A mutated run that never FINISHED is not a test failing on broken
         # code; whether it would have caught the mutation is unknown. Unknown
         # is never credited: the conservative direction, as for a hollow run.
@@ -299,8 +343,9 @@ def grade_pin_test(
     finally:
         restore(mutation)
 
-    guard = run_suite(corpus, guard_selection)
-    _refuse_hollow(guard, "the pre-existing guard suite")
+    guard = _run_measured(
+        corpus, guard_selection, "the pre-existing guard suite", verdict.notes
+    )
     verdict.suite_still_green = guard.green
     if not guard.green:
         verdict.notes.append(f"pre-existing suite no longer green: {guard.tail}")

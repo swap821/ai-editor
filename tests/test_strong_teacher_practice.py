@@ -316,3 +316,32 @@ def test_a_real_model_error_is_not_retried(monkeypatch) -> None:
         == "model_error"
     )
     assert waits == []
+
+
+def _attempt(reached: bool, note: str = "") -> object:
+    from types import SimpleNamespace
+
+    return SimpleNamespace(reached_model=reached, notes=[note] if note else [])
+
+
+def test_a_target_some_model_reached_resets_the_unreached_streak() -> None:
+    assert ocr.count_unreached(2, [_attempt(False, "x"), _attempt(True)]) == 0
+    assert ocr.count_unreached(2, []) == 0
+
+
+def test_a_blocked_provider_stops_the_run_after_three_unreached_targets() -> None:
+    """2026-10-18: Bedrock refused every inference ("Operation not allowed") and
+    the practice raced on -- 819 refusals in two minutes -- filing targets no
+    model ever saw. Three unreached targets in a row stop it, naming why."""
+    refused = "ValidationException: Operation not allowed"
+    streak = 0
+    for _ in range(ocr.UNREACHED_TARGETS_BEFORE_STOP - 1):
+        streak = ocr.count_unreached(streak, [_attempt(False, refused)] * 3)
+    assert streak == ocr.UNREACHED_TARGETS_BEFORE_STOP - 1
+    with pytest.raises(ocr.ProviderUnavailable, match="Operation not allowed"):
+        ocr.count_unreached(streak, [_attempt(False, refused)] * 3)
+
+
+def test_the_stop_is_recorded_like_any_other_abort() -> None:
+    # main() records every CorpusError as an aborted run in the trail.
+    assert issubclass(ocr.ProviderUnavailable, ocr.CorpusError)
