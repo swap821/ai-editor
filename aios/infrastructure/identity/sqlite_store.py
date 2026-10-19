@@ -142,6 +142,28 @@ class IdentityStore:
             )
             conn.commit()
 
+    def rotate_operator_secrets(
+        self,
+        *,
+        operator_id: str,
+        credential_digest_value: str,
+        recovery_digest_value: str,
+    ) -> bool:
+        """Replace the operator's credential and recovery digests IN PLACE.
+
+        The operator id is untouched, so everything scoped to it (re-admitted
+        lessons, skills, approvals) survives a recovery. True only when exactly
+        the enrolled operator's row changed.
+        """
+        with closing(self._connect()) as conn:
+            cursor = conn.execute(
+                "UPDATE sovereign_operator SET credential_digest = ?, recovery_digest = ? "
+                "WHERE singleton_id = 1 AND operator_id = ?",
+                (credential_digest_value, recovery_digest_value, operator_id),
+            )
+            conn.commit()
+            return cursor.rowcount == 1
+
     def create_device(self, *, device_id: str, operator_id: str) -> None:
         with closing(self._connect()) as conn:
             conn.execute(
