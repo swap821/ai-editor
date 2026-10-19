@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import shutil
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -314,6 +313,35 @@ def _model_runtime_check(
     )
 
 
+def _approved_execution_probe() -> tuple[bool, str]:
+    """Can a human-approved command actually run? The backend's own answer.
+
+    This used to be ``shutil.which("docker")``: the CLI being on PATH. It said
+    "docker runtime is available" with the daemon stopped (measured
+    2026-10-19, rebuild drill), while the backend's startup check, on the same
+    machine, warned that approved execution would FAIL CLOSED -- and an
+    approved command did. Two answers to one question; now there is one:
+    ``validate_approved_execution_backend``, the function the backend logs at
+    startup, which actually reaches the daemon.
+    """
+    from aios.core.executor import (
+        approved_runner_from_config,
+        validate_approved_execution_backend,
+    )
+
+    try:
+        warning = validate_approved_execution_backend()
+    except RuntimeError as exc:
+        return False, f"approved execution backend is misconfigured: {exc}"
+    if warning is None:
+        return True, "approved execution backend is ready"
+    if approved_runner_from_config() is None:
+        # Host mode: commands DO run (as the backend's OS user); the warning
+        # says it is development-only, and doctor reports exactly that.
+        return True, warning
+    return False, warning
+
+
 def doctor_report(
     *,
     profile: str | None = None,
@@ -352,14 +380,7 @@ def doctor_report(
     checks.append(_learning_loop_check())
 
     executor_ok, executor_message = (
-        executor_probe()
-        if executor_probe is not None
-        else (
-            bool(shutil.which(config.CONTAINER_RUNTIME)),
-            f"{config.CONTAINER_RUNTIME} runtime is available"
-            if shutil.which(config.CONTAINER_RUNTIME)
-            else f"{config.CONTAINER_RUNTIME} runtime is unavailable",
-        )
+        executor_probe() if executor_probe is not None else _approved_execution_probe()
     )
     checks.append(
         _check("executor", executor_ok, executor_message, required=production)

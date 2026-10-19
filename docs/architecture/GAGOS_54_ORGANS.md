@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `bb5d19b343f68a5b730b591ef76b3149d163aaa05540ab3cba0912ddf37bf520`
+- **Source ledger sha256:** `b7a7380f9cb4ba3fa861fcd4622ad049ad531c9a0e6e76049dad983c3180667f`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -865,8 +865,8 @@ re-audits recorded above.
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `2ea0586c90b3` | live |
 | 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `ececec7af631` | live |
 | 52 | Observability and Health Organ | `ObservabilityAuthority` | `4ac444b09641` | live |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `08978eeefd37` | live |
-| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `0d85919fda58` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `f9725831d5cb` | live |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `f9725831d5cb` | live |
 | 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `57d00ecb1a14` | live |
 | 57 | Reflex Authority | `Cerebellum` | `8c256207c543` | live |
 | 58 | Recall Isolation | `RecallGate` | `366b377acc1d` | live |
