@@ -40,6 +40,7 @@ services:
       # launcher's value through; an unset one stays unset.
       - AIOS_VERIFICATION_AUTHORITY_KEY
       - AIOS_PROMOTION_AUTHORITY_KEY
+      - AIOS_CHECKPOINT_AUTHORITY_KEY
       - AIOS_LEARNING_KEY_LIVE
       - AWS_BEARER_TOKEN_BEDROCK
       - AWS_ACCESS_KEY_ID
