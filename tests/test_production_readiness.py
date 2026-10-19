@@ -276,6 +276,27 @@ def test_the_production_container_must_receive_its_keys(tmp_path) -> None:
             "AIOS_LEARNING_KEY_LIVE=${AIOS_LEARNING_KEY_LIVE:-}",
         ],
     )
+    gate = pr.sovereign_compose_keys(world)
+    assert gate.status == pr.FAIL and "AIOS_PROMOTION_AUTHORITY_KEY" in gate.evidence
+    _compose(
+        world,
+        [
+            "AIOS_VERIFICATION_AUTHORITY_KEY=${AIOS_VERIFICATION_AUTHORITY_KEY:-}",
+            "AIOS_PROMOTION_AUTHORITY_KEY=${AIOS_PROMOTION_AUTHORITY_KEY:-}",
+            "AIOS_LEARNING_KEY_LIVE=${AIOS_LEARNING_KEY_LIVE:-}",
+        ],
+    )
+    gate = pr.sovereign_compose_keys(world)
+    assert gate.status == pr.FAIL and "AIOS_CHECKPOINT_AUTHORITY_KEY" in gate.evidence
+    _compose(
+        world,
+        [
+            "AIOS_VERIFICATION_AUTHORITY_KEY=${AIOS_VERIFICATION_AUTHORITY_KEY:-}",
+            "AIOS_PROMOTION_AUTHORITY_KEY=${AIOS_PROMOTION_AUTHORITY_KEY:-}",
+            "AIOS_CHECKPOINT_AUTHORITY_KEY=${AIOS_CHECKPOINT_AUTHORITY_KEY:-}",
+            "AIOS_LEARNING_KEY_LIVE=${AIOS_LEARNING_KEY_LIVE:-}",
+        ],
+    )
     assert pr.sovereign_compose_keys(world).status == pr.PASS
 
 

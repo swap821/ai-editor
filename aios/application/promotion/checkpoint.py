@@ -83,6 +83,55 @@ def _resolve_external_dir(project_root: Path, storage_root: Path | None = None) 
     return rollback_root
 
 
+#: Keys that are public -- in this repository or by convention -- and so sign
+#: nothing. The first is the fallback this authority used until 2026-10-19.
+_INSECURE_CHECKPOINT_KEYS: frozenset[str] = frozenset(
+    {
+        "aios-checkpoint-key-default-32bytes!",
+        "aios-authority-key",
+        "changeme",
+        "secret",
+        "default",
+    }
+)
+_TEST_CHECKPOINT_KEY = "test-checkpoint-signing-key-placeholder-safe"
+
+
+def _resolve_checkpoint_key(explicit: str | None) -> str:
+    """The checkpoint signing key, or CheckpointError.
+
+    Until 2026-10-19 a missing key fell back to a constant published in this
+    file, so every rollback manifest was signed with a key anyone could read
+    and its signature proved nothing. Now, as for promotion
+    (``PromotionAuthority._resolve_signing_key``): configured, >= 32
+    characters, not a known public value; tests may use a placeholder.
+    """
+    key = (
+        explicit
+        or os.environ.get("AIOS_CHECKPOINT_AUTHORITY_KEY")
+        or os.environ.get("CHECKPOINT_AUTHORITY_KEY")
+        or ""
+    )
+    is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
+    allow_insecure = bool(os.environ.get("AIOS_TEST_SIGNING_KEYS_ALLOWED", ""))
+    if not key:
+        if is_test or allow_insecure:
+            return _TEST_CHECKPOINT_KEY
+        raise CheckpointError(
+            "AIOS_CHECKPOINT_AUTHORITY_KEY must be set to a secret of at least "
+            "32 characters; rollback manifests are unsigned without it"
+        )
+    if key in _INSECURE_CHECKPOINT_KEYS:
+        raise CheckpointError(
+            "AIOS_CHECKPOINT_AUTHORITY_KEY is a known public value; provide a unique secret"
+        )
+    if len(key) < 32 and not (is_test or allow_insecure):
+        raise CheckpointError(
+            "AIOS_CHECKPOINT_AUTHORITY_KEY must be at least 32 characters"
+        )
+    return key
+
+
 class CheckpointAuthority:
     """Production authority owning checkpoint snapshotting, manifest signing, and two-phase rollback."""
 
@@ -102,11 +151,7 @@ class CheckpointAuthority:
             self.project_root,
             Path(storage_root) if storage_root else None,
         )
-        self.authority_key = (
-            authority_key
-            or os.environ.get("CHECKPOINT_AUTHORITY_KEY", "")
-            or "aios-checkpoint-key-default-32bytes!"
-        )
+        self.authority_key = _resolve_checkpoint_key(authority_key)
         self.key_id = key_id
 
     def _sign_manifest_bytes(self, data: bytes) -> str:
