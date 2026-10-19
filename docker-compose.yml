@@ -39,6 +39,7 @@ services:
       # memory (AGENTS.md VII.4, amended 2026-10-11). A bare name passes the
       # launcher's value through; an unset one stays unset.
       - AIOS_VERIFICATION_AUTHORITY_KEY
+      - AIOS_PROMOTION_AUTHORITY_KEY
       - AIOS_LEARNING_KEY_LIVE
       - AWS_BEARER_TOKEN_BEDROCK
       - AWS_ACCESS_KEY_ID

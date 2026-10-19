@@ -29,6 +29,23 @@ def test_generate_stores_and_returns_nothing_secret() -> None:
     assert value and len(value) >= 32, "verification_authority refuses < 32 chars"
 
 
+def test_the_promotion_key_is_managed_and_accepted_by_promotion(monkeypatch) -> None:
+    """2026-10-19: promotion refused without AIOS_PROMOTION_AUTHORITY_KEY, and the
+    keystore had no place for it -- so no install could ever apply a repair."""
+    assert "AIOS_PROMOTION_AUTHORITY_KEY" in ks.REQUIRED
+    store = ks.MemoryKeystore()
+    assert ks.generate(store, "AIOS_PROMOTION_AUTHORITY_KEY") is None
+    value = store.get("AIOS_PROMOTION_AUTHORITY_KEY")
+    assert value and len(value) >= 32
+    from aios.application.promotion.authority import PromotionAuthority
+
+    # Production rules, not the test placeholder: a generated key must pass.
+    monkeypatch.delenv("AIOS_ENV", raising=False)
+    monkeypatch.delenv("AIOS_TEST_SIGNING_KEYS_ALLOWED", raising=False)
+    monkeypatch.setenv("AIOS_PROMOTION_AUTHORITY_KEY", value)
+    assert PromotionAuthority._resolve_signing_key() == value
+
+
 def test_the_learning_key_returns_only_its_public_half() -> None:
     store = ks.MemoryKeystore()
     public = ks.generate(store, "AIOS_LEARNING_KEY_LIVE")

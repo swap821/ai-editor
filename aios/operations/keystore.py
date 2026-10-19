@@ -32,6 +32,10 @@ REQUIRED = (
     "AIOS_EXECUTOR_TOKEN",
     "AIOS_GRAFANA_ADMIN_PASSWORD",
     "AIOS_VERIFICATION_AUTHORITY_KEY",
+    # Promotion (every repair or change applied to a project) refuses without
+    # it. It had no place in the keystore at all until 2026-10-19, so no
+    # install could ever promote.
+    "AIOS_PROMOTION_AUTHORITY_KEY",
     "AIOS_LEARNING_KEY_LIVE",
 )
 #: Cloud brains are optional: each one present is one more provider. Bedrock
@@ -70,6 +74,8 @@ GENERATORS: dict[str, Callable[[], str]] = {
     "AIOS_GRAFANA_ADMIN_PASSWORD": lambda: secrets.token_urlsafe(24),
     # verification_authority refuses a key shorter than 32 characters.
     "AIOS_VERIFICATION_AUTHORITY_KEY": lambda: secrets.token_hex(32),
+    # promotion authority refuses a key shorter than 32 characters too.
+    "AIOS_PROMOTION_AUTHORITY_KEY": lambda: secrets.token_hex(32),
     "AIOS_LEARNING_KEY_LIVE": _learning_seed,
 }
 

@@ -60,7 +60,11 @@ CLOUD_KEY_NAMES = (
     "GOOGLE_API_KEY",
 )
 #: Keys the production container needs to verify, promote and sign learning.
-PRODUCTION_KEY_NAMES = ("AIOS_VERIFICATION_AUTHORITY_KEY", "AIOS_LEARNING_KEY_LIVE")
+PRODUCTION_KEY_NAMES = (
+    "AIOS_VERIFICATION_AUTHORITY_KEY",
+    "AIOS_PROMOTION_AUTHORITY_KEY",
+    "AIOS_LEARNING_KEY_LIVE",
+)
 _LOOPBACK = ("127.0.0.1", "localhost", "0.0.0.0", "[::1]")
 
 
