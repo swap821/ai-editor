@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import secrets
 import sqlite3
 import time
@@ -21,7 +20,12 @@ from aios.domain.identity.models import (
     Principal,
     PrincipalType,
 )
-from aios.infrastructure.identity.sqlite_store import IdentityStore, credential_digest
+from aios.infrastructure.identity.sqlite_store import (
+    IdentityStore,
+    chosen_secret_hash,
+    credential_digest,
+    secret_matches,
+)
 
 if TYPE_CHECKING:
     from aios.application.governance.constitution_authority import (
@@ -39,6 +43,18 @@ class AlreadyEnrolled(IdentityError):
 
 class InvalidCredential(IdentityError):
     """Raised for invalid enrollment/re-authentication material."""
+
+
+#: Shortest secret the operator may CHOOSE in a local reset. Enrollment
+#: generates its own (token_urlsafe: 43 and 32 characters).
+MIN_CHOSEN_SECRET_LENGTH = 20
+
+
+def _check_chosen_secret(value: str, what: str) -> None:
+    if not isinstance(value, str) or len(value.strip()) < MIN_CHOSEN_SECRET_LENGTH:
+        raise ValueError(
+            f"the new {what} must be at least {MIN_CHOSEN_SECRET_LENGTH} characters"
+        )
 
 
 class IdentityDegraded(IdentityError):
@@ -130,6 +146,63 @@ class IdentityAuthority:
             operator_id=operator_id,
         )
         return EnrollmentResult(operator_id, credential, recovery_code)
+
+    def reset_secrets_locally(self, credential: str, recovery_code: str) -> str:
+        """The operator's local reset when BOTH secrets are lost.
+
+        Driven only by ``tools/operator_recover.py`` (interactive terminal, the
+        operator types both secrets, nothing is printed). Its proof is local
+        access to this machine's identity store -- which already lets anyone
+        delete that store and enroll a different operator -- so it grants
+        nothing that access did not, and unlike re-enrolling it keeps the
+        operator id. Returns that id.
+        """
+        operator = self.store.operator()
+        if operator is None:
+            raise IdentityError("no operator is enrolled: enroll instead of resetting")
+        _check_chosen_secret(credential, "credential")
+        _check_chosen_secret(recovery_code, "recovery code")
+        self._rotate_secrets(
+            operator, credential, recovery_code, event_type="local_secret_reset"
+        )
+        return str(operator["operator_id"])
+
+    def _rotate_secrets(
+        self,
+        operator: dict[str, object],
+        credential: str,
+        recovery_code: str,
+        *,
+        event_type: str,
+    ) -> None:
+        """Replace digests in place, revoke every session, record the event.
+
+        One function, so the recovery-code route (a follow-up: it needs the
+        edge allowlist, the policy kernel and an action type) reuses it.
+        """
+        if credential == recovery_code:
+            raise ValueError("the credential and the recovery code must differ")
+        operator_id = str(operator["operator_id"])
+        if not self.store.rotate_operator_secrets(
+            operator_id=operator_id,
+            # Typed by a human: salted scrypt, never the bare SHA-256 that
+            # enrollment uses for its generated tokens.
+            credential_digest_value=chosen_secret_hash(credential),
+            recovery_digest_value=chosen_secret_hash(recovery_code),
+        ):
+            raise IdentityError("the operator record changed; nothing was replaced")
+        # Every live session is stamped with the current generation, so bumping
+        # it revokes them all: whoever held the old credential is logged out.
+        self.store.bump_session_generation(operator_id)
+        self.store.record_authentication_event(
+            event_id=uuid.uuid4().hex,
+            operator_id=operator_id,
+            event_type=event_type,
+            session_hash=None,
+            strength="operator",
+            purpose=event_type,
+            expires_at=time.time(),
+        )
 
     def authenticate_credential(self, credential: str) -> AuthenticationResult:
         operator = self._operator_for_credential(credential)
@@ -233,8 +306,7 @@ class IdentityAuthority:
         operator = self.store.operator()
         if operator is None or not isinstance(credential, str) or not credential:
             raise InvalidCredential("invalid operator credential")
-        supplied = credential_digest(credential)
-        if not hmac.compare_digest(supplied, str(operator["credential_digest"])):
+        if not secret_matches(credential, str(operator["credential_digest"])):
             raise InvalidCredential("invalid operator credential")
         return operator
 
