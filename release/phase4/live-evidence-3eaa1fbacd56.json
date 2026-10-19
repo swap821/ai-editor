@@ -1,0 +1,28 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-10-19T12:45:37+00:00",
+  "tip_sha": "3eaa1fbacd5694f073c2b03bc51b8853710d6e43",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 3eaa1fbacd5694f073c2b03bc51b8853710d6e43",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 53,
+      "name": "Installation, Configuration and Key Authority",
+      "passed": true,
+      "command": "InstallationConfigurationAuthority.rotate + reopen SQLite",
+      "evidence": "rotate persisted; state=ApiTokenRotationState(current_token_digest='1167d13e58216e2785b72a5985a7905134a8de2e9384d77ca6d60cca4aa14579', current_issued_at=1792413936.4186265, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1792413996.4186265); reopen_configured=True db_bytes=8192"
+    },
+    {
+      "organ_id": 54,
+      "name": "Backup and Disaster-Recovery Organ",
+      "passed": true,
+      "command": "create_backup+verify_backup+BackupDisasterRecoveryAuthority.restore_backup",
+      "evidence": "create_backup+verify_backup+restore_backup ok; manifest_files={'note.txt': '1f6c0690aac5d6742dc80b4597b8c70153975c995afa491fc90a4cfe11b88944'}; old_dir=None"
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}
