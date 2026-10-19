@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
+import os
 import sqlite3
 import time
 from contextlib import closing
@@ -11,8 +13,66 @@ from typing import Any
 
 
 def credential_digest(value: str) -> str:
-    """Hash bootstrap/recovery material before it reaches durable storage."""
+    """Hash bootstrap/recovery material before it reaches durable storage.
+
+    Right for what enrollment GENERATES (256-bit random tokens, which no one
+    can brute-force) and for identifiers. Wrong for a secret a human typed:
+    use `chosen_secret_hash` for those.
+    """
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+#: scrypt cost for human-chosen secrets: OWASP's N=2^14, r=8, p=5 equivalent
+#: of its minimum (16 MiB, ~0.3 s here). Stored with each hash, so a later
+#: increase leaves existing hashes verifiable.
+_SCRYPT_N, _SCRYPT_R, _SCRYPT_P = 2**14, 8, 5
+#: A stored hash asking for more than this is refused, not computed.
+_SCRYPT_MAXMEM = 64 * 1024 * 1024
+_SCRYPT_PREFIX = "scrypt$"
+
+
+def _scrypt(value: str, salt: bytes, n: int, r: int, p: int) -> bytes:
+    return hashlib.scrypt(
+        value.encode("utf-8"),
+        salt=salt,
+        n=n,
+        r=r,
+        p=p,
+        dklen=32,
+        maxmem=_SCRYPT_MAXMEM,
+    )
+
+
+def chosen_secret_hash(value: str) -> str:
+    """Store a secret a HUMAN chose: salted scrypt, with its parameters.
+
+    `credential_digest` is a bare SHA-256: unsalted and fast, so an offline
+    copy of this store would let a typed secret be brute-forced (CodeQL
+    py/weak-sensitive-data-hashing, 2026-10-19, on the operator's local reset).
+    """
+    salt = os.urandom(16)
+    derived = _scrypt(value, salt, _SCRYPT_N, _SCRYPT_R, _SCRYPT_P)
+    return (
+        f"{_SCRYPT_PREFIX}{_SCRYPT_N}${_SCRYPT_R}${_SCRYPT_P}"
+        f"${salt.hex()}${derived.hex()}"
+    )
+
+
+def secret_matches(value: str, stored: str) -> bool:
+    """Whether `value` is the secret behind `stored`, in either format.
+
+    A scrypt hash (a chosen secret) is recomputed with its own salt and
+    parameters; anything else is the SHA-256 digest enrollment writes for its
+    generated tokens. Malformed or over-costly hashes never match.
+    """
+    if stored.startswith(_SCRYPT_PREFIX):
+        try:
+            n, r, p, salt, expected = stored[len(_SCRYPT_PREFIX) :].split("$")
+            derived = _scrypt(value, bytes.fromhex(salt), int(n), int(r), int(p))
+        except ValueError:
+            return False
+        return hmac.compare_digest(derived.hex(), expected)
+    return hmac.compare_digest(credential_digest(value), stored)
 
 
 class IdentityStore:

@@ -20,7 +20,11 @@ from aios.application.identity.service import (
     IdentityService,
     InvalidCredential,
 )
-from aios.infrastructure.identity.sqlite_store import credential_digest
+from aios.infrastructure.identity.sqlite_store import (
+    chosen_secret_hash,
+    credential_digest,
+    secret_matches,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NEW_CREDENTIAL = "correct horse battery staple 2026"
@@ -59,9 +63,7 @@ def test_a_reset_keeps_the_operator_id_and_swaps_the_secrets(tmp_path) -> None:
         service.authenticate_credential(enrollment.enrollment_credential)
     again = service.authenticate_credential(NEW_CREDENTIAL)
     assert again.principal.principal_id == enrollment.operator_id
-    assert service.store.operator()["recovery_digest"] == credential_digest(
-        NEW_RECOVERY
-    )
+    assert secret_matches(NEW_RECOVERY, service.store.operator()["recovery_digest"])
 
 
 def test_a_reset_logs_out_every_existing_session(tmp_path) -> None:
@@ -88,6 +90,56 @@ def test_a_reset_is_recorded_and_stores_no_secret(tmp_path) -> None:
     assert "local_secret_reset" in kinds
     stored = db.read_bytes()
     assert NEW_CREDENTIAL.encode() not in stored and NEW_RECOVERY.encode() not in stored
+
+
+def test_chosen_secrets_are_salted_and_slow_not_bare_sha256(tmp_path) -> None:
+    """CodeQL py/weak-sensitive-data-hashing (2026-10-19): a typed secret under
+    a bare, fast SHA-256 can be brute-forced from an offline copy of the store."""
+    service = _service(tmp_path)
+    service.enroll_operator(display_name="Kumar")
+    service.reset_secrets_locally(NEW_CREDENTIAL, NEW_RECOVERY)
+
+    operator = service.store.operator()
+    for stored, secret in (
+        (operator["credential_digest"], NEW_CREDENTIAL),
+        (operator["recovery_digest"], NEW_RECOVERY),
+    ):
+        assert stored.startswith("scrypt$")
+        assert stored != credential_digest(secret)
+    # Salted: the same secret never hashes the same way twice.
+    assert chosen_secret_hash(NEW_CREDENTIAL) != chosen_secret_hash(NEW_CREDENTIAL)
+
+
+def test_enrollment_tokens_still_log_in_under_their_digest(tmp_path) -> None:
+    """Existing operators (generated 256-bit tokens, SHA-256) are unaffected."""
+    service = _service(tmp_path)
+    enrollment = service.enroll_operator(display_name="Kumar")
+    assert service.store.operator()["credential_digest"] == credential_digest(
+        enrollment.enrollment_credential
+    )
+    assert service.authenticate_credential(enrollment.enrollment_credential)
+    with pytest.raises(InvalidCredential):
+        service.authenticate_credential(enrollment.enrollment_credential + "x")
+
+
+@pytest.mark.parametrize(
+    "stored",
+    [
+        "scrypt$garbage",
+        "scrypt$16384$8$5$zz$00",
+        # Asks for 2^30 x 8 x 128 bytes: refused, never computed.
+        "scrypt$1073741824$8$1$00$00",
+    ],
+    ids=["truncated", "bad-salt", "over-costly"],
+)
+def test_malformed_or_costly_hashes_never_match(stored) -> None:
+    assert secret_matches(NEW_CREDENTIAL, stored) is False
+
+
+def test_a_wrong_secret_does_not_match_a_chosen_hash() -> None:
+    stored = chosen_secret_hash(NEW_CREDENTIAL)
+    assert secret_matches(NEW_CREDENTIAL, stored)
+    assert not secret_matches(NEW_CREDENTIAL + "x", stored)
 
 
 @pytest.mark.parametrize(

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import secrets
 import sqlite3
 import time
@@ -21,7 +20,12 @@ from aios.domain.identity.models import (
     Principal,
     PrincipalType,
 )
-from aios.infrastructure.identity.sqlite_store import IdentityStore, credential_digest
+from aios.infrastructure.identity.sqlite_store import (
+    IdentityStore,
+    chosen_secret_hash,
+    credential_digest,
+    secret_matches,
+)
 
 if TYPE_CHECKING:
     from aios.application.governance.constitution_authority import (
@@ -181,8 +185,10 @@ class IdentityAuthority:
         operator_id = str(operator["operator_id"])
         if not self.store.rotate_operator_secrets(
             operator_id=operator_id,
-            credential_digest_value=credential_digest(credential),
-            recovery_digest_value=credential_digest(recovery_code),
+            # Typed by a human: salted scrypt, never the bare SHA-256 that
+            # enrollment uses for its generated tokens.
+            credential_digest_value=chosen_secret_hash(credential),
+            recovery_digest_value=chosen_secret_hash(recovery_code),
         ):
             raise IdentityError("the operator record changed; nothing was replaced")
         # Every live session is stamped with the current generation, so bumping
@@ -300,8 +306,7 @@ class IdentityAuthority:
         operator = self.store.operator()
         if operator is None or not isinstance(credential, str) or not credential:
             raise InvalidCredential("invalid operator credential")
-        supplied = credential_digest(credential)
-        if not hmac.compare_digest(supplied, str(operator["credential_digest"])):
+        if not secret_matches(credential, str(operator["credential_digest"])):
             raise InvalidCredential("invalid operator credential")
         return operator
 
