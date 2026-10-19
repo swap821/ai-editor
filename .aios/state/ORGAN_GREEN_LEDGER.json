@@ -58,13 +58,13 @@
     ],
     "live_evidence": [
       {
-        "description": "command=`python scripts/phase4_live_evidence.py --tip 8848c35fd512906566eda0cf5873a3c143e623f9`; artifact=release/phase4/live-evidence-8848c35fd512.json; Live read-only probe on tip 8848c35fd512906566eda0cf5873a3c143e623f9: ScopeLockAuthority.is_path_in_scope (read-only) => owner=ScopeLockAuthority; roots=['C:\\\\Users\\\\kumar\\\\ai-editor\\\\training_ground', 'C:\\\\Users\\\\kumar\\\\ai-editor\\\\lab']; '../../etc/passwd' refused (in_scope=False, reason=Path 'C:\\Users\\kumar\\etc\\passwd' escapes all declared scope roots.) -- the frozen module was CALLED, never modified. Recorded while the organ remains YELLOW: this is what is already proven, so a future section VIII review starts from evidence rather than scratch. It is explicitly NOT a green claim and does not substitute for approval.",
-        "commit_sha": "8848c35fd512906566eda0cf5873a3c143e623f9",
+        "description": "Phase 4 absolute live run on tip 743c6848c1c7eb512517e6e9d27859d7de7828a6: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 743c6848c1c7eb512517e6e9d27859d7de7828a6 exit=0; artifact=release/phase4/live-evidence-743c6848c1c7.json; ScopeLockAuthority.is_path_in_scope (read-only) => owner=ScopeLockAuthority; roots=['C:\\\\Users\\\\kumar\\\\ai-editor\\\\training_ground', 'C:\\\\Users\\\\kumar\\\\ai-editor\\\\lab']; '../../etc/passwd' refused (in_scope=False, reason=Path 'C:\\Users\\kumar\\etc\\passwd' escapes all declared scope roots.)",
+        "commit_sha": "743c6848c1c7eb512517e6e9d27859d7de7828a6",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "8848c35fd512906566eda0cf5873a3c143e623f9",
+    "last_verified_sha": "743c6848c1c7eb512517e6e9d27859d7de7828a6",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ScopeLockAuthority class defined in production_entrypoints ['aios/security/scope_lock.py'] (Decision A / enforce_owner_attestation)",
