@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `35a5257c260922b188fa99fe0f37dc08ceec678b4a15da5af70f1faf187f5932`
+- **Source ledger sha256:** `eff25443bc9313f30f61ed148c2c80ba0797d35ab7aefbaa5a6f1fb19116714e`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -822,7 +822,7 @@ re-audits recorded above.
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
 | 1 | Security Gateway | `SecurityGatewayAuthority` | `8848c35fd512` | live |
-| 2 | Scope Lock | `ScopeLockAuthority` | `8848c35fd512` | live |
+| 2 | Scope Lock | `ScopeLockAuthority` | `743c6848c1c7` | live |
 | 3 | Secret Scanner | `SecretScannerAuthority` | `8848c35fd512` | live |
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `8848c35fd512` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `8848c35fd512` | live |
