@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `eff25443bc9313f30f61ed148c2c80ba0797d35ab7aefbaa5a6f1fb19116714e`
+- **Source ledger sha256:** `bb5d19b343f68a5b730b591ef76b3149d163aaa05540ab3cba0912ddf37bf520`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -826,7 +826,7 @@ re-audits recorded above.
 | 3 | Secret Scanner | `SecretScannerAuthority` | `8848c35fd512` | live |
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `8848c35fd512` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `8848c35fd512` | live |
-| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `cb19e19ef2c7` | live |
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `743c6848c1c7` | live |
 | 7 | Policy Kernel | `PolicyKernelAuthority` | `0d85919fda58` | live |
 | 8 | Action Broker | `ActionBrokerAuthority` | `cb19e19ef2c7` | live |
 | 9 | Exact Capability Authority | `CapabilityAuthority` | `cb19e19ef2c7` | live |
@@ -844,12 +844,12 @@ re-audits recorded above.
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `cb19e19ef2c7` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `a696aa699e67` | live |
 | 24 | Human Sovereign Identity | `IdentityAuthority` | `cb19e19ef2c7` | live |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `4ac444b09641` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `4ac444b09641` | live |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `743c6848c1c7` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `743c6848c1c7` | live |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `64f78f3bfefa` | live |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `64f78f3bfefa` | live |
 | 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `64f78f3bfefa` | live |
-| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `4ac444b09641` | live |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `743c6848c1c7` | live |
 | 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `a6beaad5182f` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `64f78f3bfefa` | live |
 | 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `64f78f3bfefa` | live |
