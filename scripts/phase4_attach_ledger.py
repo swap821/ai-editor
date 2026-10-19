@@ -42,6 +42,43 @@ def _spine_attested_organ_ids() -> set[int]:
     return {int(x) for x in (data.get("organ_ids") or [])}
 
 
+#: The same test-only escape `spine_release_attest.py sign` honours, so there is
+#: ONE name for "let the suite exercise an interactive operator act".
+_ALLOW_NONTTY_ENV = "AIOS_SPINE_RELEASE_ALLOW_NONTTY"
+
+
+def _interactive() -> bool:
+    """Is a human at a terminal? The operator-spine mode refuses otherwise.
+
+    A heuristic, worth what heuristics are worth -- the same one `sign` uses:
+    captured output means this is very likely running inside an agent session.
+    It stops the accident, not a determined mistake.
+    """
+    import os
+
+    if os.environ.get(_ALLOW_NONTTY_ENV):
+        return True
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def _operator_approves(organ_ids: list[int], tip: str) -> bool:
+    """Show the operator what this does to his signature; require `approve`."""
+    print()
+    print("OPERATOR SPINE REFRESH -- this rewrites live evidence for frozen-spine")
+    print(f"organ(s) {organ_ids} at tip {tip[:12]}.")
+    print()
+    print("The spine signature covers that evidence, so from the moment this is")
+    print("written organs 1-5 stop verifying until YOU re-sign, in this terminal:")
+    print()
+    print(
+        "  AIOS_SPINE_RELEASE_KEY=<private-hex> "
+        "python scripts/spine_release_attest.py sign --organs 1,2,3,4,5"
+    )
+    print()
+    reply = input("Type the word approve to write it, anything else to abort: ")
+    return reply.strip() == "approve"
+
+
 def _tip_is_on_master(tip: str) -> bool:
     """Is *tip* already a commit on master, and therefore squash-proof?
 
@@ -81,7 +118,51 @@ def main(argv: list[str] | None = None) -> int:
             "squash merge will discard the commit and orphan every row."
         ),
     )
+    parser.add_argument(
+        "--operator-spine",
+        action="store_true",
+        help=(
+            "THE OPERATOR's act: refresh live evidence for the frozen-spine "
+            "organs (which this tool otherwise never touches), immediately "
+            "before re-signing them with spine_release_attest.py. Updates ONLY "
+            "spine organs; refuses without an interactive terminal; asks for "
+            "`approve`; refuses evidence that is not on master."
+        ),
+    )
+    parser.add_argument(
+        "--organs",
+        default="",
+        help="with --operator-spine: comma-separated spine organ ids to refresh "
+        "(default: every spine organ with a passing proof in the artifact)",
+    )
     args = parser.parse_args(argv)
+
+    spine_mode = bool(args.operator_spine)
+    selected: set[int] = set()
+    if args.organs:
+        if not spine_mode:
+            print("--organs is only meaningful with --operator-spine", file=sys.stderr)
+            return 2
+        selected = {int(x) for x in args.organs.split(",") if x.strip()}
+    if spine_mode:
+        if args.allow_branch_tip:
+            # The signature names a commit that must stay reachable from master;
+            # evidence at a branch tip is exactly what a squash orphans.
+            print(
+                "REFUSING: --operator-spine evidence must be gathered at a commit "
+                "already on master (the spine signature must name one).",
+                file=sys.stderr,
+            )
+            return 2
+        if not args.dry_run and not _interactive():
+            print(
+                "refusing --operator-spine: stdin/stdout is not a terminal, so this\n"
+                "is very likely running inside an agent session. Refreshing the\n"
+                "spine's evidence is the operator's act -- run it in a plain\n"
+                "terminal with no agent attached.",
+                file=sys.stderr,
+            )
+            return 2
 
     report = json.loads(args.artifact.read_text(encoding="utf-8"))
     if not report.get("all_passed"):
@@ -166,7 +247,14 @@ def main(argv: list[str] | None = None) -> int:
         # available was to break them.
         #
         # Skipped by construction rather than by remembering.
-        if oid in attested:
+        #
+        # The ONE exception is the operator's own refresh (--operator-spine),
+        # which touches spine organs and nothing else, interactively, right
+        # before he re-signs them.
+        if spine_mode:
+            if oid not in attested or (selected and oid not in selected):
+                continue
+        elif oid in attested:
             skipped_attested.append(oid)
             continue
         # Build one consolidated live evidence row per organ (hostile-reader).
@@ -274,12 +362,23 @@ def main(argv: list[str] | None = None) -> int:
                 "superseded_stale_live_rows": [
                     f"organ {o}: {sha}" for o, sha in sorted(superseded)
                 ],
+                "operator_spine": spine_mode,
             },
             indent=2,
         )
     )
+    if spine_mode and not updated:
+        print(
+            "no spine organ had a passing proof in this artifact; nothing written",
+            file=sys.stderr,
+        )
+        return 1
     if args.dry_run:
         return 0
+    # The operator confirms what this does to his signature, or nothing is written.
+    if spine_mode and not _operator_approves(sorted(updated), tip):
+        print("aborted; nothing written", file=sys.stderr)
+        return 1
     # newline IS LOAD-BEARING. .gitattributes pins this file to eol=lf because
     # release/organ-proof-manifest.json hash-pins its BYTES. Python's default
     # translation writes CRLF on Windows, the manifest records the CRLF sha, git
@@ -288,6 +387,15 @@ def main(argv: list[str] | None = None) -> int:
     LEDGER_PATH.write_text(
         json.dumps(ledger, indent=2) + "\n", encoding="utf-8", newline="\n"
     )
+    if spine_mode:
+        print()
+        print("Written. Now, in this terminal:")
+        print("  python scripts/build_organ_ledger_doc.py")
+        print("  python scripts/build_release_manifest.py")
+        print(
+            "  AIOS_SPINE_RELEASE_KEY=<private-hex> "
+            "python scripts/spine_release_attest.py sign --organs 1,2,3,4,5"
+        )
     return 0
 
 
