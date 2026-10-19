@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `913e20243756c1aa1dbc2bf1b3638c1fed3a4f71f9438cc633fb4021a986d476`
+- **Source ledger sha256:** `7600f667a9bb6c7958c11cecf6e4864c0bb72a89eb984240b2465f197714389d`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -843,8 +843,8 @@ re-audits recorded above.
 | 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `cb19e19ef2c7` | live |
 | 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `cb19e19ef2c7` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `a696aa699e67` | live |
-| 24 | Human Sovereign Identity | `IdentityAuthority` | `cb19e19ef2c7` | live |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `743c6848c1c7` | live |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | `627092fbb167` | live |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `627092fbb167` | live |
 | 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `743c6848c1c7` | live |
 | 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `64f78f3bfefa` | live |
 | 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `64f78f3bfefa` | live |
