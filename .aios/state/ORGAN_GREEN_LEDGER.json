@@ -1260,13 +1260,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip c47afaa3489f8c42f79105b8bc4487690bbc40ea: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip c47afaa3489f8c42f79105b8bc4487690bbc40ea exit=0; artifact=release/phase4/live-evidence-c47afaa3489f.json; IdentityAuthority via rp._probe_identity => owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified",
-        "commit_sha": "c47afaa3489f8c42f79105b8bc4487690bbc40ea",
+        "description": "Phase 4 absolute live run on tip 627092fbb1679271334abdedf9249cd622d92265: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 627092fbb1679271334abdedf9249cd622d92265 exit=0; artifact=release/phase4/live-evidence-627092fbb167.json; IdentityAuthority via rp._probe_identity => owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified",
+        "commit_sha": "627092fbb1679271334abdedf9249cd622d92265",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "c47afaa3489f8c42f79105b8bc4487690bbc40ea",
+    "last_verified_sha": "627092fbb1679271334abdedf9249cd622d92265",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 IdentityAuthority class defined in production_entrypoints ['aios/domain/identity/models.py', 'aios/application/identity/service.py', 'aios/infrastructure/identity/sqlite_store.py'] (Decision A / enforce_owner_attestation)",
@@ -1319,13 +1319,13 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip c47afaa3489f8c42f79105b8bc4487690bbc40ea: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip c47afaa3489f8c42f79105b8bc4487690bbc40ea exit=0; artifact=release/phase4/live-evidence-c47afaa3489f.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
-        "commit_sha": "c47afaa3489f8c42f79105b8bc4487690bbc40ea",
+        "description": "Phase 4 absolute live run on tip 627092fbb1679271334abdedf9249cd622d92265: command=C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip 627092fbb1679271334abdedf9249cd622d92265 exit=0; artifact=release/phase4/live-evidence-627092fbb167.json; ConstitutionalKernelAuthority.get_active_snapshot after enroll => enrolled+authenticated session_ok=True; active_snapshot version=1 digest=",
+        "commit_sha": "627092fbb1679271334abdedf9249cd622d92265",
         "proof_level": "live"
       }
     ],
     "known_blockers": [],
-    "last_verified_sha": "c47afaa3489f8c42f79105b8bc4487690bbc40ea",
+    "last_verified_sha": "627092fbb1679271334abdedf9249cd622d92265",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ConstitutionalKernelAuthority class defined in production_entrypoints ['aios/application/governance/constitution_authority.py', 'aios/infrastructure/governance/constitution_snapshot_store.py', 'aios/domain/governance/constitution.py'] (Decision A / enforce_owner_attestation)",
