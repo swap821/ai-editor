@@ -28,14 +28,14 @@ updates:
       # each time. Lift when transformers widens the range.
       - dependency-name: "tokenizers"
         versions: [">0.23.0"]
-      # pydantic pins its core EXACTLY (2.14.0 requires `pydantic-core==2.50.0`).
+      # pydantic pins its core EXACTLY (2.14.1 requires `pydantic-core==2.50.1`).
       # Dependabot cannot see an exact transitive pin, so it has proposed a lone
       # core bump twice, and both times install died with ResolutionImpossible.
       # The opposite also breaks: #471 bumped pydantic and left the core behind.
       # So: ignore the core above what the CURRENT pydantic requires, and when
       # pydantic is bumped, move the core pin and this bound together.
       - dependency-name: "pydantic-core"
-        versions: [">2.50.0"]
+        versions: [">2.50.1"]
       # sentence-transformers 6.1.0 -- the latest release -- requires
       # `huggingface-hub >=1.3.0,<2.0.0`, so #400's grouped major bump to 2.0.0
       # made requirements.txt unresolvable and every backend job died at
