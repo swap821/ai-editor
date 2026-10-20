@@ -1,0 +1,28 @@
+{
+  "schema": "phase4-live-evidence-v1",
+  "generated_at": "2026-10-20T03:48:12+00:00",
+  "tip_sha": "ece423f6a346a5847889e6613970ea00fd116259",
+  "runner": "scripts/phase4_live_evidence.py",
+  "command": "C:\\Python314\\python.exe scripts/phase4_live_evidence.py --tip ece423f6a346a5847889e6613970ea00fd116259",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
+  "proofs": [
+    {
+      "organ_id": 24,
+      "name": "Human Sovereign Identity",
+      "passed": true,
+      "command": "IdentityAuthority via rp._probe_identity",
+      "evidence": "owner=IdentityAuthority; temporary enrollment, authentication, privileged reauthentication, and session rotation verified"
+    },
+    {
+      "organ_id": 25,
+      "name": "Constitutional Kernel",
+      "passed": true,
+      "command": "ConstitutionalKernelAuthority.get_active_snapshot after enroll",
+      "evidence": "enrolled+authenticated session_ok=True; active_snapshot version=1 digest="
+    }
+  ],
+  "errors": [],
+  "all_passed": true,
+  "exit_code": 0
+}
