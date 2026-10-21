@@ -226,3 +226,22 @@ def test_a_confirmation_checks_the_proof_as_activation_does(library) -> None:
     )
     with pytest.raises(SkillActivationDenied, match="route mismatch"):
         _service(library).confirm_activation(auth)
+
+
+def test_a_confirmation_needs_a_real_authorization(library) -> None:
+    for state in ("human_reviewed", "active"):
+        library.transition_state("arc-migrated", 1, state)
+    with pytest.raises(
+        SkillActivationDenied, match="must be a SkillActivationAuthorization"
+    ):
+        _service(library).confirm_activation(object())
+
+
+def test_confirming_a_missing_skill_is_not_found(library) -> None:
+    auth = SkillActivationAuthorization(
+        proof=_proof("/api/v1/skills/arc-missing/versions/1/activate"),
+        skill_id="arc-missing",
+        version=1,
+    )
+    with pytest.raises(KeyError, match="not found"):
+        _service(library).confirm_activation(auth)

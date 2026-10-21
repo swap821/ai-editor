@@ -6559,8 +6559,8 @@
   {
    "id": "gen:service:LearningService.activate_skill:328:always",
    "file": "aios/application/learning/service.py",
-   "old": "        if not isinstance(authorization, SkillActivationAuthorization):\n",
-   "new": "        if (True):\n",
+   "old": "        activatable here.\n        \"\"\"\n        self._assert_operational()\n        if not isinstance(authorization, SkillActivationAuthorization):\n",
+   "new": "        activatable here.\n        \"\"\"\n        self._assert_operational()\n        if (True):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6568,13 +6568,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 328 condition forced True: not isinstance(authorization, SkillActivationAuthorization)"
+   "note": "generated: LearningService.activate_skill line 328 condition forced True: not isinstance(authorization, SkillActivationAuthorization) (anchored on its docstring 2026-10-21: confirm_activation repeats the line)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:328:never",
    "file": "aios/application/learning/service.py",
-   "old": "        if not isinstance(authorization, SkillActivationAuthorization):\n",
-   "new": "        if (False):\n",
+   "old": "        activatable here.\n        \"\"\"\n        self._assert_operational()\n        if not isinstance(authorization, SkillActivationAuthorization):\n",
+   "new": "        activatable here.\n        \"\"\"\n        self._assert_operational()\n        if (False):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6582,7 +6582,7 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 328 condition forced False: not isinstance(authorization, SkillActivationAuthorization)"
+   "note": "generated: LearningService.activate_skill line 328 condition forced False: not isinstance(authorization, SkillActivationAuthorization) (anchored on its docstring 2026-10-21: confirm_activation repeats the line)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:338:always",
@@ -6643,8 +6643,8 @@
   {
    "id": "gen:service:LearningService.activate_skill:348:always",
    "file": "aios/application/learning/service.py",
-   "old": "        if proof.expires_at <= now or proof.revoked_at is not None:\n",
-   "new": "        if (True):\n",
+   "old": "    if proof.expires_at <= now or proof.revoked_at is not None:\n",
+   "new": "    if (True):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6652,13 +6652,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 348 condition forced True: proof.expires_at <= now or proof.revoked_at is not None"
+   "note": "generated: LearningService.activate_skill line 348 condition forced True: proof.expires_at <= now or proof.revoked_at is not None (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:348:never",
    "file": "aios/application/learning/service.py",
-   "old": "        if proof.expires_at <= now or proof.revoked_at is not None:\n",
-   "new": "        if (False):\n",
+   "old": "    if proof.expires_at <= now or proof.revoked_at is not None:\n",
+   "new": "    if (False):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6666,13 +6666,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 348 condition forced False: proof.expires_at <= now or proof.revoked_at is not None"
+   "note": "generated: LearningService.activate_skill line 348 condition forced False: proof.expires_at <= now or proof.revoked_at is not None (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:352:always",
    "file": "aios/application/learning/service.py",
-   "old": "        if not proof.operator_id or not proof.operator_id.strip():\n",
-   "new": "        if (True):\n",
+   "old": "    if not proof.operator_id or not proof.operator_id.strip():\n",
+   "new": "    if (True):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6680,13 +6680,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 352 condition forced True: not proof.operator_id or not proof.operator_id.strip()"
+   "note": "generated: LearningService.activate_skill line 352 condition forced True: not proof.operator_id or not proof.operator_id.strip() (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:352:never",
    "file": "aios/application/learning/service.py",
-   "old": "        if not proof.operator_id or not proof.operator_id.strip():\n",
-   "new": "        if (False):\n",
+   "old": "    if not proof.operator_id or not proof.operator_id.strip():\n",
+   "new": "    if (False):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6694,13 +6694,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 352 condition forced False: not proof.operator_id or not proof.operator_id.strip()"
+   "note": "generated: LearningService.activate_skill line 352 condition forced False: not proof.operator_id or not proof.operator_id.strip() (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:356:always",
    "file": "aios/application/learning/service.py",
-   "old": "        if proof.action_type.lower() not in (\n            \"skill_activation\",\n            \"route.skill_activation\",\n            \"yellow\",\n        ):\n",
-   "new": "        if (True):\n",
+   "old": "    if proof.action_type.lower() not in (\n        \"skill_activation\",\n        \"route.skill_activation\",\n        \"yellow\",\n    ):\n",
+   "new": "    if (True):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6708,13 +6708,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 356 condition forced True: proof.action_type.lower() not in (\n            \"skill_activation\",\n            \""
+   "note": "generated: LearningService.activate_skill line 356 condition forced True: proof.action_type.lower() not in (\n            \"skill_activation\",\n            \" (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:356:never",
    "file": "aios/application/learning/service.py",
-   "old": "        if proof.action_type.lower() not in (\n            \"skill_activation\",\n            \"route.skill_activation\",\n            \"yellow\",\n        ):\n",
-   "new": "        if (False):\n",
+   "old": "    if proof.action_type.lower() not in (\n        \"skill_activation\",\n        \"route.skill_activation\",\n        \"yellow\",\n    ):\n",
+   "new": "    if (False):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6722,13 +6722,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 356 condition forced False: proof.action_type.lower() not in (\n            \"skill_activation\",\n            \""
+   "note": "generated: LearningService.activate_skill line 356 condition forced False: proof.action_type.lower() not in (\n            \"skill_activation\",\n            \" (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:365:always",
    "file": "aios/application/learning/service.py",
-   "old": "        if expected_route not in proof.route:\n",
-   "new": "        if (True):\n",
+   "old": "    if expected_route not in proof.route:\n",
+   "new": "    if (True):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6736,13 +6736,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 365 condition forced True: expected_route not in proof.route"
+   "note": "generated: LearningService.activate_skill line 365 condition forced True: expected_route not in proof.route (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:365:never",
    "file": "aios/application/learning/service.py",
-   "old": "        if expected_route not in proof.route:\n",
-   "new": "        if (False):\n",
+   "old": "    if expected_route not in proof.route:\n",
+   "new": "    if (False):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6750,13 +6750,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 365 condition forced False: expected_route not in proof.route"
+   "note": "generated: LearningService.activate_skill line 365 condition forced False: expected_route not in proof.route (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:369:always",
    "file": "aios/application/learning/service.py",
-   "old": "        if proof.http_method.upper() != \"POST\":\n",
-   "new": "        if (True):\n",
+   "old": "    if proof.http_method.upper() != \"POST\":\n",
+   "new": "    if (True):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6764,13 +6764,13 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 369 condition forced True: proof.http_method.upper() != \"POST\""
+   "note": "generated: LearningService.activate_skill line 369 condition forced True: proof.http_method.upper() != \"POST\" (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:369:never",
    "file": "aios/application/learning/service.py",
-   "old": "        if proof.http_method.upper() != \"POST\":\n",
-   "new": "        if (False):\n",
+   "old": "    if proof.http_method.upper() != \"POST\":\n",
+   "new": "    if (False):\n",
    "tests": [
     "tests/test_learning_application.py",
     "tests/test_phase2_skill_activation_route.py",
@@ -6778,7 +6778,7 @@
     "tests/test_phase4c2_skills_per_principal.py"
    ],
    "also": [],
-   "note": "generated: LearningService.activate_skill line 369 condition forced False: proof.http_method.upper() != \"POST\""
+   "note": "generated: LearningService.activate_skill line 369 condition forced False: proof.http_method.upper() != \"POST\" (moved to _check_activation_proof 2026-10-21; same condition)"
   },
   {
    "id": "gen:service:LearningService.activate_skill:381:always",
@@ -8896,6 +8896,72 @@
    ],
    "also": [],
    "note": "generated: ToolAgent._record_command_approval line 2213 condition forced False: command not in self.approved_commands or failed or status != \"ok\""
+  },
+  {
+   "id": "gen:service:LearningService.confirm_activation:385:always",
+   "file": "aios/application/learning/service.py",
+   "old": "        unchanged, and the route then signs it (``attest_activation``).\n        \"\"\"\n        self._assert_operational()\n        if not isinstance(authorization, SkillActivationAuthorization):\n",
+   "new": "        unchanged, and the route then signs it (``attest_activation``).\n        \"\"\"\n        self._assert_operational()\n        if (True):\n",
+   "tests": [
+    "tests/test_phase2_skill_activation_route.py"
+   ],
+   "also": [],
+   "note": "generated: LearningService.confirm_activation line 385 condition forced True: not isinstance(authorization, SkillActivationAuthorization)"
+  },
+  {
+   "id": "gen:service:LearningService.confirm_activation:385:never",
+   "file": "aios/application/learning/service.py",
+   "old": "        unchanged, and the route then signs it (``attest_activation``).\n        \"\"\"\n        self._assert_operational()\n        if not isinstance(authorization, SkillActivationAuthorization):\n",
+   "new": "        unchanged, and the route then signs it (``attest_activation``).\n        \"\"\"\n        self._assert_operational()\n        if (False):\n",
+   "tests": [
+    "tests/test_phase2_skill_activation_route.py"
+   ],
+   "also": [],
+   "note": "generated: LearningService.confirm_activation line 385 condition forced False: not isinstance(authorization, SkillActivationAuthorization)"
+  },
+  {
+   "id": "gen:service:LearningService.confirm_activation:390:always",
+   "file": "aios/application/learning/service.py",
+   "old": "        skill = self.skill_repository.get(authorization.skill_id, authorization.version)\n        if skill is None:\n",
+   "new": "        skill = self.skill_repository.get(authorization.skill_id, authorization.version)\n        if (True):\n",
+   "tests": [
+    "tests/test_phase2_skill_activation_route.py"
+   ],
+   "also": [],
+   "note": "generated: LearningService.confirm_activation line 390 condition forced True: skill is None"
+  },
+  {
+   "id": "gen:service:LearningService.confirm_activation:390:never",
+   "file": "aios/application/learning/service.py",
+   "old": "        skill = self.skill_repository.get(authorization.skill_id, authorization.version)\n        if skill is None:\n",
+   "new": "        skill = self.skill_repository.get(authorization.skill_id, authorization.version)\n        if (False):\n",
+   "tests": [
+    "tests/test_phase2_skill_activation_route.py"
+   ],
+   "also": [],
+   "note": "generated: LearningService.confirm_activation line 390 condition forced False: skill is None"
+  },
+  {
+   "id": "gen:service:LearningService.confirm_activation:395:always",
+   "file": "aios/application/learning/service.py",
+   "old": "        if skill.state != \"active\":\n",
+   "new": "        if (True):\n",
+   "tests": [
+    "tests/test_phase2_skill_activation_route.py"
+   ],
+   "also": [],
+   "note": "generated: LearningService.confirm_activation line 395 condition forced True: skill.state != 'active'"
+  },
+  {
+   "id": "gen:service:LearningService.confirm_activation:395:never",
+   "file": "aios/application/learning/service.py",
+   "old": "        if skill.state != \"active\":\n",
+   "new": "        if (False):\n",
+   "tests": [
+    "tests/test_phase2_skill_activation_route.py"
+   ],
+   "also": [],
+   "note": "generated: LearningService.confirm_activation line 395 condition forced False: skill.state != 'active'"
   }
  ],
  "retired": [
@@ -9351,7 +9417,9 @@
    "aios/memory/consolidation.py::MemoryConsolidator.consolidate_lesson",
    "aios/memory/consolidation.py::MemoryConsolidator._lesson_admitted",
    "aios/application/memory/adapters.py::MistakeMemoryAdapter.admitted",
-   "aios/application/memory/adapters.py::MistakeMemoryAdapter.record_derivation"
+   "aios/application/memory/adapters.py::MistakeMemoryAdapter.record_derivation",
+   "aios/application/learning/service.py::LearningService.confirm_activation",
+   "aios/application/learning/service.py::_check_activation_proof"
   ],
   "T5 T10 stop and bounds": [
    "aios/memory/learning_freeze.py::assert_learning_permitted",
