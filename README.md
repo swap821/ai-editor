@@ -518,7 +518,9 @@ GAGOS contains substantial implementations of its major organs, but the reposito
 **Status below last reviewed on `6b64b9ca` (2026-10-12).** A row whose check was
 not re-run that day keeps the commit it was last measured on. Where a line names a
 check, the check is the claim — re-run it rather than trusting the line. The
-dated, verified state is `HONEST_STATE.md` ("State on 2026-10-12").
+dated, verified state is `HONEST_STATE.md` ("State on 2026-10-21"). How the project
+got here, from the first commit on 2026-06-01, including every claim that turned
+out wrong, is `docs/HISTORY.md`.
 
 ### Substantially implemented
 
