@@ -81,3 +81,52 @@ def test_a_member_is_met_only_when_positive_and_holm_significant() -> None:
     )
     assert borderline["family"]["H1-cloud"]["holm_p"] >= 0.05
     assert borderline["h1_met"] is False
+
+
+def _d12_run(novel: dict, content: dict) -> dict:
+    run = _run(novel, content)
+    run["summary"]["all"] = novel
+    return run
+
+
+def test_the_d12_family_is_holm_over_four_members() -> None:
+    """Written 2026-10-21, before the local run produced any data."""
+    weak = _stats(18, 16, 1.0)
+    result = jf.judge_d12(
+        _d12_run(weak, _stats(21, 16, 0.72)),
+        _d12_run(_stats(30, 5, 0.004), _stats(25, 8, 0.03)),
+    )
+    family = result["family"]
+    assert set(family) == {
+        "H1-cloud-D12",
+        "H1c-cloud-D12",
+        "H1-local-D12",
+        "H1c-local-D12",
+    }
+    # Holm over four: the smallest p is multiplied by 4.
+    assert family["H1-local-D12"]["holm_p"] == 0.016
+    assert family["H1-local-D12"]["met"] is True
+    assert family["H1c-local-D12"]["met"] is False, "0.03 x 3 = 0.09"
+    assert family["H1-cloud-D12"]["met"] is False
+    assert result["h1_met"] is True and "D12 family MET" in result["summary"]
+    assert set(result["h2_harm"]) == {"cloud", "local"}
+
+
+def test_a_negative_member_is_never_met_however_small_its_p() -> None:
+    result = jf.judge_d12(
+        _d12_run(_stats(2, 30, 0.0001), _stats(2, 30, 0.0001)),
+        _d12_run(_stats(2, 30, 0.0001), _stats(2, 30, 0.0001)),
+    )
+    assert not any(m["met"] for m in result["family"].values())
+    assert all(v["violated"] for v in result["h2_harm"].values()), "harm is seen"
+
+
+def test_a_partial_d12_family_is_never_written(tmp_path, monkeypatch, capsys) -> None:
+    cloud = tmp_path / "cloud.json"
+    cloud.write_text(json.dumps(_d12_run(_stats(1, 1, 1.0), _stats(1, 1, 1.0))))
+    monkeypatch.setattr(jf, "D12_CLOUD", cloud)
+    monkeypatch.setattr(jf, "D12_LOCAL", tmp_path / "missing.json")
+    monkeypatch.setattr(jf, "D12_RESULT", tmp_path / "result.json")
+    assert jf.main(["--family", "d12", "--write"]) == 1
+    assert not (tmp_path / "result.json").exists()
+    assert "partial family is not a verdict" in capsys.readouterr().out

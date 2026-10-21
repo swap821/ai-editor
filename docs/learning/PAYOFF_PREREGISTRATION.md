@@ -865,3 +865,24 @@ through us-east-1 with the operator's IAM key.**
   credential, never the key.
 - **Judged runs** will state the account and region they ran through in their
   run records.
+
+**Amended 2026-10-21, after the D12 cloud judged run and before the D12 local
+judged run: what is recorded, what code is measured, and how it is judged.**
+- **The cloud result is already fixed.** It is in `PAYOFF_D12_RESULT.md`:
+  - H1-cloud-D12: 18 vs 16, raw p = 1.000;
+  - H1c-cloud-D12: 21 vs 16, raw p = 0.721.
+
+  This amendment changes nothing about it, and nothing about how the local
+  members are run: same student, same 150 frozen targets, K = 3,
+  OFF / ON / PLACEBO, the 420 s timeout, the calibration exclusion.
+- **The trail records ids** (`tools/learning_payoff.py`, `Pair`).
+  - **What it adds:** for each target, the lesson and skill ids recall showed ON, and the lesson ids the placebo drew. The cloud trail held only counts (5 lessons on every target), so it could not say whether recall varied by task.
+  - **What it leaves unchanged:** no prompt, no arm order, no grade. A test pins the ON and PLACEBO prompts byte-for-byte to what recall and the placebo produced. All five mutants of the recording were killed.
+- **The local run measures the cloud run's code:** `--ref 501c25369c32`.
+  - Between that commit and the harness commit only `requirements.txt` changed (certifi 2026.10.19, PYSEC-2026-4320).
+  - `aios/` and `tests/` are identical, so both halves of the family measure the same code.
+  - The harness itself runs from master, with the recording.
+- **The judgement was written before any local datum existed.**
+  - `tools/judge_payoff_family.py --family d12` judges the four members with the same D4 rule as Phase 8 (one shared function, `family_verdict`). It refuses to write a verdict while either trail is missing.
+  - The usefulness gate reads `payoff_d12_judged_result.json` once it exists, as D12 said.
+- **Duration.** The plan said the local run "is expected to run overnight". Measured practice speed (about 7 tokens/s; 23% of attempts reaching 420 s) puts 150 × 3 × 3 = 1,350 graded attempts at about **2–3 days**. Only the estimate changes, not the design.

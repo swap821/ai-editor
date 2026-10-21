@@ -205,6 +205,14 @@ class Pair:
     #: Every sample of every arm when `--samples` > 1; `on`/`off`/`placebo`
     #: then hold the first. Empty for a one-sample run, whose shape is unchanged.
     samples: dict = field(default_factory=dict)
+    #: WHICH items each arm was shown, as ids. Added 2026-10-21, before the D12
+    #: local judged run: the D12 cloud trail held only counts (5 lessons on every
+    #: target), so it could not say whether recall varied by task or showed the
+    #: same lessons everywhere (the 2026-09-27 calibration finding). Recording
+    #: them changes no prompt, no order and no grade.
+    recalled_lesson_ids: list = field(default_factory=list)
+    recalled_skill_ids: list = field(default_factory=list)
+    placebo_lesson_ids: list = field(default_factory=list)
 
     def earned_samples(self, arm: str) -> int:
         """How many of *arm*'s samples earned (one sample: 0 or 1)."""
@@ -793,6 +801,11 @@ def recalled_context(
     return (chr(10) * 2).join(blocks), lessons, verified
 
 
+def _lesson_ids(lessons: list[dict]) -> list[int]:
+    """The ids of *lessons*, in the order shown; a lesson without one is skipped."""
+    return [int(item["mistake_id"]) for item in lessons if "mistake_id" in item]
+
+
 #: Deviation D5 (2026-09-27): the placebo's seed. Fixed, so while the store is
 #: unchanged a target draws the same placebo in the baseline and at Phase 8.
 PLACEBO_SEED = "payoff-D5-20260927"
@@ -1148,6 +1161,11 @@ def run_benchmark(
                 lessons_slot=lessons_slot,
             )
             n_lessons, n_skills = len(lessons), len(verified)
+            pair.recalled_lesson_ids = _lesson_ids(lessons)
+            pair.recalled_skill_ids = [
+                f"{item.get('skill_id', '')}@{item.get('version', '')}"
+                for item in verified
+            ]
             # SEEN if ANY recalled item was recorded on this very target, read
             # against the lesson's FULL row. A win there is memory helping on a
             # repeat, not transferring to new work.
@@ -1180,6 +1198,7 @@ def run_benchmark(
                 )
                 if matched:
                     contexts["placebo"] = (p_text, len(p_lessons), n_skills)
+                    pair.placebo_lesson_ids = _lesson_ids(p_lessons)
                 else:
                     pair.placebo_reason = (
                         "no placebo of the same size: ON recalled no lesson, or the "
