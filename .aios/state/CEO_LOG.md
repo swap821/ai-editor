@@ -1189,3 +1189,14 @@ default-flips — infrastructure before privileges, same discipline as today.
   - Keep the 9B local model. A 14B would fit (~12 GB usable) but runs about 35% slower, because RAM bandwidth is the limit.
   - Browsers are set to the AMD iGPU.
 - **Next:** finish the cloud judged run, then report its verdict honestly (Holm over the D12 family needs the local member too). Ask before the 2–3 day local judged run.
+
+## 2026-10-21 17:10 — D12 cloud judged result (dated)
+
+- **Result:** run 20261021T033650-0043a38f, 150/150 comparable, about 8 h.
+  - **H1-cloud-D12** (ON vs OFF, novel): 114 vs 114 earned, targets 18 vs 16, p = 1.000. **Not met.**
+  - **H1c-cloud-D12** (ON vs PLACEBO): 114 vs 109, targets 21 vs 16, p = 0.721. **Not met.**
+  - No harm.
+  - Holm cannot rescue either member, so the family verdict waits only on the local members.
+- **Recall reached every target** (0 empty, against 65 in Phase 8), with 117 admitted lessons. The capable cloud student still showed no measurable payoff, as the pre-registration predicted.
+- **can_drive_tools** is explained: the model's one-field `ModelPassportV1` test fails validation. Phase 8's ON and PLACEBO earned only because prepended text steered it.
+- **Next:** the operator decides on the 2–3 day local judged run. Before it, the harness should record the recalled lesson ids.
