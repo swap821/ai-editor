@@ -671,6 +671,9 @@ def animal_signing_key(world: World) -> Gate:
 #: {H1-cloud, H1c-cloud, H1-7B} (docs/learning/PAYOFF_PREREGISTRATION.md, D4).
 #: Absent until a judged run exists; the baselines were reported, never judged.
 JUDGED_PAYOFF = Path("docs") / "learning" / "payoff_judged_result.json"
+#: D12's family verdict. Once it exists it supersedes Phase 8's
+#: (PAYOFF_PREREGISTRATION.md D12: "the usefulness gate reads the newer one").
+JUDGED_PAYOFF_D12 = Path("docs") / "learning" / "payoff_d12_judged_result.json"
 #: The census asks as a principal that owns nothing. The recall gate refuses
 #: a row "another principal" only after its signature verified, it is not
 #: revoked and it names an owner -- exactly a row its OWNER's turn admits --
@@ -715,8 +718,15 @@ def animal_usefulness(world: World) -> Gate:
         f"{reach['skills']} of {candidates['skills']} active skills reach their "
         "owner's turns"
     )
-    judged_path = world.repo / JUDGED_PAYOFF
-    if not judged_path.is_file():
+    judged_path = next(
+        (
+            world.repo / rel
+            for rel in (JUDGED_PAYOFF_D12, JUDGED_PAYOFF)
+            if (world.repo / rel).is_file()
+        ),
+        None,
+    )
+    if judged_path is None:
         return Gate(
             "animal",
             "usefulness",

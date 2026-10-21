@@ -330,6 +330,58 @@ class TestTheRunLoop:
         assert summary["content_novel"]["on_earned"] == 6
         assert summary["content_novel"]["off_earned"] == 0
 
+    def test_the_trail_records_which_items_each_arm_saw(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """2026-10-21, before the D12 local judged run: the cloud trail held only
+        counts. Ids are recorded now -- and recording changes no prompt."""
+        targets = [_target(function=f"f{i}") for i in range(3)]
+        calls = self._wire(tmp_path, monkeypatch, targets, lambda t, arm, n: False)
+        skill = {
+            "skill_id": "sk-1",
+            "version": 2,
+            "goal_pattern": "g",
+            "steps": ["s"],
+            "success_rate": 0.9,
+        }
+        ids = itertools.count(100)
+
+        def recall(reflector, skills, query, session_id, *, lessons_slot):
+            return "remembered", [_lesson(next(ids)), _lesson(next(ids))], [skill]
+
+        monkeypatch.setattr(payoff, "recalled_context", recall)
+        pairs, _run, _sha = payoff.run_benchmark(
+            models="x", targets=3, model_timeout=1, samples=1, placebo=True
+        )
+        assert [p.recalled_lesson_ids for p in pairs] == [
+            [100, 101],
+            [102, 103],
+            [104, 105],
+        ]
+        assert all(p.recalled_skill_ids == ["sk-1@2"] for p in pairs)
+        for pair in pairs:
+            assert len(pair.placebo_lesson_ids) == len(pair.recalled_lesson_ids)
+            assert not set(pair.placebo_lesson_ids) & set(pair.recalled_lesson_ids)
+        # The ON prompt is exactly what recall returned -- recording is passive.
+        assert {c[2] for c in calls if c[1] == "on"} == {"remembered"}
+        assert {c[2] for c in calls if c[1] == "off"} == {""}
+        # The placebo prompt shows exactly the lessons its ids name.
+        for pair in pairs:
+            shown = [
+                c[2]
+                for c in calls
+                if c[1] == "placebo" and c[0] == pair.target.split("::")[1]
+            ]
+            assert shown and all(
+                f"lesson {i}" in shown[0] for i in pair.placebo_lesson_ids
+            )
+        record = payoff.asdict(pairs[0])
+        assert {
+            "recalled_lesson_ids",
+            "recalled_skill_ids",
+            "placebo_lesson_ids",
+        } <= set(record)
+
     def test_excluded_targets_are_never_selected(self, tmp_path, monkeypatch) -> None:
         targets = [_target(function=f"f{i}") for i in range(4)]
         self._wire(tmp_path, monkeypatch, targets, lambda t, arm, n: False)
