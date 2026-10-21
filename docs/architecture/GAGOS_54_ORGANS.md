@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 50 green / 9 yellow / 59 total
-- **Source ledger sha256:** `8a01793edce973625700df463eb6baf6c94ff69e66ce7c8b4f732a7a900d2e3b`
+- **Source ledger sha256:** `83c6ba2ca631c22c31e3b33a5850713ba2e9dc188008a1a37bd79c3937bf1cde`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -826,58 +826,58 @@ re-audits recorded above.
 | 3 | Secret Scanner | `SecretScannerAuthority` | `8848c35fd512` | live |
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `8848c35fd512` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `8848c35fd512` | live |
-| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `6811c98228b0` | live |
-| 7 | Policy Kernel | `PolicyKernelAuthority` | `6811c98228b0` | live |
-| 8 | Action Broker | `ActionBrokerAuthority` | `6811c98228b0` | live |
-| 9 | Exact Capability Authority | `CapabilityAuthority` | `6811c98228b0` | live |
-| 10 | Mission Authority | `MissionAuthority` | `6811c98228b0` | live |
-| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `6811c98228b0` | live |
-| 12 | Worker Foundry | `WorkerFoundryAuthority` | `6811c98228b0` | live |
-| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `6811c98228b0` | live |
-| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `6811c98228b0` | live |
-| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `6811c98228b0` | live |
-| 16 | Promotion Authority (construction) | `PromotionAuthority` | `6811c98228b0` | live |
-| 17 | Cortex Observation Bus | `CortexBusAuthority` | `6811c98228b0` | live |
-| 18 | Memory Authority (construction) | `MemoryAuthority` | `6811c98228b0` | live |
-| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `6811c98228b0` | live |
-| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `6811c98228b0` | live |
-| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `6811c98228b0` | live |
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `5eab33df53b3` | live |
+| 7 | Policy Kernel | `PolicyKernelAuthority` | `5eab33df53b3` | live |
+| 8 | Action Broker | `ActionBrokerAuthority` | `5eab33df53b3` | live |
+| 9 | Exact Capability Authority | `CapabilityAuthority` | `5eab33df53b3` | live |
+| 10 | Mission Authority | `MissionAuthority` | `5eab33df53b3` | live |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `5eab33df53b3` | live |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | `5eab33df53b3` | live |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `5eab33df53b3` | live |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `5eab33df53b3` | live |
+| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `5eab33df53b3` | live |
+| 16 | Promotion Authority (construction) | `PromotionAuthority` | `5eab33df53b3` | live |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | `5eab33df53b3` | live |
+| 18 | Memory Authority (construction) | `MemoryAuthority` | `5eab33df53b3` | live |
+| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `5eab33df53b3` | live |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `5eab33df53b3` | live |
+| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `5eab33df53b3` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `a696aa699e67` | live |
-| 24 | Human Sovereign Identity | `IdentityAuthority` | `6811c98228b0` | live |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `6811c98228b0` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `6811c98228b0` | live |
-| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `6811c98228b0` | live |
-| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `6811c98228b0` | live |
-| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `6811c98228b0` | live |
-| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `6811c98228b0` | live |
-| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `6811c98228b0` | live |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | `5eab33df53b3` | live |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `5eab33df53b3` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `5eab33df53b3` | live |
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `5eab33df53b3` | live |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `5eab33df53b3` | live |
+| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `5eab33df53b3` | live |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `5eab33df53b3` | live |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `5eab33df53b3` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `64f78f3bfefa` | live |
-| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `6811c98228b0` | live |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `5eab33df53b3` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `59ce79b34e4e` | live |
-| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `6811c98228b0` | live |
+| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `5eab33df53b3` | live |
 | 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `51fabf17fab1` | live |
-| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `6811c98228b0` | live |
-| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `6811c98228b0` | live |
-| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `6811c98228b0` | live |
-| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `6811c98228b0` | live |
-| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `6811c98228b0` | live |
-| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `6811c98228b0` | live |
-| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `6811c98228b0` | live |
-| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `6811c98228b0` | live |
-| 52 | Observability and Health Organ | `ObservabilityAuthority` | `6811c98228b0` | live |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `6811c98228b0` | live |
-| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `6811c98228b0` | live |
-| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `6811c98228b0` | live |
-| 57 | Reflex Authority | `Cerebellum` | `6811c98228b0` | live |
-| 58 | Recall Isolation | `RecallGate` | `6811c98228b0` | live |
-| 59 | Learning Freeze | `LearningFreezeAuthority` | `6811c98228b0` | live |
+| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `5eab33df53b3` | live |
+| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `5eab33df53b3` | live |
+| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `5eab33df53b3` | live |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `5eab33df53b3` | live |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `5eab33df53b3` | live |
+| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `5eab33df53b3` | live |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `5eab33df53b3` | live |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `5eab33df53b3` | live |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `5eab33df53b3` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `5eab33df53b3` | live |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `5eab33df53b3` | live |
+| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `5eab33df53b3` | live |
+| 57 | Reflex Authority | `Cerebellum` | `5eab33df53b3` | live |
+| 58 | Recall Isolation | `RecallGate` | `5eab33df53b3` | live |
+| 59 | Learning Freeze | `LearningFreezeAuthority` | `5eab33df53b3` | live |
 
 ### Yellow (9) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
 | 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/superbrain/lib/livingMirrorRegistry.ts changed by this PR. This organ is green on live evidence captured in the operator's OWN browser (Kimi WebBridge, not headless) at cdfd7d16d2f6; that capture predates the new registry and cannot be re-earned mechanically. Re-capture against the shipped UI to restore green. |
-| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | UNIVERSALITY UNMEASURED (2026-10-12): the one-gateway inventory (PR #467, tools/model_call_inventory.py, docs/ONE_GATEWAY.md 'What it did not reach') observed 14 of 27 model-call sites. The 13 never reached include 3 in this organ's own entrypoint aios/runtime/intelligence_gateway.py (worker reasoning, off by default), the clerk runtime (local_workforce/service._execute_advisory_job, runtime.execute_job), council execution, maintenance repair, self-analysis proposals, model_router.complete and router_wiring.picker. 'Universal' is shown for the routes driven, not for these.<br>UNIVERSALITY NOT ENFORCED (2026-10-12): the gateway records an adapter call made outside every entrance but does not refuse it (docs/ONE_GATEWAY.md 'It does not refuse an ungated call'). A future call site that skips the gateway is measured after the fact, not prevented. Refusing (fail closed in the adapters) is the operator's decision once real use shows zero ungated calls.<br>Phase 4 absolute: live evidence attached at tip 6811c98228b0 via release/phase4/live-evidence-6811c98228b0.json. Remaining: Phase 5 green flip only after adversarial re-read of all 12 conditions. |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | UNIVERSALITY UNMEASURED (2026-10-12): the one-gateway inventory (PR #467, tools/model_call_inventory.py, docs/ONE_GATEWAY.md 'What it did not reach') observed 14 of 27 model-call sites. The 13 never reached include 3 in this organ's own entrypoint aios/runtime/intelligence_gateway.py (worker reasoning, off by default), the clerk runtime (local_workforce/service._execute_advisory_job, runtime.execute_job), council execution, maintenance repair, self-analysis proposals, model_router.complete and router_wiring.picker. 'Universal' is shown for the routes driven, not for these.<br>UNIVERSALITY NOT ENFORCED (2026-10-12): the gateway records an adapter call made outside every entrance but does not refuse it (docs/ONE_GATEWAY.md 'It does not refuse an ungated call'). A future call site that skips the gateway is measured after the fact, not prevented. Refusing (fail closed in the adapters) is the operator's decision once real use shows zero ungated calls.<br>Phase 4 absolute: live evidence attached at tip 5eab33df53b3 via release/phase4/live-evidence-5eab33df53b3.json. Remaining: Phase 5 green flip only after adversarial re-read of all 12 conditions. |
 | 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/workbench/SovereignStatePanel.jsx changed by this PR. The Phase 4 live run at cc8492f314eb that proved this organ no longer claims it (organ 40 is absent from the current runner's proof set), so the evidence cannot be refreshed by re-running it. Re-earn via the executor live path at a current tip to restore green. |
 | 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | STALE ATTESTATION (recorded cc8492f3): 2 of this organ's own production_entrypoints changed after 461fd0b9803f (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | STALE ATTESTATION (recorded cc8492f3): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
