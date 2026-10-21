@@ -24,6 +24,12 @@ USAGE (one line each; works in PowerShell and bash)
     python tools/activate_skills.py --activate 79 41 --i-am-the-operator "Swapnil"
     python tools/activate_skills.py --reactivate arc-abc@1 --i-am-the-operator "Swapnil"
 
+An ACTIVE skill named to ``--activate`` is confirmed and signed, not
+re-activated (added 2026-10-21): an activation the backend could not sign --
+it lacked the live learning key -- leaves the skill active and inert, and this
+is the only way to sign it. The tool exits 1, saying so, whenever the backend
+answers that an activation was not signed.
+
 A SUSPENDED skill is one the machine withdrew -- e.g. when it retired the
 skill's reflex after failures. It returns only when the operator re-activates
 it here (operator decision, 2026-09-29), through the same capability-backed
@@ -118,18 +124,51 @@ def resolve_suspended(
     return [by_key[t] for t in targets]
 
 
+def active(repository: SkillRepository) -> list[SkillRecord]:
+    """Skills already active; naming one to --activate confirms and signs it."""
+    return sorted(
+        (r for r in repository.list_skills() if r.state == "active"),
+        key=lambda r: (_legacy_id(r) is None, _legacy_id(r) or 0, r.skill_id),
+    )
+
+
 def resolve(
     repository: SkillRepository, legacy_ids: Sequence[int]
 ) -> list[SkillRecord]:
-    """The candidate record for each legacy id, or an error naming what is wrong."""
-    by_legacy = {_legacy_id(r): r for r in candidates(repository)}
+    """The candidate (or active) record for each legacy id, or an error naming
+    what is wrong."""
+    by_legacy = {
+        _legacy_id(r): r for r in (*candidates(repository), *active(repository))
+    }
     missing = [i for i in legacy_ids if i not in by_legacy]
     if missing:
         raise SystemExit(
-            f"not an activatable candidate: {missing}. Run with no arguments to "
-            "list the candidates."
+            f"not an activatable candidate or an active skill: {missing}. Run "
+            "with no arguments to list them."
         )
     return [by_legacy[i] for i in legacy_ids]
+
+
+def unsigned(results: Sequence[dict[str, Any]]) -> list[Any]:
+    """Activations the backend accepted but could not sign: active and inert."""
+    return [
+        r["legacy_id"]
+        for r in results
+        if r["status"] == 200 and (r.get("response") or {}).get("signed") is not True
+    ]
+
+
+def _verdict(results: Sequence[dict[str, Any]]) -> int:
+    inert = unsigned(results)
+    if inert:
+        print(
+            f"NOT SIGNED: {inert}. The backend has no live learning key, so these "
+            "skills are active but will never be recalled or replayed. Restart "
+            "the backend with AIOS_LEARNING_KEY_LIVE, then run this command "
+            "again with the same ids: an active skill is confirmed and signed."
+        )
+        return 1
+    return 0 if results and all(r["status"] == 200 for r in results) else 1
 
 
 def _credential() -> str:
@@ -202,6 +241,14 @@ def main(argv: Sequence[str] | None = None) -> int:
                         {**describe(r), "reactivate": f"{r.skill_id}@{r.version}"}
                         for r in suspended(repository)
                     ],
+                    "active": [
+                        {
+                            "legacy_id": _legacy_id(r),
+                            "skill_id": r.skill_id,
+                            "version": r.version,
+                        }
+                        for r in active(repository)
+                    ],
                 },
                 indent=2,
             )
@@ -222,26 +269,31 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
         results = activate(records, args.base)
         print(json.dumps({"operator": args.operator, "results": results}, indent=2))
-        return 0 if results and all(r["status"] == 200 for r in results) else 1
+        return _verdict(results)
 
     if not args.operator:
         raise SystemExit(
             "--activate is the operator's act: add --i-am-the-operator NAME"
         )
     records = resolve(repository, args.activate)
-    not_ready = [_legacy_id(r) for r in records if not is_review_ready(r)]
+    not_ready = [
+        _legacy_id(r)
+        for r in records
+        if r.state == "candidate" and not is_review_ready(r)
+    ]
     if not_ready and not args.allow_not_review_ready:
         raise SystemExit(
             f"not review-ready: {not_ready}; add --allow-not-review-ready to activate anyway"
         )
     for record in records:
         info = describe(record)
+        verb = "signing active" if record.state == "active" else "activating"
         print(
-            f"activating legacy {info['legacy_id']} ({info['risk']}): {info['goal'][:100]}"
+            f"{verb} legacy {info['legacy_id']} ({info['risk']}): {info['goal'][:100]}"
         )
     results = activate(records, args.base)
     print(json.dumps({"operator": args.operator, "results": results}, indent=2))
-    return 0 if results and all(r["status"] == 200 for r in results) else 1
+    return _verdict(results)
 
 
 if __name__ == "__main__":

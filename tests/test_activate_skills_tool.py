@@ -65,16 +65,22 @@ class FakeSession:
         self.bootstrapped = True
         return self
 
+    #: What the backend says about signing; the real route always says.
+    signs = True
+
     def post_stream(self, path: str, payload: dict, timeout: int):
         self.posts.append(path)
         status = 403 if "arc-2/" in path else 200
+        signed = FakeSession.signs
 
         class R:
             status_code = status
             text = ""
 
             def json(self_inner):
-                return {"state": "active"} if status == 200 else {"detail": "denied"}
+                if status != 200:
+                    return {"detail": "denied"}
+                return {"state": "active", "signed": signed}
 
         return R()
 
@@ -92,6 +98,7 @@ def world(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(tool.config, "OPERATIONAL_STATE_DB_PATH", db)
     monkeypatch.delenv("AIOS_OPERATOR_CREDENTIAL", raising=False)
     FakeSession.instances.clear()
+    FakeSession.signs = True
     import aios.probe_session as probe
 
     monkeypatch.setattr(probe, "ProbeSession", FakeSession)
@@ -195,3 +202,35 @@ def test_reactivation_drives_the_same_capability_route(
     ]
     assert code == 0
     assert SECRET not in out
+
+
+def test_an_unsigned_activation_is_a_failure_not_a_success(
+    world, monkeypatch, capsys
+) -> None:
+    """2026-10-21: a backend without the live key activated three skills, said
+    `"signed": false`, and the tool exited 0. The skills were active and inert."""
+    FakeSession.signs = False
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    code = tool.main(["--activate", "1", "--i-am-the-operator", "Operator"])
+    out = capsys.readouterr().out
+    assert code == 1
+    assert "NOT SIGNED: [1]" in out and "AIOS_LEARNING_KEY_LIVE" in out
+    assert SECRET not in out
+
+
+def test_an_active_skill_is_named_to_be_signed_through_the_same_route(
+    world, monkeypatch, capsys
+) -> None:
+    for state in ("human_reviewed", "active"):
+        world.transition_state("arc-1", 1, state)
+    assert tool.main([]) == 0
+    listing = json.loads(capsys.readouterr().out)
+    assert [row["legacy_id"] for row in listing["active"]] == [1]
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    code = tool.main(["--activate", "1", "--i-am-the-operator", "Operator"])
+    out = capsys.readouterr().out
+    assert FakeSession.instances[0].posts == [
+        "/api/v1/skills/arc-1/versions/1/activate"
+    ]
+    assert "signing active legacy 1" in out
+    assert code == 0
