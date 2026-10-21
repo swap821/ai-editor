@@ -17,9 +17,14 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
-from aios.api.deps import get_learning_service
+from aios.api.deps import get_learning_service, get_memory_authority
 from aios.api.main import app
-from aios.application.learning.service import LearningService
+from aios.application.learning.service import (
+    LearningService,
+    SkillActivationAuthorization,
+    SkillActivationDenied,
+)
+from aios.domain.capabilities.proof import ConsumedCapabilityProof
 from aios.application.missions.mission_service import MissionService
 from aios.core.autonomy import UNGOVERNED_FIXTURE
 from aios.domain.learning.repository import SkillRecord, SkillRepository
@@ -82,6 +87,31 @@ def library(tmp_path: Path):
         app.dependency_overrides.pop(get_learning_service, None)
 
 
+class _Signer:
+    """The skills adapter's signing seam, recording what the route asked it to sign."""
+
+    def __init__(self) -> None:
+        self.signed: list[tuple[str, int, str]] = []
+
+    def attest_activation(self, skill_id: str, version: int, *, approver: str) -> bool:
+        self.signed.append((skill_id, version, approver))
+        return True
+
+
+@pytest.fixture()
+def signer():
+    fake = _Signer()
+
+    class _Authority:
+        adapters = {"skills": fake}
+
+    app.dependency_overrides[get_memory_authority] = lambda: _Authority()
+    try:
+        yield fake
+    finally:
+        app.dependency_overrides.pop(get_memory_authority, None)
+
+
 def test_the_operator_route_activates_a_migrated_candidate(library) -> None:
     """Real middleware: authenticated operator session, the 428 challenge, and
     the retry with the server-issued capability (the harness replays it)."""
@@ -113,3 +143,105 @@ def test_an_anonymous_caller_cannot_activate(library) -> None:
         response = client.post(ROUTE, json={})
     assert response.status_code in {401, 403}, response.text
     assert library.get("arc-migrated", 1).state == "candidate"
+
+
+def test_an_active_skill_is_confirmed_and_signed_not_reactivated(
+    library, signer
+) -> None:
+    """2026-10-21: three skills were activated on a backend without the live
+    key -- active, unsigned, inert -- and an active skill is not activatable
+    again. The same capability-backed act now confirms it, and it is signed."""
+    for state in ("human_reviewed", "active"):
+        library.transition_state("arc-migrated", 1, state)
+    before = library.get("arc-migrated", 1).model_dump()
+    with TestClient(app, client=("127.0.0.1", 12345)) as client:
+        response = client.post(ROUTE, json={})
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert (body["status"], body["state"], body["signed"]) == (
+        "already_active",
+        "active",
+        True,
+    )
+    assert [(sid, ver) for sid, ver, _ in signer.signed] == [("arc-migrated", 1)]
+    assert library.get("arc-migrated", 1).model_dump() == before, "nothing changes"
+
+
+def test_confirming_an_active_skill_needs_the_same_capability(library, signer) -> None:
+    for state in ("human_reviewed", "active"):
+        library.transition_state("arc-migrated", 1, state)
+    with TestClient(app, client=("127.0.0.1", 12345)) as client:
+        response = client.post(
+            ROUTE, json={}, headers={"X-AIOS-No-Auto-Capability": "1"}
+        )
+    assert response.status_code == 428, response.text
+    assert signer.signed == [], "no capability, no signature"
+
+
+def _proof(route: str) -> ConsumedCapabilityProof:
+    return ConsumedCapabilityProof(
+        capability_id="cap-1",
+        token_digest="token-digest",
+        operator_id="operator-1",
+        device_id="device-1",
+        authentication_event_id="auth-1",
+        session_id="session-1",
+        action_type="skill_activation",
+        route=route,
+        http_method="POST",
+        payload_digest="payload-digest",
+        resource_digest="resource-digest",
+        mission_id=None,
+        contract_digest=None,
+        policy_version="1.0",
+        scope="skill-activation",
+        verification_requirement="route_policy_v1",
+        consumed_at=1.0,
+        expires_at=9_999_999_999.0,
+        revoked_at=None,
+    )
+
+
+def _service(library) -> LearningService:
+    from aios.api.deps import get_learning_service as dep
+
+    return app.dependency_overrides[dep]()
+
+
+def test_only_an_active_skill_can_be_confirmed(library) -> None:
+    auth = SkillActivationAuthorization(
+        proof=_proof(ROUTE), skill_id="arc-migrated", version=1
+    )
+    with pytest.raises(SkillActivationDenied, match="only an active skill"):
+        _service(library).confirm_activation(auth)
+    assert library.get("arc-migrated", 1).state == "candidate"
+
+
+def test_a_confirmation_checks_the_proof_as_activation_does(library) -> None:
+    for state in ("human_reviewed", "active"):
+        library.transition_state("arc-migrated", 1, state)
+    other = "/api/v1/skills/arc-other/versions/1/activate"
+    auth = SkillActivationAuthorization(
+        proof=_proof(other), skill_id="arc-migrated", version=1
+    )
+    with pytest.raises(SkillActivationDenied, match="route mismatch"):
+        _service(library).confirm_activation(auth)
+
+
+def test_a_confirmation_needs_a_real_authorization(library) -> None:
+    for state in ("human_reviewed", "active"):
+        library.transition_state("arc-migrated", 1, state)
+    with pytest.raises(
+        SkillActivationDenied, match="must be a SkillActivationAuthorization"
+    ):
+        _service(library).confirm_activation(object())
+
+
+def test_confirming_a_missing_skill_is_not_found(library) -> None:
+    auth = SkillActivationAuthorization(
+        proof=_proof("/api/v1/skills/arc-missing/versions/1/activate"),
+        skill_id="arc-missing",
+        version=1,
+    )
+    with pytest.raises(KeyError, match="not found"):
+        _service(library).confirm_activation(auth)

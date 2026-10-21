@@ -91,8 +91,16 @@ def activate_skill_route(
         skill_id=skill_id,
         version=version,
     )
+    # An already-active skill is confirmed, not re-activated: its activation
+    # may never have been signed (2026-10-21: a backend without the live key).
+    current = service.skill_repository.get(skill_id, version)
+    already_active = current is not None and current.state == "active"
     try:
-        skill = service.activate_skill(auth)
+        skill = (
+            service.confirm_activation(auth)
+            if already_active
+            else service.activate_skill(auth)
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except SkillActivationDenied as exc:
@@ -114,7 +122,7 @@ def activate_skill_route(
         "skill_id": skill.skill_id,
         "version": skill.version,
         "state": skill.state,
-        "status": "activated",
+        "status": "already_active" if already_active else "activated",
         "source": "capability_backed_human_activation",
         "principal": (skill.provenance or {}).get("principal"),
         "signed": signed,

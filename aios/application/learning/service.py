@@ -344,32 +344,7 @@ class LearningService:
                 "'suspended'"
             )
 
-        now = time.time()
-        if proof.expires_at <= now or proof.revoked_at is not None:
-            raise SkillActivationDenied(
-                "consumed capability proof is expired or revoked"
-            )
-        if not proof.operator_id or not proof.operator_id.strip():
-            raise SkillActivationDenied(
-                "consumed capability proof operator_id is invalid"
-            )
-        if proof.action_type.lower() not in (
-            "skill_activation",
-            "route.skill_activation",
-            "yellow",
-        ):
-            raise SkillActivationDenied(
-                f"consumed capability proof action_type mismatch: {proof.action_type}"
-            )
-        expected_route = f"/api/v1/skills/{target_skill_id}/versions/{ver}/activate"
-        if expected_route not in proof.route:
-            raise SkillActivationDenied(
-                f"consumed capability proof route mismatch: {proof.route}"
-            )
-        if proof.http_method.upper() != "POST":
-            raise SkillActivationDenied(
-                f"consumed capability proof http_method mismatch: {proof.http_method}"
-            )
+        _check_activation_proof(proof, target_skill_id, ver)
 
         # Plan Phase 5b: the activation gives the skill the reflex contract
         # SkillApplicabilityEngine demands (a candidate's missing plan, scope
@@ -392,6 +367,40 @@ class LearningService:
             raise SkillActivationDenied("skill activation transition failed")
 
         return activated
+
+    def confirm_activation(
+        self,
+        authorization: SkillActivationAuthorization,
+    ) -> SkillRecord:
+        """The operator confirms an ACTIVE skill's activation; nothing changes.
+
+        Added 2026-10-21. An activation the backend could not sign (it lacked
+        the live learning key) leaves the skill active and inert, and an
+        active skill is not activatable again, so nothing could ever sign it.
+        This is the same capability-backed act -- the same proof, checked the
+        same way -- for a skill that is already active: it returns the skill
+        unchanged, and the route then signs it (``attest_activation``).
+        """
+        self._assert_operational()
+        if not isinstance(authorization, SkillActivationAuthorization):
+            raise SkillActivationDenied(
+                "authorization must be a SkillActivationAuthorization instance"
+            )
+        skill = self.skill_repository.get(authorization.skill_id, authorization.version)
+        if skill is None:
+            raise KeyError(
+                f"skill {authorization.skill_id!r} version "
+                f"{authorization.version} not found"
+            )
+        if skill.state != "active":
+            raise SkillActivationDenied(
+                f"skill is in state {skill.state!r}; only an active skill's "
+                "activation can be confirmed"
+            )
+        _check_activation_proof(
+            authorization.proof, authorization.skill_id, authorization.version
+        )
+        return skill
 
     def attempt_local_reuse(
         self,
@@ -670,3 +679,30 @@ class LearningService:
 
 
 __all__ = ["LearningService", "SkillActivationDenied", "SkillCandidateSpec"]
+
+
+def _check_activation_proof(proof, target_skill_id: str, ver: int) -> None:
+    """The consumed capability proof is live, an operator's, and for exactly
+    this skill's activation route (activation and its confirmation share it)."""
+    now = time.time()
+    if proof.expires_at <= now or proof.revoked_at is not None:
+        raise SkillActivationDenied("consumed capability proof is expired or revoked")
+    if not proof.operator_id or not proof.operator_id.strip():
+        raise SkillActivationDenied("consumed capability proof operator_id is invalid")
+    if proof.action_type.lower() not in (
+        "skill_activation",
+        "route.skill_activation",
+        "yellow",
+    ):
+        raise SkillActivationDenied(
+            f"consumed capability proof action_type mismatch: {proof.action_type}"
+        )
+    expected_route = f"/api/v1/skills/{target_skill_id}/versions/{ver}/activate"
+    if expected_route not in proof.route:
+        raise SkillActivationDenied(
+            f"consumed capability proof route mismatch: {proof.route}"
+        )
+    if proof.http_method.upper() != "POST":
+        raise SkillActivationDenied(
+            f"consumed capability proof http_method mismatch: {proof.http_method}"
+        )
