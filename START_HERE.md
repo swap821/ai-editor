@@ -7,6 +7,11 @@ small helper can reopen Claude Code right where it left off.**
 > Note on brains: the web (Opus) chat and Claude Code (in VS Code) are *separate*
 > — nothing auto-carries between them. This repo is the Claude Code side.
 
+> **Where things stand.** Read `HONEST_STATE.md` for the verified current state
+> and `docs/HISTORY.md` for the whole story from the first commit (2026-06-01),
+> including the claims that turned out wrong. This quickstart was written in
+> June-July 2026: the rules in `AGENTS.md` win wherever the two differ.
+
 ---
 
 ## The pieces (one line each)

@@ -48,6 +48,17 @@ $env:AIOS_EXECUTOR_URL = "http://127.0.0.1:8081"
 $env:AIOS_EXECUTOR_TOKEN = "<the same token>"
 ```
 
+**Three signing keys are needed in the backend's environment**, all from the
+OS keystore (`python -m aios.launcher keys generate --missing` stores them;
+storing a key is your act):
+- `AIOS_VERIFICATION_AUTHORITY_KEY`: the scan otherwise answers 500.
+- `AIOS_PROMOTION_AUTHORITY_KEY`: promotion refuses to construct without it.
+- `AIOS_CHECKPOINT_AUTHORITY_KEY`: without it a checkpoint is refused, so promotion is refused (fail closed).
+
+Do **not** set `AIOS_API_TOKEN` for this run. With it, every request needs a
+bearer token, and `tools/maintenance_repair.py` cannot send one: it logs in
+with your operator credential instead.
+
 ## The run
 
 ```powershell
@@ -65,3 +76,30 @@ The repair request lasts as long as the smoke check, which can be many minutes. 
 | `VERIFIED_RESOLVED` | `C:\gm` holds the repair, and its tests passed. Commit it there and open a PR: CI is still the gate to master. |
 | `PROMOTION_FAILED` with `rolled_back` | The smoke check proved the repair wrong, and `C:\gm` is restored. The smoke report names the failing step. This is the system working: a test found a use that no static rule could see. |
 | `WORKER_FAILED`, `EXECUTOR_*` or a verification failure | Nothing was promoted. The reason names the stage. |
+
+## The first live run (2026-10-19)
+
+**Result: `VERIFIED_RESOLVED`.**
+- **The mission.** `maint-3b41d3d6` removed the unused `typing.Sequence` import from `aios/agents/file_surgery.py` in `C:\gm`.
+- **The scan.** It found 97 dead-import findings, all LOW. 90 sit in files no organ cites.
+- **The evidence chain**, all in `aios_operational_state.db`, each verified by hand afterwards:
+  - an executor job;
+  - a signed `promotion_records` row (the first this machine ever wrote);
+  - a checkpoint;
+  - a rescan `verification_results` row.
+
+**What blocked it, and the fixes:**
+- **The operator credential had been lost.** `tools/operator_recover.py --reset` (#522) replaced it and kept the operator id. See `OPERATOR_RECOVERY.md`.
+- **Promotion could never run on any install.** `AIOS_PROMOTION_AUTHORITY_KEY` had no place in the keystore, the launcher or Compose. #523 added it. The same PR made checkpoints refuse a missing key; until then they signed with a constant published in `checkpoint.py`.
+- **The backend first had too few keys, then too many.** It answered 500 (no verification or promotion key), then 401 (`AIOS_API_TOKEN` set). The previous section now lists exactly what it needs.
+
+**An honest caveat on the smoke check.** The smoke report said *"compiles and
+imports; no test in the project exercises it"*. That was true: #507 had merged
+`file_surgery.py` without its test file. #524 committed the 8 tests, which pass
+against the repaired module. A smoke result of "compiles and imports" alone
+means no committed test covered the change. Read the report's `reason` before
+calling a repair tested.
+
+**Before the next repair.** Some reported imports may be deliberate re-exports
+that a static rule cannot see. The smoke check's exercising tests are the guard
+for that, so prefer findings in modules that have tests.

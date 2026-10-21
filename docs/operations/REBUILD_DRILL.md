@@ -82,8 +82,10 @@ choices are the operator's:
   - `AIOS_API_TOKEN`
   - `AIOS_EXECUTOR_TOKEN`
   - `AIOS_VERIFICATION_AUTHORITY_KEY`
+  - `AIOS_PROMOTION_AUTHORITY_KEY` and `AIOS_CHECKPOINT_AUTHORITY_KEY` (since #523, 2026-10-19). A new checkpoint key cannot verify rollback points signed with the old one; that only matters for an in-flight rollback.
   - `AIOS_LEARNING_KEY_LIVE`
   - the AWS pair
+- **The operator credential IS in the backup** (the identity store is under `data/`). If you have lost the credential itself, `docs/operations/OPERATOR_RECOVERY.md` replaces it without losing your operator id.
 - **The spine signing key.** The private half lives only with the operator.
   It was lost once already (2026-10-19, rotated in #516).
 - **Local models are not in the backup.** `ollama pull` each one again.
