@@ -140,3 +140,18 @@ def test_the_census_reads_the_store_it_is_given(tmp_path) -> None:
     assert "another principal" not in census["refused"]["lessons"], (
         "an unsigned lesson reaches no one"
     )
+
+
+def test_the_d12_verdict_supersedes_phase_8_once_it_exists(tmp_path, census) -> None:
+    """D12: "the usefulness gate reads the newer one" -- and only once it exists."""
+    world = _world(tmp_path)
+    census["value"] = _census(23, 5)
+    (world.repo / pr.JUDGED_PAYOFF).write_text(
+        json.dumps({"h1_met": False, "summary": "phase 8 verdict"}), encoding="utf-8"
+    )
+    assert "phase 8 verdict" in pr.animal_usefulness(world).evidence
+    (world.repo / pr.JUDGED_PAYOFF_D12).write_text(
+        json.dumps({"h1_met": True, "summary": "d12 verdict"}), encoding="utf-8"
+    )
+    gate = pr.animal_usefulness(world)
+    assert gate.status == pr.PASS and "d12 verdict" in gate.evidence
