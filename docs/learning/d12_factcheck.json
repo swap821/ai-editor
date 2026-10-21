@@ -1,0 +1,1483 @@
+{
+ "checked_against_commit": "a694eb849db1db8dde79bf7f9d68b4018187811d",
+ "checked_by": "Claude, reading each target function at that commit (git show) and, for 45 lessons, running the function in a scratch data dir; 2026-10-21",
+ "scope": "every VERIFIED lesson in both D12 practice stores (local C:/d12out/practice-local/w0.db, cloud C:/d12out/practice-cloud/w0.db)",
+ "labels": {
+  "true_specific": "every claim true at the commit and specific to the target",
+  "partly_true": "the specific example holds but a general claim, field name or order in it is false",
+  "false": "its central claim is false at the commit",
+  "about_test": "true or not, its point is the test's own scaffolding (patch targets, mock call shapes, which stand-in object a test may pass)",
+  "scanner_artefact": "shaped by the secret scanner's redaction ([SENSITIVE: ...], truncated names) rather than by the code"
+ },
+ "rule": "PAYOFF_PREREGISTRATION.md D11/D12: every grounded lesson checked against the code at the practice corpus commit; counts and truth rates published whatever they are; only lessons the operator reads and re-admits reach a turn",
+ "tally": {
+  "local": {
+   "true_specific": 65,
+   "partly_true": 9,
+   "scanner_artefact": 4,
+   "false": 4,
+   "about_test": 5
+  },
+  "cloud": {
+   "scanner_artefact": 5,
+   "true_specific": 41,
+   "about_test": 19,
+   "partly_true": 11,
+   "false": 5
+  }
+ },
+ "recommended_for_readmission": [
+  "cloud#10",
+  "cloud#109",
+  "cloud#122",
+  "cloud#127",
+  "cloud#133",
+  "cloud#138",
+  "cloud#141",
+  "cloud#145",
+  "cloud#147",
+  "cloud#154",
+  "cloud#16",
+  "cloud#160",
+  "cloud#167",
+  "cloud#18",
+  "cloud#181",
+  "cloud#183",
+  "cloud#185",
+  "cloud#194",
+  "cloud#205",
+  "cloud#207",
+  "cloud#21",
+  "cloud#210",
+  "cloud#214",
+  "cloud#231",
+  "cloud#24",
+  "cloud#243",
+  "cloud#249",
+  "cloud#251",
+  "cloud#253",
+  "cloud#26",
+  "cloud#262",
+  "cloud#28",
+  "cloud#35",
+  "cloud#39",
+  "cloud#51",
+  "cloud#53",
+  "cloud#55",
+  "cloud#6",
+  "cloud#77",
+  "cloud#87",
+  "cloud#99",
+  "local#100",
+  "local#102",
+  "local#104",
+  "local#107",
+  "local#127",
+  "local#131",
+  "local#140",
+  "local#142",
+  "local#144",
+  "local#146",
+  "local#148",
+  "local#15",
+  "local#152",
+  "local#157",
+  "local#159",
+  "local#161",
+  "local#164",
+  "local#170",
+  "local#173",
+  "local#175",
+  "local#181",
+  "local#184",
+  "local#19",
+  "local#191",
+  "local#193",
+  "local#199",
+  "local#201",
+  "local#203",
+  "local#205",
+  "local#207",
+  "local#21",
+  "local#216",
+  "local#229",
+  "local#232",
+  "local#234",
+  "local#238",
+  "local#24",
+  "local#241",
+  "local#246",
+  "local#248",
+  "local#250",
+  "local#26",
+  "local#260",
+  "local#263",
+  "local#267",
+  "local#3",
+  "local#33",
+  "local#35",
+  "local#39",
+  "local#41",
+  "local#43",
+  "local#45",
+  "local#48",
+  "local#50",
+  "local#56",
+  "local#6",
+  "local#61",
+  "local#63",
+  "local#66",
+  "local#68",
+  "local#74",
+  "local#81",
+  "local#87",
+  "local#94",
+  "local#96"
+ ],
+ "lessons": [
+  {
+   "stream": "cloud",
+   "id": 3,
+   "target": "aios/domain/local_workforce/skill_selection.py::qualification_fixture_answer",
+   "label": "scanner_artefact",
+   "why": "the '[SENSITIVE: e7dac84eb335]' key it rules out is the scanner's redaction of required_inputs_present, not anything the function emits",
+   "lesson": "qualification_fixture_answer's qualification answers contain the four fields applicable, abstain, confidence and reason plus exactly one additional flag key (the failure diff shows it beginning 'required_inputs') whose value is True, and they do not contain a '[SENSITIVE: e7dac84eb335]' key."
+  },
+  {
+   "stream": "cloud",
+   "id": 6,
+   "target": "aios/domain/local_workforce/skill_selection.py::read_skill_selection",
+   "label": "true_specific",
+   "why": "set(data) must equal set(FIELDS), so the fifth field (required_inputs_present) under any other key returns None",
+   "lesson": "read_skill_selection requires its fifth input field under the exact key name defined in the module's FIELDS constant (the one besides 'applicable', 'abstain', 'confidence', 'reason'); presenting that field under any other key name makes the function treat it as missing and return None."
+  },
+  {
+   "stream": "cloud",
+   "id": 10,
+   "target": "aios/maintenance/dead_imports.py::dunder_all",
+   "label": "true_specific",
+   "why": "AugAssign is handled, so names added with += are included",
+   "lesson": "dunder_all in aios.maintenance.dead_imports processes ast.AugAssign statements: string elements added to __all__ via '+=' are included in the returned tuple, so collection is not limited to plain '=' assignments."
+  },
+  {
+   "stream": "cloud",
+   "id": 14,
+   "target": "aios/maintenance/dead_imports.py::python_files",
+   "label": "about_test",
+   "why": "ran it: the module has 'from __future__ import annotations', so the annotation is the string 'Path' -- a fact that matters only to a test",
+   "lesson": "In aios/maintenance/dead_imports.py, the root parameter of python_files has the string 'Path' as its runtime annotation, so inspect.signature(python_files).parameters['root'].annotation returns the string 'Path' rather than the pathlib.Path class object."
+  },
+  {
+   "stream": "cloud",
+   "id": 16,
+   "target": "aios/memory/provenance.py::content_digest",
+   "label": "true_specific",
+   "why": "ran it: the digest is not sha256(str(OrderedDict(sorted(items)))); it is a deterministic 64-char hex over _canonical",
+   "lesson": "aios.memory.provenance.content_digest does not compute its digest as sha256 of str(OrderedDict(sorted(fields.items()))); its canonical serialization differs from that representation, though its output is a deterministic 64-character lowercase hex string that changes when the input fields change"
+  },
+  {
+   "stream": "cloud",
+   "id": 18,
+   "target": "aios/memory/relevance.py::specific_tokens",
+   "label": "true_specific",
+   "why": "ran it: 'test' is in GENERIC, so specific_tokens('run the test') is empty",
+   "lesson": "In aios.memory.relevance, the module-level GENERIC set contains the word 'test', so specific_tokens() excludes 'test' from its result even though 'test' is a non-numeric token longer than 2 characters."
+  },
+  {
+   "stream": "cloud",
+   "id": 21,
+   "target": "aios/operations/clerk_admin.py::eligible_roles",
+   "label": "true_specific",
+   "why": "ran it: eligible_roles([]) and eligible_roles(()) both return {}",
+   "lesson": "aios.operations.clerk_admin.eligible_roles accepts an empty Sequence (both [] and ()) and returns an empty dict without raising, so an empty candidate pool is valid input even though the function still builds its runtime authority internally."
+  },
+  {
+   "stream": "cloud",
+   "id": 24,
+   "target": "aios/operations/keystore.py::presence",
+   "label": "true_specific",
+   "why": "{name: bool(store.get(name)) for name in NAMES}: absent or falsy -> False, only NAMES entries reported",
+   "lesson": "presence(keystore) returns a dict mapping each exact name in NAMES to the truthiness of keystore.get(name): a key missing from the store or stored with a falsy value such as None (e.g. AWS_ACCESS_KEY_ID=None) is reported False, and only exact NAMES entries with truthy values are reported True."
+  },
+  {
+   "stream": "cloud",
+   "id": 26,
+   "target": "aios/operations/keystore.py::production_environment",
+   "label": "true_specific",
+   "why": "only NAMES are looked up; neither DB_PASSWORD nor SECRET_TOKEN is in NAMES, so the result is {}",
+   "lesson": "production_environment in aios.operations.keystore selects result entries solely by looking up the names in its own module-level NAMES constant, and that constant contains neither 'DB_PASSWORD' nor 'SECRET_TOKEN', since a keystore holding truthy values for both names produced an empty dict."
+  },
+  {
+   "stream": "cloud",
+   "id": 28,
+   "target": "aios/domain/local_workforce/skill_selection.py::check_abstains",
+   "label": "true_specific",
+   "why": "set(data) != set(FIELDS) -> None -> (False, f'not exactly the fields {list(FIELDS)} with their types')",
+   "lesson": "check_abstains returns a two-tuple (False, f\"not exactly the fields {list(FIELDS)} with their types\") whenever the input mapping's keys are not exactly FIELDS \u2014 an unknown or extra key makes read_skill_selection return None \u2014 and the rejection message is built from the FIELDS constant rather than hardcoded."
+  },
+  {
+   "stream": "cloud",
+   "id": 30,
+   "target": "aios/domain/local_workforce/skill_selection.py::check_applies",
+   "label": "about_test",
+   "why": "true (module-global lookup at call time), but it is about where a test must patch",
+   "lesson": "check_applies in aios.domain.local_workforce.skill_selection resolves read_skill_selection through its own module globals at call time, so setting the read_skill_selection attribute on that module object changes check_applies's behavior, while rebinding the name imported into the test module only creates a test-function local and cannot affect check_applies."
+  },
+  {
+   "stream": "cloud",
+   "id": 33,
+   "target": "aios/domain/local_workforce/skill_selection.py::qualification_prompt",
+   "label": "about_test",
+   "why": "true pass-through to skill_selection_prompt, but the point is the test's assumed 'Prompt: ...' format",
+   "lesson": "qualification_prompt returns the return value of its internal prompt-building function unchanged (a pass-through), and its real prompt text does not match the hardcoded 'Prompt: ...' format string the test had assumed."
+  },
+  {
+   "stream": "cloud",
+   "id": 35,
+   "target": "aios/memory/provenance.py::key_id",
+   "label": "true_specific",
+   "why": "sha256(raw public bytes).hexdigest()[:16]; any key built from 32 raw bytes works, no private key needed",
+   "lesson": "aios.memory.provenance.key_id accepts an Ed25519PublicKey constructed from arbitrary 32 raw bytes and returns the first 16 hexadecimal characters of the SHA-256 digest of those raw public bytes; it does not require a key generated from a private key."
+  },
+  {
+   "stream": "cloud",
+   "id": 37,
+   "target": "aios/agents/recall_envelope.py::attach_envelope",
+   "label": "partly_true",
+   "why": "exact for a convo with a user message and string content; 'does not insert a new message' is false when there is no user message (inserts one, returns 1); list content is prepended as a part",
+   "lesson": "attach_envelope does not insert a new message into the conversation: for a truthy memory_context it prepends envelope(memory_context) followed by two newlines to the content of the last user message (replacing that message dict with a fresh copy, leaving earlier messages and the caller's original dict unmutated) and returns 0; for None or empty-string memory_context it returns 0 and leaves the conversation untouched."
+  },
+  {
+   "stream": "cloud",
+   "id": 39,
+   "target": "aios/agents/recall_envelope.py::recall_provenance",
+   "label": "true_specific",
+   "why": "_channel_of only matches lines starting with a known header text; '# header1' is not one, so line1 gets UNKNOWN_CHANNEL",
+   "lesson": "In aios.agents.recall_envelope, _channel_of does not recognize '#'-prefixed markdown-style lines as channel headers: for memory_context '# header1\\nline1\\n# header2\\nline2', recall_provenance reports line 'line1' with channel UNKNOWN_CHANNEL, not 'header1'."
+  },
+  {
+   "stream": "cloud",
+   "id": 42,
+   "target": "aios/application/memory/reflex_contract.py::plan_executable",
+   "label": "about_test",
+   "why": "true that 'FRESHNESS_OBSERVATION in plan.required_observations' needs a container (a bare Mock attribute fails), but it is about the test double; it also garbles the module path",
+   "lesson": "plan_executable in aios.application.memory.reflex_executable reflex_contract selects its _FILE/_COMMAND kind by evaluating '<token> in plan.<field>', so the plan object's tested attribute must implement __contains__; a plain unittest.mock.Mock does not and fails with TypeError: argument of type 'Mock' is not a container or iterable."
+  },
+  {
+   "stream": "cloud",
+   "id": 48,
+   "target": "aios/core/model_calls.py::read_ledger",
+   "label": "partly_true",
+   "why": "parsed entries older than since are dropped and unparseable lines in scanned files are kept -- but whole files dated before since.date() are skipped, unreadable lines included",
+   "lesson": "read_ledger(data_dir, since) filters out parsed entries whose 'ts' timestamp is earlier than 'since', while lines that fail JSON parsing are still returned as {'unreadable': ...} entries regardless of 'since'."
+  },
+  {
+   "stream": "cloud",
+   "id": 51,
+   "target": "aios/launcher.py::keys_command",
+   "label": "true_specific",
+   "why": "the set path never touches config; no OS store or a non-tty stdin raises LauncherError first; LauncherConfig lives in aios.launcher, not aios.config",
+   "lesson": "aios.config does not export a name 'LauncherConfig', and aios.launcher.keys_command on the 'set' path raises LauncherError without ever consulting its config argument (None is accepted), because it refuses up front when no OS credential store exists or when stdin is not a tty."
+  },
+  {
+   "stream": "cloud",
+   "id": 53,
+   "target": "aios/maintenance/dead_imports.py::attribute_pairs",
+   "label": "true_specific",
+   "why": "a pure AST walk: every alias.attr read is collected with no existence check",
+   "lesson": "attribute_pairs statically collects every attribute access on a tracked alias from the AST, including plain reads like obj.nonexistent; it does not filter pairs based on whether the attribute actually exists on the object"
+  },
+  {
+   "stream": "cloud",
+   "id": 55,
+   "target": "aios/memory/relevance.py::specific_relevance",
+   "label": "true_specific",
+   "why": "ran it: specific_tokens drops 'data', so 2 shared of 3x3 -> 0.666667",
+   "lesson": "specific_relevance('data science machine learning', 'data analysis machine learning') returns 2/sqrt(3*3) = 0.666667, not 0.75, because its tokenizer filters out the word 'data', leaving token sets {science, machine, learning} and {analysis, machine, learning} with only 2 shared tokens."
+  },
+  {
+   "stream": "cloud",
+   "id": 59,
+   "target": "aios/policy/egress.py::stricter_cost",
+   "label": "partly_true",
+   "why": "ran it: stricter_cost('premium','paid') == 'free' and the rule is exact, but 'paid' is not a tier either (tiers are free/low/high) -- both rank 0",
+   "lesson": "aios.policy.egress.stricter_cost ranks its two arguments via the module-level _COST_RANK dict (after str(value).strip().lower()), defaults any name not present in _COST_RANK to rank 0, and returns the first _COST_RANK name whose rank equals the lower of the two ranks; 'premium' has effective rank 0 rather than outranking 'paid', so stricter_cost('premium', 'paid') returns 'free'."
+  },
+  {
+   "stream": "cloud",
+   "id": 70,
+   "target": "aios/runtime/spawner.py::claim_mission",
+   "label": "false",
+   "why": "an existing directory raises MissionCollisionError (a RuntimeError, chained from FileExistsError), not FileExistsError",
+   "lesson": "aios.runtime.spawner.claim_mission creates the '<runtime_root>/missions/<mission_id>' directory with exist_ok=False semantics: it raises FileExistsError when that directory already exists and never tolerates or reuses a pre-existing mission directory, so any caller or test must provide a runtime root with no prior artifacts for that mission_id."
+  },
+  {
+   "stream": "cloud",
+   "id": 77,
+   "target": "aios/maintenance/ecosystem_scanner.py::scan_api_response",
+   "label": "true_specific",
+   "why": "ran it: equal to a fresh scanner's result, and repeated calls compare equal",
+   "lesson": "aios.maintenance.ecosystem_scanner.scan_api_response(target_id, payload) returns an EcosystemReport instance equal in value and type to what a fresh EcosystemScanner().scan_api_response with the same arguments returns, and repeated calls with identical arguments produce equal reports, so the wrapper is a deterministic pass-through that can be tested without mocking EcosystemScanner."
+  },
+  {
+   "stream": "cloud",
+   "id": 82,
+   "target": "aios/agents/recall_envelope.py::recall_taint",
+   "label": "partly_true",
+   "why": "true for 'Hello world' (11 chars >= 8); stated as general for any verbatim line, but a line shorter than _MIN_TOKEN returns []; the rest is a vague hedge",
+   "lesson": "recall_taint(candidate, memory_context, operator) returns a non-empty list containing the raw matching line when the candidate appears verbatim as a line in memory_context and not in the operator text (proven with candidate 'Hello world'), and returns [] for empty or whitespace-only candidates; matching behavior depends on the actual _MIN_TOKEN/_TOKEN rules rather than on assumptions about them."
+  },
+  {
+   "stream": "cloud",
+   "id": 84,
+   "target": "aios/agents/tool_handlers.py::plan_task",
+   "label": "partly_true",
+   "why": "'could not produce a plan:' is only for PlannerError; any other exception gives '[plan error] planner failed:'",
+   "lesson": "plan_task in aios.agents.tool_handlers prefixes planner-failure output with '[plan error] could not produce a plan: ' (not '[plan error] planner failed: '), returning it as the first element of a (text, 'ok', False) tuple"
+  },
+  {
+   "stream": "cloud",
+   "id": 87,
+   "target": "aios/application/agent_bridge.py::authorize",
+   "label": "true_specific",
+   "why": "_COMMAND_TOOLS is {Bash, BashOutput, Shell, Terminal, execute_terminal}; 'run' falls to the unmodelled-tool denial; empty command gives exactly that reason",
+   "lesson": "In aios.application.agent_bridge, the tool name 'run' is not in _COMMAND_TOOLS or any modeled tool set, so authorize('run', ...) is denied as an unmodelled tool; the empty-command denial for an actual _COMMAND_TOOLS member carries the exact reason 'No command supplied to a command tool.'"
+  },
+  {
+   "stream": "cloud",
+   "id": 95,
+   "target": "aios/application/governance/amendment_authority.py::rollback_amendment",
+   "label": "partly_true",
+   "why": "non-mutation via model_copy(update={'status':'rolled_back'}) is exact; but it returns a (proposal, previous_snapshot) tuple and sets no rollback-pointer attribute -- only status changes",
+   "lesson": "rollback_amendment in aios.application.governance.amendment_authority does not mutate the proposal it is given; it builds the rolled-back result via the proposal's model_copy(update=...) method, returning a new object whose status is 'rolled_back', whose activation_digest still equals the current snapshot digest, and whose rollback-pointer attribute equals the previous snapshot's digest, while the original proposal keeps status 'activated' -- so any test double for the proposal must implement model_copy and provide real string digest attributes."
+  },
+  {
+   "stream": "cloud",
+   "id": 99,
+   "target": "aios/application/learning/negative_transfer.py::binomial_lower_tail",
+   "label": "true_specific",
+   "why": "verified: binomial_lower_tail(3,5,0.5) == 0.8125000000000007; short-circuit branches and the ValueError message are exact",
+   "lesson": "binomial_lower_tail in aios.application.learning.negative_transfer computes its cumulative probability via floating-point summation that carries rounding error (it returns 0.8125000000000007 for binomial_lower_tail(3, 5, 0.5) even though 0.8125 is exactly representable), so only its short-circuit branches return exact values: successes >= attempts yields exactly 1.0 (taking precedence over the p == 1.0 branch), p == 1.0 with successes < attempts yields exactly 0.0, and negative successes or attempts raise ValueError with message 'counts must be non-negative'."
+  },
+  {
+   "stream": "cloud",
+   "id": 105,
+   "target": "aios/application/memory/human_representation.py::correction_lineage_v1",
+   "label": "about_test",
+   "why": "true that build_correction_record_v1 is keyword-only and takes session_id; the lesson is about the test's fabricated mock signature",
+   "lesson": "correction_lineage_v1 calls build_correction_record_v1 with session_id as a keyword argument, and the real build_correction_record_v1 accepts that session_id keyword; the failing test's fabricated mock signature without session_id did not match the real call."
+  },
+  {
+   "stream": "cloud",
+   "id": 107,
+   "target": "aios/application/memory/institutional_skills.py::is_review_ready",
+   "label": "false",
+   "why": "the check is 'ok < max(min_successes, 1)', so success_count EQUAL to min_successes passes the count test (inclusive), not strict",
+   "lesson": "is_review_ready in aios.application.memory.institutional_skills does not treat a record as review-ready when its success_count merely equals min_successes; the success-count threshold is applied strictly, so a boundary case that the test assumed would pass returns False."
+  },
+  {
+   "stream": "cloud",
+   "id": 109,
+   "target": "aios/cognition/repo_map.py::query_symbols",
+   "label": "true_specific",
+   "why": "only repo_map.symbols is read; with no terms it returns repo_map.symbols[:limit]; SymbolNode's field is symbol_id, so symbol= is rejected",
+   "lesson": "aios.cognition.repo_map.query_symbols reads only the 'symbols' attribute of its repo_map argument and works with duck-typed elements (no SymbolNode requirement), and for a query with no terms it returns repo_map.symbols[:limit] as a slice copy in original order; SymbolNode.__init__ does not accept a 'symbol' keyword argument"
+  },
+  {
+   "stream": "cloud",
+   "id": 112,
+   "target": "aios/cognition/repo_map.py::scope_hints_for_contract",
+   "label": "partly_true",
+   "why": "recommended_files restricted to allowed_files is exact, but the second field is out_of_scope_matches, not out_of_scope_files",
+   "lesson": "aios.cognition.repo_map.ScopeHints exposes the fields 'recommended_files', 'out_of_scope_files', and 'rationale' (not 'recommended' or 'out_of_scope'), and scope_hints_for_contract returns one with recommended_files restricted to contract.allowed_files."
+  },
+  {
+   "stream": "cloud",
+   "id": 117,
+   "target": "aios/core/graph_ingestion.py::edges_from_outcome",
+   "label": "about_test",
+   "why": "true signature/return, but the substance is that the earlier test crashed on its own scoping -- about the test",
+   "lesson": "aios.core.graph_ingestion.edges_from_outcome accepts positional arguments (task_text, outcome, tool_calls) and returns a list for both the 'verified_success' and 'verified_failure' outcomes; the previous failure proved nothing about this function because the test crashed on its own local-variable scoping of find_entities before the function was invoked."
+  },
+  {
+   "stream": "cloud",
+   "id": 122,
+   "target": "aios/core/inference.py::infer",
+   "label": "true_specific",
+   "why": "above.sort(key=(-path_confidence, depth)), so chain[0] is the highest-confidence (then shallowest) edge",
+   "lesson": "aios.core.inference.infer() orders InferenceResult.chain by path_confidence descending (ties broken by depth ascending), not by input edge order, so chain[0] is the highest-confidence edge rather than the first edge supplied."
+  },
+  {
+   "stream": "cloud",
+   "id": 125,
+   "target": "aios/core/model_selector.py::infer_task",
+   "label": "false",
+   "why": "ran it: there IS keyword matching -- 'fix the bug in parser.py' -> coding, 'research ...' -> research, 'think step by step ...' -> reasoning",
+   "lesson": "aios.core.model_selector.infer_task classifies solely on the has_images flag and text/context length thresholds (LONG_CONTEXT_CHARS); it has no content keyword or regex matching, so research-, reasoning-, and coding-phrased prompts such as 'what is the capital of france' return TASK_GENERAL."
+  },
+  {
+   "stream": "cloud",
+   "id": 127,
+   "target": "aios/core/model_selector.py::select_model",
+   "label": "true_specific",
+   "why": "the rule is max(usable, key=_score) after is_excluded / is_tool_capable filtering (the score itself is name-derived)",
+   "lesson": "aios.core.model_selector.select_model returns the candidate with the highest _score among models passing the is_excluded and (when require_tools=True) is_tool_capable filters; it gives no extra preference to a model based on its name, so when both gpt-4 and llama3:tool were mocked tool-capable it returned whichever one the mocked _score ranked higher."
+  },
+  {
+   "stream": "cloud",
+   "id": 129,
+   "target": "aios/core/router.py::policy_allows",
+   "label": "false",
+   "why": "the cloud_tasks check is only applied when provider.privacy == PRIVACY_CLOUD; a local provider passes regardless of cloud_tasks",
+   "lesson": "aios.core.router.policy_allows checks the requested task against policy.cloud_tasks for every call, not only when provider.privacy equals PRIVACY_CLOUD: with an available provider whose cost is within policy.max_cost, it still returns False when the task is absent from policy.cloud_tasks, and it operates purely through attribute access on duck-typed policy/provider objects."
+  },
+  {
+   "stream": "cloud",
+   "id": 133,
+   "target": "aios/maintenance/dead_imports.py::find_dead_imports",
+   "label": "true_specific",
+   "why": "used = loaded ast.Name ids, so js in js.dumps counts as used and an unreferenced from-import is dead; linenos are the AST's 1-based ones",
+   "lesson": "find_dead_imports in aios.maintenance.dead_imports treats an imported name as used only when it appears as a loaded ast.Name in the module body: a name imported via 'from X import Y' and never referenced afterwards is reported dead, while a name used solely as the base of an attribute access (e.g. js in js.dumps) counts as used, and the reported line numbers are the AST's 1-based line numbers, so a leading blank line in the source shifts them by one."
+  },
+  {
+   "stream": "cloud",
+   "id": 136,
+   "target": "aios/maintenance/repair_operations.py::dead_import_names",
+   "label": "scanner_artefact",
+   "why": "'SENSITIVE' is a secret-scanner substitution that reached the test; the rest (keyword-only path/project_root, a frozenset) is incidental",
+   "lesson": "aios.maintenance.repair_operations does not export a name SENSITIVE, and its dead_import_names function is invoked with path and project_root keyword arguments (not a sensitive argument) and returns a frozenset that is empty for source with no import statements or for empty source."
+  },
+  {
+   "stream": "cloud",
+   "id": 138,
+   "target": "aios/maintenance/repair_operations.py::remove_dead_imports",
+   "label": "true_specific",
+   "why": "ran it: exactly \"print('hello')\\n\" with removed ('os','sys'); 'from os import path, sep' prunes only path (multi-line imports have extra safety skips)",
+   "lesson": "remove_dead_imports analyses the source itself and deletes import lines whose names are never referenced elsewhere in the content: given 'import os\\nimport sys\\nprint('hello')\\n' it returns \"print('hello')\\n\" with removed == ('os', 'sys'), while imports whose names are used are kept unchanged and multi-name imports have only the unused names pruned."
+  },
+  {
+   "stream": "cloud",
+   "id": 141,
+   "target": "aios/memory/doc_ingest.py::chunk_text",
+   "label": "true_specific",
+   "why": "ran it: that sentence with max_tokens=5, overlap_tokens=2 -> 4 chunks; empty/whitespace-only -> []",
+   "lesson": "aios.memory.doc_ingest.chunk_text returns an empty list for empty and whitespace-only strings, and for 'This is a sample text for testing the chunking functionality.' with max_tokens=5 and overlap_tokens=2 it returns 4 chunks, not the 5 chunks the original hand-computed expectations assumed."
+  },
+  {
+   "stream": "cloud",
+   "id": 145,
+   "target": "aios/memory/doc_ingest.py::extract_text",
+   "label": "true_specific",
+   "why": "ran it: PdfStreamError propagates for malformed PDF bytes; the ValueError branch needs pypdf to be unimportable",
+   "lesson": "pypdf is installed in this environment, so aios.memory.doc_ingest.extract_text routes PDF inputs into pypdf parsing and raises pypdf.errors.PdfStreamError on malformed PDF bytes; the ValueError('PDF ingestion requires the pypdf package') branch is only reachable when pypdf is absent."
+  },
+  {
+   "stream": "cloud",
+   "id": 147,
+   "target": "aios/operations/keystore.py::generate",
+   "label": "true_specific",
+   "why": "only name == 'AIOS_LEARNING_KEY_LIVE' returns learning_public_key(value); any other generated name stores the value and returns None",
+   "lesson": "aios.operations.keystore.generate returns the value derived by learning_public_key only when invoked with the real learning key name present in the module-level GENERATORS mapping; for a fabricated GENERATORS entry it stores the generated value and returns None, so its return value depends on the specific registered key name rather than on GENERATORS membership alone."
+  },
+  {
+   "stream": "cloud",
+   "id": 149,
+   "target": "aios/policy/constitution.py::build_constitution",
+   "label": "false",
+   "why": "ran it: the argument does control the field -- resource_mode='normal' -> 'normal'; 'mode2' becomes 'conservation' because normalize_resource_mode maps an unknown mode to it (config.RESOURCE_MODE is 'normal')",
+   "lesson": "build_constitution's resource_mode parameter does not control Constitution.resource_mode: passing resource_mode='mode2' still returns the live config value config.RESOURCE_MODE ('conservation'), so that field is config-driven, not argument-driven."
+  },
+  {
+   "stream": "cloud",
+   "id": 152,
+   "target": "aios/policy/kernel.py::get_policy_kernel",
+   "label": "about_test",
+   "why": "true (PolicyKernel is not in aios.application.governance), but it is about an import path",
+   "lesson": "PolicyKernel is defined in aios.policy.kernel and is not importable from aios.application.governance; importing it from aios.policy.kernel succeeds and get_policy_kernel returns an instance of that class."
+  },
+  {
+   "stream": "cloud",
+   "id": 154,
+   "target": "aios/core/model_availability.py::is_unavailable",
+   "label": "true_specific",
+   "why": "an expired entry is deleted (del _unavailable[key]) before returning False, so the key is gone afterwards",
+   "lesson": "aios.core.model_availability.is_unavailable deletes the (provider, model) entry from the module-level _unavailable dict when the entry is expired (older than UNAVAILABLE_TTL_S), so after a False-returning call on an expired entry the key no longer exists in _unavailable and cannot be deleted again."
+  },
+  {
+   "stream": "cloud",
+   "id": 158,
+   "target": "aios/launcher.py::organ_check",
+   "label": "about_test",
+   "why": "true (the class is OrganLedgerReport, no OrganReport; it delegates to evaluate_organs(repo_root)), but it is about import names for the test",
+   "lesson": "aios.application.governance.organ_ledger exposes the function evaluate_organs but exports no symbol named OrganReport, and aios.launcher.organ_check computes its result by delegating to evaluate_organs(config.repo_root)."
+  },
+  {
+   "stream": "cloud",
+   "id": 160,
+   "target": "aios/launcher.py::provenance_clerk_job",
+   "label": "true_specific",
+   "why": "config unused; a missing job returns 1 in both branches; the store and lookup are imported inside the function, so they are not aios.launcher attributes",
+   "lesson": "aios.launcher.provenance_clerk_job never reads its config parameter (None is accepted), and for a job id with no stored provenance request it returns 1, not 0, in both the JSON and rendered-text branches; the store/get_provenance names the old test patched are not attributes of the aios.launcher module."
+  },
+  {
+   "stream": "cloud",
+   "id": 163,
+   "target": "aios/launcher.py::v1_check",
+   "label": "about_test",
+   "why": "true (the class is V1ReleaseDeclaration), but it is about what a test can import or patch",
+   "lesson": "aios.application.governance does not define or re-export a symbol named 'ReleaseDeclaration'; that name is not importable from that module, and v1_check can be driven purely through the evaluate_release and run_runtime_proofs function attributes on the governance modules."
+  },
+  {
+   "stream": "cloud",
+   "id": 167,
+   "target": "aios/agents/tool_handlers.py::self_analyze",
+   "label": "true_specific",
+   "why": "aios/agents/self_analysis.py does not exist at the commit (the module is self_analysis_agent); _resolve_within refusal returns exactly that tuple before any SelfAnalysisAgent is built",
+   "lesson": "SelfAnalysisAgent is not importable from aios.agents.self_analysis (no such module exists), and self_analyze in aios.agents.tool_handlers handles out-of-root paths itself, returning the tuple (\"[BLOCKED] Path '<path>' escapes the project root.\", \"blocked\", False) without any SelfAnalysisAgent being constructed or called."
+  },
+  {
+   "stream": "cloud",
+   "id": 170,
+   "target": "aios/core/replay_writes.py::edit_signature",
+   "label": "about_test",
+   "why": "true (workspace_id lives in aios.core.replay_writes; there is no aios/core/workspace.py), but it is about the patch target",
+   "lesson": "workspace_id is an attribute of the aios.core.replay_writes module namespace (patchable as aios.core.replay_writes.workspace_id); there is no importable aios.core.workspace module that provides it."
+  },
+  {
+   "stream": "cloud",
+   "id": 178,
+   "target": "aios/council/reasoning.py::plan_with_llm",
+   "label": "scanner_artefact",
+   "why": "'SENSITIVE' is a name the secret scanner substituted into the test; the lesson is about that redaction, not the code",
+   "lesson": "aios.council.reasoning has no attribute named SENSITIVE; importing SENSITIVE from it raises ImportError, while plan_with_llm and LLMError are importable from that module."
+  },
+  {
+   "stream": "cloud",
+   "id": 181,
+   "target": "aios/domain/governance/constitution.py::build_constitution_snapshot",
+   "label": "true_specific",
+   "why": "PolicyReference.digest is Field(min_length=64, max_length=64), so a short label fails validation and only real 64-char digests pass",
+   "lesson": "PolicyReference.digest is pydantic-validated with a string length/format constraint that real digest helpers satisfy but short arbitrary strings such as 'provider_digest_123' do not, so build_constitution_snapshot's internally constructed PolicyReference objects only validate with genuinely computed digests."
+  },
+  {
+   "stream": "cloud",
+   "id": 183,
+   "target": "aios/memory/crag.py::calibrate_thresholds",
+   "label": "true_specific",
+   "why": "CalibrationResult fields are lower, upper, false_drop_rate, false_accept_rate; grid, drop_weight, accept_weight are keyword parameters",
+   "lesson": "aios.memory.crag.CalibrationResult names its rate fields 'false_drop_rate' and 'false_accept_rate', not 'fdr'/'far', and calibrate_thresholds accepts explicit grid, drop_weight, and accept_weight parameters."
+  },
+  {
+   "stream": "cloud",
+   "id": 185,
+   "target": "aios/memory/crag.py::refine_context",
+   "label": "true_specific",
+   "why": "with keep given it returns ' '.join(kept) -- '' when all are rejected; the never-blank fallback is only on the default path",
+   "lesson": "In aios.memory.crag.refine_context, the fallback that returns the most relevant strip when nothing survives filtering applies only to the default relevance-based path; when an explicit keep callable is supplied and rejects every strip, the function returns an empty string."
+  },
+  {
+   "stream": "cloud",
+   "id": 187,
+   "target": "aios/memory/skills.py::scoped_skill_recall",
+   "label": "about_test",
+   "why": "ran it: Mock(spec=SkillMemory) returns [] without calling relevant_verified -- true, but it is about which mocks satisfy the check",
+   "lesson": "scoped_skill_recall detects a SkillMemory argument via an isinstance-style check satisfied by Mock(spec=SkillMemory) but not by assigning __class__.__name__, and when the argument is a SkillMemory it returns an empty list without calling relevant_verified."
+  },
+  {
+   "stream": "cloud",
+   "id": 191,
+   "target": "aios/operations/recovery.py::restore_backup",
+   "label": "about_test",
+   "why": "true that no UNGOVERNED_FIXTURE exists (restore_backup forwards to a module-level authority); it is about a name the test assumed",
+   "lesson": "aios.operations.recovery does not define or export any name UNGOVERNED_FIXTURE; the module exposes restore_backup (which forwards to a module-level service object's restore_backup method) but no such fixture constant."
+  },
+  {
+   "stream": "cloud",
+   "id": 194,
+   "target": "aios/application/local_workforce/dispatcher.py::dispatch_clerical_job",
+   "label": "true_specific",
+   "why": "forwards the four args (as keywords) to _CLERK_DISPATCHER.dispatch and returns it; DispatchDecision is Literal[...], unusable in isinstance",
+   "lesson": "dispatch_clerical_job is a thin delegate that forwards its four arguments in order to the module-level _CLERK_DISPATCHER.dispatch and returns that call's result unchanged, and its DispatchDecision result type is a subscripted generic that cannot be used in isinstance checks, so equality comparison against a direct dispatcher call is the valid way to verify behaviour."
+  },
+  {
+   "stream": "cloud",
+   "id": 198,
+   "target": "aios/core/self_consistency.py::run_self_consistency",
+   "label": "about_test",
+   "why": "true (verify(candidate, session_id=session_id, approved=True)) but it only describes a mock's kwargs",
+   "lesson": "run_self_consistency calls verifier.verify with approved=True plus at least one additional keyword argument, so the per-call kwargs dict contains more keys than just \"approved\"."
+  },
+  {
+   "stream": "cloud",
+   "id": 205,
+   "target": "aios/agents/tool_handlers.py::propose_fixes",
+   "label": "true_specific",
+   "why": "invalid limit -> 25 passed as propose_open(limit=n); the constructor also gets tests_root and llm, so the second clause is true (phrased as a mock assertion)",
+   "lesson": "propose_fixes in aios.agents.tool_handlers defaults an invalid limit to 25 and passes it to SelfAnalysisAgent.propose_open as the keyword argument limit=25, while the SelfAnalysisAgent constructor is invoked exactly once but not with exactly the sole kwargs scope_root= and path_root=."
+  },
+  {
+   "stream": "cloud",
+   "id": 207,
+   "target": "aios/application/governance/organ_ledger.py::validate_manifest",
+   "label": "true_specific",
+   "why": "ledger_path and every files key are checked with (root/path).exists() regardless of the organ_summary result",
+   "lesson": "validate_manifest performs on-disk existence checks for manifest['ledger_path'] and every manifest['files'] key relative to repo_root, and a matching organ_summary does not suppress the resulting missing-path errors."
+  },
+  {
+   "stream": "cloud",
+   "id": 210,
+   "target": "aios/application/governance/v1_declaration.py::evaluate_release",
+   "label": "true_specific",
+   "why": "_gate returns runtime_proven=False whenever any required path is missing, even if a proof is supplied",
+   "lesson": "In evaluate_release, gates constructed via the _gate(...) helper (such as operator_identity at index 0) report runtime_proven=False when their source file is missing under the given root, so runtime_proven for these gates depends on filesystem state and cannot be asserted True independently of it."
+  },
+  {
+   "stream": "cloud",
+   "id": 214,
+   "target": "aios/application/learning/negative_transfer.py::assess",
+   "label": "true_specific",
+   "why": "the 0 <= successes <= attempts check (exact message) precedes the attempts == 0 branch",
+   "lesson": "assess() in aios.application.learning.negative_transfer enforces 0 <= successes <= attempts up front and raises ValueError('need 0 <= successes <= attempts') when successes exceeds attempts, so assess(5, 0, 0.5) is rejected rather than returning a verdict with reason 'no outcomes yet'."
+  },
+  {
+   "stream": "cloud",
+   "id": 217,
+   "target": "aios/application/memory/institutional_skills.py::build_skills_slot",
+   "label": "scanner_artefact",
+   "why": "the class name (InstitutionalSkillAdapter) was redacted to [SENSITIVE: ...] by the secret scanner, so the lesson no longer names what it is about",
+   "lesson": "build_skills_slot in aios.application.memory.institutional_skills returns an instance of that module's own [SENSITIVE: 2f703c86610b] class, so an isinstance check only passes against the imported real class, never against a test-local class with the same name"
+  },
+  {
+   "stream": "cloud",
+   "id": 219,
+   "target": "aios/core/alignment.py::resolve_communication_policy",
+   "label": "partly_true",
+   "why": "ran it: mode 'direct' for intent 'inform' is right, but mode IS derived from intent (teach -> explanatory; discuss/plan/decide -> collaborative)",
+   "lesson": "resolve_communication_policy in aios.core.alignment does not derive CommunicationPolicy.mode from the intent parameter: called with user_text \"can you tell me about the weather\" and intent=\"inform\", it returns a policy whose mode is \"direct\", not \"inform\"."
+  },
+  {
+   "stream": "cloud",
+   "id": 221,
+   "target": "aios/core/websearch.py::web_search",
+   "label": "partly_true",
+   "why": "texts are kept verbatim (no strip) is exact, but the fallback order is content -> snippet -> title, not content -> title -> snippet",
+   "lesson": "aios.core.websearch.web_search returns extracted result strings verbatim without stripping whitespace (trailing spaces in a \"content\" value are preserved), and when a result dict has multiple fields it prefers \"content\" over \"title\" and falls back to \"snippet\"."
+  },
+  {
+   "stream": "cloud",
+   "id": 223,
+   "target": "aios/memory/crag.py::evaluate_retrieval",
+   "label": "partly_true",
+   "why": "min with the judge, best per-hit score, ignored judge errors, empty -> INCORRECT/0.0, ==upper -> CORRECT are right; but the base score is max(faiss, lexical relevance), not the FAISS score",
+   "lesson": "aios.memory.crag.evaluate_retrieval combines each hit's FAISS sub-score with the judge score by taking the lower of the two, so a judge/relevance score can only lower a hit's score below its FAISS value, never raise it; the verdict score is the best per-hit score, a judge that raises an exception is silently ignored leaving the FAISS-based score unchanged, an empty hit list yields CragAction.INCORRECT with score 0.0, and a best score exactly equal to upper routes to CragAction.CORRECT."
+  },
+  {
+   "stream": "cloud",
+   "id": 226,
+   "target": "aios/operations/doctor.py::doctor_report",
+   "label": "scanner_artefact",
+   "why": "'API_' is the secret scanner's truncation of API_TOKEN (which exists in aios.config); the lesson is about that artefact",
+   "lesson": "The aios.config module that aios.operations.doctor reads has no attribute named 'API_'; doctor_report's config-driven defaults come from other, actually existing attributes of that module, so the assumed config constant name 'API_' does not exist in the code under test."
+  },
+  {
+   "stream": "cloud",
+   "id": 228,
+   "target": "aios/operations/recovery.py::invalidate_stale_authority_after_restore",
+   "label": "about_test",
+   "why": "about why patch() cannot set Path.name on the config paths -- test scaffolding",
+   "lesson": "aios.operations.recovery.config's IDENTITY_DB_PATH, CAPABILITY_DB_PATH, and APPROVAL_DB_PATH are pathlib.Path instances whose 'name' is a read-only property with no setter, so patch() cannot assign to it."
+  },
+  {
+   "stream": "cloud",
+   "id": 231,
+   "target": "aios/application/promotion/smoke.py::python_smoke",
+   "label": "true_specific",
+   "why": "fields are passed/reason; a declared target that is not a file returns fail('target is missing after promotion: ...') before the no-Python-targets branch",
+   "lesson": "aios.application.promotion.smoke.python_smoke returns a SmokeReport whose fields are 'passed' and 'reason', not 'success' and 'message', and a declared target that does not exist under the project root produces SmokeReport(passed=False, reason='target is missing after promotion...') rather than a 'no Python targets' success."
+  },
+  {
+   "stream": "cloud",
+   "id": 234,
+   "target": "aios/agents/tool_handlers.py::create_file",
+   "label": "about_test",
+   "why": "true that no aios.util package exists (deps are imported from aios.security/aios.policy), but the lesson is about where to patch mocks, not create_file's behaviour",
+   "lesson": "The aios codebase under test has no importable aios.util package: scope_lock, credential_check.is_credential_path, diff.scan_and_redact, and atomic_write._atomic_write_text do not exist at aios.util.* paths, while aios.agents.tool_handlers.create_file is importable without them."
+  },
+  {
+   "stream": "cloud",
+   "id": 236,
+   "target": "aios/application/learning/skill_lifecycle.py::apply_reuse_outcome",
+   "label": "about_test",
+   "why": "true that no aios.application.learning.skill_repository exists; the lesson is about the test seam",
+   "lesson": "There is no aios.application.learning.skill_repository module; apply_reuse_outcome in aios.application.learning.skill_lifecycle delegates through the SkillLifecycleAuthority name bound at module level in that same module, making that name the only test seam needed to exercise it."
+  },
+  {
+   "stream": "cloud",
+   "id": 240,
+   "target": "aios/application/memory/human_representation.py::build_project_passport_v1",
+   "label": "about_test",
+   "why": "true (attribute access only, no isinstance), but it is about which stand-in a test may pass",
+   "lesson": "build_project_passport_v1 performs only attribute access on its passport argument with no isinstance or type enforcement, so any object exposing the attributes it reads (such as types.SimpleNamespace) is accepted in place of a real ProjectPassport."
+  },
+  {
+   "stream": "cloud",
+   "id": 243,
+   "target": "aios/core/provider_retry.py::call_with_backoff",
+   "label": "true_specific",
+   "why": "ran it: is_transient(ConnectionError) is False, so it is re-raised on the first attempt",
+   "lesson": "call_with_backoff in aios.core.provider_retry retries only exceptions that is_transient classifies as transient; a plain ConnectionError raised by the operation is not transient and is re-raised immediately without consuming further attempts."
+  },
+  {
+   "stream": "cloud",
+   "id": 246,
+   "target": "aios/core/router.py::candidates",
+   "label": "about_test",
+   "why": "empty providers -> [] and LOCAL_FIRST importable are true but trivial; the lesson is about what the test relies on",
+   "lesson": "aios.core.router.candidates accepts an empty provider sequence and returns an empty list for it, and LOCAL_FIRST is importable from aios.core.router; the passing test relies on no other Provider/Policy internals."
+  },
+  {
+   "stream": "cloud",
+   "id": 249,
+   "target": "aios/council/reasoning.py::reconcile_plan",
+   "label": "true_specific",
+   "why": "ran it: _max_risk works on GREEN/YELLOW/RED, so low/medium/high never come out",
+   "lesson": "reconcile_plan in aios/council/reasoning.py expresses risk levels on the scale used by its internal _max_risk helper, whose values include \"RED\" rather than the string \"high\"; risk output values cannot be assumed to be the literal strings low/medium/high."
+  },
+  {
+   "stream": "cloud",
+   "id": 251,
+   "target": "aios/domain/local_workforce/skill_selection.py::skill_selection_prompt",
+   "label": "true_specific",
+   "why": "six keyword-only params; the escalation one is escalation_conditions, so a differently named keyword raises TypeError",
+   "lesson": "skill_selection_prompt in aios.domain.local_workforce.skill_selection has exactly six parameters -- problem_signature, required_inputs, known_exclusions, inputs, state, and exactly one escalation-list parameter -- and that escalation parameter's actual name differs from the name the failing test assumed, so calling with the assumed keyword raises TypeError."
+  },
+  {
+   "stream": "cloud",
+   "id": 253,
+   "target": "aios/memory/self_model.py::synthesize_self_model",
+   "label": "true_specific",
+   "why": "no trait_type field; positional order is (kind, subject, detail, attempts, rate) with the category first; SelfModel is a dataclass",
+   "lesson": "aios.memory.self_model.Trait has no attribute named 'trait_type'; its instances are built positionally as Trait(kind, task, description, attempts, rate) with the category string ('strength'/'soft_spot') as the first field, and SelfModel compares by dataclass equality over its strengths, soft_spots, and cautions lists."
+  },
+  {
+   "stream": "cloud",
+   "id": 258,
+   "target": "aios/agents/tool_handlers.py::edit_file",
+   "label": "about_test",
+   "why": "mostly about which module attributes can be patched; the behavioural part (empty-old_string and credential guards precede scope/I-O/snapshot/audit) is true",
+   "lesson": "aios.agents.tool_handlers has no module-level 'audit' attribute -- patching it raises AttributeError while scope_lock, is_credential_path, scan_and_redact, and _atomic_write_text do exist at module level -- because edit_file takes audit and snapshot as function parameters, and its credential-path check and empty-old_string guard execute before any scope check, path resolution, file I/O, snapshot, or audit call, so those branches can be tested by calling edit_file directly with no mocks."
+  },
+  {
+   "stream": "cloud",
+   "id": 262,
+   "target": "aios/agents/tool_handlers.py::verify_command",
+   "label": "true_specific",
+   "why": "verifier.verify(command, session_id=session_id, approved=is_approved)",
+   "lesson": "aios.agents.tool_handlers.verify_command invokes verifier.verify with a session_id keyword argument, forwarding the session_id given to verify_command."
+  },
+  {
+   "stream": "cloud",
+   "id": 265,
+   "target": "aios/agents/tool_handlers.py::execute_terminal",
+   "label": "partly_true",
+   "why": "routing to execute_approved is exact; the '[STATUS] reason' form only applies to non-OK results (OK returns scrubbed stdout+stderr)",
+   "lesson": "aios.agents.tool_handlers.execute_terminal routes commands in approved_commands to executor.execute_approved (not executor.execute) and returns the result formatted by the module-level helper _format_exec_result -- a '[STATUS] ...' string built from fields including result.reason -- rather than the result's raw (output, status, failed) tuple."
+  },
+  {
+   "stream": "local",
+   "id": 3,
+   "target": "aios/agents/recall_envelope.py::carries_learned_recall",
+   "label": "true_specific",
+   "why": "returns bool(recalled_channels & LEARNED_CHANNELS); None/'' -> empty set; 'channel: lesson' starts with no RECALL_CHANNELS header so _channel_of returns None",
+   "lesson": "carries_learned_recall returns a strict bool equal to bool(recalled_channels(memory_context) & LEARNED_CHANNELS), handles None and empty-string input without error, and a memory context line of the form 'channel: lesson' is not parsed as carrying the learned 'lesson' channel."
+  },
+  {
+   "stream": "local",
+   "id": 6,
+   "target": "aios/agents/recall_envelope.py::operator_text",
+   "label": "true_specific",
+   "why": "strips ENVELOPE_OPEN..ENVELOPE_CLOSE (<recalled_memory> tags) from user messages; literal <envelope> tags are untouched",
+   "lesson": "aios.agents.recall_envelope.operator_text removes the entire envelope section -- the module's own ENVELOPE_OPEN and ENVELOPE_CLOSE markers plus all text between them -- from each user message; the module's marker constants are not the literal strings '<envelope>'/'</envelope>', so text wrapped in those literal tags is returned unchanged."
+  },
+  {
+   "stream": "local",
+   "id": 8,
+   "target": "aios/agents/recall_envelope.py::recalled_channels",
+   "label": "partly_true",
+   "why": "'news: some text' -> empty set is right; the rule is lines STARTING WITH a RECALL_CHANNELS header text (e.g. 'RELEVANT LESSONS'), not a 'RECALL_CHANNELS: <name>' format",
+   "lesson": "aios.agents.recall_envelope.recalled_channels only extracts channels from lines in the 'RECALL_CHANNELS: <name>' format (as determined by its helper _channel_of); generic 'header: text' lines such as 'news: some text' are ignored and yield an empty set."
+  },
+  {
+   "stream": "local",
+   "id": 10,
+   "target": "aios/application/memory/provenance_policy.py::fact_digest",
+   "label": "partly_true",
+   "why": "only FACT_FIELDS feed the digest (extra keys ignored) is exact, but _field uses row[name] subscription, not attribute-style access",
+   "lesson": "fact_digest(row) computes its digest only from the fields listed in FACT_FIELDS read via _field (attribute-style access on the row); any mapping keys outside FACT_FIELDS, such as \"name\", are ignored, so two plain dicts differing only in non-FACT_FIELDS keys produce the same digest."
+  },
+  {
+   "stream": "local",
+   "id": 12,
+   "target": "aios/application/memory/provenance_policy.py::lesson_content_key",
+   "label": "scanner_artefact",
+   "why": "the key is content_digest(...) (hashed, non-empty for empty fields), but the '[SENSITIVE: ...]' form it cites is the secret scanner redacting the digest in observed output, not a value the function returns",
+   "lesson": "lesson_content_key in aios.application.memory.provenance_policy returns a deterministic hashed/redacted key (observed forms like '[SENSITIVE: bedfadc00f1e]' or a hex digest) that does not embed the raw error_type or lesson_text values, and it returns a non-empty string even when both input fields are empty strings."
+  },
+  {
+   "stream": "local",
+   "id": 15,
+   "target": "aios/application/memory/provenance_policy.py::semantic_content_key",
+   "label": "true_specific",
+   "why": "_field reads row['text_content'] by subscription, so a plain dict suffices and no attribute access happens",
+   "lesson": "semantic_content_key in aios.application.memory.provenance_policy reads the 'text_content' field through mapping access: a plain dict row is sufficient, and no attribute access on the row object is required."
+  },
+  {
+   "stream": "local",
+   "id": 19,
+   "target": "aios/application/memory/provenance_policy.py::semantic_digest",
+   "label": "true_specific",
+   "why": "it returns content_digest({name: _field(row, name) for name in SEMANTIC_FIELDS}); all three names are module-level",
+   "lesson": "aios.application.memory.provenance_policy.semantic_digest is implemented, not a NotImplementedError stub: for a row exposing a value for every name in the module's SEMANTIC_FIELDS, it returns exactly content_digest({name: _field(row, name) for name in SEMANTIC_FIELDS}), and the module exposes SEMANTIC_FIELDS, _field, and content_digest as importable names."
+  },
+  {
+   "stream": "local",
+   "id": 21,
+   "target": "aios/application/memory/reflex_contract.py::step_targets",
+   "label": "true_specific",
+   "why": "_split('target_a') gives tool 'target_a' with no value -- neither a file tool nor a command tool -- so nothing is located and the result is []",
+   "lesson": "step_targets does not echo back its input strings; it returns the sorted, deduplicated list of targets extracted from the step texts by _located_targets, so an arbitrary string with no locatable path reference (e.g. 'target_a') contributes nothing and yields an empty result."
+  },
+  {
+   "stream": "local",
+   "id": 24,
+   "target": "aios/core/model_availability.py::is_model_unavailable_error",
+   "label": "true_specific",
+   "why": "ran it: 'Error: Model refused request.' -> False (matches no _MODEL_SPECIFIC pattern)",
+   "lesson": "aios.core.model_availability.is_model_unavailable_error returns False for 'Error: Model refused request.'; its True/False decision is determined entirely by the module's actual _MODEL_SPECIFIC and _PROVIDER_WIDE regex lists, so text merely mentioning a model refusal is not classified as model-specific unavailability unless it matches those concrete patterns."
+  },
+  {
+   "stream": "local",
+   "id": 26,
+   "target": "aios/domain/learning/repository.py::skill_digest",
+   "label": "true_specific",
+   "why": "provenance is a Mapping (default {}); skill_digest = content_digest(SKILL_DIGEST_FIELDS from model_dump + principal), principal via (provenance or {}).get('principal')",
+   "lesson": "In aios.domain.learning.repository, SkillRecord.provenance is a dict-like mapping or None (never a plain string): skill_digest computes its result as content_digest over the fields named in SKILL_DIGEST_FIELDS plus a \"principal\" value obtained from skill_principal, which reads provenance via (record.provenance or {}).get(\"principal\")."
+  },
+  {
+   "stream": "local",
+   "id": 29,
+   "target": "aios/domain/local_workforce/skill_selection.py::qualification_fixture_answer",
+   "label": "scanner_artefact",
+   "why": "the four named keys plus one extra True key (required_inputs_present) is right, but the lesson cannot name the key because the secret scanner redacted it in the failure output -- the 'exported constant' framing comes from that",
+   "lesson": "qualification_fixture_answer returns JSON containing exactly the keys 'applicable', 'abstain', 'confidence', and 'reason' plus exactly one extra key whose value is True, and that extra key's name is the constant exported by the fixture module, not the literal string the failing test had hardcoded."
+  },
+  {
+   "stream": "local",
+   "id": 33,
+   "target": "aios/domain/maintenance/scanners.py::vulture_dead_import_scanner",
+   "label": "true_specific",
+   "why": "no aios/domain/maintenance/findings.py exists; the scanner raises ValueError for anything not isinstance BoundedScanContext before reading root or text",
+   "lesson": "There is no module aios.domain.maintenance.findings: MaintenanceFinding is not importable from that path, while aios.domain.maintenance.scanners.vulture_dead_import_scanner and aios.domain.maintenance.service.BoundedScanContext do resolve, and vulture_dead_import_scanner rejects any object that is not a real BoundedScanContext instance (even a duck-typed stand-in) with ValueError before touching context.root or calling read_text."
+  },
+  {
+   "stream": "local",
+   "id": 35,
+   "target": "aios/maintenance/dead_imports.py::dunder_all",
+   "label": "true_specific",
+   "why": "every top-level __all__ Assign/AugAssign/AnnAssign with a list/tuple literal extends the names, so repeated assignments concatenate",
+   "lesson": "aios.maintenance.dead_imports.dunder_all accumulates string elements from every __all__ binding in a module's AST \u2014 plain assignments, augmented (+=) assignments, and annotated assignments all contribute \u2014 so repeated plain assignments yield the concatenation of all their names rather than only the last assignment's names."
+  },
+  {
+   "stream": "local",
+   "id": 39,
+   "target": "aios/memory/provenance.py::content_digest",
+   "label": "true_specific",
+   "why": "ran it: a full 64-char lowercase hex digest (MappingProxyType fine); _canonical({}) is b'{}', so its digest differs from sha256(b'')",
+   "lesson": "aios.memory.provenance.content_digest returns the full 64-character lowercase hexadecimal SHA-256 digest of _canonical(fields) for any mapping input (including MappingProxyType), not a truncated \"[SENSITIVE: <12 hex chars>]\" mask, and _canonical({}) does not canonicalize to empty bytes (its digest differs from the SHA-256 of empty input)."
+  },
+  {
+   "stream": "local",
+   "id": 41,
+   "target": "aios/memory/relevance.py::specific_tokens",
+   "label": "true_specific",
+   "why": "ran it: 'over' is in GENERIC; brown, fox, dog (and quick, jumps, lazy) are returned",
+   "lesson": "The word \"over\" is a member of aios.memory.relevance.GENERIC, so specific_tokens always excludes it from its result, while words like \"brown\", \"fox\", and \"dog\" are not in GENERIC and are returned."
+  },
+  {
+   "stream": "local",
+   "id": 43,
+   "target": "aios/operations/keystore.py::production_environment",
+   "label": "true_specific",
+   "why": "iterates NAMES and keeps truthy store values, so non-NAMES keys are omitted and order follows NAMES",
+   "lesson": "aios.operations.keystore.production_environment only returns keys listed in the module-level NAMES constant; store entries whose keys are not in NAMES are omitted even when their values are truthy, and result key order follows NAMES order."
+  },
+  {
+   "stream": "local",
+   "id": 45,
+   "target": "aios/domain/local_workforce/skill_selection.py::check_abstains",
+   "label": "true_specific",
+   "why": "the mismatch message uses list(FIELDS); any key-set mismatch makes read_skill_selection return None, giving exactly that tuple",
+   "lesson": "check_abstains in aios.domain.local_workforce.skill_selection formats its field-mismatch message with list(FIELDS) (square-bracket list repr), not str(FIELDS) (tuple repr), and returns the two-tuple (False, \"not exactly the fields [...] with their types\") when the input dict's keys do not exactly match FIELDS."
+  },
+  {
+   "stream": "local",
+   "id": 48,
+   "target": "aios/domain/local_workforce/skill_selection.py::check_applies",
+   "label": "true_specific",
+   "why": "the failure message interpolates list(FIELDS), so it shows the bracketed list form",
+   "lesson": "check_applies in aios.domain.local_workforce.skill_selection formats its missing-fields failure message with list(FIELDS) (square-bracket list repr), not with the tuple FIELDS itself, so the message contains \"['applicable', 'abstain', ..., 'confidence', 'reason']\" and never the parenthesized tuple form of FIELDS."
+  },
+  {
+   "stream": "local",
+   "id": 50,
+   "target": "aios/operations/keystore.py::learning_public_key",
+   "label": "true_specific",
+   "why": "ran it: an empty or 16-byte seed raises ValueError; 32 bytes returns a 64-char lowercase hex public key",
+   "lesson": "learning_public_key passes the hex-decoded seed directly to ed25519.from_private_bytes with no hashing or padding, so it accepts only hex strings decoding to exactly 32 bytes (64 hex chars), raises ValueError for any other length (including empty and 16-byte inputs), and returns the raw public key as a 64-character lowercase hex string."
+  },
+  {
+   "stream": "local",
+   "id": 52,
+   "target": "aios/agents/recall_envelope.py::attach_envelope",
+   "label": "partly_true",
+   "why": "wrapped not verbatim is right, but content is envelope(mc)+'\\n\\n'+original text (not equal to envelope(mc)) and envelope also adds the open tag, preamble and tag neutralising",
+   "lesson": "aios.agents.recall_envelope.attach_envelope does not store the memory_context string verbatim in the conversation; it stores envelope(memory_context), which appends the closing </recalled_memory> tag, so message content equals envelope(mc) rather than the raw context passed in"
+  },
+  {
+   "stream": "local",
+   "id": 54,
+   "target": "aios/agents/recall_envelope.py::recall_provenance",
+   "label": "partly_true",
+   "why": "UNKNOWN_CHANNEL value is exact; but detection is 'line starts with a RECALL_CHANNELS header text' (e.g. 'RELEVANT LESSONS: x' IS detected), not 'bare channel-name format'",
+   "lesson": "recall_provenance in aios.agents.recall_envelope does not treat 'HEADER: channel_x'-style prefixed lines as channel headers: recalled lines found under such headers are attributed channel UNKNOWN_CHANNEL, whose actual value is the string 'recalled memory (channel unknown)'; channel attribution only occurs for context lines in the bare channel-name format that _channel_of detects."
+  },
+  {
+   "stream": "local",
+   "id": 56,
+   "target": "aios/application/memory/reflex_contract.py::stamp_for_activation",
+   "label": "true_specific",
+   "why": "principal stamping (candidate + activator + no principal) happens first via model_copy; a non-step procedure then returns that stamped record unchanged",
+   "lesson": "stamp_for_activation in aios.application.memory.reflex_contract works duck-typed on any record exposing .state, .provenance, .procedure and model_copy(update=...), and a record whose procedure is not a list of steps is treated as 'not an arc' and returned unchanged except for the provenance stamping (the activator's stringified principal merged in via model_copy, leaving the original record untouched)."
+  },
+  {
+   "stream": "local",
+   "id": 58,
+   "target": "aios/application/promotion/smoke.py::find_exercising_tests",
+   "label": "false",
+   "why": "ExternalImportIndex(project_root) scans python_files(self.root) -- the project_root passed in, not the installed aios package",
+   "lesson": "find_exercising_tests in aios.application.promotion.smoke discovers importing test files via ExternalImportIndex, which scans the installed aios package rather than the project_root directory passed in; files created under a tmp_path are therefore never discovered and the function returns an empty list for such fixtures."
+  },
+  {
+   "stream": "local",
+   "id": 61,
+   "target": "aios/core/benchmark_rates.py::merged_rates",
+   "label": "true_specific",
+   "why": "ran it: the default benchmark has 39 entries incl. deepseek.v3.2; live only overrides, so the result equals live only when the benchmark is empty",
+   "lesson": "merged_rates always merges its live argument with benchmark rates loaded from its path argument; with the default path the benchmark data is nonempty (~39 entries including keys like ('bedrock', 'deepseek.v3.2', ...)), so the result contains more than the live data, and only when path points to a location with no benchmark data does the result equal the live dict exactly."
+  },
+  {
+   "stream": "local",
+   "id": 63,
+   "target": "aios/core/model_calls.py::read_ledger",
+   "label": "true_specific",
+   "why": "a missing model_calls directory returns [] before since is ever used, so naive or aware makes no difference",
+   "lesson": "aios.core.model_calls.read_ledger returns an empty list without raising when `<data_dir>/model_calls` does not exist, and this holds when `since` is an offset-naive datetime."
+  },
+  {
+   "stream": "local",
+   "id": 66,
+   "target": "aios/launcher.py::keys_command",
+   "label": "true_specific",
+   "why": "keystore.generate's first check is 'name not in GENERATORS' -> ValueError('<name> comes from its provider: use `gagos keys set <name>`'), which keys_command re-raises as LauncherError",
+   "lesson": "aios.launcher.keys_command's generate path refuses provider-managed keys: for AIOS_REQUIRED_KEY_1 the underlying keystore generate raises ValueError ('AIOS_REQUIRED_KEY_1 comes from its provider: use `gagos keys set AIOS_REQUIRED_KEY_1`'), so that key can never be created via `keys generate` and can only be supplied through its provider."
+  },
+  {
+   "stream": "local",
+   "id": 68,
+   "target": "aios/maintenance/dead_imports.py::attributes_used_through",
+   "label": "true_specific",
+   "why": "matches only ast.Name ids, so 'os.path' (a dotted string) never matches; the base name 'os' must be given",
+   "lesson": "aios.maintenance.dead_imports.attributes_used_through(tree, aliases) matches the root/base identifier of an attribute chain against aliases, so aliases must contain the bare base name (e.g. 'foo', or 'os' for os.path.join); passing a dotted path string like 'os.path' as an alias matches nothing and returns an empty set."
+  },
+  {
+   "stream": "local",
+   "id": 70,
+   "target": "aios/memory/mistake.py::distinct_lessons",
+   "label": "false",
+   "why": "ran it: lessons are deduplicated through content_hash with case/whitespace normalisation -- 'Hello World' and 'hello   world' collapse to one",
+   "lesson": "aios.memory.mistake.distinct_lessons treats lesson_text values as duplicates only on exact string equality; it performs no case or whitespace normalization, so 'Hello World' and 'HelloWorld' are distinct lessons."
+  },
+  {
+   "stream": "local",
+   "id": 74,
+   "target": "aios/policy/egress.py::stricter_cost",
+   "label": "true_specific",
+   "why": "ran it: _COST_RANK is {free:0, low:1, high:2}; an unknown name ranks 0, so the result is 'free', never the unknown input",
+   "lesson": "aios.policy.egress.stricter_cost normalizes each input via str(value).strip().lower(), looks it up in the module-level _COST_RANK dict defaulting missing keys to rank 0, and returns the first key in _COST_RANK whose rank equals the minimum of the two ranks; consequently any unrecognized string such as \"unknown\" has rank 0 and the function returns the rank-0 tier name (\"free\"), never the unrecognized input itself."
+  },
+  {
+   "stream": "local",
+   "id": 81,
+   "target": "aios/runtime/king_report.py::build_deliberation_report",
+   "label": "true_specific",
+   "why": "KingReport.risk is Literal['GREEN','YELLOW','RED'] and contract.risk_level is copied verbatim, so 'high'/'low' fail validation (a real MissionContract already rejects them)",
+   "lesson": "build_deliberation_report forwards contract.risk_level verbatim into KingReport.risk, which is constrained to the literals 'GREEN', 'YELLOW' and 'RED'; values such as 'high' or 'low' are not mapped and cause a pydantic ValidationError."
+  },
+  {
+   "stream": "local",
+   "id": 85,
+   "target": "aios/application/governance/amendment_authority.py::reject_amendment",
+   "label": "about_test",
+   "why": "REVISED for consistency: true (it calls proposal.model_copy after the status check), but the point is which stand-in a test may pass -- test scaffolding",
+   "lesson": "reject_amendment in aios.application.governance.amendment_authority invokes proposal.model_copy(...), so its proposal argument must be a Pydantic v2 BaseModel instance (or otherwise expose model_copy); a plain dataclass stand-in fails with AttributeError."
+  },
+  {
+   "stream": "local",
+   "id": 87,
+   "target": "aios/application/local_workforce/provenance.py::get_clerk_job_provenance",
+   "label": "true_specific",
+   "why": "delegates to ClerkProvenanceAuthority(store).job_provenance(job_id), which calls store.get_job_request (the default store reuses one cached authority)",
+   "lesson": "get_clerk_job_provenance(store, job_id) does not call store.job_provenance itself; it instantiates the authority class defined in aios.application.local_workforce.provenance with store as the constructor argument and returns that instance's job_provenance(job_id) result unchanged, so the real store must satisfy the authority's interface (including get_job_request)."
+  },
+  {
+   "stream": "local",
+   "id": 94,
+   "target": "aios/launcher.py::status",
+   "label": "true_specific",
+   "why": "LauncherConfig declares all eight fields (repo_root, data_dir, profile, api_port, gateway_port, compose_file, state_file, log_file) with no defaults",
+   "lesson": "aios.launcher.LauncherConfig has no defaults for repo_root, data_dir, api_port, compose_file, state_file, or log_file: constructing one requires all six of those arguments in addition to profile and gateway_port"
+  },
+  {
+   "stream": "local",
+   "id": 96,
+   "target": "aios/maintenance/ecosystem_scanner.py::scan_api_response",
+   "label": "true_specific",
+   "why": "ran it: scan_api_response('t','p') is an EcosystemReport, non-None, equal to EcosystemScanner().scan_api_response('t','p')",
+   "lesson": "aios.maintenance.ecosystem_scanner.scan_api_response is a thin delegating wrapper: for identical arguments it returns a value equal to (and of the same type as) EcosystemScanner().scan_api_response, the returned type is named 'EcosystemReport', and it produces a non-None report even for non-JSON plain-text payloads and minimal inputs like ('t', 'p')."
+  },
+  {
+   "stream": "local",
+   "id": 100,
+   "target": "aios/runtime/king_report.py::build_king_report",
+   "label": "true_specific",
+   "why": "risk=ledger.risk_after verbatim into the GREEN/YELLOW/RED literal; council verdict risks are not the source",
+   "lesson": "build_king_report copies ledger.risk_after unchanged into KingReport.risk, which only accepts the uppercase literals 'GREEN', 'YELLOW', 'RED'; severity words like 'low' are not mapped and raise a pydantic ValidationError, while council verdict risk values such as 'low' are not the source of KingReport.risk."
+  },
+  {
+   "stream": "local",
+   "id": 102,
+   "target": "aios/agents/recall_envelope.py::recall_taint",
+   "label": "true_specific",
+   "why": "collapsed candidate and every token shorter than _MIN_TOKEN (8) yield no needle -> []; hits return stripped raw lines, at most 5 (rare fallback returns the needle)",
+   "lesson": "recall_taint() in aios.agents.recall_envelope only reports taint for candidates meeting the module's _MIN_TOKEN minimum token length; a candidate that does not satisfy that length threshold returns [] even when present in memory_context and absent from the operator's text, and positive results are the stripped raw recalled lines containing the token, limited to five."
+  },
+  {
+   "stream": "local",
+   "id": 104,
+   "target": "aios/agents/tool_handlers.py::plan_task",
+   "label": "true_specific",
+   "why": "when plan.requires_human it formats planner.threshold with :.2f, so a non-numeric threshold raises",
+   "lesson": "aios.agents.tool_handlers.plan_task reads planner.threshold and formats it with the ':.2f' float format specifier in its low-confidence/escalation message, so any planner object passed to it must expose threshold as a real float-compatible number, not a mock or non-numeric attribute."
+  },
+  {
+   "stream": "local",
+   "id": 107,
+   "target": "aios/agents/tool_loop_helpers.py::format_earned_autonomy_event",
+   "label": "true_specific",
+   "why": "command = name.split('_',1)[0] + ' ' + (filepath or command or ''); filepath field = str(args.get('filepath',''))",
+   "lesson": "format_earned_autonomy_event sets result['command'] to '<tool name truncated at the first underscore> <target>', where target is args['filepath'] when present (winning over args['command']), otherwise args['command'], otherwise '', with result['filepath'] defaulting to ''."
+  },
+  {
+   "stream": "local",
+   "id": 115,
+   "target": "aios/application/governance/amendment_authority.py::ratify_amendment",
+   "label": "false",
+   "why": "capability_proof and operator_id are forwarded as KEYWORD arguments (only proposal is positional), so a keyword-argument mock assertion does observe the delegation",
+   "lesson": "aios.application.governance.amendment_authority.ratify_amendment is a pure pass-through to the _AMENDMENT_AUTHORITY singleton: it reads _AMENDMENT_AUTHORITY at call time, forwards its three arguments positionally to _AMENDMENT_AUTHORITY.ratify_amendment, and returns that result unchanged (or propagates the same exception type), so a plain-MagicMock assertion written with keyword arguments cannot observe the delegation."
+  },
+  {
+   "stream": "local",
+   "id": 118,
+   "target": "aios/application/governance/amendment_authority.py::rollback_amendment",
+   "label": "about_test",
+   "why": "true that it only touches those attributes (no isinstance), but the lesson is about which stand-ins a test may use, not what rollback does",
+   "lesson": "rollback_amendment is importable from aios.application.governance.amendment_authority and is duck-typed: it operates correctly on plain concrete stand-ins that expose only proposal.status, the digest attributes, proposal.model_copy(update=...), snapshot.snapshot_digest, and the parent-digest attribute, without requiring the real proposal/snapshot types or any mocks."
+  },
+  {
+   "stream": "local",
+   "id": 127,
+   "target": "aios/application/memory/institutional_skills.py::is_review_ready",
+   "label": "true_specific",
+   "why": "BIRTH_STATE is 'candidate', so state 'BIRTH' returns False and only 'candidate' can be ready",
+   "lesson": "In aios.application.memory.institutional_skills, the BIRTH_STATE constant is not equal to the string \"BIRTH\"; is_review_ready returns False for a record whose state is \"BIRTH\" even when success_count and success rate meet the defaults, and returns True only when record.state equals the imported BIRTH_STATE constant."
+  },
+  {
+   "stream": "local",
+   "id": 131,
+   "target": "aios/cognition/repo_map.py::query_symbols",
+   "label": "true_specific",
+   "why": "_symbol_match_score builds searchable['module'] = symbol.module.lower() for every symbol whenever the query has terms",
+   "lesson": "aios.cognition.repo_map.query_symbols reads the 'module' attribute of each symbol object it processes (calling .lower() on it), so symbol objects passed to it must expose a 'module' attribute; duck-typed substitutes lacking 'module' raise AttributeError."
+  },
+  {
+   "stream": "local",
+   "id": 140,
+   "target": "aios/core/graph_ingestion.py::edges_from_mistake",
+   "label": "true_specific",
+   "why": "ran it: find_entities gives [] and ['statements'], so one prevented_by edge at 0.8 (capped at 3 per input)",
+   "lesson": "edges_from_mistake emits exactly one edge per entity returned by aios.core.graph_ingestion.find_entities (caused_by edges for root_cause entities, prevented_by for lesson_text entities, confidence 0.8); the real find_entities extracts 0 entities from 'missing semicolon' and 1 entity ('statements') from 'add a semicolon at the end of statements', so the edge count is determined by find_entities' extraction, not a fixed 3 per input"
+  },
+  {
+   "stream": "local",
+   "id": 142,
+   "target": "aios/core/graph_ingestion.py::edges_from_outcome",
+   "label": "true_specific",
+   "why": "ran it: no entities from that prose, and 'VERIFIED_SUCCESS' (case-sensitive) returns []",
+   "lesson": "edges_from_outcome builds edges only from entities returned by find_entities, and find_entities extracts no entities from prose like 'The database connection was established.' \u2014 plain nouns such as 'database', 'server', and 'network' are not recognized as entities \u2014 and outcome matching is exact and case-sensitive, so 'VERIFIED_SUCCESS' produces zero edges."
+  },
+  {
+   "stream": "local",
+   "id": 144,
+   "target": "aios/core/graph_ingestion.py::edges_from_skill",
+   "label": "true_specific",
+   "why": "_TOOL_VERBS is {create_file, edit_file, execute_terminal, read_directory, read_file, verify}; verified_by only from execute_terminal:/verify: steps whose arg yields entities",
+   "lesson": "edges_from_skill in aios.core.graph_ingestion emits a 'verified_by' edge only for steps of the literal form 'execute_terminal: <arg>' or 'verify: <arg>', where the tool prefix must be a member of the module's _TOOL_VERBS set (which does contain read_file, read_directory, create_file, execute_terminal and verify); the word 'verify' appearing in the goal_pattern or a non-prefixed step produces no 'verified_by' edge."
+  },
+  {
+   "stream": "local",
+   "id": 146,
+   "target": "aios/core/model_selector.py::infer_task",
+   "label": "true_specific",
+   "why": "ran it: LONG_CONTEXT_CHARS is 24000; a 10000-char input with no hints is 'general'",
+   "lesson": "aios.core.model_selector.infer_task's long-context threshold LONG_CONTEXT_CHARS is greater than 10000 characters: a 10000-character input with context_chars=0 is classified as TASK_GENERAL, and only input whose effective length reaches the module's LONG_CONTEXT_CHARS constant returns TASK_LONG_CONTEXT."
+  },
+  {
+   "stream": "local",
+   "id": 148,
+   "target": "aios/core/model_selector.py::select_model",
+   "label": "true_specific",
+   "why": "ran it: ['medium','huge'] -> medium, ['fast','slow'] -> slow, []/None -> None, ['x'] -> x",
+   "lesson": "select_model does not interpret the literal names 'huge', 'medium', 'fast', 'slow' as size tiers: with task=TASK_CODING and require_tools=False it returns 'medium' for installed=['medium','huge'] and 'slow' for installed=['fast','slow'], while installed=[] or installed=None returns None and a single-element list returns that element."
+  },
+  {
+   "stream": "local",
+   "id": 152,
+   "target": "aios/domain/governance/constitution.py::apply_constitution_changes",
+   "label": "true_specific",
+   "why": "remove deletes only that value from the target bucket, order of the rest preserved",
+   "lesson": "apply_constitution_changes removes only the value named by a change from the targeted bucket and preserves the remaining entries in order, so a remove on scope_roots leaves ('scope_2',) rather than emptying the bucket to ()."
+  },
+  {
+   "stream": "local",
+   "id": 154,
+   "target": "aios/maintenance/dead_imports.py::find_dead_imports",
+   "label": "partly_true",
+   "why": "os/sys get no exemption and line numbers are 1-based, but 'every unreferenced import' ignores the real exemptions: __all__, external_names, noqa F401, _private names, __future__",
+   "lesson": "aios.maintenance.dead_imports.find_dead_imports reports every import whose bound name is never referenced elsewhere in the module -- including 'os' and 'sys', which receive no implicit-use exemption -- returning a dict mapping each dead imported name to its 1-based source line number."
+  },
+  {
+   "stream": "local",
+   "id": 157,
+   "target": "aios/maintenance/repair_operations.py::remove_dead_imports",
+   "label": "true_specific",
+   "why": "ran it: 'def f():\\n    import os\\n    return 1\\n' -> the local import is removed, removed == ('os',)",
+   "lesson": "remove_dead_imports removes unused imports declared inside function bodies, not only module-top-level imports; a dead function-local import such as 'import os' inside 'def f():' is deleted rather than left unchanged."
+  },
+  {
+   "stream": "local",
+   "id": 159,
+   "target": "aios/memory/crag.py::external_retrieve",
+   "label": "true_specific",
+   "why": "list(texts)[:per_source_limit] is taken before the blank filter, so blanks use up slots and later non-blank items are lost",
+   "lesson": "In aios.memory.crag.external_retrieve, the per-source limit is applied by slicing each source's raw returned list before blank/whitespace-only entries are removed, so blank strings consume limit slots and any item falling outside the raw slice is discarded even when it is non-blank."
+  },
+  {
+   "stream": "local",
+   "id": 161,
+   "target": "aios/memory/doc_ingest.py::chunk_text",
+   "label": "true_specific",
+   "why": "ran it: 9 words, max 3, overlap 1 -> 5 chunks, the 4th 'seven eight nine'; no words -> []; split/join collapses whitespace",
+   "lesson": "chunk_text does not follow the overlap-step arithmetic the original test assumed: nine words with max_tokens=3 and overlap_tokens=1 produces 5 chunks, not 4, with the fourth chunk already being 'seven eight nine'; the behaviors actually confirmed by the passing tests are that empty or whitespace-only input returns an empty list, text within the default token limit yields one chunk with index 0 and the full text, and whitespace runs are collapsed to single spaces via split-and-join."
+  },
+  {
+   "stream": "local",
+   "id": 164,
+   "target": "aios/memory/doc_ingest.py::extract_text",
+   "label": "true_specific",
+   "why": "ran it: pypdf 6.12.2 is installed and malformed bytes raise pypdf.errors.PdfStreamError uncaught; popping it from sys.modules does not make the import fail",
+   "lesson": "aios.memory.doc_ingest.extract_text does not enter its 'PDF ingestion requires the pypdf package' ValueError branch when pypdf is merely removed from sys.modules, because pypdf stays importable; with pypdf installed, malformed PDF bytes cause pypdf.errors.PdfStreamError to propagate out of extract_text uncaught rather than being wrapped in a ValueError"
+  },
+  {
+   "stream": "local",
+   "id": 167,
+   "target": "aios/operations/keystore.py::generate",
+   "label": "scanner_artefact",
+   "why": "the '[SENSITIVE: f547947279f4]' key name is a scanner redaction that reached the test; the module-level GENERATORS lookup itself is right",
+   "lesson": "aios.operations.keystore.generate looks up names in its own module-level GENERATORS dict, and '[SENSITIVE: f547947279f4]' is not a key in that real GENERATORS dict, so generate raises ValueError for it; a GENERATORS dict defined in the test file is never consulted."
+  },
+  {
+   "stream": "local",
+   "id": 170,
+   "target": "aios/policy/kernel.py::get_policy_kernel",
+   "label": "true_specific",
+   "why": "ran it: Constitution has no 'name'; the first call builds the singleton with the given constitution and later calls ignore their arguments",
+   "lesson": "The Constitution object held by the policy kernel has no 'name' attribute; get_policy_kernel stores the caller-supplied constitution object by reference on first construction and ignores arguments on later calls, so the constitution can only be pinned by identity ('is'), not by attribute values."
+  },
+  {
+   "stream": "local",
+   "id": 173,
+   "target": "aios/core/model_availability.py::is_unavailable",
+   "label": "true_specific",
+   "why": "reads _unavailable[(provider, model)]; never marked -> False; now is keyword-only; UNAVAILABLE_TTL_S is a module constant",
+   "lesson": "aios.core.model_availability.is_unavailable reads the module-level _unavailable dict keyed by (provider, model) and returns False when the pair has never been marked, and it accepts a keyword-only now parameter; UNAVAILABLE_TTL_S is importable from the module so its value does not need to be guessed."
+  },
+  {
+   "stream": "local",
+   "id": 175,
+   "target": "aios/council/royal_decree.py::complexity_reasons",
+   "label": "true_specific",
+   "why": "'long mission goal' at len >= 160; the keyword test is a case-insensitive substring over exactly those ten keywords",
+   "lesson": "complexity_reasons in aios.council.royal_decree emits 'long mission goal' only when the goal length reaches 160 characters (159 chars yields no such reason), and emits 'complexity keyword in goal' only when the goal contains one of its fixed keywords (integrate, migration, refactor, phase, complex, multi, security, frontend, backend, tests) as a case-insensitive substring."
+  },
+  {
+   "stream": "local",
+   "id": 178,
+   "target": "aios/launcher.py::organ_check",
+   "label": "about_test",
+   "why": "true (only config.repo_root is read; the report has those fields), but the point is that a SimpleNamespace config suffices",
+   "lesson": "organ_check reads only config.repo_root, so a duck-typed SimpleNamespace carrying that single attribute is a sufficient config (no LauncherConfig instance required), and the real evaluate_organs(repo_root) returns a report exposing green_count, total_organs, conformant, and violations."
+  },
+  {
+   "stream": "local",
+   "id": 181,
+   "target": "aios/launcher.py::provenance_clerk_job",
+   "label": "true_specific",
+   "why": "config is unused; the store is built inline from aios_config.DATA_DIR; a missing job gives request None -> return 1, and the text branch still prints trace.render()",
+   "lesson": "aios.launcher.provenance_clerk_job never reads its config argument (None is a valid value) and has no seam to inject a provenance store -- it performs a real lookup, so a job id absent from the store yields a trace whose request is None, causing return code 1 while the non-JSON branch still prints trace.render() output."
+  },
+  {
+   "stream": "local",
+   "id": 184,
+   "target": "aios/launcher.py::v1_check",
+   "label": "true_specific",
+   "why": "both names are imported inside v1_check (not module attributes); return 0 if ready or not strict else 1; JSON adds 'runtime_proof'",
+   "lesson": "aios.launcher defines no module-level attribute named evaluate_release (nor run_runtime_proofs), so those names cannot be monkeypatched on the module; v1_check works directly against the real repository root and returns 0 if declaration.ready or not strict else 1, with JSON mode adding a \"runtime_proof\" key to the declaration payload."
+  },
+  {
+   "stream": "local",
+   "id": 187,
+   "target": "aios/agents/tool_handlers.py::execute_terminal",
+   "label": "partly_true",
+   "why": "for a non-OK status (the test's 'GREEN') the output is '[status] reason' (+hint); for status OK it returns stdout+stderr, so 'regardless of output' is false in the real success case",
+   "lesson": "execute_terminal does not return the executor result's `output` attribute; its returned output string is _format_exec_result(result), formatted as \"[{status}] {reason}\", so a result with status \"GREEN\" and reason \"Command executed successfully\" yields \"[GREEN] Command executed successfully\" regardless of what result.output contains."
+  },
+  {
+   "stream": "local",
+   "id": 191,
+   "target": "aios/agents/tool_handlers.py::execute_terminal_with_control",
+   "label": "true_specific",
+   "why": "non-approved path calls executor.execute(command, session_id=session_id)",
+   "lesson": "execute_terminal_with_control in aios.agents.tool_handlers invokes the executor's execute method as execute(command, session_id=<value>), passing session_id as a keyword argument rather than a positional second argument."
+  },
+  {
+   "stream": "local",
+   "id": 193,
+   "target": "aios/application/governance/spine_release.py::approved_organ_ids",
+   "label": "true_specific",
+   "why": "load_public_key returns None when the key file is absent, so approved_organ_ids returns frozenset() first, before is_ancestor",
+   "lesson": "approved_organ_ids in aios.application.governance.spine_release fails closed when the root has no public key material: it returns an empty frozenset (it does not raise FileNotFoundError) and returns before ever invoking the is_ancestor callback."
+  },
+  {
+   "stream": "local",
+   "id": 197,
+   "target": "aios/core/verification_strength.py::derive_strength",
+   "label": "scanner_artefact",
+   "why": "the module name verification_strength was redacted to a hex digest by the secret scanner; the 'no such module' claim is about that artefact",
+   "lesson": "No module named 'aios.core.1af23df47061' exists in aios.core; derive_strength, VerificationStrength, _is_test_runner, and _is_checker are defined together in a differently named aios.core submodule, so the module must be located by attribute lookup rather than by a hardcoded name"
+  },
+  {
+   "stream": "local",
+   "id": 199,
+   "target": "aios/council/king_reasoning.py::reason_king",
+   "label": "true_specific",
+   "why": "each of those paths returns the original report object itself (identity), untouched",
+   "lesson": "reason_king is fail-closed: when complete is None, when calling complete raises, or when the raw completion is falsy or contains no parseable recommendation, it returns the original report object itself (result is report) with recommendation and human_summary untouched, rather than a modified copy."
+  },
+  {
+   "stream": "local",
+   "id": 201,
+   "target": "aios/council/reasoning.py::plan_with_llm",
+   "label": "true_specific",
+   "why": "one complete(prompt, system=...) call; LLMError -> ValueError('planner reasoning failed: ...') from exc; other exceptions propagate",
+   "lesson": "aios.council.reasoning.plan_with_llm calls the LLM client's complete() exactly once with a prompt string containing the goal, returns _extract_json of the raw LLM output as a dict, converts an LLMError from complete() into a ValueError with message 'planner reasoning failed: <err>' whose __cause__ is the original LLMError, and lets non-LLMError exceptions such as RuntimeError propagate unwrapped."
+  },
+  {
+   "stream": "local",
+   "id": 203,
+   "target": "aios/domain/governance/constitution.py::build_constitution_snapshot",
+   "label": "true_specific",
+   "why": "ConstitutionSnapshotV1.foundation_laws is tuple[str, ...] and is given the FOUNDATION_LAWS tuple",
+   "lesson": "build_constitution_snapshot in aios.domain.governance.constitution returns a snapshot whose foundation_laws attribute is a tuple of strings, not a list."
+  },
+  {
+   "stream": "local",
+   "id": 205,
+   "target": "aios/memory/crag.py::calibrate_thresholds",
+   "label": "true_specific",
+   "why": "ran it: separable data on grid [0, 0.5, 1] -> lower == upper == 0.5, both rates 0.0",
+   "lesson": "calibrate_thresholds in aios.memory.crag selects both lower and upper from its candidate grid by optimizing routing utility, so it can return lower == upper (0.5 for perfectly separable labeled data with grid [0.0, 0.5, 1.0], with false_drop_rate and false_accept_rate both 0.0) rather than copying the labeled samples' scores into lower and upper."
+  },
+  {
+   "stream": "local",
+   "id": 207,
+   "target": "aios/memory/skills.py::scoped_skill_recall",
+   "label": "true_specific",
+   "why": "isinstance(skills, SkillMemory) -> []; anything else is delegated to relevant_verified(query, limit, principal=principal)",
+   "lesson": "scoped_skill_recall returns [] only for objects that are actual instances of aios.memory.skills.SkillMemory (a real type-membership check, not duck typing by class name); every non-SkillMemory store is delegated to its relevant_verified(query, limit, principal=...) method."
+  },
+  {
+   "stream": "local",
+   "id": 210,
+   "target": "aios/memory/skills.py::scoped_skill_reuse",
+   "label": "partly_true",
+   "why": "record_reuse is required and list() is returned, but there IS a type check: a SkillMemory is called WITHOUT principal; only other stores get principal=",
+   "lesson": "scoped_skill_reuse requires its `skills` argument to implement record_reuse and calls it with `success` and `principal` passed as keyword arguments, returning list() of whatever record_reuse returns; it performs no type check or fallback for objects lacking record_reuse."
+  },
+  {
+   "stream": "local",
+   "id": 214,
+   "target": "aios/operations/recovery.py::restore_backup",
+   "label": "about_test",
+   "why": "about locating the delegate via __code__.co_names in a test; the forwarding itself is a plain call to _BACKUP_DISASTER_RECOVERY_AUTHORITY.restore_backup",
+   "lesson": "aios.operations.recovery.restore_backup forwards to its delegate via a module-level global whose name appears in restore_backup.__code__.co_names alongside 'restore_backup', and that global is the module attribute holding a callable restore_backup method; scanning all module attribute values for any object with a restore_backup method does not reliably identify this specific delegate."
+  },
+  {
+   "stream": "local",
+   "id": 216,
+   "target": "aios/core/events.py::event_for_sse",
+   "label": "true_specific",
+   "why": "ran it: both 'synthesis' and an unknown name give EventType.SYNTHESIS / EventPhase.NARRATIVE",
+   "lesson": "aios.core.events.event_for_sse takes an event_name parameter and returns an object whose type and phase are EventType and EventPhase enum members, and its default mapping for both 'synthesis' and unrecognized event names is EventType.SYNTHESIS with EventPhase.NARRATIVE, not a 'start' phase."
+  },
+  {
+   "stream": "local",
+   "id": 226,
+   "target": "aios/runtime/worker_entry.py::run_worker",
+   "label": "partly_true",
+   "why": "ValueError('path escapes runtime directory: ...') is real, but _safe_resolve checks the runtime_root argument against config.COUNCIL_RUNTIME_DIR, not the paths inside the MissionContract",
+   "lesson": "aios.runtime.worker_entry.run_worker validates that paths in the MissionContract lie under the configured runtime root directory and raises ValueError('path escapes runtime directory: ...') for any path outside it, so a contract built with cwd-relative paths like '.' fails the guard rather than reaching the ContractViolation branch."
+  },
+  {
+   "stream": "local",
+   "id": 229,
+   "target": "aios/agents/tool_handlers.py::propose_fixes",
+   "label": "true_specific",
+   "why": "self_analysis_llm is checked before int(limit); None returns exactly that unavailable tuple",
+   "lesson": "propose_fixes in aios.agents.tool_handlers checks self_analysis_llm before parsing the limit argument: when no completion model is configured it returns early with '[propose unavailable] no completion model configured.' (third tuple element False), so the invalid-limit-defaults-to-25 path is unreachable without an LLM configured."
+  },
+  {
+   "stream": "local",
+   "id": 232,
+   "target": "aios/application/governance/organ_ledger.py::validate_manifest",
+   "label": "true_specific",
+   "why": "empty manifest + no records: organ_summary None != {total:0,green:0,yellow:0}, missing ledger_path, bad source_commit_sha, missing files -> exactly 4 violations",
+   "lesson": "validate_manifest in aios.application.governance.organ_ledger treats an empty manifest as invalid: with an empty manifest and zero records it returns four violations -- organ_summary None not matching computed counts {'total': 0, 'green': 0, 'yellow': 0}, missing non-empty ledger_path, missing or non-commit-like source_commit_sha, and missing non-empty 'files' hash map -- rather than returning an empty tuple."
+  },
+  {
+   "stream": "local",
+   "id": 234,
+   "target": "aios/application/governance/v1_declaration.py::evaluate_release",
+   "label": "true_specific",
+   "why": "17 gates; ReleaseGate.passed = source_present and runtime_proven; with no runtime_proofs the blocking gates fail, so ready is False",
+   "lesson": "evaluate_release() does not return ready=True by default: ready is exactly all(gate.passed for gate in gates if gate.blocking) over a 17-gate tuple, runtime_proven defaults to False unless an explicit proof is supplied, so a default call yields ready=False"
+  },
+  {
+   "stream": "local",
+   "id": 238,
+   "target": "aios/application/learning/negative_transfer.py::assess",
+   "label": "true_specific",
+   "why": "fields are action, successes, attempts, baseline, p_value, min_observations, alpha, reason (no 'floor'); a dataclass, so positional construction in that order compares equal",
+   "lesson": "TransferVerdict from aios.application.learning.negative_transfer exposes the attributes action, successes, attempts, baseline and p_value but has no attribute 'floor'; its instances compare equal via == when constructed with positional arguments in the order (action, successes, attempts, baseline, p_value, floor, level, reason)."
+  },
+  {
+   "stream": "local",
+   "id": 241,
+   "target": "aios/application/memory/institutional_skills.py::build_skills_slot",
+   "label": "true_specific",
+   "why": "the adapter keeps the legacy store as .store, so there is no .legacy attribute; build needs repository.list_skills() provenance and trails.adopt_migrated (history only when not migrated)",
+   "lesson": "The object returned by aios.application.memory.institutional_skills.build_skills_slot has no 'legacy' attribute; the function only requires repository.list_skills() yielding records with a '.provenance' mapping and trails.adopt_migrated(repository), not a full adapter/gate/history collaborator set."
+  },
+  {
+   "stream": "local",
+   "id": 243,
+   "target": "aios/core/alignment.py::resolve_communication_policy",
+   "label": "partly_true",
+   "why": "ran it: 'Please clarify this' with context returns proceed -- but 'user_text phrasing is not a signal' is false: _ASK_FIRST_PATTERNS and the context-free-vague match on user_text do drive 'ask'",
+   "lesson": "resolve_communication_policy does not derive ambiguity_action 'ask' from user_text containing 'Please clarify this'; called with has_context=True and empty assumptions and unknowns it returns 'proceed', so user_text phrasing is not a signal in the ask/proceed decision."
+  },
+  {
+   "stream": "local",
+   "id": 246,
+   "target": "aios/application/promotion/smoke.py::python_smoke",
+   "label": "true_specific",
+   "why": "SmokeReport's fields are passed, reason, targets, steps (no 'ok'); a dataclass, so positional instances compare equal",
+   "lesson": "SmokeReport in aios.application.promotion.smoke has no attribute named 'ok'; its four fields (success flag, reason string, targets list, steps list) are only confirmed to exist positionally in constructor order, with equality working between positionally constructed instances."
+  },
+  {
+   "stream": "local",
+   "id": 248,
+   "target": "aios/agents/tool_handlers.py::create_file",
+   "label": "true_specific",
+   "why": "_resolve_within runs first (after only an approved_creations lookup); escape returns exactly that tuple before the credential/scope/approval checks, no snapshot or audit",
+   "lesson": "aios.agents.tool_handlers.create_file resolves the requested path against read_root itself and, for a path that escapes the root, returns exactly ('[BLOCKED] Path '<path>' escapes the project root.', 'blocked', False) before any credential or approval check and without invoking snapshot or audit (both may be None on this path)."
+  },
+  {
+   "stream": "local",
+   "id": 250,
+   "target": "aios/application/learning/skill_lifecycle.py::apply_reuse_outcome",
+   "label": "true_specific",
+   "why": "exact thin wrapper (new authority per call); the authority uses current.created_at / passes current to ConfidenceUpdater, so a dict from get() fails",
+   "lesson": "aios.application.learning.skill_lifecycle.apply_reuse_outcome is a thin delegating wrapper that builds a new SkillLifecycleAuthority(repository, updater=updater) on every call and returns its apply_reuse_outcome(skill_id, version, success=success, reason=reason) result; the real authority reads skill.confidence via attribute access, so the object returned by the repository's get() must be an object with a .confidence attribute, not a dict."
+  },
+  {
+   "stream": "local",
+   "id": 253,
+   "target": "aios/application/memory/human_representation.py::build_project_passport_v1",
+   "label": "about_test",
+   "why": "true (passport given -> no harvest, so no FileNotFoundError; harvest raises it for a missing root), but the point is that a SimpleNamespace stand-in works",
+   "lesson": "build_project_passport_v1 accepts its passport input as any object exposing the expected attributes (a plain types.SimpleNamespace suffices) and, when given such an object, performs no project-root filesystem access; the FileNotFoundError for a nonexistent project root arises only on the path-scanning invocation route."
+  },
+  {
+   "stream": "local",
+   "id": 260,
+   "target": "aios/council/reasoning.py::reconcile_plan",
+   "label": "true_specific",
+   "why": "ran it: request 'low' + plan 'high' -> 'RED' (the scale is GREEN/YELLOW/RED; an unrecognised request risk fails closed to RED)",
+   "lesson": "aios.council.reasoning.reconcile_plan does not pass the plan's risk_level string through verbatim: with request risk 'low' and plan risk_level 'high', result.risk_level is the color-scale label 'RED', not 'high'."
+  },
+  {
+   "stream": "local",
+   "id": 263,
+   "target": "aios/memory/self_model.py::synthesize_self_model",
+   "label": "true_specific",
+   "why": "Trait fields are kind, subject, detail, attempts, rate; cautions use lesson_text/occurrence_count, skip empty text, rate None, recurring(limit=max_traits)",
+   "lesson": "synthesize_self_model returns Trait objects with attributes kind, subject, detail, attempts, and rate (not name, task, or description); cautions are built from recurring mistakes using the mistake's lesson_text as detail and occurrence_count as attempts, entries with empty lesson_text are skipped, caution rate is None, and mistakes.recurring is called with an explicit limit argument"
+  },
+  {
+   "stream": "local",
+   "id": 267,
+   "target": "aios/agents/tool_handlers.py::edit_file",
+   "label": "true_specific",
+   "why": "approved (old,new) replaces the args first, then 'if not old_string' returns exactly that tuple",
+   "lesson": "aios.agents.tool_handlers.edit_file applies the human-approved (old_string, new_string) tuple from approved_edits in place of the caller-supplied arguments, and it rejects an empty old_string with the exact result ('[ERROR] old_string must be non-empty.', 'blocked', False) -- so an approved empty old_string is blocked even when the model supplied a non-empty old_string."
+  },
+  {
+   "stream": "local",
+   "id": 270,
+   "target": "aios/agents/tool_handlers.py::verify_command",
+   "label": "false",
+   "why": "format_verifier_result (the pass/fail path) reads result.passed, exit_code, passed_count, failed_count and strength; only the REQUIRE_APPROVAL/BLOCKED early returns use just status+summary",
+   "lesson": "The verifier result consumed by aios.agents.tool_handlers.verify_command is status-based: it reads result.status plus result.summary, result.mistake_id and result.lesson_summary, and there is no 'passed' boolean on the result object, so a fake carrying only those four attributes satisfies verify_command"
+  }
+ ]
+}

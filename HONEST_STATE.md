@@ -1,8 +1,41 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-10-12 (verified on `6b64b9ca`; earlier sections keep the
-commit they were measured on)
+**Last updated:** 2026-10-21 ("State on 2026-10-21" below; earlier sections keep
+the commit they were measured on). The whole story, from the first commit, is
+`docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-10-21 (measured 2026-10-19 to 10-21 on master `501c2536`, unless a line says otherwise)
+
+**The cage held and grew. The animal now has true lessons, but they have not
+yet been shown to help.**
+
+- **Organ ledger: 50 green / 9 yellow / 59**, unchanged since 2026-10-12.
+  - Yellow: 20, 32, 40, 44, 46, 48, 49, 51, 55.
+- **Learning Ledger: 5 green / 8.** L3, L4 and L5 wait on one act of the operator: activating a skill. **0 skills are active**, so no learned reflex serves a live turn, and the One Law holds for no live task.
+- **Lessons.** 117 lessons now pass the production recall gate for the operator (census on a copy of the live store, 2026-10-21: 117 of 140). They are the 11 from Phase 8 plus 106 from D12:
+  - written by a strong teacher (Kimi K3);
+  - fact-checked one by one (168 checked, 9 false);
+  - re-admitted by the operator.
+
+  See `docs/learning/D12_PRACTICE_AND_FACTCHECK_RESULT.md`.
+- **Usefulness is still not shown.**
+  - Phase 8: not met.
+  - D12, cloud student: **neither member met**, with no harm. ON and OFF earned exactly the same, 114 of 423 each (`docs/learning/PAYOFF_D12_RESULT.md`).
+  - D12, local student: not run yet. The pre-registration names it as the member most likely to show a benefit. It needs about 2–3 days of the laptop.
+- **A defect the fact-check found.** The frozen secret scanner redacts ordinary identifiers that look high-entropy, so 9 lessons taught the redaction instead of the code. Fixing it is a §VIII proposal for the operator (`aios/security/` is frozen).
+- **Self-repair works once, live.** Mission `maint-3b41d3d6` removed dead imports and reached VERIFIED_RESOLVED on 2026-10-19 (`docs/operations/FIRST_SELF_REPAIR.md`). One repair is not a track record.
+- **Recovery is real.**
+  - The operator lost both secrets and recovered with the same operator id, losing nothing (#522, `docs/operations/OPERATOR_RECOVERY.md`).
+  - A rebuild from GitHub plus a backup took 7.6 minutes (#518).
+  - The spine signing key was lost and rotated (#516).
+- **Keys.** Promotion and checkpoint now need a real key from the keystore; the public default is gone (#523).
+- **Cloud.** The Bedrock API key that served earlier runs has been refused inference since 2026-10-18 ("Operation not allowed", all models, both regions). D12 ran through the operator's IAM key in us-east-1 instead, recorded as an amendment before it ran.
+- **CI.** A new advisory against certifi (PYSEC-2026-4320) failed every PR on 2026-10-21. Fixed by #527.
+- **Not re-measured this period:**
+  - approval authority (M7);
+  - the clerk (last measured 2026-10-11: no admitted model has run a real job);
+  - `prove_sovereignty.py`.
 
 ## State on 2026-10-12 (verified that day; nothing below was carried forward unchecked)
 
