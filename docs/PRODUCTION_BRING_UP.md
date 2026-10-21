@@ -55,7 +55,10 @@ checkout). Without it, PowerShell answers "The term 'gagos' is not recognized"
    python -m aios.launcher keys status
    ```
    Commit `.aios/state/LEARNING_PUBLIC_KEYS.json`: the verifier trusts what is
-   pinned there.
+   pinned there. Since #523 (2026-10-19), `--missing` also generates
+   `AIOS_PROMOTION_AUTHORITY_KEY` and `AIOS_CHECKPOINT_AUTHORITY_KEY`. Without
+   them nothing can be promoted, and `production_readiness` fails
+   `compose_keys`.
 5. **Start production on the copy:**
    ```powershell
    $env:AIOS_DATA_DIR = "C:\gagos-drill\data"

@@ -785,8 +785,15 @@ python -c "import secrets; print(secrets.token_hex(32))"
 
 Put it in `.env` as `AIOS_VERIFICATION_AUTHORITY_KEY`. Council missions and the
 verification integrity chain refuse to run without it -- minimum 32 characters,
-and known placeholder values are rejected deliberately. Everything else in
-`.env.example` is optional.
+and known placeholder values are rejected deliberately.
+
+To **apply** changes to a project (maintenance repairs, promotion), two more
+keys are required, generated the same way and each different:
+`AIOS_PROMOTION_AUTHORITY_KEY` and `AIOS_CHECKPOINT_AUTHORITY_KEY`. Without them
+promotion refuses: it fails closed rather than signing rollback points with a
+public default (fixed 2026-10-19, #523). The installers still write only the
+verification key, so add these two yourself if you need repairs. Everything
+else in `.env.example` is optional.
 
 Note on the API edge (corrected 2026-09-06): this used to say that with no
 `AIOS_API_TOKEN` set, unauthenticated **loopback** requests are served as the

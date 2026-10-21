@@ -20,10 +20,12 @@ profile. If Docker is unavailable, production start refuses instead of
 silently executing workers on the host.
 
 Production requires operator-supplied, non-placeholder values for
-`AIOS_API_TOKEN`, `AIOS_EXECUTOR_TOKEN`, and
-`AIOS_GRAFANA_ADMIN_PASSWORD`. The launcher never prints those values or
-creates default credentials. Store them in the local environment or `.env`
-with appropriate file permissions.
+`AIOS_API_TOKEN`, `AIOS_EXECUTOR_TOKEN`, `AIOS_GRAFANA_ADMIN_PASSWORD`,
+`AIOS_VERIFICATION_AUTHORITY_KEY`, `AIOS_PROMOTION_AUTHORITY_KEY`,
+`AIOS_CHECKPOINT_AUTHORITY_KEY` and `AIOS_LEARNING_KEY_LIVE`.
+- The launcher never prints these values or creates default credentials.
+- Since 2026-10-11 they live in the OS credential store: `gagos keys generate --missing`, then `gagos keys status`. The launcher hands them to Compose in memory, and a volatile environment variable still wins.
+- Promotion and checkpoints refuse to run without their keys (#523).
 
 ## Same-origin topology
 
