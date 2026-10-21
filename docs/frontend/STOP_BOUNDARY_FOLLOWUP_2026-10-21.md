@@ -1,5 +1,7 @@
 # Stop-boundary follow-up
 
+Publication: [draft PR531](https://github.com/swap821/ai-editor/pull/531), base master. Source cbae8ccfebe11d023a5379d6aaf50fef671922b8 and owned checkpoints5ddcdbe775e29d892cf49cd31146948a654dbd88 were pushed and matched the remote. The final currency commit changes no frontend source. Actual current-head frontend CI and immutable review handoff are recorded in the external Stop-boundary handoff, not inferred from local tests. At16:56UTC21Oct both frontend jobs were in progress. No ready/merge action; genuine whole-PR non-builder review remains open.
+
 The operator approved a new follow-up PR after PR496 was confirmed merged, and approved an isolated install from current master's unchanged lockfile. This branch contains only the scoped Stop/body-boundary repair; the separate unfinished startup implementation is excluded.
 
 Base: bca38869c85b1974249e2cd1bbae2f16d8ac8a81. Source commitcbae8ccfebe11d023a5379d6aaf50fef671922b8 contains exactly nine frontend paths/251add45remove, reapplied from the earlier8ccbe42b unit onto accepted master. The repair distinguishes held/refused/stopped body boundaries, prevents a held conversation request from resurfacing as a pickable3D approval during observed Stop, and preserves readable held notices through the existing layout/reservation owners. No backend, dependency, gate, palette, texture or authority changes. Startup remains excluded.
