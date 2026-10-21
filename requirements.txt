@@ -10,7 +10,7 @@ anyio==4.15.1
 boto3==1.43.114
 botocore==1.43.114
 beautifulsoup4==4.15.0
-certifi==2026.7.22
+certifi==2026.10.19
 click==8.5.0
 colorama==0.4.6
 coverage==7.16.2
