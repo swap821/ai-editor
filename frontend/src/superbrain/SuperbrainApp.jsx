@@ -1,8 +1,6 @@
 /** One operational shell, one conversation owner, and the preserved connected organism. */
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import BootSequence from '@/components/ui/BootSequence';
 import GagosChrome from '../workbench/GagosChrome';
-import SuperbrainReactiveEffects from '../workbench/SuperbrainReactiveEffects';
 import { LivingWorkspaceShell } from '../livingMirror/LivingWorkspaceShell';
 import { installKeyboardViewportTracking } from '../livingMirror/keyboardViewport';
 import { installWorkspaceDockTracking } from '../livingMirror/workspaceDock';
@@ -12,7 +10,7 @@ import { isWorkspacePanelVisible } from '../livingMirror/experience/workspaceVis
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
 import { derivePhysicalSnapshot } from '../livingMirror/being/physicalSnapshot';
-import { WorkspaceConnectionOverlay, WorkspaceConnectionProjection } from '../livingMirror/being/WorkspaceConnectionOverlay';
+import { WorkspaceConnectionOverlay } from '../livingMirror/being/WorkspaceConnectionOverlay';
 import { createContextRecoveryTracker } from '../livingMirror/observability/contextRecovery';
 import { createMirrorReconnectTracker, recordFrontendMetric, startRafIntervalSampler } from '../livingMirror/observability/frontendMetrics';
 import { RendererFallbackNotice } from '../livingMirror/RendererFallbackNotice';
@@ -29,7 +27,9 @@ import { QualityTierProvider } from './components/QualityTierProvider';
 import './superbrain.css';
 import '../livingMirror/compactWorkingChrome.css';
 
-const WorkspaceCanvas = lazy(() => import('@/components/canvas/WorkspaceCanvas'));
+function createOrganismScene() {
+  return lazy(() => import('../workbench/OrganismScene'));
+}
 
 export default function SuperbrainApp() {
   // Preference lifetime belongs to the app, not a replaceable GL context.
@@ -43,6 +43,7 @@ function SuperbrainAppContent() {
   const [beingFocused, setBeingFocused] = useState(false);
   const [canvasContextLost, setCanvasContextLost] = useState(false);
   const [rendererRestartKey, setRendererRestartKey] = useState(0);
+  const [OrganismScene, setOrganismScene] = useState(createOrganismScene);
   const [compactViewport, setCompactViewport] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches);
   const [compactControlsHost, setCompactControlsHost] = useState(null);
   const snapshot = useTabStore();
@@ -103,9 +104,17 @@ function SuperbrainAppContent() {
   }, []);
   const handleInputAttentionChange = useCallback((active) => {
     setInputAttentionActive(active === true);
+    // Do not replay an arrival overlay over a person already using controls.
+    if (active === true) setBooted(true);
   }, []);
   const handleReturnToConversation = useCallback(() => {
     conversationInputRef.current?.focus({ preventScroll: true });
+  }, []);
+  const handleSceneRetry = useCallback(() => {
+    // React.lazy retains a rejected import. Replace only that resource and
+    // its visual boundary; the shell, draft, decisions and quality owner stay.
+    setOrganismScene(createOrganismScene);
+    setRendererRestartKey((key) => key + 1);
   }, []);
   const handleRendererRetry = useCallback(() => {
     if (canvasContextLostRef.current) {
@@ -123,11 +132,10 @@ function SuperbrainAppContent() {
       managedRetry.click();
       return;
     }
-    // The no-WebGL path cannot remount a renderer that the browser rejected;
-    // a reload is the only honest retry boundary after the user restores
-    // graphics support or changes the browser environment.
-    window.location.reload();
-  }, []);
+    // A fresh visual mount re-probes capability without discarding a draft.
+    // Continued failure stays an honest fallback, never a recovery claim.
+    handleSceneRetry();
+  }, [handleSceneRetry]);
   useEffect(() => {
     const root = appRootRef.current;
     if (!root) return undefined;
@@ -145,9 +153,14 @@ function SuperbrainAppContent() {
     const findInput = () => {
       if (inputReady) return;
       const input = document.querySelector('[aria-label="Talk to GAGOS"]');
-      if (input) {
+      const stop = appRootRef.current?.querySelector('.lm-stop__engage');
+      if (input && stop) {
         inputReady = true;
         recordFrontendMetric('boot-to-input-ready', performance.now() - startedAt);
+        // Local DOM readiness is independent of a rendered being or backend
+        // status. The external loader also reads this marker if installed late.
+        appRootRef.current?.setAttribute('data-controls-ready', 'true');
+        window.dispatchEvent(new CustomEvent('gagos:controls-ready'));
         return;
       }
       frame = window.requestAnimationFrame(findInput);
@@ -232,20 +245,14 @@ function SuperbrainAppContent() {
     data-being-focus={beingFocused ? 'true' : 'false'}
   >
     <div className="lm-being-status" role="status" aria-live="polite" aria-atomic="true">{beingStatusText(being)}</div>
-    <BootSequence onComplete={handleBootComplete} />
     <RendererFallbackNotice visible={rendererFallback} onRetry={handleRendererRetry} />
     <div className="lm-scene" aria-hidden="true" />
     <div className="lm-stage">{canvasContextLost ? null : (
-      <RendererFailureBoundary onRetry={handleRendererRetry}>
+      <RendererFailureBoundary key={rendererRestartKey} onRetry={handleSceneRetry}>
         <Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
-          <WorkspaceCanvas key={rendererRestartKey} booted={booted} physical={physical} inputAttentionActive={inputAttentionActive} attentionTargetRef={attentionTargetRef}>
-          <SuperbrainReactiveEffects
-            presentationOverride={being}
-            physicalOverride={physical}
-            inputAttentionActive={inputAttentionActive}
-          />
-          <WorkspaceConnectionProjection overlayRef={workspaceConnectionRef} snapshot={snapshot} attentionTargetRef={attentionTargetRef} />
-          </WorkspaceCanvas>
+          <OrganismScene booted={booted} onBootComplete={handleBootComplete}
+            physical={physical} being={being} snapshot={snapshot} inputAttentionActive={inputAttentionActive}
+            attentionTargetRef={attentionTargetRef} workspaceConnectionRef={workspaceConnectionRef} />
         </Suspense>
       </RendererFailureBoundary>
     )}</div>

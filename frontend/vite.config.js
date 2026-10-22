@@ -146,13 +146,16 @@ export default defineConfig(({ mode }) => {
         output: {
           codeSplitting: {
             groups: [
+              // Keep the entry's shared lazy-import helper out of heavyweight
+              // vendors. Otherwise an unused editor becomes a startup import.
+              { name: 'vendor-modulepreload', test: id => id === '\0vite/preload-helper.js', priority: 100 },
               // ORDER MATTERS: first matching group wins. three.js core must be
               // matched before drei/r3f so the ~600 KB monolith lands here.
-              { name: 'vendor-three', test: /[\\/]node_modules[\\/]three[\\/]/ },
-              { name: 'vendor-drei-postprocessing', test: /[\\/]node_modules[\\/](@react-three[\\/]drei|postprocessing|@react-three[\\/]postprocessing)[\\/]/ },
-              { name: 'vendor-r3f', test: /[\\/]node_modules[\\/]@react-three[\\/]/ },
+              { name: 'vendor-three', test: /[\\/]node_modules[\\/]three[\\/]/, includeDependenciesRecursively: false },
+              { name: 'vendor-drei-postprocessing', test: /[\\/]node_modules[\\/](@react-three[\\/]drei|postprocessing|@react-three[\\/]postprocessing)[\\/]/, includeDependenciesRecursively: false },
+              { name: 'vendor-r3f', test: /[\\/]node_modules[\\/]@react-three[\\/]/, includeDependenciesRecursively: false },
               { name: 'vendor-monaco', test: /[\\/]node_modules[\\/](@monaco-editor|monaco-editor)[\\/]/ },
-              { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+              { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 90 },
               { name: 'vendor-motion', test: /[\\/]node_modules[\\/]motion[\\/]/ },
             ],
           },

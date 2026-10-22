@@ -2,7 +2,8 @@ import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createRef, type RefObject } from 'react';
 import { Matrix4, PerspectiveCamera } from 'three';
-import { WorkspaceConnectionOverlay, WorkspaceConnectionProjection } from './WorkspaceConnectionOverlay';
+import { WorkspaceConnectionOverlay } from './WorkspaceConnectionOverlay';
+import { WorkspaceConnectionProjection } from './WorkspaceConnectionProjection';
 import { __resetSpineFusionForTests, setBodyGroupWorldMatrix, setCortexAnchor, setSpineFusion } from '../../superbrain/lib/spineFusionBus';
 import { __resetTabStoreForTests, closeWorkspace, focusWorkspace, getTabStoreSnapshot, openWorkspacePanel,
   showContentSurface, showApprovalSurface, updateMaterializedTab, setMaterializedTabLifecycle,
