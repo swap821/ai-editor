@@ -18,6 +18,9 @@ import { LivingWorkspaceShell } from '../LivingWorkspaceShell';
 import { WorkspaceConnectionOverlay, WorkspaceConnectionProjection } from './WorkspaceConnectionOverlay';
 import { setAmbientMotionPaused, useReducedMotion } from '../../superbrain/lib/reducedMotion';
 import { POINTS_REABSORPTION_MS, POINTS_SLAB_RETRACT_MS } from '../../superbrain/lib/reabsorptionTiming';
+import type { PhysicalBodyProjection } from '../../superbrain/lib/bodyPosture';
+import { deriveBeingPresentation } from './semanticKernel';
+import { derivePhysicalSnapshot } from './physicalSnapshot';
 
 // Actual R3F surface, DOM reader, identity/lifecycle stores and connection.
 // Only WebGL and remote font shaping are substituted: these assertions prove
@@ -50,14 +53,14 @@ beforeEach(() => {
 afterEach(() => { cleanup(); __resetTabStoreForTests(); __resetSpineFusionForTests();
   window.localStorage.removeItem('gagos-pause-motion-v1'); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function MaterializedReaders({ snapshot, fullLayer = false }: { snapshot: ReturnType<typeof getTabStoreSnapshot>; fullLayer?: boolean }) {
+function MaterializedReaders({ snapshot, fullLayer = false, physical }: { snapshot: ReturnType<typeof getTabStoreSnapshot>; fullLayer?: boolean; physical?: PhysicalBodyProjection }) {
   const reducedMotion = useReducedMotion(); // same reactive source as the actual CortexEngine
-  if (fullLayer) return <MaterializationLayer reducedMotion={reducedMotion} />;
+  if (fullLayer) return <MaterializationLayer reducedMotion={reducedMotion} physical={physical} />;
   return snapshot.tabs.filter(tab => tab.kind === 'content').map(tab => <MaterializedTab key={tab.id} tab={tab}
     reducedMotion={reducedMotion} focused={snapshot.focusId === tab.id} workspaceCount={snapshot.tabs.length} />);
 }
 
-async function mount(reducedMotion: boolean, withReader = true, experienceMode: 'beginner' | 'expert' = 'beginner', reaching = false, fullLayer = false) {
+async function mount(reducedMotion: boolean, withReader = true, experienceMode: 'beginner' | 'expert' = 'beginner', reaching = false, fullLayer = false, physical?: PhysicalBodyProjection) {
   setAmbientMotionPaused(reducedMotion);
   const first = showContentSurface({ filepath: 'first.txt', language: 'text', code: 'first retained content' }, getContentSurfacePlacement(2));
   if (!reaching) setMaterializedTabLifecycle(first.id, 'live');
@@ -80,14 +83,60 @@ async function mount(reducedMotion: boolean, withReader = true, experienceMode: 
   const sync = async () => {
     const snapshot = getTabStoreSnapshot();
     await act(async () => { root.render(<>
-      <MaterializedReaders snapshot={snapshot} fullLayer={fullLayer} />
+      <MaterializedReaders snapshot={snapshot} fullLayer={fullLayer} physical={physical} />
       <WorkspaceConnectionProjection overlayRef={overlayRef} snapshot={snapshot} />
     </>); });
     act(() => advance(1, false, store.getState()));
   };
   await sync();
-  return { first, dom, scene, sync, overlayRef, store, close: async () => { await act(async () => root.unmount()); dom.unmount(); } };
+  return { first, dom, scene, sync, overlayRef, store,
+    setPhysical: async (next: PhysicalBodyProjection) => { physical = next; await sync(); },
+    close: async () => { await act(async () => root.unmount()); dom.unmount(); } };
 }
+
+it.each([false, true])('keeps the mounted nerve with canonical work/hold/stop while an older reader returns (reduced=%s)', async reducedMotion => {
+  vi.spyOn(performance, 'now').mockReturnValue(10000);
+  const project = (stop: 'engaged' | 'clear', approvalPending = false) => derivePhysicalSnapshot(deriveBeingPresentation({
+    lifecycle: 'reabsorbing', transport: 'connected', projection: 'fresh', mirrorStatus: 'online', hasSnapshot: true,
+    taskActivity: 'streaming', verification: 'unknown', stop, approvalPending,
+  }));
+  const view = await mount(reducedMotion, false, 'beginner', false, true, project('engaged'));
+  try {
+    act(() => {
+      const current = showContentSurface({ filepath: 'currently-working.txt', language: 'text', code: 'current partial', streaming: true }, getContentSurfacePlacement(8));
+      setMaterializedTabLifecycle(current.id, 'live');
+    });
+    await view.sync();
+    const owner = view.scene.children.find(node => node.getObjectByName('text:currently-working.txt'))!;
+    const tube = owner.children.find(node => node instanceof THREE.Mesh && node.renderOrder === 6) as THREE.Mesh<THREE.TubeGeometry, THREE.MeshStandardMaterial>;
+    const material = tube.material;
+    const baseColor = material.color.clone(), baseEmissive = material.emissive.clone();
+    act(() => closeWorkspace(view.first.id));
+    for (const [physical, rgb, tint] of [
+      [project('clear'), [123, 245, 251], 0.434],
+      [project('clear', true), [255, 126, 64], 0.31],
+      [project('engaged'), [158, 120, 245], 0],
+    ] as const) {
+      await view.setPhysical(physical);
+      // Reduced motion retires the older record synchronously in its frame.
+      // Paint the resulting committed snapshot before reading live materials.
+      await view.sync();
+      expect(view.scene.getObjectById(tube.id)).toBe(tube);
+      expect(tube.material).toBe(material);
+      const target = new THREE.Color(rgb[0] / 255, rgb[1] / 255, rgb[2] / 255);
+      const wantColor = baseColor.clone().lerp(target, tint).toArray();
+      const wantEmissive = baseEmissive.clone().lerp(target, tint).toArray();
+      for (let index = 0; index < 3; index++) {
+        expect(material.color.toArray()[index]).toBeCloseTo(wantColor[index], 6);
+        expect(material.emissive.toArray()[index]).toBeCloseTo(wantEmissive[index], 6);
+      }
+      const older = getTabStoreSnapshot().tabs.find(tab => tab.id === view.first.id);
+      if (reducedMotion) expect(older).toBeUndefined();
+      else expect(older?.lifecycle).toBe('retracting');
+      expect(getTabStoreSnapshot().recoverableTabs?.some(tab => tab.id === view.first.id)).toBe(true);
+    }
+  } finally { await view.close(); }
+});
 
 it.each([false, true])('retargets a moving HUD nerve without replacing its geometry or buffers (reduced=%s)', async reducedMotion => {
   const view = await mount(reducedMotion, true, 'beginner', false, true);

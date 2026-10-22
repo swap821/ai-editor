@@ -10,7 +10,7 @@ import { buildSpinePoints, BODY_AXIS_MIN, BODY_AXIS_MAX } from '@/lib/spinePoint
 import { createPointFieldMaterial, POINT_SPRITE_LUMINOUS_AREA } from '@/lib/pointFieldMaterial';
 import { pointPresenceHeight, pointViewportScale } from '@/lib/pointViewportScale';
 import { lifecycleTargets } from '@/lib/pointFieldLifecycle';
-import { bodyHoldForProjection, lifecyclePhaseForPhysicalProjection, type PhysicalBodyProjection } from '@/lib/bodyPosture';
+import { bodyHoldForProjection, deriveBodyPosture, lifecyclePhaseForPhysicalProjection, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 import { getOrganismPhase } from '@/lib/organismPhaseBus';
 import { getConversationPhase, conversationToOrganismPhase } from '@/lib/conversationPhaseBus';
 import { setSpineFusion, setCortexAnchor, getCortexAnchor, getBrainDockScale, setCortexShape, clearCortexShape } from '@/lib/spineFusionBus';
@@ -527,7 +527,14 @@ export default function BrainPointField({
     // gesture plays out fully even if the brief beat flips back. Reduced motion: cortex
     // luminance crossfade only — no travelling band (vestibular-safe).
     if (u.uReabsorbGlow && u.uReabsorbRise) {
-      const reabsorbing = phase === 'reabsorbing';
+      // Returning older work is independent of the current task's hue/lifecycle.
+      // Reuse canonical posture precedence: a return cannot overrule a human
+      // boundary, uncertain outcome or failure, including an in-flight inhale.
+      const posture = physical ? deriveBodyPosture({ phase, physical }).key : null;
+      const returnAllowed = !physical || posture === 'rest' || posture === 'think'
+        || posture === 'stream' || posture === 'complete';
+      const reabsorbing = returnAllowed && (physical ? physical.motion === 'reabsorb' : phase === 'reabsorbing');
+      if (!returnAllowed) reabsorbOnsetRef.current = -1;
       if (reabsorbing && reabsorbWasOffRef.current) reabsorbOnsetRef.current = state.clock.elapsedTime;
       reabsorbWasOffRef.current = !reabsorbing;
       let sinceReabsorb =

@@ -1113,7 +1113,7 @@ export function BrainModel({
             Renders nothing while the queue is empty. */}
         <MemoryHalo reducedMotion={reduceMotion} />
       </group>
-      <MaterializationLayer reducedMotion={reduceMotion} />
+      <MaterializationLayer reducedMotion={reduceMotion} physical={physical} />
       {/* Status FROM the body (poster #6): a calm green pulse at the brainstem —
           the "supervised / overseen mind" mark. Rides the voyage/orbit; reduced-
           motion holds it steady. Sacred green (#54f0a0 = supervised). */}
