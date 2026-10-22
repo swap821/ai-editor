@@ -2,7 +2,6 @@ import { StrictMode, Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import { ErrorBoundary } from './components/ErrorBoundary.jsx'
-import './superbrain/lib/troikaConfig' // main-thread text (no blob worker / eval) — CSP hardening; must precede any <Text>
 
 // GAGOS — THE VOYAGING MIND is the one and only frontend (operator's decision,
 // 2026-06-21): the points-being lives at the clean root URL. No ?ui flags, no
@@ -14,7 +13,10 @@ import './superbrain/lib/troikaConfig' // main-thread text (no blob worker / eva
 // subtree — catching a render fault anywhere in the superbrain subtree without
 // editing any generated file.
 const SuperbrainApp = lazy(() => import('./superbrain/SuperbrainApp.jsx'))
-const PhysicalStateGalleryPage = lazy(() => import('./livingMirror/being/PhysicalStateGalleryPage'))
+const PhysicalStateGalleryPage = lazy(async () => {
+  await import('./workbench/initializeVisualText')
+  return import('./livingMirror/being/PhysicalStateGalleryPage')
+})
 
 // The gallery is a development-only acceptance surface for the physical
 // projection. It remains at the root entry and never creates a production
@@ -27,10 +29,8 @@ const FixtureJourneyPage = import.meta.env.DEV
   ? lazy(async () => {
     const { installFixtureJourney } = await import('./livingMirror/being/installFixtureJourney')
     const fixture = installFixtureJourney(window)
-    // The installed Outfit family also supplies development-only 3D glyphs
-    // locally, so Troika never needs its default remote font service.
-    const { configureTextBuilder } = await import('troika-three-text')
-    configureTextBuilder({ useWorker: false, defaultFontURL: '/fonts/fixture-outfit.ttf' })
+    // Text/renderer initialization is lazy below the real DOM shell. The
+    // visual entry preserves main-thread text and this fixture's local font.
     const { default: Journey } = await import('./livingMirror/being/FixtureJourneyPage')
     return { default: function IsolatedJourney() { return <Journey fixture={fixture} /> } }
   })

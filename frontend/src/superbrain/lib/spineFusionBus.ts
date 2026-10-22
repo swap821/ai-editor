@@ -16,31 +16,8 @@ import * as THREE from 'three';
  *
  * Module-singleton, SSR-safe (no window/document).
  */
-export interface SpineFusion {
-  ready: boolean;
-  spineScale: number;
-  weld: [number, number, number];
-}
-
-const IDENTITY: SpineFusion = { ready: false, spineScale: 1, weld: [0, 0, 0] };
-
-let fusion: SpineFusion = IDENTITY;
-
-export function setSpineFusion(spineScale: number, weld: [number, number, number]): void {
-  fusion = { ready: true, spineScale, weld: [weld[0], weld[1], weld[2]] };
-}
-
-export function getSpineFusion(): SpineFusion {
-  return fusion;
-}
-
-/** Map a raw spine-anatomy point (SEGMENT_ANCHORS space) into the fused brain-
- *  local space where the visible spine actually lives. Identity until ready. */
-export function fuseSpinePoint(p: readonly [number, number, number]): [number, number, number] {
-  const f = fusion;
-  if (!f.ready) return [p[0], p[1], p[2]];
-  return [p[0] * f.spineScale + f.weld[0], p[1] * f.spineScale + f.weld[1], p[2] * f.spineScale + f.weld[2]];
-}
+export { setSpineFusion, getSpineFusion, fuseSpinePoint, type SpineFusion } from './spineFusionState';
+import { __resetSpineFusionStateForTests } from './spineFusionState';
 
 // ── Brain dock scale ─────────────────────────────────────────────────────────
 // The brain (brainVisualRef) shrinks while orchestrating (SOUL P1). The work slabs
@@ -166,7 +143,7 @@ export function copyBodyShapeWorldFrame(bounds: THREE.Box3, world: THREE.Matrix4
 }
 
 export function __resetSpineFusionForTests(): void {
-  fusion = IDENTITY;
+  __resetSpineFusionStateForTests();
   brainDockScale = 1;
   cortexAnchor = [0, 0.1, 0];
   bodyGroupWorldMatrix = null;
