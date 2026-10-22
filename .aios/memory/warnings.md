@@ -34,6 +34,8 @@ Confirmed in browser utterance callbacks and backend audio fetch/decode/source-e
 
 ## CANONICAL OUTER POSTURE DOES NOT GOVERN EVERY INNER CUE
 
+Body-return follow-up (2026-10-22): removing false completion-green also removed the real point-field return band/inhale because shader lifecycle coupled task status to choreography. Trace every lifecycle consumer; use existing physical return motion independently while preserving canonical critical/uncertain precedence and standalone fallback. Actual normal/reduced frame-uniform witnesses are required in addition to producer metadata and nerve color. These CPU checks are not native/GPU or vision acceptance.
+
 Reader follow-up (2026-10-13): a correct selected-reader pose did not govern camera auto-orbit, parent float or the fused body's separate voyage clock. Trace each real owner and reuse valid selection rather than treating all retained work as attention. Keep breath/sky, deliberate inspection and Conversation/Close positives. Old tests that deliberately require selected-reader idle travel are obsolete CONTRACTS, not permission to remove anatomical bounds: preserve them and verify achieved side/rear views. Do not weaken floors/geometry/timeouts or infer GPU/device acceptance. Resume from final terminal proof, not a stale pending-run notebook.
 
 Confirmed in both CortexEngine's legacy impulses and NodeLattice's independent activation/travel: correct outer color/hold did not stop conflicting inner work. Probe the actual producer AND mounted child/relay/material inputs with canonical critical/quiet fixtures plus genuine/standalone positive controls. Preserve calm breath and lit anatomy; blanking every effect is not truth convergence. Review errors provide no approval.
