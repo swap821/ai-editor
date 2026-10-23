@@ -994,14 +994,14 @@
   /* Use the containing app's available height, not the browser's height.
      An inset app (including the labelled journey) must yield body space
      before starving its reader. Spare tall-phone space belongs to the being
-     up to280px, not a permanent168px thumbnail. When space permits, a240px
+     up to344px, not a permanent168px thumbnail. When space permits, a240px
      work sheet keeps full outcome text and actual code readable together;
      retain180px for the body before growing beyond the existing192px sheet.
      Shorter app boxes and keyboard layouts keep their existing allocation.
      No travel or animated layout resize. */
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]) {
     --lm-tall-work-reservation: clamp(192px, calc(var(--lm-workspace-app-height, 100dvh) - var(--lm-workspace-dock-clearance, 240px) - var(--lm-active-presence-top) - 180px), 240px);
-    --lm-tall-presence-height: clamp(0px, calc(100% - var(--lm-workspace-dock-clearance, 240px) - var(--lm-active-presence-top) - var(--lm-tall-work-reservation)), 280px);
+    --lm-tall-presence-height: clamp(0px, calc(100% - var(--lm-workspace-dock-clearance, 240px) - var(--lm-active-presence-top) - var(--lm-tall-work-reservation)), 344px);
   }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]):has(.lm-surface[data-workspace-collapsed="true"]) { --lm-tall-work-reservation: 56px; }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]) .lm-scene { top: var(--lm-active-presence-top); bottom: calc(100% - var(--lm-active-presence-top) - var(--lm-tall-presence-height)); }

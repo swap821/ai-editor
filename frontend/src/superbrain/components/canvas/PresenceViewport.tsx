@@ -2,17 +2,23 @@
 import { useLayoutEffect, useRef, type MutableRefObject } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { PerspectiveCamera } from 'three';
+import { useReducedMotion } from '@/lib/reducedMotion';
+import { clearPresenceDestination, setPresenceDestination, type PresenceFrame } from '@/lib/presenceProjection';
 
 /** One camera, two rectangles: the body keeps its authored presence pane;
  * the renderer covers the stage so its own nerves can reach the DOM controls.
  * Layout observers update a private camera adapter, not semantic body state. */
-export default function PresenceViewport({ phoneFocusRef, workPaneRef }: {
+export default function PresenceViewport({ phoneFocusRef, workPaneRef, motionHeld = false }: {
   phoneFocusRef?: MutableRefObject<boolean>;
   workPaneRef?: MutableRefObject<boolean>;
+  motionHeld?: boolean;
 }) {
   const camera = useThree(state => state.camera);
   const gl = useThree(state => state.gl);
   const invalidate = useThree(state => state.invalidate);
+  const reducedMotion = useReducedMotion();
+  const suppressMotionRef = useRef(reducedMotion || motionHeld);
+  suppressMotionRef.current = reducedMotion || motionHeld;
   const restoreFrame = useRef<null | (() => void)>(null);
 
   useLayoutEffect(() => {
@@ -22,7 +28,10 @@ export default function PresenceViewport({ phoneFocusRef, workPaneRef }: {
     if (!(camera instanceof PerspectiveCamera) || !pane || !canvas) return;
     const previousView = camera.view ? { ...camera.view } : null;
     const previousAspect = camera.aspect;
-    let frame: { width: number; height: number; x: number; y: number; stageWidth: number; stageHeight: number } | null = null;
+    let frame: PresenceFrame | null = null;
+    let destination: PresenceFrame | null = null;
+    let travel: { from: PresenceFrame; started: number } | null = null;
+    let lastWorking: string | null = null;
     let resize: ResizeObserver | null = null;
     const observedControls = new Set<Element>();
     const observeControls = () => {
@@ -36,6 +45,20 @@ export default function PresenceViewport({ phoneFocusRef, workPaneRef }: {
       }
     };
     const apply = () => {
+      if (travel && destination) {
+        const progress = suppressMotionRef.current ? 1 : Math.min(1, Math.max(0, (performance.now() - travel.started) / 260));
+        const blend = 1 - (1 - progress) ** 3;
+        if (progress === 1) { frame = destination; travel = null; }
+        else {
+          // Private projection only: no React/layout/domain updates per frame.
+          frame = { ...destination,
+            width: travel.from.width + (destination.width - travel.from.width) * blend,
+            height: travel.from.height + (destination.height - travel.from.height) * blend,
+            x: travel.from.x + (destination.x - travel.from.x) * blend,
+            y: travel.from.y + (destination.y - travel.from.y) * blend };
+          invalidate();
+        }
+      }
       if (!frame) return;
       const view = camera.view;
       // R3F/Drei can update aspect on resize. Restore the pane projection before
@@ -47,7 +70,7 @@ export default function PresenceViewport({ phoneFocusRef, workPaneRef }: {
         camera.setViewOffset(frame.width, frame.height, frame.x, frame.y, frame.stageWidth, frame.stageHeight);
       }
     };
-    const measure = () => {
+    const measure = (immediate = false) => {
       // Mode changes can mount a new navigation row without replacing the
       // canvas. Observe the current controls, not detached previous instances.
       observeControls();
@@ -169,31 +192,47 @@ export default function PresenceViewport({ phoneFocusRef, workPaneRef }: {
       // Standalone canvas choreography stays unchanged. A product rest pane
       // already owns anatomy space, independent of how many results remain.
       if (workPaneRef) workPaneRef.current = host!.getAttribute('data-working') === 'true' || narrowRest || desktopRest;
-      frame = { width, height, x: stage.left - left,
+      const next = { width, height, x: stage.left - left,
         y: stage.top - top, stageWidth: stage.width, stageHeight: stage.height };
+      const working = host!.getAttribute('data-working');
+      const changed = !destination || Object.keys(next).some(key => next[key as keyof PresenceFrame] !== destination![key as keyof PresenceFrame]);
+      const sameStage = frame?.stageWidth === next.stageWidth && frame.stageHeight === next.stageHeight;
+      if (changed || immediate || suppressMotionRef.current) {
+        // Refit immediately for viewport/keyboard/control safety. Only a work/
+        // rest change on the same stage earns travel from the LAST painted fit.
+        travel = !immediate && !suppressMotionRef.current && frame && sameStage && lastWorking !== working
+          ? { from: frame, started: performance.now() } : null;
+        destination = next;
+        setPresenceDestination(camera, next);
+        if (!travel) frame = next;
+      }
+      lastWorking = working;
       apply(); invalidate();
     };
     restoreFrame.current = apply;
     measure();
-    resize = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    resize = typeof ResizeObserver === 'function' ? new ResizeObserver(() => measure()) : null;
     resize?.observe(pane); resize?.observe(canvas);
     observeControls();
-    const mutation = typeof MutationObserver === 'function' ? new MutationObserver(measure) : null;
+    const mutation = typeof MutationObserver === 'function' ? new MutationObserver(() => measure()) : null;
     mutation?.observe(host!, { attributes: true });
     const viewport = window.visualViewport;
-    window.addEventListener('resize', measure);
-    window.addEventListener('transitionend', measure, true);
-    viewport?.addEventListener('resize', measure);
-    viewport?.addEventListener('scroll', measure);
+    const refit = () => measure(true);
+    const remeasure = () => measure();
+    window.addEventListener('resize', refit);
+    window.addEventListener('transitionend', remeasure, true);
+    viewport?.addEventListener('resize', refit);
+    viewport?.addEventListener('scroll', refit);
     return () => {
       restoreFrame.current = null;
+      clearPresenceDestination(camera);
       if (phoneFocusRef) phoneFocusRef.current = false;
       if (workPaneRef) workPaneRef.current = false;
       resize?.disconnect(); mutation?.disconnect();
-      window.removeEventListener('resize', measure);
-      window.removeEventListener('transitionend', measure, true);
-      viewport?.removeEventListener('resize', measure);
-      viewport?.removeEventListener('scroll', measure);
+      window.removeEventListener('resize', refit);
+      window.removeEventListener('transitionend', remeasure, true);
+      viewport?.removeEventListener('resize', refit);
+      viewport?.removeEventListener('scroll', refit);
       if (previousView?.enabled) camera.setViewOffset(previousView.fullWidth, previousView.fullHeight,
         previousView.offsetX, previousView.offsetY, previousView.width, previousView.height);
       else camera.clearViewOffset();
@@ -203,6 +242,10 @@ export default function PresenceViewport({ phoneFocusRef, workPaneRef }: {
     // Keeping this lifetime stable retains the last valid fit through an
     // unusable keyboard/dock resize; true unmount still restores the old view.
   }, [camera, gl, invalidate, phoneFocusRef, workPaneRef]);
+
+  // An OS/app preference change settles an in-flight fit before the next paint,
+  // without replacing the camera/observer lifetime or waiting for a new frame.
+  useLayoutEffect(() => { if (reducedMotion || motionHeld) restoreFrame.current?.(); }, [reducedMotion, motionHeld]);
 
   useFrame(() => restoreFrame.current?.(), -3);
   return null;
