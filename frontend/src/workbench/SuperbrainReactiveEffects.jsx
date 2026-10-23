@@ -896,6 +896,19 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
     // from its existing owner each frame, without React state or a new clock.
   }, [cortex]);
   useFrame(() => { syncCortexAttachment(); });
+  const membraneRef = useRef(null);
+  const membraneParentRotationRef = useRef(new THREE.Quaternion());
+  const membraneViewRotationRef = useRef(new THREE.Quaternion());
+  useFrame(({ camera }) => {
+    const boundary = membraneRef.current;
+    if (!boundary?.parent || !camera) return;
+    // Keep the boundary on its live anatomical anchor, but do not let a
+    // horizontal/edge-on ring erase its static meaning. No easing or clock:
+    // this is readable orientation, including reduced motion and first paint.
+    boundary.parent.getWorldQuaternion(membraneParentRotationRef.current);
+    camera.getWorldQuaternion(membraneViewRotationRef.current);
+    boundary.quaternion.copy(membraneParentRotationRef.current).invert().multiply(membraneViewRotationRef.current);
+  });
   const cortexOriginX = cx * brainDockScale;
   const cortexOriginY = cy * brainDockScale;
   const cortexOriginZ = cz * brainDockScale;
@@ -1187,20 +1200,32 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
       )}
 
       {physical.membrane.state !== 'clear' && (
-        <mesh
+        <group
+          ref={membraneRef}
           data-testid="sovereign-membrane"
           position={cortex}
-          rotation={[Math.PI / 2, 0, 0]}
         >
-          <torusGeometry args={[0.42, 0.012, 8, 64]} />
-          <meshBasicMaterial
-            color={membraneColor}
-            transparent
-            opacity={membraneOpacity * coherenceOpacity}
-            depthWrite={false}
-            blending={THREE.AdditiveBlending}
-          />
-        </mesh>
+          {/* Static shape redundantly carries the existing admitted state:
+              separated brackets for hold, barred ring for refusal, octagon
+              for observed Stop. No new clock, action or authority is inferred. */}
+          {(physical.membrane.state === 'held' ? [Math.PI / 8, Math.PI * 9 / 8]
+            : [physical.membrane.state === 'stopped' ? Math.PI / 8 : 0]).map(angle => (
+            <mesh key={angle} rotation={[0, 0, angle]}>
+              <torusGeometry args={[0.42, 0.012, 8,
+                physical.membrane.state === 'stopped' ? 8 : 64,
+                physical.membrane.state === 'held' ? Math.PI * 0.75 : Math.PI * 2]} />
+              <meshBasicMaterial color={membraneColor} transparent opacity={membraneOpacity * coherenceOpacity}
+                depthWrite={false} blending={THREE.AdditiveBlending} />
+            </mesh>
+          ))}
+          {physical.membrane.state === 'refused' && (
+            <mesh rotation={[0, 0, Math.PI / 4]}>
+              <boxGeometry args={[0.78, 0.024, 0.024]} />
+              <meshBasicMaterial color={membraneColor} transparent opacity={membraneOpacity * coherenceOpacity}
+                depthWrite={false} blending={THREE.AdditiveBlending} />
+            </mesh>
+          )}
+        </group>
       )}
 
       {verificationState !== 'none' && (
