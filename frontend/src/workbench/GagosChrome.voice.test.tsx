@@ -630,6 +630,56 @@ describe('GagosChrome voice UX', () => {
     expect(sendDirective).not.toHaveBeenCalled();
   });
 
+  it('chat stream: renders chunks in one log message and settles its busy announcement on completion', async () => {
+    isWorkIntent.mockReturnValue(false);
+    let chunk!: (text: string) => void;
+    let finish!: (text: string) => void;
+    sendVoiceTurn.mockImplementationOnce((_text: string, opts: { onChunk: (text: string) => void }) => {
+      chunk = opts.onChunk;
+      return new Promise<string>(resolve => { finish = resolve; });
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Explain a streamed answer' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    await act(async () => { chunk('A readable partial'); });
+    const log = screen.getByRole('log', { name: 'Conversation with GAGOS' });
+    expect(log).toHaveTextContent('A readable partial');
+    expect(log).toHaveAttribute('aria-busy', 'true');
+    const message = screen.getByText('A readable partial').closest('.gagos-msg');
+    await act(async () => { chunk('A readable partial answer'); });
+    expect(screen.getByText('A readable partial answer').closest('.gagos-msg')).toBe(message);
+    await act(async () => { finish('A readable partial answer'); });
+    expect(screen.getAllByText('A readable partial answer')).toHaveLength(1);
+    expect(screen.getByText('A readable partial answer').closest('.gagos-msg')).toBe(message);
+    expect(log).toHaveAttribute('aria-busy', 'false');
+  });
+
+  it('chat stream: keeps an interrupted partial reply readable and clears the log busy state', async () => {
+    isWorkIntent.mockReturnValue(false);
+    let interrupt!: (error: Error) => void;
+    sendVoiceTurn.mockImplementationOnce((_text: string, opts: { onChunk: (text: string) => void }) => {
+      opts.onChunk('An actual partial reply survives');
+      return new Promise<string>((_resolve, reject) => { interrupt = reject; });
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'Explain an interrupted answer' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    await act(async () => { interrupt(new Error('The response ended before completion')); });
+    const log = screen.getByRole('log', { name: 'Conversation with GAGOS' });
+    expect(log).toHaveTextContent('An actual partial reply survives');
+    expect(log).toHaveTextContent(/interrupted/i);
+    expect(log).toHaveAttribute('aria-busy', 'false');
+    expect(screen.getByRole('button', { name: 'Retry: Explain an interrupted answer' })).toBeVisible();
+  });
+
   describe('canonical emergency Stop reaches the local reply owner', () => {
     // Break caught: Stop observation cancels an old turn, but an already
     // engaged latch still lets Enter/Send/Retry clear a draft and start a new

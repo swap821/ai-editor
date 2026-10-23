@@ -360,6 +360,7 @@ export default function GagosChrome({
     workTabIdsRef,
     turnTokenRef,
     getTurnSignal,
+    ownsWorkSurface,
   } = useWorkMaterialization({
     setOnline,
     setMilestones,
@@ -665,7 +666,8 @@ export default function GagosChrome({
     return context;
   };
   const ownsApproval = (context) => context.generation === turnTokenRef.current
-    && context.writeId === writingTabIdRef.current;
+    && context.writeId === writingTabIdRef.current
+    && (!context.writeId || ownsWorkSurface(context.writeId, context.generation));
   const approvalRecord = (id) => {
     const snapshot = getTabStoreSnapshot();
     return [...snapshot.tabs, ...(snapshot.recoverableTabs || [])].find((tab) => tab.id === id);
@@ -998,10 +1000,10 @@ export default function GagosChrome({
           {showWelcomeBeforeVoiceStatus ? voiceStatusNode : null}
           {showWelcomeBeforeVoiceStatus ? voiceDetailsNode : null}
 
-          <div className="gagos-thread" role="log" aria-label="Conversation with GAGOS" tabIndex={0}>
+          <div className="gagos-thread" role="log" aria-label="Conversation with GAGOS" aria-busy={messages.some(message => message.streaming)} tabIndex={0}>
             {messages.map((m, i) => {
               const depth = messages.length - 1 - i;
-              const streaming = m.role === 'gagos' && i === messages.length - 1 && busy && !!m.text;
+              const streaming = m.role === 'gagos' && Boolean(m.streaming);
               return (
                 <div
                   key={m.id}
