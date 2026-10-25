@@ -353,6 +353,7 @@ def _select_chat_client(
     metrics: Optional[dict] = None,
     calibration_weight: float = 0.0,
     data_classification: str = "PROJECT_INTERNAL",
+    llm_picker: bool = True,
 ) -> tuple[Any, str]:
     """Pick the ``(chat_client, model)`` for the requested UI model id.
 
@@ -414,7 +415,13 @@ def _select_chat_client(
             calibration_weight=calibration_weight,
         )
         chosen = router.pick_from(
-            cands, picker=_maybe_llm_picker(ollama, providers, cands, task)
+            cands,
+            # ``llm_picker=False``: a turn a compiled reflex will serve consults
+            # no model, so the route is ranked deterministically. The picker
+            # only PREFERS among the same policy-allowed candidates.
+            picker=_maybe_llm_picker(ollama, providers, cands, task)
+            if llm_picker
+            else None,
         )
         if chosen is not None:
             ordered = [chosen] + [r for r in cands if r is not chosen]
