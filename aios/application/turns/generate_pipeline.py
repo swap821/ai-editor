@@ -248,6 +248,25 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         has_images=_messages_have_images(req.messages),
         context_chars=_message_context_chars(req.messages),
     )
+    # A FRESH turn a compiled reflex will serve consults no model at all (the
+    # One Law; operator decision 2026-10-25). It is matched once, here, before
+    # routing: the route is then ranked deterministically (the LLM picker only
+    # PREFERS among the same policy-allowed candidates), and the stream skips
+    # interpretation the way it already skips the plan stage. Measured
+    # 2026-10-21: a reflex-served turn still made two model calls -- the
+    # picker and the interpreter -- before anything checked for a reflex.
+    # An approval resume is not a fresh turn and keeps the full front door.
+    reflex_match = None
+    reflex_checked = False
+    if user_text and not req.approval_tokens and runtime.cerebellum is not None:
+        reflex_checked = True
+        try:
+            reflex_match = runtime.cerebellum.match(
+                user_text, principal=str(principal.principal_id)
+            )
+        except Exception as exc:  # noqa: BLE001 - the reflex is advisory, never fatal
+            logger.warning("Cerebellum match failed", exc_info=exc)
+            reflex_match = None
     chat_client, model = _select_chat_client(
         req.model_id,
         client,
@@ -260,6 +279,9 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         metrics=_route_metrics(runtime.development, req.model_id),
         calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
         data_classification=context.data_classification,
+        # Passed only when it changes something, so a substituted selector
+        # (tests patch this binding) is called exactly as before otherwise.
+        **({"llm_picker": False} if reflex_match is not None else {}),
     )
     _, model = _active_route(
         chat_client,
@@ -493,6 +515,8 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         "bedrock": runtime.bedrock,
         "capabilities": capabilities,
         "cerebellum": runtime.cerebellum,
+        "reflex_match": reflex_match,
+        "reflex_checked": reflex_checked,
         "chat_client": chat_client,
         "chat_messages": chat_messages,
         "consolidator": runtime.consolidator,
@@ -694,7 +718,25 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     # Hoisted above the (conditional) alignment block: the plan stage below
     # must be able to read it even when AIOS_INTERPRET_ALIGNMENT is off.
     _cerebellum_matched = False
-    if alignment_interpreter is not None:
+    # Matched before routing (prepare_generate_state) on a fresh turn: a reflex
+    # turn reaches here having consulted no model, and announces itself first.
+    _cb_match = state.get("reflex_match")
+    if _cb_match is not None:
+        _cerebellum_matched = True
+        yield sse(
+            "cerebellum_match",
+            {
+                "goal": _cb_match.goal_pattern,
+                "playbook_id": _cb_match.id,
+                "step_count": len(_cb_match.steps),
+            },
+        )
+    # A reflex turn skips interpretation exactly as the supported
+    # AIOS_INTERPRET_ALIGNMENT=false mode does (no frame, observation or
+    # ask-pause): the frame is advisory, and a matched reflex is the one turn
+    # the model is not meant to serve. If its replay aborts, the model answers
+    # without the advisory frame, on the deterministic route.
+    if alignment_interpreter is not None and not _cerebellum_matched:
         base_alignment = alignment_interpreter.understand(chat_messages)
         alignment = base_alignment
         active_correction = conversation_state.active_correction(session_id)
@@ -767,7 +809,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     # playbook regardless of AIOS_INTERPRET_ALIGNMENT, so the match
     # announcement — and the plan stage's reflex-skip below — must
     # not depend on the interpreter being enabled.
-    if user_text:
+    # Not already decided before routing (an approval resume, or no
+    # cerebellum then): the original pre-check, unchanged.
+    if user_text and not _cerebellum_matched and not state.get("reflex_checked"):
         try:
             _cb_match = cerebellum.match(user_text, principal=principal_id)
         except Exception as exc:  # noqa: BLE001 - cerebellum is advisory, never fatal

@@ -3180,3 +3180,57 @@ def test_a_generate_turn_reflects_as_the_caller(
     )
     assert response.status_code == 200
     assert seen and set(seen) == {client_principal_id(client)}
+
+
+def test_an_approval_resume_keeps_the_full_front_door(client: TestClient) -> None:
+    """Operator decision 2026-10-25 lets a FRESH reflex turn skip the route
+    picker and the interpreter. A turn carrying approval tokens is a resume, not
+    a fresh turn: it is interpreted exactly as before, even when a reflex
+    matches its text."""
+    from aios.api.deps import get_cerebellum
+    from aios.core.cerebellum import CompiledPlaybook, PlaybookStep
+
+    asked: list[str] = []
+
+    class CountingLLM(FakeLLM):
+        def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+            asked.append(system or "")
+            return super().complete(prompt, system=system)
+
+    class MatchingCerebellum:
+        playbook = CompiledPlaybook(
+            id=78,
+            skill_id=78,
+            goal_pattern="verify the project",
+            signature_v2="sig-resume",
+            compiled_at="",
+            steps=[PlaybookStep(tool_name="verify", args={"command": "pytest -q"})],
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
+        )
+
+        def match(self, user_text, *, principal):
+            return self.playbook
+
+        def replay(self, playbook, *, dispatch_fn):
+            yield {"type": "cerebellum_done", "playbook_id": 78}
+
+    app.dependency_overrides[get_llm_client] = CountingLLM
+    app.dependency_overrides[get_cerebellum] = lambda: MatchingCerebellum()
+    session_id = _cookie_session_id(client)
+    token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+            "approvalTokens": [token],
+        },
+    )
+
+    assert response.status_code == 200
+    assert asked, "an approval resume skipped the interpreter"
+    assert "event: alignment" in response.text

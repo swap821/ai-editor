@@ -702,3 +702,128 @@ def test_plan_stage_runs_with_alignment_interpreter_disabled(
     assert response.status_code == 200
     assert "event: done" in response.text
     assert len(_plan_events(response.text)) == 1
+
+
+# --------------------------------------------------------------------------- #
+# A reflex turn consults no model (operator decision 2026-10-25)
+# --------------------------------------------------------------------------- #
+class _CountingCompletion(PlanningAlignedLLM):
+    """The interpreter's (and planner's) completion client, counting calls."""
+
+    calls: list[str] = []
+
+    def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+        _CountingCompletion.calls.append(system or "")
+        return super().complete(prompt, system=system)
+
+
+class _CountingOllama(PlainOllama):
+    calls: list[Optional[str]] = []
+
+    def chat(self, messages, *, tools=None, model=None) -> dict:
+        _CountingOllama.calls.append(model)
+        return super().chat(messages, tools=tools, model=model)
+
+
+class _ServingCerebellum:
+    """A compiled reflex that matches and replays clean."""
+
+    def __init__(self, *, matches: bool = True) -> None:
+        from aios.core.cerebellum import CompiledPlaybook, PlaybookStep
+
+        self.matches = matches
+        self.match_calls = 0
+        self.playbook = CompiledPlaybook(
+            id=77,
+            skill_id=77,
+            goal_pattern="read the readme",
+            signature_v2="sig-reflex-first",
+            compiled_at="",
+            steps=[PlaybookStep(tool_name="read_file", args={"filepath": "README.md"})],
+            replay_count=0,
+            consecutive_failures=0,
+            status="compiled",
+        )
+
+    def match(self, user_text, *, principal):
+        self.match_calls += 1
+        return self.playbook if self.matches else None
+
+    def replay(self, playbook, *, dispatch_fn):
+        yield {"type": "cerebellum_step", "tool": "read_file", "step_index": 0}
+        yield {"type": "cerebellum_step_done", "tool": "read_file", "output": "ok"}
+
+
+@pytest.mark.parametrize("model_id", ["auto", "ollama.llama3.2:3b"])
+def test_a_reflex_turn_consults_no_model(tmp_path, model_id) -> None:
+    """2026-10-21: a reflex-served turn still made two model calls (the route
+    picker, the interpreter) before anything checked for a reflex."""
+    _CountingCompletion.calls, _CountingOllama.calls = [], []
+    app.dependency_overrides[get_ollama_client] = lambda: _CountingOllama()
+    app.dependency_overrides[get_executor] = _fake_executor
+    app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
+    _isolate_turn_memory(tmp_path, _CountingCompletion)
+    app.dependency_overrides[get_cerebellum] = lambda: _ServingCerebellum()
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = client.post(
+                "/api/generate",
+                json={
+                    "messages": [
+                        {"role": "user", "content": [{"text": "read the readme"}]}
+                    ],
+                    "modelId": model_id,
+                    "sessionId": "reflex-first",
+                },
+            )
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    names = [name for name, _ in _sse_events(response.text)]
+    assert "cerebellum_match" in names and "done" in names
+    assert names.count("cerebellum_match") == 1, "the reflex was matched twice"
+    assert "alignment" not in names and "plan" not in names
+    assert _CountingCompletion.calls == [], "the interpreter (or planner) was asked"
+    assert _CountingOllama.calls == [], "a chat model was asked"
+
+
+def test_without_a_reflex_the_front_door_is_unchanged(tmp_path) -> None:
+    """The control: the same turn with no reflex is interpreted as before, so
+    the reflex case cannot pass by the counters never counting."""
+    _CountingCompletion.calls, _CountingOllama.calls = [], []
+    app.dependency_overrides[get_ollama_client] = lambda: _CountingOllama()
+    app.dependency_overrides[get_executor] = _fake_executor
+    app.dependency_overrides[get_semantic_indexer] = lambda: FakeIndexer()
+    _isolate_turn_memory(tmp_path, _CountingCompletion)
+    cerebellum = _ServingCerebellum(matches=False)
+    app.dependency_overrides[get_cerebellum] = lambda: cerebellum
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            response = _generate(client, "no-reflex", "read the readme")
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 200
+    assert "alignment" in [name for name, _ in _sse_events(response.text)]
+    assert _CountingCompletion.calls, "the interpreter was not asked"
+    assert _CountingOllama.calls, "no model answered the turn"
+    # Once before routing, once in the agent's own short-circuit; a third
+    # would be the stream re-asking a question already answered (and
+    # journalling the same abstention twice).
+    assert cerebellum.match_calls == 2
+
+
+def test_the_route_picker_is_skipped_only_when_asked(monkeypatch) -> None:
+    from aios.core import router_wiring
+
+    asked: list[str] = []
+
+    def spy(ollama, providers, cands, task):
+        asked.append(task)
+        return None
+
+    monkeypatch.setattr(router_wiring, "_maybe_llm_picker", spy)
+    ollama = _CountingOllama()
+    router_wiring._select_chat_client("auto", ollama, None, llm_picker=False)
+    assert asked == [], "a reflex turn's route consulted the picker"
+    router_wiring._select_chat_client("auto", ollama, None)
+    assert asked, "the default route no longer consults the picker"
