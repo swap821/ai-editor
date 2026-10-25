@@ -14,12 +14,13 @@
   {
    "id": "0b1:withheld step counts as a failure",
    "file": "aios/core/cerebellum.py",
-   "old": "                if not withheld:\n                    self._record_replay_failure(playbook.id)",
-   "new": "                self._record_replay_failure(playbook.id)",
+   "old": "                if not withheld and not unlaunched:\n                    self._record_replay_failure(playbook.id)",
+   "new": "                if not unlaunched:\n                    self._record_replay_failure(playbook.id)",
    "tests": [
     "tests/test_cerebellum.py"
    ],
-   "also": []
+   "also": [],
+   "note": "(re-anchored 2026-10-25: the guard also exempts an outage; this still removes only the withheld exemption)"
   },
   {
    "id": "0b1:abort does not name the control",
@@ -8828,26 +8829,26 @@
   {
    "id": "gen:tool_agent:ToolAgent._replay_approved_command:2190:always",
    "file": "aios/agents/tool_agent.py",
-   "old": "            self._last_refusal_control = control\n        if failed or status != \"ok\":\n",
+   "old": "            self._last_refusal_control = control\n        if (failed or status != \"ok\") and not not_launched(status, output):\n",
    "new": "            self._last_refusal_control = control\n        if (True):\n",
    "tests": [
     "tests/test_replay_approved_commands.py",
     "tests/test_agents_pkg_gaps.py"
    ],
    "also": [],
-   "note": "generated: ToolAgent._replay_approved_command line 2190 condition forced True: failed or status != \"ok\""
+   "note": "generated: ToolAgent._replay_approved_command line 2190 condition forced True: failed or status != \"ok\" (re-anchored 2026-10-25: the condition now also spares an outage)"
   },
   {
    "id": "gen:tool_agent:ToolAgent._replay_approved_command:2190:never",
    "file": "aios/agents/tool_agent.py",
-   "old": "            self._last_refusal_control = control\n        if failed or status != \"ok\":\n",
+   "old": "            self._last_refusal_control = control\n        if (failed or status != \"ok\") and not not_launched(status, output):\n",
    "new": "            self._last_refusal_control = control\n        if (False):\n",
    "tests": [
     "tests/test_replay_approved_commands.py",
     "tests/test_agents_pkg_gaps.py"
    ],
    "also": [],
-   "note": "generated: ToolAgent._replay_approved_command line 2190 condition forced False: failed or status != \"ok\""
+   "note": "generated: ToolAgent._replay_approved_command line 2190 condition forced False: failed or status != \"ok\" (re-anchored 2026-10-25: the condition now also spares an outage)"
   },
   {
    "id": "gen:tool_agent:ToolAgent._record_command_approval:2211:always",
@@ -8962,6 +8963,53 @@
    ],
    "also": [],
    "note": "generated: LearningService.confirm_activation line 395 condition forced False: skill.state != 'active'"
+  },
+  {
+   "id": "outage:an outage counts against the reflex",
+   "file": "aios/core/cerebellum.py",
+   "old": "                if not withheld and not unlaunched:\n                    self._record_replay_failure(playbook.id)",
+   "new": "                if not withheld:\n                    self._record_replay_failure(playbook.id)",
+   "tests": [
+    "tests/test_cerebellum.py"
+   ],
+   "also": [],
+   "note": "operator decision 2026-10-25: a step whose sandbox could not launch never counts toward retiring a reflex"
+  },
+  {
+   "id": "outage:an outage withdraws the approval",
+   "file": "aios/agents/tool_agent.py",
+   "old": "            self._last_refusal_control = control\n        if (failed or status != \"ok\") and not not_launched(status, output):\n",
+   "new": "            self._last_refusal_control = control\n        if failed or status != \"ok\":\n",
+   "tests": [
+    "tests/test_agents_pkg_gaps.py",
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "operator decision 2026-10-25: an outage leaves the human's exact-command approval in place"
+  },
+  {
+   "id": "gen:cerebellum:not_launched:101:always",
+   "file": "aios/core/cerebellum.py",
+   "old": "    return status == \"blocked\" and str(output or \"\").startswith(\n",
+   "new": "    return True or str(output or \"\").startswith(\n",
+   "tests": [
+    "tests/test_cerebellum.py",
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: not_launched line 101 condition forced True: status == 'blocked' and output starts with a not-launched marker"
+  },
+  {
+   "id": "gen:cerebellum:not_launched:101:never",
+   "file": "aios/core/cerebellum.py",
+   "old": "    return status == \"blocked\" and str(output or \"\").startswith(\n",
+   "new": "    return False and str(output or \"\").startswith(\n",
+   "tests": [
+    "tests/test_cerebellum.py",
+    "tests/test_replay_approved_commands.py"
+   ],
+   "also": [],
+   "note": "generated: not_launched line 101 condition forced False: status == 'blocked' and output starts with a not-launched marker"
   }
  ],
  "retired": [
@@ -9453,7 +9501,8 @@
    "aios/agents/tool_agent.py::ToolAgent._command_is_authorised",
    "aios/agents/tool_agent.py::ToolAgent._replay_approved_command",
    "aios/agents/tool_agent.py::ToolAgent._record_command_approval",
-   "aios/agents/tool_agent.py::ToolAgent._withheld_reflex_step"
+   "aios/agents/tool_agent.py::ToolAgent._withheld_reflex_step",
+   "aios/core/cerebellum.py::not_launched"
   ]
  }
 }

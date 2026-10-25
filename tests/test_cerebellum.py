@@ -1171,3 +1171,48 @@ def test_the_reason_travels_as_data_not_as_message_text() -> None:
     assert "in detail" not in body, (
         "the replay decision is matching on message text again"
     )
+
+
+@pytest.mark.parametrize(
+    "unlaunched",
+    [
+        "[VERIFY SKIPPED] the command could not be launched, so nothing was "
+        "verified: [ERROR] Execution failed to launch: isolated execution unavailable",
+        "[ERROR] Execution failed to launch: isolated execution unavailable",
+    ],
+    ids=["verify", "terminal"],
+)
+def test_an_outage_never_retires_the_reflex(db_path: Path, unlaunched: str) -> None:
+    """2026-10-21: the sandbox's engine was down. A step that could not launch
+    observed nothing about the playbook -- counted, two outages would retire a
+    reflex that took three STRONG verified successes to earn (operator decision
+    2026-10-25)."""
+    from aios.core.cerebellum import SANDBOX_UNAVAILABLE_CONTROL
+
+    cerebellum, pb = _compile_two_step_playbook(db_path)
+    for _ in range(cerebellum.max_consecutive_failures + 1):
+        events = list(
+            cerebellum.replay(
+                pb, dispatch_fn=_scripted_dispatch([(unlaunched, "blocked", True)])
+            )
+        )
+        assert events[-1]["type"] == "cerebellum_abort"
+        assert events[-1]["control"] == SANDBOX_UNAVAILABLE_CONTROL
+
+    [pb_after] = cerebellum.playbook_map()
+    assert pb_after["status"] == "compiled"
+    assert pb_after["consecutive_failures"] == 0
+
+
+def test_a_real_block_still_counts_against_the_playbook(db_path: Path) -> None:
+    """The control: a gateway refusal is not an outage, and still counts."""
+    cerebellum, pb = _compile_two_step_playbook(db_path)
+    events = list(
+        cerebellum.replay(
+            pb,
+            dispatch_fn=_scripted_dispatch([("[BLOCKED] refused", "blocked", False)]),
+        )
+    )
+    assert "control" not in events[-1]
+    [pb_after] = cerebellum.playbook_map()
+    assert pb_after["consecutive_failures"] == 1

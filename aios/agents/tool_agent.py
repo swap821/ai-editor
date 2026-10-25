@@ -92,6 +92,7 @@ from aios import config
 from aios.agents import recall_envelope, tool_handlers, tool_loop_helpers
 from aios.core.autonomy import AutonomyLedger
 from aios.core.cerebellum import (
+    not_launched,
     REFLEX_AUTHORITY_CONTROL,
     REFLEX_AUTHORITY_WITHHELD,
     Cerebellum,
@@ -2173,7 +2174,10 @@ class ToolAgent:
         nothing leaks into the LLM loop if the replay aborts later. The executor
         still applies scope, the emergency stop, and RED refusal.
 
-        Anything but a clean run withdraws the decision.
+        Anything but a clean run withdraws the decision -- except a command
+        that never ran because its sandbox could not start: that observed
+        nothing about the command, so the human's decision stands (operator
+        decision 2026-10-25). The replay still aborts; the model answers.
         """
         if name == "verify":
             output, status, failed = self._verify(command, approved=True)
@@ -2187,7 +2191,7 @@ class ToolAgent:
                 )
             )
             self._last_refusal_control = control
-        if failed or status != "ok":
+        if (failed or status != "ok") and not not_launched(status, output):
             try:
                 replay_commands.revoke_command_decision(
                     command, principal=self.principal, db_path=config.MEMORY_DB_PATH
