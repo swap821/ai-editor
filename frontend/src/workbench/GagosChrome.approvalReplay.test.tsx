@@ -79,7 +79,7 @@ async function heldWork(mode: ExperienceMode, closeInitial = true, initialEvent:
   localStorage.setItem(EXPERIENCE_MODE_STORAGE_KEY, mode);
   const { default: GagosChrome } = await import('./GagosChrome');
   const { LivingWorkspaceShell } = await import('../livingMirror/LivingWorkspaceShell');
-  render(<><GagosChrome integrated experienceMode={mode} /><LivingWorkspaceShell experienceMode={mode} /></>);
+  const view = render(<><GagosChrome integrated experienceMode={mode} /><LivingWorkspaceShell experienceMode={mode} /></>);
   const input = screen.getByRole('textbox', { name: 'Talk to GAGOS' });
   fireEvent.change(input, { target: { value: 'create gated_file.py' } });
   fireEvent.keyDown(input, { key: 'Enter' });
@@ -95,7 +95,7 @@ async function heldWork(mode: ExperienceMode, closeInitial = true, initialEvent:
   act(() => { setMaterializedTabLifecycle(tab.id, 'live'); focusMaterializedTab(tab.id); });
   const reader = await screen.findByText('print("partial")');
   reader.scrollTop = 31;
-  return { id: tab.id, reader, decision: screen.getByRole('alertdialog'), initial };
+  return { id: tab.id, reader, decision: screen.getByRole('alertdialog'), initial, unmount: view.unmount };
 }
 async function allow(decision: HTMLElement) {
   fireEvent.click(within(decision).getByRole('button', { name: /^(Allow once|AUTHORIZE)$/ }));
@@ -104,6 +104,19 @@ async function allow(decision: HTMLElement) {
 function retained(id: string) {
   return getTabStoreSnapshot().tabs.find((record) => record.id === id)!;
 }
+
+it.each([false, true])('replay lifetime: unmount retains incomplete work (chunk admitted: %s)', async (admitted) => {
+  const work = await heldWork('beginner');
+  const replay = await allow(work.decision);
+  if (admitted) await act(async () => { replay.frame('code_chunk', { code: 'print("replay partial")', language: 'python', filepath: 'src/gated_file.py' }); });
+  work.unmount();
+  await act(async () => { replay.frame('code', { code: 'obsolete final', filepath: 'src/gated_file.py' }); replay.frame('done'); replay.end(); });
+  expect(retained(work.id).content).toMatchObject({
+    code: admitted ? 'print("replay partial")' : 'print("partial")',
+    streaming: false, completion: 'incomplete',
+  });
+  expect(getPendingApproval()).toBeNull();
+});
 
 it.each([
   ['beginner', 'reject'], ['expert', 'reject'], ['beginner', 'authorize'], ['expert', 'authorize'],

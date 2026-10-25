@@ -88,19 +88,59 @@ export function createFixtureJourneyTransport(options: { assetFetch: typeof fetc
     if (method === 'GET' && url.pathname === '/api/v1/onboarding/state') return json({ firstDirective: true, firstApproval: true, firstVerify: true, firstCloudRoute: false, firstAutonomy: false });
     if (method === 'GET' && url.pathname === '/api/v1/voice/models') return json({ stt: false, tts: false, fixture: true });
     let body: Record<string, unknown> = {};
-    if (method === 'POST' && ['/api/generate', '/api/v1/approval/req', '/api/v1/intent/preview'].includes(url.pathname)) {
+    if (method === 'POST' && ['/api/generate', '/api/v1/chat', '/api/v1/approval/req', '/api/v1/intent/preview'].includes(url.pathname)) {
       try {
         const raw: unknown = JSON.parse(String(init?.body ?? (request ? await request.text() : '{}')));
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return json({ detail: 'Invalid fixture request' }, 400);
         body = raw as Record<string, unknown>;
       } catch { return json({ detail: 'Invalid fixture JSON' }, 400); }
     }
+    // Request.text() may yield; cancellation must win before admitting a turn
+    // or consuming the local permission held by a previous request.
+    if (signal?.aborted) throw new DOMException('Fixture request aborted', 'AbortError');
+    if (disposed) return json({ detail: 'Fixture disposed; reload to reconnect.' }, 503);
     if (method === 'POST' && url.pathname === '/api/v1/intent/preview') return json({ intent: 'code', confidence: 1, tool: 'fixture-only' });
     if (method === 'POST' && url.pathname === '/api/v1/approval/req') {
       if (!held || body.approve !== false || body.approvalToken !== held.token) return json({ detail: 'No matching local decision' }, 409);
       releaseHeld(); held = null; emit('turn.failed', { reason: 'Fixture action declined' });
       update({ waitingForDecision: false, label: 'Fixture declined. No file was written.' });
       return json({ decision: 'rejected', fixture: true });
+    }
+    if (method === 'POST' && url.pathname === '/api/v1/chat') {
+      if (typeof body.transcript !== 'string' || !body.transcript.trim()) return json({ detail: 'Invalid fixture transcript' }, 400);
+      if (stopStream || held || queued.length) return json({ detail: 'Finish the current local request first' }, 409);
+      // Scripted conversation exercises the SAME parser/log/body owners. No
+      // model, tool, file, permission or verifier operation exists here.
+      const outcome = state.outcome;
+      emit('turn.started', { fixture: true });
+      let closed = false;
+      let cancel = () => {};
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          const release = () => { signal?.removeEventListener('abort', abort); stopStream = null; };
+          const frame = (event: string, data: object) => { if (!closed) controller.enqueue(new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)); };
+          const finish = () => { if (!closed) { closed = true; controller.close(); release(); } };
+          const abort = () => { if (!closed) { closed = true; controller.error(new DOMException('Fixture aborted', 'AbortError')); release(); abandon('Fixture conversation cancelled locally; no backend request was sent.'); } };
+          cancel = () => { if (!closed) { closed = true; release(); abandon('Fixture conversation reader disconnected before completion.'); } };
+          stopStream = abort;
+          signal?.addEventListener('abort', abort, { once: true });
+          for (const text of [
+            'Fixture conversation only. ',
+            'This reply comes through the real chat and body owners. ',
+            'No model ran and no action was taken.',
+          ]) enqueue('Advance to the next scripted reply chunk (no model is running)', () => frame('text_chunk', { text }));
+          enqueue('Advance to finish the fixture conversation', () => {
+            const failed = outcome === 'failed';
+            emit(failed ? 'turn.failed' : 'turn.completed', { fixture: true });
+            frame(failed ? 'error' : 'done', failed ? { text: 'Fixture conversation interrupted before completion.' } : {});
+            update({ label: failed ? 'Fixture conversation interrupted. Partial reply remains readable.' : 'Fixture conversation finished. No model or backend action ran.' });
+            finish();
+          });
+          pending();
+        },
+        cancel() { cancel(); },
+      });
+      return new Response(stream, { headers: { 'Content-Type': 'text/event-stream' } });
     }
     if (method !== 'POST' || url.pathname !== '/api/generate') return json({ detail: 'Not provided by the isolated fixture. No backend request was sent.' }, 503);
     const tokens = body.approvalTokens;

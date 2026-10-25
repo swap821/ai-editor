@@ -585,7 +585,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
               remove the translucent layer from the space). Identity/status live
               in the 2D GagosChrome layer. */}
           <PerspectiveCamera makeDefault fov={26} near={0.1} far={100} position={[0, -0.5, 15]} />
-          <PresenceViewport phoneFocusRef={phoneFocusRef} workPaneRef={workPaneRef} />
+          <PresenceViewport phoneFocusRef={phoneFocusRef} workPaneRef={workPaneRef} motionHeld={bodyMotionHeld} />
           <OrbitControls
             ref={orbitRef as never}
             makeDefault
@@ -600,7 +600,7 @@ export default function CortexEngine({ mode, activity, tier = 'high', sky = 'voy
             autoRotateSpeed={VOYAGE_SPEED}
           />
           {/* Step-1 framing: fill portrait/mobile (fov + target by aspect). */}
-          <OrganismFraming controlsRef={orbitRef} phoneFocusRef={phoneFocusRef} workPaneRef={workPaneRef} />
+          <OrganismFraming controlsRef={orbitRef} phoneFocusRef={phoneFocusRef} workPaneRef={workPaneRef} motionHeld={bodyMotionHeld} />
         </>
       ) : (
         <CameraDrift activity={activeBoost} burst={burstRef} push={cameraPushRef} idleRef={idleRef} />

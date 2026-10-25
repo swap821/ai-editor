@@ -7,6 +7,7 @@ import { useFrame } from '@react-three/fiber';
 import { pointPresenceHeight, pointViewportScale } from '@/lib/pointViewportScale';
 import { BACKDROP_CONTROL_LIMIT, useBackdropControlMask } from './useBackdropControlMask';
 import { copyBodyGroupWorldMatrix, getBrainDockScale, getCortexAnchor } from '@/lib/spineFusionBus';
+import { createSettledPresenceProjection, getPresenceDestination } from '@/lib/presenceProjection';
 
 // --- KNOWLEDGE GLYPH ATLAS GENERATOR ---
 const GLYPHS = [
@@ -142,7 +143,9 @@ function Starfield({
     uControlRects: { value: Array.from({ length: BACKDROP_CONTROL_LIMIT }, () => new THREE.Vector4()) },
     uControlRectCount: { value: 0 },
     uCortexQuiet: { value: new THREE.Vector4() },
+    uAmbientProjection: { value: new THREE.Matrix4() },
   }), []);
+  const settledProjection = useMemo(createSettledPresenceProjection, []);
   const productHost = useBackdropControlMask(uniforms);
   const cortexFrame = useMemo(() => ({ matrix: new THREE.Matrix4(), point: new THREE.Vector3() }), []);
 
@@ -175,7 +178,8 @@ function Starfield({
     // the stream completely: the cosmic field stays present, but nothing looms.
     STARFIELD_TIME_UNIFORM.value += delta * (1 - 0.7 * hold.blend) * (reducedMotion ? 0 : 1);
     uniforms.uArrival.value = arrival?.current ?? 0;
-    const height = pointPresenceHeight(state.camera, state.size.height);
+    const destination = state.camera instanceof THREE.PerspectiveCamera ? getPresenceDestination(state.camera) : undefined;
+    const height = destination?.height ?? pointPresenceHeight(state.camera, state.size.height);
     uniforms.uViewportScale.value = productHost.current && Number.isFinite(height) && height > 0
       ? Math.min(1, height / PRODUCT_GLYPH_REFERENCE_HEIGHT)
       : pointViewportScale(height);
@@ -191,7 +195,19 @@ function Starfield({
       const clip = uniforms.uPresenceClip.value;
       clip.set(0, 0, 1, 1);
       const view = camera instanceof THREE.PerspectiveCamera ? camera.view : null;
-      if (view?.enabled && Number.isFinite(view.fullWidth) && view.fullWidth > 0
+      const destination = camera instanceof THREE.PerspectiveCamera ? getPresenceDestination(camera) : undefined;
+      // Body-only retargeting must not add a second camera sweep to the sky.
+      // Calculate its settled matrix without mutating the shared render camera.
+      uniforms.uAmbientProjection.value.copy(camera instanceof THREE.PerspectiveCamera
+        ? settledProjection(camera) : camera.projectionMatrix);
+      if (destination) {
+        clip.set(
+          THREE.MathUtils.clamp(-destination.x / destination.stageWidth, 0, 1),
+          THREE.MathUtils.clamp((destination.stageHeight + destination.y - destination.height) / destination.stageHeight, 0, 1),
+          THREE.MathUtils.clamp((destination.width - destination.x) / destination.stageWidth, 0, 1),
+          THREE.MathUtils.clamp((destination.stageHeight + destination.y) / destination.stageHeight, 0, 1),
+        );
+      } else if (view?.enabled && Number.isFinite(view.fullWidth) && view.fullWidth > 0
         && Number.isFinite(view.fullHeight) && view.fullHeight > 0
         && Number.isFinite(view.width) && view.width > 0
         && Number.isFinite(view.height) && view.height > 0
@@ -244,6 +260,7 @@ function Starfield({
           shader.uniforms.uControlRects = uniforms.uControlRects;
           shader.uniforms.uControlRectCount = uniforms.uControlRectCount;
           shader.uniforms.uCortexQuiet = uniforms.uCortexQuiet;
+          shader.uniforms.uAmbientProjection = uniforms.uAmbientProjection;
 
           shader.vertexShader = shader.vertexShader.replace(
             '#include <common>',
@@ -251,6 +268,7 @@ function Starfield({
              uniform float uTime;
              uniform float uArrival;
              uniform float uViewportScale;
+             uniform mat4 uAmbientProjection;
              attribute float aSpriteIndex;
              attribute float aSize;
              varying float vAlpha;
@@ -258,6 +276,8 @@ function Starfield({
              varying float vPull;
             `
           );
+          shader.vertexShader = shader.vertexShader.replace('#include <project_vertex>',
+            THREE.ShaderChunk.project_vertex.replace('projectionMatrix', 'uAmbientProjection'));
           
           shader.vertexShader = shader.vertexShader.replace(
             '#include <begin_vertex>',

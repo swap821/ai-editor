@@ -8,7 +8,8 @@ import { installFixtureJourney } from './installFixtureJourney';
 import { __resetAiosAdapterForTests, getPendingApproval } from '../../superbrain/lib/aiosAdapter';
 import { useMirrorStore } from '../../superbrain/lib/mirrorStore';
 import { __resetTabStoreForTests, closeWorkspace, finishMaterializedTabRetraction, focusWorkspace, getTabStoreSnapshot, openWorkspacePanel, showContentSurface, updateMaterializedTab } from '../../superbrain/lib/tabStore';
-import { setConversationPhase } from '../../superbrain/lib/conversationPhaseBus';
+import { getConversationPhase, setConversationPhase } from '../../superbrain/lib/conversationPhaseBus';
+import { getReplyVoice } from '../../superbrain/lib/replyVoiceBus';
 import { setAmbientMotionPaused } from '../../superbrain/lib/reducedMotion';
 import { EXPERIENCE_MODE_STORAGE_KEY } from '../experienceMode';
 import { readFileSync } from 'node:fs';
@@ -85,6 +86,31 @@ async function advance() {
 }
 // Development observation only: actual mirror admission, DOM/body projection,
 // request owner and work retention stay real. No Stop/Clear command is granted.
+it.each([[false, false], [false, true], [true, false], [true, true]])('shows fixture conversation in one readable reply and the body output; reduced=%s narrow=%s', async (reduced, narrow) => {
+  await mount(reduced, false, narrow);
+  const input = screen.getByRole('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Explain this preview' } });
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(fixture.getSnapshot().pending).toBe(true));
+  await advance();
+  const log = screen.getByRole('log', { name: 'Conversation with GAGOS' });
+  const partial = within(log).getByText(/fixture conversation/i);
+  expect(partial).toBeVisible();
+  expect(log).toHaveAttribute('aria-busy', 'true');
+  expect(getConversationPhase()).toBe('streaming');
+  expect(getReplyVoice()).toMatchObject({ phase: 'streaming', text: expect.stringMatching(/fixture conversation/i) });
+  expect(getTabStoreSnapshot().tabs.filter(tab => tab.kind === 'content')).toHaveLength(0);
+  expect(getPendingApproval()).toBeNull();
+  for (let step = 0; step < 5 && fixture.getSnapshot().pending; step++) await advance();
+  await waitFor(() => expect(log).toHaveAttribute('aria-busy', 'false'));
+  expect(within(log).getByText(/fixture conversation/i)).toBe(partial);
+  expect(partial).toHaveTextContent(/no model/i);
+  expect(getConversationPhase()).toBe('complete');
+  expect(getReplyVoice()).toMatchObject({ phase: 'complete' });
+  expect(useMirrorStore.getState().lastVerification).toBeNull();
+  expect(screen.getByText('Fixture—not backend work')).toBeVisible();
+});
+
 it.each([false, true])('admits an observed Stop fixture and keeps new input/work until explicit post-clear send; reduced=%s', async reduced => {
   await mount(reduced);
   const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
