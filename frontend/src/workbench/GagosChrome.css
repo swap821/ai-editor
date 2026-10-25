@@ -19,6 +19,7 @@
    workspace (shell30) and its sibling composer. Raise only while it exists;
    positions, palette, motion and approval ownership remain unchanged. */
 .gagos-chrome[data-approval-pending="true"] { z-index: 40; }
+.gagos-chrome:has(.gagos-approval-hold) { z-index: 40; }
 .gagos-chrome[data-approval-pending="true"] .approval-panel { z-index: 60; }
 
 /* The proposal owns scrolling, never the decision actions. Use the existing
@@ -58,7 +59,7 @@
 @media (min-width: 768px) {
   /* Conversation retains its existing left rail and right-hand being. A
      held decision uses that same rail, not the full-screen reader's dock. */
-  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"]) .gagos-chrome .approval-panel {
+  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-chrome .approval-panel {
     top: var(--lm-conversation-decision-top, 150px);
     bottom: var(--lm-conversation-dock, 358px);
     left: 28px;
@@ -99,7 +100,7 @@
   }
   /* Expert's brand/Stop row measures8px taller than Guided on compact phones. */
   .lm-app[data-experience-mode="expert"] .gagos-chrome .approval-panel { --gagos-approval-top: 126px; }
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-chrome .approval-panel {
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-chrome .approval-panel {
     bottom: var(--lm-conversation-dock, 312px);
     max-height: calc(100% - var(--lm-conversation-dock, 312px) - var(--lm-active-presence-top) - var(--lm-conversation-permission-presence) - 8px);
   }
@@ -1722,6 +1723,9 @@
   color: var(--lm-text, #eef3f9);
   line-height: 1.45;
 }
+/* Stop replaces actions with this notice, not an unpositioned header alert.
+   Reuse the existing responsive decision allocation above the measured dock. */
+.gagos-chrome .gagos-approval-hold { width: auto; overflow: auto; }
 
 .gagos-receipt {
   width: min(100%, 34rem);

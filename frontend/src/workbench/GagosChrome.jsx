@@ -931,7 +931,7 @@ export default function GagosChrome({
       ) : null}
 
       {pendingApproval && emergencyStopped ? (
-        <div className="gagos-approval-hold" role="alert" aria-live="assertive">
+        <div className="gagos-approval-hold approval-panel" role="alert" aria-live="assertive">
           Emergency stop is engaged. This permission request is being held.
         </div>
       ) : null}
