@@ -496,3 +496,42 @@ class TestReplay:
         withheld = agent._withheld_reflex_step(_playbook(tool, command)) is not None
         _o, status, _f = agent._dispatch_approved(tool, {"command": command})
         assert withheld == (status == "approval"), (tool, command, status)
+
+
+def _engine_down_executor() -> Executor:
+    """What DockerRunner raises when the container engine is not there."""
+
+    def runner(command, *, cwd, env, timeout_s):
+        raise RuntimeError("isolated execution unavailable: failed to connect")
+
+    return Executor(
+        runner=runner,
+        rate_limiter=RateLimiter(),
+        audit_log=lambda *a, **k: None,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+
+
+class TestOutage:
+    """Operator decision 2026-10-25: a command that never ran because its
+    sandbox could not start observed nothing about the command, so the human's
+    exact-command approval stands. The replay still aborts; nothing runs."""
+
+    @pytest.mark.parametrize(
+        "tool, command",
+        [("execute_terminal", YELLOW), ("verify", YELLOW_VERIFY)],
+    )
+    def test_an_outage_keeps_the_approval(self, db, enabled, tool, command) -> None:
+        _record(db, command)
+        agent = _agent(NoLLM(), _engine_down_executor(), principal=PRINCIPAL)
+        _output, status, failed = agent._dispatch_approved(tool, {"command": command})
+        assert status == "blocked" and failed, "the replay must still not succeed"
+        assert agent._command_is_authorised(command), "an outage withdrew it"
+
+    def test_a_real_failure_still_withdraws_it(self, db, enabled) -> None:
+        """The control, beside the outage: the same path, a command that RAN."""
+        _record(db)
+        executor, _calls = _executor(exit_code=1)
+        agent = _agent(NoLLM(), executor, principal=PRINCIPAL)
+        agent._dispatch_approved("execute_terminal", {"command": YELLOW})
+        assert not agent._command_is_authorised(YELLOW)

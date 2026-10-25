@@ -503,10 +503,11 @@ def verify_command(
         # downstream only `[VERIFY PASS]`/`[VERIFY FAIL]` are verdicts, so an
         # outage cannot be scored as the code failing -- and charged to every
         # skill recalled into the turn, as it was on 2026-10-21.
+        from aios.core.cerebellum import VERIFY_NOT_LAUNCHED
+
         return (
             scan_and_redact(
-                "[VERIFY SKIPPED] the command could not be launched, so nothing "
-                f"was verified: {result.summary}"
+                f"{VERIFY_NOT_LAUNCHED}, so nothing was verified: {result.summary}"
             ).scrubbed,
             "blocked",
             True,
