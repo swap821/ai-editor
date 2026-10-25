@@ -4,9 +4,12 @@ import type { CortexMirrorState } from '../../superbrain/lib/mirrorStore';
 import type { TabSnapshot } from '../../superbrain/lib/tabStore';
 import { beingFactsFromStores, beingPresentationFromStores, beingStatusText } from './presentationFromStores';
 import { derivePhysicalSnapshot } from './physicalSnapshot';
-import { bodyHoldForProjection, bodyMotionProfileForPosture, deriveBodyPosture } from '../../superbrain/lib/bodyPosture';
+import { bodyHoldForProjection, bodyMotionProfileForPosture, deriveBodyPosture, lifecyclePhaseForPhysicalProjection } from '../../superbrain/lib/bodyPosture';
 
 const tabs = { tabs: [], focusId: null, attention: null } as TabSnapshot;
+const event = (id: number, type: string): CortexMirrorState['recentEvents'][number] => ({
+  id, type, summary: type, occurredAt: null, receivedAt: '2026-10-22T06:00:00.000Z',
+});
 
 function mirror(overrides: Partial<CortexMirrorState> = {}): CortexMirrorState {
   return {
@@ -42,6 +45,57 @@ function mirror(overrides: Partial<CortexMirrorState> = {}): CortexMirrorState {
 }
 
 describe('presentation facts from admitted stores', () => {
+  const returningReader = (): TabSnapshot => ({ ...tabs, workResultOutcome: null, tabs: [{
+    id: 'older-checked-reader', kind: 'content', lifecycle: 'retracting', seatIndex: 2,
+    originLocal: [0, 0.2, 0.4], targetLocal: [1, 0.2, 0.4], bornAt: 1, phaseStartedAt: 2,
+    input: null, approval: null,
+    content: { code: 'older result', language: 'text', filepath: 'older.txt', streaming: false,
+      verifyVerdict: 'pass', verifyEventId: 1 },
+  }] });
+  it.each([
+    ['idle', 'idle', 'idle', 'rest'],
+    ['streaming', 'active', 'working', 'stream'],
+  ] as const)('does not turn a newer %s task completion-green when an older checked reader closes', (conversation, phase, taskState, postureKey) => {
+    const snapshot = returningReader();
+    const presentation = beingPresentationFromStores(mirror({
+      phase, lastTurnStartedEventId: 20, lastVerificationEventId: 1,
+      lastVerification: { verdict: 'pass', target: 'older.txt' },
+      recentEvents: [event(20, 'turn.started')],
+    }), snapshot, conversation);
+    expect(presentation).toMatchObject({ taskState, motion: 'reabsorb', coherence: 'fresh' });
+    expect(presentation.signals).not.toContain('verification-pass');
+    const physical = derivePhysicalSnapshot(presentation);
+    expect(physical).toMatchObject({ conductor: { travel: 'retracting' },
+      verification: { state: 'none', settlement: 'unsettled' } });
+    expect(deriveBodyPosture({ phase: 'reabsorbing', physical }).key).toBe(postureKey);
+    expect(lifecyclePhaseForPhysicalProjection(physical)).toBe(postureKey === 'stream' ? 'working' : 'rest');
+  });
+
+  it.each([
+    ['verified', 'complete', 'done-verified', 'reabsorb', 'reabsorbing'],
+    ['unverified', 'unverified', 'done-unverified', 'reabsorb', 'rest'],
+    ['permission', 'hold', 'needs-permission', 'reabsorb', 'approval_hold'],
+    ['stop', 'stopped', 'stopped', 'stop', 'rest'],
+    ['stale', 'unconfirmed', 'stale', 'reabsorb', 'rest'],
+  ] as const)('keeps %s truth and its existing gesture while a checked reader returns', (boundary, key, taskState, motion, lifecycle) => {
+    const snapshot = returningReader();
+    const state = mirror({ lastTurnStartedEventId: 20, recentEvents: [event(20, 'turn.started')] });
+    if (boundary === 'verified') {
+      snapshot.tabs[0].content!.verifyEventId = 21;
+      state.lastVerificationEventId = 21;
+      state.lastVerification = { verdict: 'pass', target: 'older.txt' };
+    } else if (boundary === 'permission') state.approvalRequired = true;
+    else if (boundary === 'stop') state.recentEvents.push(event(21, 'governance.emergency_stop.engaged'));
+    else if (boundary === 'stale') { state.projection = 'stale'; state.status = 'stale'; }
+    const presentation = beingPresentationFromStores(state, snapshot, 'complete');
+    expect(presentation).toMatchObject({ taskState, motion });
+    const physical = derivePhysicalSnapshot(presentation);
+    expect(deriveBodyPosture({ phase: 'reabsorbing', physical }).key).toBe(key);
+    expect(lifecyclePhaseForPhysicalProjection(physical)).toBe(lifecycle);
+    if (boundary === 'verified') expect(physical.verification).toEqual({ state: 'pass', settlement: 'stable' });
+    else expect(presentation.signals).not.toContain('verification-pass');
+  });
+
   const replayTabs = () => ({ ...tabs, focusId: 'older', workResultOutcome: { tabId: 'current', completion: 'awaiting-replay' }, tabs: [
     { id: 'older', kind: 'content', lifecycle: 'live', content: { code: 'older', streaming: false, verifyVerdict: 'pass' } },
     { id: 'current', kind: 'content', lifecycle: 'live', content: { code: 'partial', streaming: false, completion: 'awaiting-replay' } },
