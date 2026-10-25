@@ -82,6 +82,27 @@ REFLEX_AUTHORITY_CONTROL = "reflex_authority"
 #: Prefix the dispatcher puts on a withheld step's output.
 REFLEX_AUTHORITY_WITHHELD = "[REFLEX AUTHORITY]"
 
+#: How the verify tool reports a command that could not be LAUNCHED (the
+#: sandbox's container engine was down): it observed nothing, so it is never
+#: a verdict (2026-10-21).
+VERIFY_NOT_LAUNCHED = "[VERIFY SKIPPED] the command could not be launched"
+#: How the terminal tool reports the same thing: status ERROR, which the
+#: executor reserves for "could not be launched".
+EXEC_NOT_LAUNCHED = "[ERROR] "
+#: The control a replay abort names when its sandbox was unavailable.
+SANDBOX_UNAVAILABLE_CONTROL = "sandbox_unavailable"
+
+
+def not_launched(status: str, output: str) -> bool:
+    """Whether a dispatched step's command never ran because its sandbox could
+    not start. Like a step withheld for want of approval, it says nothing about
+    the playbook or about the human who approved the command (operator decision
+    2026-10-25: an outage must not retire a reflex or withdraw an approval)."""
+    return status == "blocked" and str(output or "").startswith(
+        (VERIFY_NOT_LAUNCHED, EXEC_NOT_LAUNCHED)
+    )
+
+
 #: A recorded content digest: `_workflow_step` writes fixed-width lowercase hex.
 _CONTENT_DIGEST = re.compile(r",\s*content_sha256=([0-9a-f]{64})\s*$")
 
@@ -1014,8 +1035,11 @@ class Cerebellum:
                 # about the playbook. Counting it as a failure would decompile
                 # every reflex with a YELLOW step the second time it matched,
                 # destroying exactly the reflexes approval provenance is meant
-                # to re-authorise.
-                if not withheld:
+                # to re-authorise. A step whose sandbox could not launch says
+                # nothing either: two outages would otherwise retire a reflex
+                # that took three STRONG verified successes to earn.
+                unlaunched = not_launched(status, output)
+                if not withheld and not unlaunched:
                     self._record_replay_failure(playbook.id)
                 abort: dict[str, Any] = {
                     "type": "cerebellum_abort",
@@ -1026,6 +1050,9 @@ class Cerebellum:
                 if withheld:
                     abort["control"] = REFLEX_AUTHORITY_CONTROL
                     abort["command"] = str(step.args.get("command", ""))
+                    abort["output"] = str(output)[:200]
+                elif unlaunched:
+                    abort["control"] = SANDBOX_UNAVAILABLE_CONTROL
                     abort["output"] = str(output)[:200]
                 yield abort
                 return

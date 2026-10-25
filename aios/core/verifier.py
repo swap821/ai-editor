@@ -83,6 +83,12 @@ def _parse_counts(output: str) -> tuple[int, int]:
 #: "ApprovalRequired" lessons and the genuine test-failure reflection is masked).
 _GATE_STATUSES = frozenset({"BLOCKED", "REQUIRE_APPROVAL"})
 
+#: Executor statuses where the command never RAN: ERROR is "could not be
+#: launched" (e.g. the sandbox's container engine is down). It observed nothing
+#: about the code, so there is no mistake to reflect on -- 2026-10-21 an outage
+#: wrote "Docker is not running" into the mistake pool twice.
+_NOT_RUN_STATUSES = frozenset({"ERROR"})
+
 
 class Verifier:
     """Runs a verification command and judges pass/fail (Blueprint stage 8)."""
@@ -123,7 +129,7 @@ class Verifier:
             # tests failed, or it timed out / errored mid-run) feeds reflection.
             summary = f"[{result.status}] {result.reason}".strip()
             lesson = None
-            if result.status not in _GATE_STATUSES:
+            if result.status not in _GATE_STATUSES | _NOT_RUN_STATUSES:
                 lesson = self._maybe_reflect(command, summary or result.status)
             return VerifierResult(
                 passed=False,

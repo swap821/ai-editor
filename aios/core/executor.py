@@ -590,7 +590,40 @@ class DockerRunner:
             text=True,
             timeout=timeout_s,
         )
+        if completed.returncode != 0 and not self._container_ran(completed.returncode):
+            # Raised, not returned: `_run_in_sandbox` reports it as ERROR
+            # ("could not be launched"), so nothing downstream reads an outage
+            # as the command having run and failed. 2026-10-21: Docker was down
+            # after a reboot, the client exited 1, and "0 passed, 0 failed
+            # (exit 1)" was scored a verified failure that cost three learned
+            # skills 0.20 confidence each.
+            detail = (completed.stderr or completed.stdout or "").strip()
+            first = detail.splitlines()[0] if detail else f"exit {completed.returncode}"
+            raise RuntimeError(f"isolated execution unavailable: {first[:300]}")
         return completed.stdout or "", completed.stderr or "", completed.returncode
+
+    def _container_ran(self, returncode: int) -> bool:
+        """Whether a non-zero exit came from the command, not from the engine.
+
+        ``docker run`` reserves 125 for its own failure to start the container.
+        Any other non-zero exit is the command's -- unless the engine is not
+        there at all (the client then exits 1), which is asked of the engine
+        itself rather than guessed from the client's error text.
+        """
+        if returncode == 125:
+            return False
+        try:
+            probe = self._process_runner(
+                [self.runtime, "version", "--format", "{{.Server.Version}}"],
+                shell=False,
+                env=_sanitise_env(),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except Exception:  # noqa: BLE001 - an engine that cannot answer is not there
+            return False
+        return probe.returncode == 0
 
 
 class UnavailableIsolationRunner:

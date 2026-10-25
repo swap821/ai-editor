@@ -497,6 +497,21 @@ def verify_command(
             "blocked",
             False,
         )
+    if result.status == "ERROR":
+        # Could not be launched (e.g. the sandbox's container engine is down):
+        # nothing ran, so nothing was verified either way. SKIPPED, never FAIL:
+        # downstream only `[VERIFY PASS]`/`[VERIFY FAIL]` are verdicts, so an
+        # outage cannot be scored as the code failing -- and charged to every
+        # skill recalled into the turn, as it was on 2026-10-21.
+        from aios.core.cerebellum import VERIFY_NOT_LAUNCHED
+
+        return (
+            scan_and_redact(
+                f"{VERIFY_NOT_LAUNCHED}, so nothing was verified: {result.summary}"
+            ).scrubbed,
+            "blocked",
+            True,
+        )
 
     # The Verifier already fired on_failure on a genuine failure; run() reflects
     # only for execute_terminal, so `failed` here is informational (it cannot
