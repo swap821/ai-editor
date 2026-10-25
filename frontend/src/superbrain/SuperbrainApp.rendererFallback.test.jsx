@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SuperbrainApp from './SuperbrainApp';
 import { setRendererFallbackPresentation } from '../livingMirror/rendererFallbackPresentation';
 
@@ -55,10 +55,7 @@ vi.mock('../workbench/SuperbrainReactiveEffects', () => ({
 // WorkspaceCanvas above is a DOM fault harness, not an R3F root. Keep the
 // real overlay; its actual projection/lifecycle is covered by the connection
 // integration tests with a frame driver and real camera/seat transforms.
-vi.mock('../livingMirror/being/WorkspaceConnectionOverlay', async (importOriginal) => ({
-  ...await importOriginal(),
-  WorkspaceConnectionProjection: () => null,
-}));
+vi.mock('../livingMirror/being/WorkspaceConnectionProjection', () => ({ WorkspaceConnectionProjection: () => null }));
 
 vi.mock('../livingMirror/LivingWorkspaceShell', () => ({
   LivingWorkspaceShell: () => null,
@@ -116,6 +113,7 @@ vi.mock('./lib/mirrorStore', () => ({
 
 describe('SuperbrainApp renderer fallback bridge', () => {
   afterEach(() => {
+    cleanup();
     rendererFailureState.value = false;
     contextTrackerState.lost.mockClear();
     contextTrackerState.restored.mockClear();
@@ -288,6 +286,41 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     await waitFor(() => expect(screen.getByTestId('renderer-fallback-notice')).toBeInTheDocument());
     expect(screen.getByTestId('gagos-chrome')).toBeInTheDocument();
     expect(screen.getByText('GAGOS controls are still working.')).toBeInTheDocument();
+  });
+
+  it('retries a buttonless renderer fallback without reloading the operational shell', async () => {
+    const navigationErrors = [];
+    const recordNavigationError = error => {
+      if (/not implemented.*navigation/i.test(error.message)) navigationErrors.push(error.message);
+    };
+    globalThis.jsdom.virtualConsole.on('jsdomError', recordNavigationError);
+    try {
+      render(<SuperbrainApp />);
+      const input = screen.getByRole('textbox', { name: 'Fixture input' });
+      fireEvent.change(input, { target: { value: 'Unsent while graphics are unavailable.' } });
+      await waitFor(() => expect(document.querySelector('.scene-layer canvas')).toBeInTheDocument());
+      const canvas = document.querySelector('.scene-layer canvas');
+      const fallback = document.createElement('div');
+      fallback.className = 'webgl-fallback';
+      document.body.append(fallback);
+      await waitFor(() => expect(screen.getByTestId('renderer-fallback-notice')).toBeInTheDocument());
+
+      fireEvent.click(screen.getByRole('button', { name: 'Retry visual organism' }));
+
+      expect(navigationErrors).toEqual([]);
+      await waitFor(() => {
+        expect(document.querySelectorAll('.scene-layer canvas')).toHaveLength(1);
+        expect(document.querySelector('.scene-layer canvas')).not.toBe(canvas);
+      });
+      expect(document.querySelectorAll('.scene-layer canvas')).toHaveLength(1);
+      expect(screen.getByRole('textbox', { name: 'Fixture input' })).toBe(input);
+      expect(input).toHaveValue('Unsent while graphics are unavailable.');
+      // This external fallback remains measured: a retry is not a claim that
+      // unavailable graphics recovered. The harness does not create WebGL.
+      expect(screen.getByTestId('renderer-fallback-notice')).toBeInTheDocument();
+    } finally {
+      globalThis.jsdom.virtualConsole.removeListener('jsdomError', recordNavigationError);
+    }
   });
 
   it('shows the product fallback while a measured WebGL context is lost and clears after restoration', async () => {
