@@ -17,7 +17,7 @@ coverage==7.16.2
 cryptography==50.0.2
 faiss-cpu==1.15.1
 fastapi==0.143.2
-filelock==4.2.0
+filelock==4.2.1
 fsspec==2026.9.0
 gitdb==4.0.12
 GitPython==3.2.1
@@ -87,7 +87,7 @@ safetensors==0.8.0
 scikit-learn==1.9.1
 scipy==1.17.1
 sentence-transformers==6.1.0
-setuptools==84.0.0
+setuptools==84.1.0
 shellingham==1.5.4
 six==1.17.0
 structlog==26.1.0

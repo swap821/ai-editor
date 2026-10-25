@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { deriveLivingOrchestration } from './livingOrchestrator';
-import { getContentSurfacePlacement } from './materializedSurfaceAnchors';
+import { getContentSurfacePlacement } from './surfacePlacement';
 
 export type TabLifecycle = 'reaching' | 'unfurling' | 'live' | 'retracting';
 export type MaterializedTabKind = 'content' | 'input' | 'approval';
