@@ -15,7 +15,8 @@ import type { PendingApproval } from '../../superbrain/lib/aiosAdapter';
 import ApprovalPanel from '../../superbrain/components/ui/ApprovalPanel';
 import GuidedApprovalPanel from '../GuidedApprovalPanel';
 import { LivingWorkspaceShell } from '../LivingWorkspaceShell';
-import { WorkspaceConnectionOverlay, WorkspaceConnectionProjection } from './WorkspaceConnectionOverlay';
+import { WorkspaceConnectionOverlay } from './WorkspaceConnectionOverlay';
+import { WorkspaceConnectionProjection } from './WorkspaceConnectionProjection';
 import { setAmbientMotionPaused, useReducedMotion } from '../../superbrain/lib/reducedMotion';
 import { POINTS_REABSORPTION_MS, POINTS_SLAB_RETRACT_MS } from '../../superbrain/lib/reabsorptionTiming';
 
@@ -788,7 +789,7 @@ it('another workspace identity never withdraws this surface, and removing the re
   } finally { await view.close(); }
 });
 
-async function mountDecision(mode: 'beginner' | 'expert', reducedMotion: boolean, requestRef = 'conversation-approval') {
+async function mountDecision(mode: 'beginner' | 'expert', reducedMotion: boolean, requestRef = 'conversation-approval', initiallyStopped = false) {
   const pending: PendingApproval = { token: 'fixture-only-capability', prompt: 'Create a fixture',
     summary: 'Create fixture.py', explanation: 'Synthetic proposal', kind: 'create', filepath: 'fixture.py',
     content: 'print("fixture")', diff: '', command: '', url: '' };
@@ -796,7 +797,7 @@ async function mountDecision(mode: 'beginner' | 'expert', reducedMotion: boolean
     summary: pending.summary, explanation: pending.explanation, content: pending.content, diff: '', command: '' },
   getApprovalSurfacePlacement(3));
   setMaterializedTabLifecycle(tab.id, 'live');
-  const app = (present = true, active = true) => <div className="lm-app"><canvas />
+  const app = (present = !initiallyStopped, active = true) => <div className="lm-app" data-being-phase={initiallyStopped ? 'stopped' : undefined}><canvas />
     <div className="gagos-chrome" data-approval-pending={String(active)}>
       {present && (mode === 'beginner'
         ? <GuidedApprovalPanel pending={pending} onSettled={() => {}} />
@@ -844,6 +845,21 @@ it.each([['beginner', false], ['beginner', true], ['expert', false], ['expert', 
   },
 );
 
+it.each(['conversation-approval', 'dev-approval'])(
+  'cold Stop observation preserves the product boundary without suppressing an unrelated lab owner (%s)', async requestRef => {
+    const view = await mountDecision('beginner', true, requestRef, true);
+    try {
+      const slab = view.scene.children[0];
+      expect(slab.visible).toBe(requestRef !== 'conversation-approval');
+      const host = view.dom.container.querySelector('.lm-app')!;
+      await act(async () => { host.setAttribute('data-being-phase', 'resting'); });
+      expect(slab.visible).toBe(true);
+      await act(async () => { host.setAttribute('data-being-phase', 'stopped'); });
+      expect(slab.visible).toBe(requestRef !== 'conversation-approval');
+    } finally { await view.close(); }
+  },
+);
+
 it('a missing, hidden or non-pending dialog restores the still-live approval card, never silently hiding the boundary', async () => {
   const view = await mountDecision('beginner', true);
   try {
@@ -864,6 +880,38 @@ it('a missing, hidden or non-pending dialog restores the still-live approval car
     expect(slab.visible).toBe(false);
   } finally { await view.close(); }
 });
+
+it.each([['beginner', false], ['beginner', true], ['expert', false], ['expert', true]] as const)(
+  'observed Stop cannot resurrect a pickable approval slab when the DOM decision is held (%s, reduced=%s)', async (mode, reduced) => {
+    const view = await mountDecision(mode, reduced);
+    try {
+      const slab = view.scene.children[0];
+      const host = view.dom.container.querySelector('.lm-app')!;
+      // The actual product publishes stopped and removes its actionable
+      // permission panel. Missing-panel fallback must not resurrect it in 3D.
+      await act(async () => { host.setAttribute('data-being-phase', 'stopped'); });
+      await view.dialog(false, false);
+      expect.soft(slab.visible, 'Stop holds the same request, not a second approval route').toBe(false);
+      let body: THREE.Mesh | undefined;
+      slab.traverse(object => { if (object instanceof THREE.Mesh && object.geometry.type === 'ExtrudeGeometry') body = object; });
+      view.scene.updateMatrixWorld(true);
+      const target = body!.getWorldPosition(new THREE.Vector3());
+      expect.soft(new THREE.Raycaster(target.clone().add(new THREE.Vector3(0, 0, 10)), new THREE.Vector3(0, 0, -1))
+        .intersectObject(slab, true), 'a held slab must not retain 3D pointer targets').toHaveLength(0);
+      expect(getTabStoreSnapshot().tabs.find(record => record.id === view.tab.id)).toMatchObject({
+        lifecycle: 'live', approval: { requestRef: 'conversation-approval', content: 'print("fixture")' },
+      });
+      await act(async () => { host.setAttribute('data-being-phase', 'resting'); });
+      expect(slab.visible, 'without Stop or a readable owner, standalone fallback remains available').toBe(true);
+      await act(async () => { host.setAttribute('data-being-phase', 'stopped'); });
+      expect(slab.visible, 'Stop publication alone must work even when no dialog is mounted').toBe(false);
+      await view.dialog(true);
+      await act(async () => { host.setAttribute('data-being-phase', 'awaiting-human'); });
+      expect(slab.visible).toBe(false);
+      expect(screen.getByRole('button', { name: mode === 'beginner' ? 'Allow once' : 'AUTHORIZE' })).toBeEnabled();
+    } finally { await view.close(); }
+  },
+);
 
 it('a lab-owned approval is not withdrawn by an unrelated conversation dialog', async () => {
   const view = await mountDecision('beginner', true, 'dev-approval');

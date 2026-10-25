@@ -1563,22 +1563,22 @@
    No extra row, popover owner, animated layout or reader/body reservation. */
 .lm-app[data-working="true"] .lm-surface__header h2.lm-surface__title--chooser { display: block; }
 
-/* A pending decision remains attended after explicit Conversation. Selected
+/* A pending or Stop-held decision remains attended after explicit Conversation. Selected
    work is still false: reserve the same measured decision/body relationship
    without hiding history or changing the task/focus owners. */
 @media (min-width: 768px) {
-  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"]) {
+  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) {
     --lm-conversation-decision-top: max(118px, calc(var(--lm-header-bottom, 64px) + 12px));
     --lm-conversation-intake-height: max(152px, min(210px, calc(var(--lm-workspace-app-height, 100dvh) - var(--lm-conversation-decision-top) - var(--lm-permission-work-reservation, 170px) - 148px)));
     --lm-conversation-dock: var(--lm-workspace-dock-clearance, calc(var(--lm-conversation-intake-height) + 148px));
     contain: layout;
     min-height: max(520px, calc(var(--lm-conversation-decision-top) + var(--lm-permission-work-reservation, 170px) + 152px + 136px + 12px));
   }
-  .lm-app[data-working="false"][data-experience-mode="beginner"]:has(.gagos-chrome[data-approval-pending="true"]) {
+  .lm-app[data-working="false"][data-experience-mode="beginner"]:has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) {
     /* Guided's existing mode switch is below Stop, unlike Expert's header. */
     --lm-conversation-decision-top: max(calc(var(--lm-header-bottom, 64px) + 12px), calc(88px + var(--lm-mode-switch-height, 62px)));
   }
-  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"]) .gagos-chat {
+  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-chat {
     top: auto;
     bottom: 136px;
     width: min(390px, calc(var(--lm-conversation-rail) - 40px));
@@ -1586,8 +1586,8 @@
     min-height: 152px;
     max-height: var(--lm-conversation-intake-height);
   }
-  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"]) .gagos-chat__context { min-height: 40px; }
-  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"]) .gagos-status {
+  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-chat__context { min-height: 40px; }
+  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-status {
     top: auto;
     bottom: 8px;
     width: min(390px, calc(var(--lm-conversation-rail) - 40px));
@@ -1598,7 +1598,7 @@
     overflow-x: auto;
     overflow-y: hidden;
   }
-  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"]) .lm-connection {
+  .lm-app[data-working="false"]:has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .lm-connection {
     top: auto;
     bottom: 74px;
     box-sizing: border-box;
@@ -1610,7 +1610,7 @@
   }
 }
 @media (max-width: 767px) {
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) {
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) {
     /* A short app can scroll at its control minimum. Fixed canvas/chrome
        must use that same app box, not a shorter browser/frame height. */
     contain: layout;
@@ -1625,15 +1625,15 @@
        before permission chrome is measured. Shorter apps still scroll. */
     min-height: max(520px, calc(var(--lm-active-presence-top) + var(--lm-conversation-permission-work) + 56px + 8px + 102px + 90px + 12px));
   }
-  .lm-app[data-working="false"][data-workspace-height="tall"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) {
+  .lm-app[data-working="false"][data-workspace-height="tall"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) {
     --lm-conversation-permission-work: max(192px, var(--lm-permission-work-reservation, 170px));
   }
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .lm-scene {
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .lm-scene {
     top: var(--lm-active-presence-top);
     bottom: calc(100% - var(--lm-active-presence-top) - var(--lm-conversation-permission-presence));
     transform: none;
   }
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-chat {
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-chat {
     bottom: calc(90px + var(--lm-safe-area-bottom));
     /* Keep several history lines where room exists; auto height plus the
        context's zero flex basis otherwise collapses a tall phone to one. */
@@ -1643,12 +1643,12 @@
     padding: 4px 6px;
     gap: 2px;
   }
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-chat__context {
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-chat__context {
     min-height: 20px;
   }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]):not(:has(.gagos-chrome[data-approval-pending="true"])):has(.lm-surface__content:not([hidden]) .lm-artifact-receipt-host:not(:empty)) { --lm-receipt-work-floor: 148px; }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]):not(:has(.gagos-chrome[data-approval-pending="true"])):has(.lm-surface__content:not([hidden]) .lm-artifact-receipt-host:not(:empty)) .gagos-bar,
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-bar {
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-bar {
     display: flex;
     box-sizing: border-box;
     height: 62px;
@@ -1661,14 +1661,14 @@
     transform: none;
   }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]):not(:has(.gagos-chrome[data-approval-pending="true"])):has(.lm-surface__content:not([hidden]) .lm-artifact-receipt-host:not(:empty)) .gagos-bar .gagos-input,
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-bar .gagos-input {
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-bar .gagos-input {
     flex: 1 1 88px;
     min-width: 88px;
     width: auto;
     height: 44px;
   }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]):not(:has(.gagos-chrome[data-approval-pending="true"])):has(.lm-surface__content:not([hidden]) .lm-artifact-receipt-host:not(:empty)) .gagos-bar__accessories,
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-bar__accessories {
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-bar__accessories {
     display: flex;
     flex: 0 1 auto;
     flex-wrap: nowrap;
@@ -1686,16 +1686,16 @@
     touch-action: pan-x;
   }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]):not(:has(.gagos-chrome[data-approval-pending="true"])):has(.lm-surface__content:not([hidden]) .lm-artifact-receipt-host:not(:empty)) .gagos-bar__accessories > .gagos-btn,
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-bar__accessories > .gagos-btn { flex: 0 0 auto; }
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-bar__accessories > .gagos-btn { flex: 0 0 auto; }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]):not(:has(.gagos-chrome[data-approval-pending="true"])):has(.lm-surface__content:not([hidden]) .lm-artifact-receipt-host:not(:empty)) .gagos-bar__accessories > .gagos-btn:focus-visible,
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-bar__accessories > .gagos-btn:focus-visible { outline-offset: -2px; }
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-bar__accessories > .gagos-btn:focus-visible { outline-offset: -2px; }
   .lm-app[data-working="true"]:not([data-keyboard-open="true"]):not(:has(.gagos-chrome[data-approval-pending="true"])):has(.lm-surface__content:not([hidden]) .lm-artifact-receipt-host:not(:empty)) .gagos-send,
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .gagos-send { flex: 0 0 44px; }
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .gagos-send { flex: 0 0 44px; }
   /* A held decision already owns Expert navigation's reading band. Match the
      selected-work rule: let that row yield temporarily, never Stop/history. */
-  .lm-app[data-working="false"][data-experience-mode="expert"][data-workspace-height="compact"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) { --lm-active-presence-top: calc(126px + var(--lm-safe-area-top)); }
-  .lm-app[data-working="false"][data-experience-mode="expert"][data-workspace-height="compact"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .lm-navigation { visibility: hidden; }
-  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .lm-connection {
+  .lm-app[data-working="false"][data-experience-mode="expert"][data-workspace-height="compact"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) { --lm-active-presence-top: calc(126px + var(--lm-safe-area-top)); }
+  .lm-app[data-working="false"][data-experience-mode="expert"][data-workspace-height="compact"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .lm-navigation { visibility: hidden; }
+  .lm-app[data-working="false"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .lm-connection {
     bottom: calc(8px + var(--lm-safe-area-bottom));
     max-height: 74px;
     overflow-y: auto;
@@ -1703,8 +1703,8 @@
 }
 @media (max-width: 767px) and (max-height: 739px) {
   /* Same first paint as the measured compact app, including without observers. */
-  .lm-app[data-working="false"][data-experience-mode="expert"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) { --lm-active-presence-top: calc(126px + var(--lm-safe-area-top)); }
-  .lm-app[data-working="false"][data-experience-mode="expert"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"]) .lm-navigation { visibility: hidden; }
+  .lm-app[data-working="false"][data-experience-mode="expert"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) { --lm-active-presence-top: calc(126px + var(--lm-safe-area-top)); }
+  .lm-app[data-working="false"][data-experience-mode="expert"]:not([data-keyboard-open="true"]):has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold) .lm-navigation { visibility: hidden; }
 }
 .lm-surface__header .lm-workspace-chooser {
   display: block;
