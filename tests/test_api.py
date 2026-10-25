@@ -3180,3 +3180,62 @@ def test_a_generate_turn_reflects_as_the_caller(
     )
     assert response.status_code == 200
     assert seen and set(seen) == {client_principal_id(client)}
+
+
+def _engine_down_runner(command, *, cwd, env, timeout_s):
+    """What DockerRunner now raises when the container engine is not there."""
+    raise RuntimeError(
+        "isolated execution unavailable: failed to connect to the docker API"
+    )
+
+
+@pytest.mark.parametrize(
+    "runner,outcome,stained",
+    [
+        # 2026-10-21: the engine was down; the turn was scored a verified
+        # failure and every recalled skill was stained for a test that never ran.
+        (_engine_down_runner, "unverified", []),
+        # The control: a test that RAN and failed still stains, so the case
+        # above cannot pass by never staining anything.
+        (
+            lambda command, *, cwd, env, timeout_s: ("1 failed", "", 1),
+            "verified_failure",
+            [([2], False)],
+        ),
+    ],
+    ids=["engine-down", "real-failure"],
+)
+def test_an_unlaunchable_verify_stains_no_recalled_skill(
+    client: TestClient, runner, outcome, stained
+) -> None:
+    skills = ReuseRecordingSkills()
+    development = RecordingDevelopment()
+    app.dependency_overrides[get_ollama_client] = FakeOllamaVerify
+    app.dependency_overrides[get_executor] = lambda: Executor(
+        runner=runner,
+        rate_limiter=RateLimiter(),
+        audit_log=RecordingAudit(),
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+    app.dependency_overrides[get_skill_memory] = lambda: skills
+    app.dependency_overrides[get_development_tracker] = lambda: development
+    session_id = _cookie_session_id(client)
+    token = _issue_generate_capability(client, "command", {"command": "pytest -q"})
+
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "verify the project"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+            "approvalTokens": [token],
+        },
+    )
+
+    assert response.status_code == 200
+    assert development.records[-1][1] == outcome
+    assert skills.reuse_calls == stained
+    if outcome == "unverified":
+        assert "[VERIFY SKIPPED]" in response.text
+        assert "[VERIFY FAIL]" not in response.text
+        assert skills.attempts == [], "no attempt is recorded for a run that never ran"
