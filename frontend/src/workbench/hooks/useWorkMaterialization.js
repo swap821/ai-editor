@@ -25,7 +25,7 @@ import {
 import {
   getContentSurfacePlacement,
   selectNextAvailableVertebraSeat,
-} from '../../superbrain/lib/materializedSurfaceAnchors';
+} from '../../superbrain/lib/surfacePlacement';
 import { sanitizeToText } from '../../utils/sanitizeHtml';
 import { isCompleteWorkResult, isEstablishedTurn } from './turnOutcome';
 

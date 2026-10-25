@@ -17,8 +17,9 @@ vi.mock('@/components/canvas/WorkspaceCanvas', async () => {
 vi.mock('../workbench/GagosChrome', () => ({ default: () => <input aria-label="Lifetime fixture draft" /> }));
 vi.mock('../workbench/SuperbrainReactiveEffects', () => ({ default: () => null }));
 vi.mock('../livingMirror/being/WorkspaceConnectionOverlay', () => ({
-  WorkspaceConnectionOverlay: () => null, WorkspaceConnectionProjection: () => null,
+  WorkspaceConnectionOverlay: () => null,
 }));
+vi.mock('../livingMirror/being/WorkspaceConnectionProjection', () => ({ WorkspaceConnectionProjection: () => null }));
 vi.mock('../livingMirror/LivingWorkspaceShell', async () => {
   const { MirrorConnectionNotice: Notice } = await import('../livingMirror/MirrorConnectionNotice');
   return { LivingWorkspaceShell: ({ experienceMode }) => <Notice experienceMode={experienceMode} /> };
@@ -120,6 +121,9 @@ it('defaults fresh sessions to Auto and restores only explicit v4 preferences', 
   expect(control).toHaveValue('auto');
   expect(localStorage.getItem('gag-quality-tier-v4')).toBe('auto');
   expect(localStorage.getItem('gag-quality-tier-v3')).toBe('medium');
+  // Join the real lazy scene as well as checking its immediate DOM owner;
+  // do not leave its Suspense completion to a later test's lifetime.
+  await waitFor(() => expect(document.querySelector('.scene-layer canvas')).toHaveAttribute('data-tier', 'high'));
 });
 
 it.each(['auto', 'low', 'medium', 'high'])('uses the explicit v4 %s preference ahead of an older manual choice', async preference => {

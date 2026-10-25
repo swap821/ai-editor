@@ -142,7 +142,9 @@ function postureKeyForPhysicalProjection(physical: PhysicalBodyProjection): Body
   if (physical.taskState === 'done-unverified' || physical.cortex.posture === 'unverified' || physical.coherence === 'unverified') {
     return 'unverified';
   }
-  if (physical.motion === 'reabsorb') return 'complete';
+  // Returning an older surface is choreography, not verification of the
+  // current task. Its own state keeps the body working/resting while the
+  // conductor can still carry that older surface's return motion.
   if (physical.cortex.posture === 'conduct') return 'stream';
   if (['arrive', 'attention', 'verify'].includes(physical.cortex.posture)) return 'think';
   return 'rest';

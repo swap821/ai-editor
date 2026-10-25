@@ -31,7 +31,10 @@ export class RendererFailureBoundary extends Component<
   }
 
   private handleRetry = (): void => {
-    this.setState({ failed: false }, () => this.props.onRetry?.());
+    // Batch the shell's resource replacement with this reset, rather than
+    // first committing the cached rejected lazy child again.
+    this.setState({ failed: false });
+    this.props.onRetry?.();
   };
 
   public render(): ReactNode {
