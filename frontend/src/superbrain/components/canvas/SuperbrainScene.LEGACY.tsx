@@ -36,6 +36,7 @@ import { deriveBrainAttentionPosture, type WorkPlaneAttentionTarget } from '@/li
 import { deriveCursorAttention } from '@/lib/cursorAttention';
 import { deriveVoyageDrift } from '@/lib/voyageDrift';
 import { deriveOrganismCameraFrame } from '@/lib/organismCameraFrame';
+import { getPresenceDestination } from '@/lib/presenceProjection';
 import { deriveBrainPresenceLayout } from '@/lib/livingWorkspaceLayout';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
 import { useTabStore } from '@/lib/tabStore';
@@ -1364,13 +1365,17 @@ export function OrganismFraming({
   controlsRef,
   phoneFocusRef,
   workPaneRef,
+  motionHeld = false,
 }: {
   controlsRef: MutableRefObject<{ target: THREE.Vector3; enabled?: boolean } | null>;
   phoneFocusRef?: MutableRefObject<boolean>;
   workPaneRef?: MutableRefObject<boolean>;
+  motionHeld?: boolean;
 }) {
   const camera = useThree((s) => s.camera);
   const size = useThree((s) => s.size);
+  const reducedMotion = useReducedMotion();
+  const suppressMotion = reducedMotion || motionHeld;
   const { tabs } = useTabStore();
   const workspaceCount = useMemo(
     () => tabs.filter((t) => t.kind !== 'input' && t.lifecycle !== 'retracting').length,
@@ -1389,7 +1394,10 @@ export function OrganismFraming({
 
   useFrame((_s, delta) => {
     const view = (camera as THREE.PerspectiveCamera).view;
-    const aspect = view?.enabled ? view.fullWidth / view.fullHeight
+    // Preserve the pre-retarget lens path: layout chooses the fit immediately,
+    // while PresenceViewport alone animates its screen-space projection.
+    const destination = camera instanceof THREE.PerspectiveCamera ? getPresenceDestination(camera) : undefined;
+    const aspect = destination ? destination.width / destination.height : view?.enabled ? view.fullWidth / view.fullHeight
       : size.height > 0 ? size.width / size.height : 1.6;
     const frame = deriveOrganismCameraFrame({ aspect, activeSurfaceCount: workspaceCount,
       phoneFocus: phoneFocusRef?.current, workPane: workPaneRef?.current });
@@ -1401,18 +1409,20 @@ export function OrganismFraming({
     const targetFov = typeof dial?.fov === 'number' ? dial.fov : frame.fov;
     const targetY = typeof dial?.targetY === 'number' ? dial.targetY : frame.targetY;
     const cam = camera as THREE.PerspectiveCamera;
-    const nextFov = THREE.MathUtils.damp(cam.fov, targetFov, 3, delta);
-    if (Math.abs(nextFov - cam.fov) > 0.001) {
+    // Fitting is necessary; decorative lens/aim travel is not. In reduced or
+    // physically held states, finish the fit on this paint even when delta=0.
+    const nextFov = suppressMotion ? targetFov : THREE.MathUtils.damp(cam.fov, targetFov, 3, delta);
+    if (Math.abs(nextFov - cam.fov) > (suppressMotion ? 0 : 0.001)) {
       cam.fov = nextFov;
       cam.updateProjectionMatrix();
     }
     const controls = controlsRef.current;
     if (controls) {
-      controls.target.y = THREE.MathUtils.damp(controls.target.y, targetY, 3, delta);
+      controls.target.y = suppressMotion ? targetY : THREE.MathUtils.damp(controls.target.y, targetY, 3, delta);
       // Disabled OrbitControls block gestures AND Drei's update callback.
       // Keep this owner's damped framing target and camera aim in agreement
       // without advancing retained orbit/damping momentum during input.
-      if (controls.enabled === false) cam.lookAt(controls.target);
+      if (suppressMotion || controls.enabled === false) cam.lookAt(controls.target);
     }
     liveRef.current = {
       fov: Math.round(cam.fov * 1000) / 1000,

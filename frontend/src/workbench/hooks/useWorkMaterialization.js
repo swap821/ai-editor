@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import {
   sendDirective,
   sendVoiceTurn,
@@ -30,6 +30,14 @@ import { sanitizeToText } from '../../utils/sanitizeHtml';
 import { isCompleteWorkResult, isEstablishedTurn } from './turnOutcome';
 
 const MAX_MESSAGES = 40;
+// Surface IDs can be reused by another mounted shell for the same filepath.
+// At most one current surface per hook instance; this tracks writers, not state.
+const workSurfaceOwners = new Map();
+
+/**
+ * @typedef {{ id: number, role: string, text: string, streaming?: boolean,
+ * retry?: string, humanState?: import('../../superbrain/lib/aiosAdapter').HumanStateHypothesis & { corrected?: string | null } }} ConversationMessage
+ */
 
 const LANG_EXT = {
   python: 'py', py: 'py', javascript: 'js', js: 'js', jsx: 'jsx', typescript: 'ts',
@@ -115,7 +123,7 @@ export function useWorkMaterialization({
   chatModelId,
   emergencyStopped = false,
 }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(/** @type {ConversationMessage[]} */ ([]));
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState('');
 
@@ -126,23 +134,43 @@ export function useWorkMaterialization({
   const workTabIdsRef = useRef([]);
   const writingTabIdRef = useRef(null);
   const activeWorkRef = useRef(null);
+  const activeReplyRef = useRef(null);
+  const mountedRef = useRef(false);
+  const ownedSurfaceRef = useRef(null);
 
-  const settlePartialWork = useCallback((token, completion) => {
+  const ownsWorkSurface = useCallback((id, token = turnTokenRef.current) => {
+    const owned = ownedSurfaceRef.current;
+    return Boolean(owned && owned.id === id && owned.token === token && workSurfaceOwners.get(id) === owned);
+  }, []);
+  const releaseOwnedSurface = useCallback(() => {
+    const owned = ownedSurfaceRef.current;
+    if (owned && workSurfaceOwners.get(owned.id) === owned) workSurfaceOwners.delete(owned.id);
+    ownedSurfaceRef.current = null;
+  }, []);
+  const claimSurface = useCallback((id, token) => {
+    releaseOwnedSurface();
+    const owned = { id, token };
+    ownedSurfaceRef.current = owned;
+    workSurfaceOwners.set(id, owned);
+  }, [releaseOwnedSurface]);
+
+  const settlePartialWork = useCallback((token, completion, publishOutcome = true) => {
     const active = activeWorkRef.current;
     if (!active || active.token !== token) return;
     activeWorkRef.current = null;
+    if (!ownsWorkSurface(active.id, token)) return;
     const snapshot = getTabStoreSnapshot();
     const tab = [...snapshot.tabs, ...(snapshot.recoverableTabs || [])].find((record) => record.id === active.id);
     if (!tab?.content) return;
     updateMaterializedTab(active.id, { content: { ...tab.content, streaming: false, completion } });
-    setWorkResultOutcome({ tabId: active.id, completion });
+    if (publishOutcome) setWorkResultOutcome({ tabId: active.id, completion });
     // Retain real partial work in place. Only an empty placeholder may retire;
     // explicit Close/Reopen continues to own the reader's visibility and identity.
     if (!tab.content.code.trim() && !tab.content.verifyOutput
       && beginRetractingMaterializedTab(active.id)) {
       workTabIdsRef.current = workTabIdsRef.current.filter((id) => id !== active.id);
     }
-  }, []);
+  }, [ownsWorkSurface]);
 
   const pushMessage = useCallback((role, text, extra) => {
     const id = (msgSeqRef.current += 1);
@@ -150,9 +178,48 @@ export function useWorkMaterialization({
     return id;
   }, []);
 
-  const updateMessage = useCallback((id, text) => {
-    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, text } : m)));
+  const updateMessage = useCallback((id, text, extra) => {
+    setMessages((prev) => prev.map((m) => (m.id === id ? { ...m, text, ...(extra || {}) } : m)));
   }, []);
+
+  const retireChatReply = useCallback((token) => {
+    const reply = activeReplyRef.current;
+    if (!reply || reply.token !== token) return;
+    activeReplyRef.current = null;
+    setMessages((prev) => prev.map((m) => m.id === reply.id ? { ...m, streaming: false } : m));
+  }, []);
+
+  useLayoutEffect(() => {
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      const token = turnTokenRef.current;
+      // Permission replay is streamed by the existing approval consumer. Its
+      // held identity stays here; distinguish an actual replay from a genuine
+      // approval hold before settling locally interrupted retained work.
+      const replayId = writingTabIdRef.current;
+      if (!activeWorkRef.current && replayId && ownsWorkSurface(replayId, token)) {
+        const snapshot = getTabStoreSnapshot();
+        const replay = [...snapshot.tabs, ...(snapshot.recoverableTabs || [])].find(tab => tab.id === replayId);
+        if (replay?.content?.streaming || replay?.content?.completion === 'awaiting-replay') {
+          activeWorkRef.current = { id: replayId, token };
+        }
+      }
+      // Retire before abort: an abort-ignoring wire or approval continuation
+      // cannot speak/materialize for a removed owner. This is local disposal,
+      // not an operator Stop or proof that backend work terminated.
+      turnTokenRef.current += 1;
+      settlePartialWork(token, 'incomplete', false);
+      releaseOwnedSurface();
+      retireChatReply(token);
+      abortRef.current?.abort();
+      abortRef.current = null;
+      busyRef.current = false;
+      setBusy(false);
+      // Do not publish a global Stop, clear an approval/receipt, or release
+      // the shared materialization claim: another owner may already use it.
+    };
+  }, [settlePartialWork, retireChatReply, ownsWorkSurface, releaseOwnedSurface]);
 
   /* Organ 30: submit a real correction for one message's human-state guess.
    * Optimistic locally (marks `corrected` immediately so the affordance
@@ -168,6 +235,7 @@ export function useWorkMaterialization({
    * after, silently skipping the actual network call while the optimistic
    * UI still showed "noted" (a correction that was never really recorded). */
   const correctMessageHumanState = useCallback(async (messageId, correctedState) => {
+    if (!mountedRef.current) return false;
     const turnId = messages.find((m) => m.id === messageId)?.humanState?.turnId;
     if (!turnId) return false;
     setMessages((prev) => prev.map((m) => (
@@ -176,7 +244,7 @@ export function useWorkMaterialization({
         : m
     )));
     const ok = await correctHumanState(turnId, correctedState);
-    if (!ok) {
+    if (!ok && mountedRef.current) {
       setMessages((prev) => prev.map((m) => (
         m.id === messageId && m.humanState
           ? { ...m, humanState: { ...m.humanState, corrected: null } }
@@ -187,12 +255,14 @@ export function useWorkMaterialization({
   }, [messages]);
 
   const stopTurn = useCallback(() => {
+    if (!mountedRef.current) return;
     if (busyRef.current) {
       const token = turnTokenRef.current;
       // Invalidate callbacks before aborting: even a synchronously delivered
       // abort callback must not mutate the retained result or a subsequent turn.
       turnTokenRef.current += 1;
       settlePartialWork(token, 'cancelled');
+      retireChatReply(token);
       if (abortRef.current) abortRef.current.abort();
       busyRef.current = false;
       setBusy(false);
@@ -203,27 +273,29 @@ export function useWorkMaterialization({
     // Audio/glyph output can outlive the finished network request. The same
     // explicit stop retires queued/playing output without deleting DOM history.
     publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0, data: { phase: 'stopped' } });
-  }, [pushMessage, settlePartialWork]);
+  }, [pushMessage, settlePartialWork, retireChatReply]);
 
   const submit = useCallback(async (raw) => {
     const text = String(raw ?? '').trim();
     // Known Stop blocks every entry point BEFORE consuming the draft,
     // changing generation/history or allocating a work surface. Unknown is
     // not an observed latch; the backend remains the authority either way.
-    if (!text || busyRef.current || emergencyStopped) return;
+    if (!mountedRef.current || !text || busyRef.current || emergencyStopped) return;
     const workIntent = isWorkIntent(text);
 
-    const token = turnTokenRef.current + 1;
+    const previousToken = turnTokenRef.current;
+    const token = previousToken + 1;
     turnTokenRef.current = token;
     // A new local request supersedes an unfinished approval/replay reader.
     // Retain its partial content and invalidate its callbacks before aborting.
     const heldId = writingTabIdRef.current;
     writingTabIdRef.current = null;
-    if (heldId) {
+    if (heldId && ownsWorkSurface(heldId, previousToken)) {
       const previous = getTabStoreSnapshot();
       const held = [...previous.tabs, ...(previous.recoverableTabs || [])].find((record) => record.id === heldId);
       if (held?.content) updateMaterializedTab(heldId, { content: { ...held.content, streaming: false, completion: 'cancelled' } });
     }
+    releaseOwnedSurface();
     busyRef.current = true;
     setBusy(true);
     setDraft('');
@@ -231,7 +303,8 @@ export function useWorkMaterialization({
     abortRef.current = new AbortController();
 
     const userMsgId = pushMessage('user', sanitizeToText(cleanText(text, 400)));
-    const gagosId = null;
+    let gagosId = null;
+    let partialReply = '';
 
     setConversationPhase('thinking');
     setWorkResultOutcome(null);
@@ -243,7 +316,13 @@ export function useWorkMaterialization({
     try {
       if (workIntent) {
         claimWorkMaterialization();
-        const requestFromConversation = getTabStoreSnapshot().focusId === null;
+        const destinationSnapshot = getTabStoreSnapshot();
+        // A late-discovered filename cannot replace work created or revised
+        // after submission, even after its writer submits again or unmounts.
+        // Retain bounded content revisions for this request, not global history.
+        const destinationContents = new Map([...destinationSnapshot.tabs,
+          ...(destinationSnapshot.recoverableTabs || [])].map(tab => [tab.id, tab.content]));
+        const requestFromConversation = destinationSnapshot.focusId === null;
         const writeSeat = selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
         const writingTab = showContentSurface(
           { code: '', language: 'text', filepath: workFilepath(text), streaming: true },
@@ -253,6 +332,7 @@ export function useWorkMaterialization({
         // arrival cannot repeat this choice after the human returns elsewhere.
         if (requestFromConversation && getTabStoreSnapshot().focusId === null) focusMaterializedTab(writingTab.id);
         activeWorkRef.current = { id: writingTab.id, token };
+        claimSurface(writingTab.id, token);
         const retained = getTabStoreSnapshot();
         const records = new Map(retained.tabs.map((tab) => [tab.id, tab]));
         // Count retained surfaces, not submissions. Re-editing a file reuses
@@ -279,7 +359,7 @@ export function useWorkMaterialization({
         // actual path, text-only/pathless updates cannot erase that evidence.
         let observedFilepath = '';
         const onWritingChunk = (answer) => {
-          if (turnTokenRef.current !== token || activeWorkRef.current?.token !== token) return;
+          if (turnTokenRef.current !== token || activeWorkRef.current?.token !== token || !ownsWorkSurface(writingTab.id, token)) return;
           claimWorkMaterialization();
           const partial = extractStreamingCode(answer);
           if (partial.code && partial.code.trim()) {
@@ -295,7 +375,7 @@ export function useWorkMaterialization({
         };
 
         const onWritingCodeChunk = (code, language, filepath) => {
-          if (turnTokenRef.current !== token || activeWorkRef.current?.token !== token) return;
+          if (turnTokenRef.current !== token || activeWorkRef.current?.token !== token || !ownsWorkSurface(writingTab.id, token)) return;
           if (filepath) observedFilepath = filepath;
           claimWorkMaterialization();
           if (!code || !code.trim()) return;
@@ -318,7 +398,7 @@ export function useWorkMaterialization({
 
         // Cancel already released this turn's claim. A late response cannot
         // release the claim held by a newer submission.
-        if (turnTokenRef.current !== token) return;
+        if (turnTokenRef.current !== token || !ownsWorkSurface(writingTab.id, token)) return;
 
         if (result?.paused) {
           activeWorkRef.current = null;
@@ -355,7 +435,11 @@ export function useWorkMaterialization({
                 t.kind === 'content' &&
                 t.id !== writingTab.id &&
                 t.lifecycle !== 'retracting' &&
-                t.content?.filepath === filepath,
+                t.content?.filepath === filepath &&
+                destinationContents.get(t.id) === t.content &&
+                // A discovered path is not authority to take a destination
+                // retained by another request. Keep both actual results.
+                (!workSurfaceOwners.has(t.id) || ownsWorkSurface(t.id, token)),
             );
             const targetId = dup ? dup.id : writingTab.id;
             if (dup) {
@@ -380,6 +464,7 @@ export function useWorkMaterialization({
               }
               if (wasAttended && !getTabStoreSnapshot().focusId) focusMaterializedTab(dup.id);
             }
+            if (targetId !== writingTab.id) claimSurface(targetId, token);
             updateMaterializedTab(targetId, { content: { code, language, filepath, streaming: false } });
             activeWorkRef.current = null;
             pushMessage('gagos', `↳ I've materialized ${filepath} on the spine.`);
@@ -421,6 +506,13 @@ export function useWorkMaterialization({
             if (turnTokenRef.current !== token) return;
             const chunk = cleanText(partial);
             if (chunk) {
+              partialReply = chunk;
+              if (gagosId === null) {
+                gagosId = pushMessage('gagos', chunk, { streaming: true });
+                activeReplyRef.current = { token, id: gagosId };
+              } else {
+                updateMessage(gagosId, chunk);
+              }
               setConversationPhase('streaming');
               publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.82, data: { phase: 'reply', reply: chunk } });
             }
@@ -436,6 +528,7 @@ export function useWorkMaterialization({
           },
         });
         if (turnTokenRef.current !== token) return;
+        retireChatReply(token);
         if (!reply.trim()) {
           pushMessage('gagos', 'COGNITION FAULT: the stream ended before any reply arrived.');
           setConversationPhase('error');
@@ -445,7 +538,8 @@ export function useWorkMaterialization({
         // The conversational reply is a real user-facing result, not only a
         // speech/3D event. Keep it in the DOM conversation log so Guided users
         // and assistive technology can read the same answer that voice speaks.
-        pushMessage('gagos', cleanText(reply));
+        if (gagosId === null) pushMessage('gagos', cleanText(reply));
+        else updateMessage(gagosId, cleanText(reply));
         setConversationPhase('complete');
         setOnline(true);
       }
@@ -454,6 +548,7 @@ export function useWorkMaterialization({
       }
     } catch (error) {
       if (turnTokenRef.current !== token) return;
+      retireChatReply(token);
       settlePartialWork(token, 'incomplete');
       if (workIntent) releaseWorkMaterialization();
       const isAbort = error instanceof Error && error.name === 'AbortError';
@@ -469,21 +564,23 @@ export function useWorkMaterialization({
       const msg = offline
         ? "I can't reach my backend right now. It may be offline; your words are safe, retry when it's back."
         : `That turn was interrupted (${detail}).`;
-      if (gagosId) {
-        setMessages((prev) => prev.map((m) => (m.id === gagosId ? { ...m, text: msg, retry: text } : m)));
+      if (gagosId !== null) {
+        updateMessage(gagosId, partialReply ? partialReply + '\n\n' + msg : msg, { retry: text, streaming: false });
       } else {
         pushMessage('gagos', msg, { retry: text });
       }
       setConversationPhase('error');
       publishCognition({ type: 'voice-speaking', source: 'gagos', intensity: 0.4, data: { phase: 'error' } });
     } finally {
-      void fetchOnboardingState().then(setMilestones);
-      if (turnTokenRef.current === token) {
+      if (mountedRef.current && turnTokenRef.current === token) {
+        void fetchOnboardingState().then((milestones) => {
+          if (mountedRef.current && turnTokenRef.current === token) setMilestones(milestones);
+        });
         busyRef.current = false;
         setBusy(false);
       }
     }
-  }, [pushMessage, setOnline, setMilestones, chatModelId, settlePartialWork, emergencyStopped]);
+  }, [pushMessage, updateMessage, setOnline, setMilestones, chatModelId, settlePartialWork, retireChatReply, emergencyStopped, ownsWorkSurface, releaseOwnedSurface, claimSurface]);
 
   return {
     messages,
@@ -501,6 +598,7 @@ export function useWorkMaterialization({
     // Read-only generation/signal access for the existing approval consumer.
     // This hook remains the sole writer of request generation and cancellation.
     turnTokenRef,
+    ownsWorkSurface,
     getTurnSignal: () => abortRef.current?.signal,
   };
 }

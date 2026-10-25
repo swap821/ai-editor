@@ -397,8 +397,13 @@ export async function sendVoiceTurn(
 
   let reply = '';
   const { signal, modelId } = opts;
+  const assertActive = () => {
+    if (signal?.aborted) throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });
+  };
   try {
+    assertActive();
     const sessionFields = await sessionBodyFields();
+    assertActive();
     const response = await fetch(`${AIOS_BASE}/api/v1/chat`, {
       method: 'POST',
       signal,
@@ -406,10 +411,17 @@ export async function sendVoiceTurn(
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ transcript: text, modelId, ...sessionFields }),
     });
+    if (signal?.aborted) {
+      void response.body?.cancel().catch(() => { /* Native fetch may already have retired the body. */ });
+      assertActive();
+    }
     if (!response.ok || !response.body) {
       throw new Error(`voice backend responded ${response.status}`);
     }
     for await (const frame of readSse(response.body)) {
+      // Buffered frames can outlive abort, even when transport ignores it.
+      // Admit no text, hypothesis or terminal state from that generation.
+      assertActive();
       const data = frame.data as Record<string, unknown>;
       if (frame.event === 'text_chunk') {
         reply += String(data.text ?? '');
@@ -430,10 +442,14 @@ export async function sendVoiceTurn(
         // (route event handled by aiosMirror)
       } else if (frame.event === 'error') {
         throw new Error(String(data.text ?? 'The voice mind could not answer.'));
+      } else if (frame.event === 'done') {
+        // Terminal admission, not TCP EOF, settles the reply and disposes the
+        // reader through readSse's finally. Later frames cannot extend it.
+        return reply;
       }
     }
 
-    return reply;
+    throw new Error('The response was interrupted before completion.');
   } catch (err) {
     if (signal?.aborted || (err instanceof Error && err.name === 'AbortError')) {
       throw Object.assign(new Error('Turn aborted by operator'), { name: 'AbortError' });

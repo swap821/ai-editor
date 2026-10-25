@@ -180,4 +180,67 @@ describe('aiosAdapter session request shape', () => {
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
     expect(body.modelId).toBeUndefined();
   });
+
+  it('chat terminal: rejects EOF after partial text instead of completing the turn', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).endsWith('/api/v1/auth/session')
+      ? jsonResponse({ authenticated: true })
+      : sseResponseFromFrames('event: text_chunk\ndata: {"text":"A partial answer"}\n\n')));
+    const { sendVoiceTurn } = await import('./aiosAdapter');
+    const seen: string[] = [];
+    await expect(sendVoiceTurn('Explain the idea', { onChunk: text => seen.push(text) }))
+      .rejects.toThrow(/completion/i);
+    expect(seen).toEqual(['A partial answer']);
+  });
+
+  it('chat terminal: settles on done without waiting for connection EOF and releases the reader', async () => {
+    let controller!: ReadableStreamDefaultController<Uint8Array>;
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      start(owner) {
+        controller = owner;
+        owner.enqueue(new TextEncoder().encode('event: text_chunk\ndata: {"text":"A complete answer"}\n\nevent: done\ndata: {}\n\n'));
+      },
+      cancel() { cancelled = true; },
+    });
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).endsWith('/api/v1/auth/session')
+      ? jsonResponse({ authenticated: true }) : { ok: true, body } as Response));
+    const { sendVoiceTurn } = await import('./aiosAdapter');
+    let settled = false;
+    const turn = sendVoiceTurn('Explain the idea').then(value => { settled = true; return value; });
+    try {
+      await vi.waitFor(() => expect(settled).toBe(true));
+      expect(await turn).toBe('A complete answer');
+      expect(cancelled).toBe(true);
+    } finally {
+      if (!cancelled) controller.close();
+      await turn;
+    }
+  });
+
+  it('chat terminal: ignores frames after the admitted done frame', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).endsWith('/api/v1/auth/session')
+      ? jsonResponse({ authenticated: true })
+      : sseResponseFromFrames('event: text_chunk\ndata: {"text":"Complete"}\n\nevent: done\ndata: {}\n\nevent: text_chunk\ndata: {"text":" obsolete"}\n\n')));
+    const { sendVoiceTurn } = await import('./aiosAdapter');
+    const seen: string[] = [];
+    expect(await sendVoiceTurn('Explain the idea', { onChunk: text => seen.push(text) })).toBe('Complete');
+    expect(seen).toEqual(['Complete']);
+  });
+
+  it('chat terminal: does not admit buffered text or human-state after cancellation', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => String(url).endsWith('/api/v1/auth/session')
+      ? jsonResponse({ authenticated: true })
+      : sseResponseFromFrames('event: text_chunk\ndata: {"text":"First"}\n\nevent: text_chunk\ndata: {"text":" obsolete"}\n\nevent: human_state\ndata: {"state":"neutral","turn_id":"old-turn"}\n\nevent: done\ndata: {}\n\n')));
+    const { sendVoiceTurn } = await import('./aiosAdapter');
+    const abort = new AbortController();
+    const seen: string[] = [];
+    const hypotheses: unknown[] = [];
+    await expect(sendVoiceTurn('Explain the idea', {
+      signal: abort.signal,
+      onChunk: text => { seen.push(text); abort.abort(); },
+      onHumanState: state => hypotheses.push(state),
+    })).rejects.toMatchObject({ name: 'AbortError' });
+    expect(seen).toEqual(['First']);
+    expect(hypotheses).toEqual([]);
+  });
 });

@@ -70,6 +70,47 @@ beforeEach(() => {
 });
 afterEach(() => { vi.restoreAllMocks(); vi.unstubAllGlobals(); __resetTabStoreForTests(); __resetSpineFusionForTests(); });
 
+// New pane travel is presentation only: actual parent Stop/hold must govern it.
+it.each(['held', 'stopped'] as const)('settles current and new pane travel immediately through the real parent physical %s', async kind => {
+  vi.stubGlobal('matchMedia', () => Object.assign(new EventTarget(), { matches: false }));
+  localStorage.removeItem('gagos-pause-motion-v1');
+  const host = document.createElement('div'); host.className = 'lm-app'; host.dataset.working = 'false';
+  const pane = document.createElement('div'); pane.className = 'lm-scene'; const canvas = document.createElement('canvas');
+  host.append(pane, canvas); document.body.append(host);
+  let working = false, now = 0;
+  vi.spyOn(performance, 'now').mockImplementation(() => now);
+  vi.spyOn(pane, 'getBoundingClientRect').mockImplementation(() => working ? new DOMRect(0, 144, 409.6, 576) : new DOMRect(448, 144, 832, 576));
+  vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue(new DOMRect(0, 0, 1280, 720));
+  const root = createRoot(canvas), store = _roots.get(canvas)!.store;
+  const gl = { domElement: canvas, getPixelRatio: () => 1, render() {}, setSize() {}, setPixelRatio() {} } as unknown as RootState['gl'];
+  await root.configure({ gl, camera: new THREE.PerspectiveCamera(), scene: new THREE.Scene(), frameloop: 'never', size: { width: 1280, height: 720, top: 0, left: 0 } });
+  const rest: PhysicalBodyProjection = { phase: 'resting', taskState: 'idle', coherence: 'fresh', motion: 'calm',
+    cortex: { posture: 'rest' }, verification: { state: 'none' }, membrane: { state: 'clear' } };
+  const render = async (physical: PhysicalBodyProjection) => { await act(async () => { root.render(<CortexEngine mode="observe" activity={0} tier="low" physical={physical} />); }); };
+  try {
+    await render(rest);
+    const camera = store.getState().camera as THREE.PerspectiveCamera;
+    await act(async () => { working = true; host.dataset.working = 'true'; });
+    now = 90; act(() => advance(.09, false, store.getState()));
+    expect(camera.view!.fullWidth).toBeGreaterThan(409.6);
+    const paused: PhysicalBodyProjection = kind === 'held'
+      ? { ...rest, phase: 'awaiting-human', taskState: 'needs-permission', motion: 'hold', cortex: { posture: 'attention' }, membrane: { state: 'held' } }
+      : { ...rest, phase: 'stopped', taskState: 'stopped', motion: 'hold', cortex: { posture: 'stopped' } };
+    await render(paused);
+    expect(store.getState().camera).toBe(camera);
+    expect(camera.view).toMatchObject({ fullWidth: 409.6, offsetX: 0 });
+    // A necessary fit remains available, but the lens/aim cannot keep easing
+    // after the actual parent has admitted Stop or a permission hold.
+    act(() => advance(.09, false, store.getState())); // zero-delta paused paint
+    expect(camera.fov).toBe(41.293);
+    const controls = store.getState().controls as unknown as OrbitControls;
+    expect(controls.target.y).toBe(-0.75);
+    await act(async () => { working = false; host.dataset.working = 'false'; });
+    expect(camera.view).toMatchObject({ fullWidth: 832, offsetX: -448 });
+    act(() => advance(.09, false, store.getState())); expect(camera.fov).toBe(24);
+  } finally { await act(async () => { root.unmount(); }); host.remove(); }
+});
+
 // The onscreen-only fit passes while a real waiting card still covers the
 // cortex. Exercise the actual protected GLB/body/layer/current camera together;
 // only font shaping and WebGL are substituted, not placement or anatomy.

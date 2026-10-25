@@ -48,6 +48,8 @@ Returning-pulse and socket probes repeatedly observed a different object after a
 
 Repeated guessed paths and root-relative names run from frontend wasted reads/qualification setup. Discover exact owners with rg from the known root, then use absolute paths for mixed lab/product/report pins and explicit frontend cwd for its commands. Check each result independently; a later successful command does not qualify an earlier failed read. Native details/summary and browser DOM wrappers also need their actual supported surface, not a guessed button/API. Preserve diagnostic failures without calling them product defects.
 
+23Oct integration follow-up: route/claim invoked from frontend failed and the shell still continued to authorized branch/install. Corrected at repo root before source edits; no competing writer. Make coordination a fail-fast prerequisite in the exact root before chaining any mutation. A successful later command never retroactively supplies a writer lease.
+
 ## RETIREMENT TESTS MUST CONTROL THE ACTUAL CLOCK AND EXACT BOUNDARIES
 
 Prior all-retiring coverage sampled arbitrary painted subsets; current post-Close coverage expected11 but observed10 at an uncontrolled instant. Source uses performance.now, not Date.now. Control that clock before admission/rendering and advance through the real slab/record boundaries, retaining counts and geometry assertions. For exact millisecond samples use an integer origin:6504.9541 +1700 produced elapsed1699.999999999999 and correctly left records alive. Do not change production lifetimes, timeouts or tolerances to make a nominal sample pass; preserve failed reports and do not invent load-only attribution.
