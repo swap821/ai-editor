@@ -19,7 +19,7 @@ import { getOutcomeImprintSnapshot, useOutcomeImprint } from '@/lib/outcomeImpri
 import { deriveAnatomicalRootSystem } from '@/lib/anatomicalRootSystem';
 import { deriveOrganMaterialState } from '@/lib/organMaterialState';
 import { deriveOrganismLifecycle } from '@/lib/organismLifecycle';
-import { deriveBodyPosture } from '@/lib/bodyPosture';
+import { deriveBodyPosture, type PhysicalBodyProjection } from '@/lib/bodyPosture';
 import { setOrganismPhase } from '@/lib/organismPhaseBus';
 import { deriveSpinalRootActuator } from '@/lib/spinalRootActuator';
 import { deriveSurfaceShapeGrammar, SURFACE_SHAPE_DIMENSIONS } from '@/lib/surfaceShapeGrammar';
@@ -99,7 +99,7 @@ function reabsorbInputSurface(): void {
   }
 }
 
-export default function MaterializationLayer({ reducedMotion }: { reducedMotion: boolean }) {
+export default function MaterializationLayer({ reducedMotion, physical }: { reducedMotion: boolean; physical?: PhysicalBodyProjection }) {
   const { tabs: retainedTabs, focusId, attention } = useTabStore();
   // Readable overflow work has no free body anchor. Keep it in the DOM, not
   // an overlapping surface or a fictitious anatomical conduction.
@@ -424,7 +424,7 @@ export default function MaterializationLayer({ reducedMotion }: { reducedMotion:
     setOrganismPhase(organism.phase);
   }, [organism.phase]);
 
-  const bodyPosture = deriveBodyPosture({ phase: organism.phase });
+  const bodyPosture = deriveBodyPosture({ phase: organism.phase, physical });
 
   if (orchestration.surfaces.length === 0 && !completionVisible) return null;
 
