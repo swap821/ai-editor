@@ -202,7 +202,7 @@
     "lib/turnMetabolism.test.ts": "8fea9dd3e1f216c120798ad3216767eecb1b6dc1088e04f2e4311955206b10d2",
     "lib/turnMetabolism.ts": "82b0cf649b1cd41ca5374ead1c8ec0cc556319edf02746156d14cd4e130ef534",
     "lib/useBodyWorldFrame.ts": "db842f2483a80888131fcce302789f2255b66f1abe007cff3c0523caf80b2a1f",
-    "lib/useDomWorkPlane.ts": "3f1d9613d3f0dd6d271650c082f28a01d5cf1a17cea8002438b625b3bc9ffcc2",
+    "lib/useDomWorkPlane.ts": "411f5e76253ba847aded44950585a6ac003580473b88c72c62ff12f6e1d681c0",
     "lib/vertebraConductorRoots.test.ts": "32ed2530d04738da3de1b1e889f0a3dc64500017fa358dcf07f6f879b3b838c2",
     "lib/vertebraConductorRoots.ts": "bc73db461ed4016f3bdeca8e1a22fbb1449127bc6fa599d3eb04f8e7a0baa381",
     "lib/voyageDrift.test.ts": "cd370f0c087290814a28a58f7e8b08402efe434fc1011d386db58fcda7a56c06",
