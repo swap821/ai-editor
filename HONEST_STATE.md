@@ -1,9 +1,33 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-10-21 ("State on 2026-10-21" below; earlier sections keep
+**Last updated:** 2026-10-28 ("State on 2026-10-28" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-10-28 (measured 2026-10-21 to 10-28; master `de88e7dd` unless a line says otherwise)
+
+**Learning has now been judged twice, and neither time did it help. One learned
+reflex has served a real turn.**
+
+- **D12 is judged: not met, and no harm** (`docs/learning/PAYOFF_D12_RESULT.md`, `payoff_d12_judged_result.json`).
+  - The local student (`qwen3.5:9b`) ran the same 150 targets on the cloud run's code, from the store as it was before skills were activated.
+  - With lessons it earned 91 of 249, against 103 without. By target: 12 better, 18 worse, p = 0.21. That is not significant, and not harm by the registered rule.
+  - Real lessons against a placebo of the same size: 9 vs 12.
+  - So no member of the four-member family is met, and the usefulness gate stays FAIL.
+  - Diagnostic: recall does vary by task, but it is rarely about the task. Only 27 of 150 targets were shown a lesson from their own module.
+- **Skills.** On 2026-10-21 the operator activated three skills (41, 49, 79) and signed them (#529). The census admits 3 of 3.
+- **One learned reflex served a live turn**, on 2026-10-21.
+  - The operator ran the check himself: playbook 5 replayed a verify command he had approved exactly. The verification passed STRONG, with no model call in the action and no approval asked.
+  - The record is on his machine (`data/services/reflex_proof_*.json`). It is not in git.
+  - That turn still made two model calls before the reflex was checked: the route picker and the interpreter. #537 now checks for a reflex first, so such a turn makes no model call. That is tested in CI but **not yet re-proved live**.
+- **An outage is no longer a verdict** (#535). When the sandbox cannot start a command:
+  - no verify verdict is given;
+  - no skill is marked against;
+  - no reflex is retired;
+  - no command approval is withdrawn.
+- **The Learning Ledger records for L4 and L5 have not been updated** with the live reflex evidence. That is still to do.
+- **Organ ledger: 50 green / 9 yellow / 59**, unchanged. Every organ's evidence was re-gathered and passed at `b5ddaed7` (#538). Master CI is green on every job.
 
 ## State on 2026-10-21 (measured 2026-10-19 to 10-21 on master `501c2536`, unless a line says otherwise)
 
