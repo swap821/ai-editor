@@ -1,9 +1,50 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-10-21 ("State on 2026-10-21" below; earlier sections keep
+**Last updated:** 2026-10-28 ("State on 2026-10-28" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-10-28 (measured 2026-10-21 to 10-28; master `de88e7dd` unless a line says otherwise)
+
+**Learning has now been judged twice, and neither time did it help. But the whole
+chain now works on real code: a skill learned from a real test of this repository
+became a reflex that served a request with no model call at all.**
+
+- **D12 is judged: not met, and no harm** (`docs/learning/PAYOFF_D12_RESULT.md`, `payoff_d12_judged_result.json`).
+  - The local student (`qwen3.5:9b`) ran the same 150 targets on the cloud run's code, from the store as it was before skills were activated.
+  - With lessons it earned 91 of 249, against 103 without. By target: 12 better, 18 worse, p = 0.21. That is not significant, and not harm by the registered rule.
+  - Real lessons against a placebo of the same size: 9 vs 12.
+  - So no member of the four-member family is met, and the usefulness gate stays FAIL.
+  - Diagnostic: recall does vary by task, but it is rarely about the task. Only 27 of 150 targets were shown a lesson from their own module.
+- **Skills.** On 2026-10-21 the operator activated three skills (41, 49, 79) and signed them (#529). The census admits 3 of 3.
+- **The learning chain, end to end on real code** (2026-10-28, `docs/learning/organic_reflex_proof_2026-10-28/`).
+  - **L3, learned:** three live turns, answered by the local model through the real API, ran `pytest ai-editor-selfcorpus/tests/test_relevance.py -q`. That is 4 real tests of `aios/memory/relevance.py`, each run a STRONG pass under the operator's exact approval. The library made the new arc review-ready, and nothing promoted itself.
+  - **L4, compiled:** the operator activated it, and the activation is signed. The next request's sweep compiled it into playbook 17. This is the first compile ever observed from an operator-activated skill (journal event 33).
+  - **L5, served:** in that same request the reflex served the turn. The verify passed STRONG; no approval was asked and no interpreter or planner ran. **Zero model calls:** the proof store's model-call ledger did not grow, and Ollama's own log shows no inference.
+  - **The setup, in full.** A separate proof backend: the operator's code at `de88e7dd` and his keys, plus four differences. Its data is a copy of his store, its scope is a fresh checkout of this repo (the self-corpus), and its sandbox image is the app image, which has the repo's dependencies, with the same lockdown flags. Replay of approved commands is on. His approvals there are keyed to that workspace, so they authorise nothing in his daily one. The task was chosen to earn the faculties, as organic runs choose their targets.
+  - **Two defects found on the way:**
+    - The activation tool could not name any skill learned after the migration: legacy ids only. So no newly learned skill could ever have become a reflex. Fixed in #543.
+    - The operator's live setup cannot verify this repo's own tests. Its scope is `training_ground/` and `lab/` only, and its sandbox image has only pytest. That is why every earlier live reflex was a toy. Both are his settings, and neither was changed.
+- **A learned reflex served a live turn with no model call at all** (2026-10-28, `docs/learning/reflex_live_proof_20261028.json`).
+  - The operator ran the check himself, on his backend running master `de88e7dd` (which has #537), started after the checkout moved to it.
+  - Playbook 5 replayed a verify command he had approved exactly. It passed STRONG. No approval was asked, and no interpreter or planner ran.
+  - **Zero model calls in the whole turn.** The model-call ledger stayed at 163 lines, and Ollama's own request log shows no inference request in that window.
+  - On 2026-10-21 the same reflex served a turn that still made two model calls, the route picker and the interpreter (`reflex_live_proof_20261021.json`). #537 removed both.
+  - **The limit, stated plainly:** playbook 5's skill (41) was learned by the July learning-loop prover on a toy test (`assert 1 + 1 == 2`). So this run proved the mechanism, not learning; the real-code chain above closed that gap the same day.
+  - The committed records have the operator's principal id redacted, and each carries the sha256 of its original.
+- **An outage is no longer a verdict** (#535). When the sandbox cannot start a command:
+  - no verify verdict is given;
+  - no skill is marked against;
+  - no reflex is retired;
+  - no command approval is withdrawn.
+- **Learning Ledger: L3, L4 and L5 earned organically** (`.aios/state/LEARNING_LEDGER.json`).
+  - Their blockers are discharged with the real-code evidence above. The two toy live runs stay recorded as live, NOT organic.
+  - **8 green / 8, in a clean clone too** (measured 2026-10-28). Before this work it was 5 / 8 on the laptop and 1 / 8 in a clean clone.
+    - Five faculties had cited two trails that exist only on the laptop: `.aios/audit/` is gitignored. Those are now committed as frozen, byte-identical copies in `docs/learning/trails/`, and the ledger points there.
+    - Before committing, both were read for secrets: every scanner hit was a false positive (a commit hash, a test name, a model id). Each faculty's cited run was also checked to support its claim.
+    - The CI job reports these verdicts but does not require green.
+- **Organ ledger: 50 green / 9 yellow / 59**, unchanged. Every organ's evidence was re-gathered and passed at `b5ddaed7` (#538). Master CI is green on every job.
 
 ## State on 2026-10-21 (measured 2026-10-19 to 10-21 on master `501c2536`, unless a line says otherwise)
 

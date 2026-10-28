@@ -22,6 +22,7 @@ USAGE (one line each; works in PowerShell and bash)
 -----
     python tools/activate_skills.py                                   # list review-ready and suspended skills, read-only
     python tools/activate_skills.py --activate 79 41 --i-am-the-operator "Swapnil"
+    python tools/activate_skills.py --activate arc-abc@1 --i-am-the-operator "Swapnil"
     python tools/activate_skills.py --reactivate arc-abc@1 --i-am-the-operator "Swapnil"
 
 An ACTIVE skill named to ``--activate`` is confirmed and signed, not
@@ -36,7 +37,10 @@ it here (operator decision, 2026-09-29), through the same capability-backed
 route; nothing the machine does alone restores it.
 
 The backend must be running (``AIOS_PROBE_BASE``, default http://127.0.0.1:8000).
-Ids are the legacy ``procedural_skills`` ids shown in the listing.
+A skill is named by its legacy ``procedural_skills`` id, or by
+``SKILL_ID@VERSION`` -- the listing's ``activate`` value. A skill the library
+learned after the migration has no legacy id, so the key is the only way to
+name it (2026-10-28: until then no newly learned skill could be activated).
 """
 
 from __future__ import annotations
@@ -77,9 +81,21 @@ def _steps(record: SkillRecord) -> list[str]:
     return [str(s) for s in steps] if isinstance(steps, list) else [record.procedure]
 
 
+def key(record: SkillRecord) -> str:
+    """``SKILL_ID@VERSION``: the route's own name for a skill version."""
+    return f"{record.skill_id}@{record.version}"
+
+
+def label(record: SkillRecord) -> int | str:
+    """How the operator names *record*: its legacy id, else its key."""
+    legacy = _legacy_id(record)
+    return legacy if legacy is not None else key(record)
+
+
 def describe(record: SkillRecord) -> dict[str, Any]:
     tools = sorted(set(record.allowed_tools))
     return {
+        "activate": label(record),
         "legacy_id": _legacy_id(record),
         "skill_id": record.skill_id,
         "version": record.version,
@@ -132,27 +148,28 @@ def active(repository: SkillRepository) -> list[SkillRecord]:
     )
 
 
-def resolve(
-    repository: SkillRepository, legacy_ids: Sequence[int]
-) -> list[SkillRecord]:
-    """The candidate (or active) record for each legacy id, or an error naming
-    what is wrong."""
-    by_legacy = {
-        _legacy_id(r): r for r in (*candidates(repository), *active(repository))
-    }
-    missing = [i for i in legacy_ids if i not in by_legacy]
+def resolve(repository: SkillRepository, targets: Sequence[str]) -> list[SkillRecord]:
+    """The candidate (or active) record for each target -- a legacy id, or
+    ``SKILL_ID@VERSION`` -- or an error naming what is wrong. Only a candidate or
+    an active skill: a suspended one returns through --reactivate alone."""
+    eligible = (*candidates(repository), *active(repository))
+    by_name: dict[str, SkillRecord] = {key(r): r for r in eligible}
+    by_name.update(
+        {str(_legacy_id(r)): r for r in eligible if _legacy_id(r) is not None}
+    )
+    missing = [t for t in targets if str(t) not in by_name]
     if missing:
         raise SystemExit(
             f"not an activatable candidate or an active skill: {missing}. Run "
             "with no arguments to list them."
         )
-    return [by_legacy[i] for i in legacy_ids]
+    return [by_name[str(t)] for t in targets]
 
 
 def unsigned(results: Sequence[dict[str, Any]]) -> list[Any]:
     """Activations the backend accepted but could not sign: active and inert."""
     return [
-        r["legacy_id"]
+        r["skill"]
         for r in results
         if r["status"] == 200 and (r.get("response") or {}).get("signed") is not True
     ]
@@ -200,6 +217,7 @@ def activate(records: Sequence[SkillRecord], base: str) -> list[dict[str, Any]]:
             body = {"text": response.text[:300]}
         results.append(
             {
+                "skill": label(record),
                 "legacy_id": _legacy_id(record),
                 "status": response.status_code,
                 "response": body,
@@ -212,7 +230,12 @@ def activate(records: Sequence[SkillRecord], base: str) -> list[dict[str, Any]]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    parser.add_argument("--activate", nargs="+", type=int, metavar="LEGACY_ID")
+    parser.add_argument(
+        "--activate",
+        nargs="+",
+        metavar="LEGACY_ID|SKILL_ID@VERSION",
+        help="activate (or confirm and sign) a review-ready or active skill",
+    )
     parser.add_argument(
         "--reactivate",
         nargs="+",
@@ -243,6 +266,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                     ],
                     "active": [
                         {
+                            "activate": label(r),
                             "legacy_id": _legacy_id(r),
                             "skill_id": r.skill_id,
                             "version": r.version,
@@ -277,9 +301,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     records = resolve(repository, args.activate)
     not_ready = [
-        _legacy_id(r)
-        for r in records
-        if r.state == "candidate" and not is_review_ready(r)
+        label(r) for r in records if r.state == "candidate" and not is_review_ready(r)
     ]
     if not_ready and not args.allow_not_review_ready:
         raise SystemExit(
@@ -288,9 +310,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     for record in records:
         info = describe(record)
         verb = "signing active" if record.state == "active" else "activating"
-        print(
-            f"{verb} legacy {info['legacy_id']} ({info['risk']}): {info['goal'][:100]}"
+        name = (
+            f"legacy {info['legacy_id']}"
+            if info["legacy_id"] is not None
+            else str(info["activate"])
         )
+        print(f"{verb} {name} ({info['risk']}): {info['goal'][:100]}")
     results = activate(records, args.base)
     print(json.dumps({"operator": args.operator, "results": results}, indent=2))
     return _verdict(results)

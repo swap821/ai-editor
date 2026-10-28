@@ -1,0 +1,91 @@
+"""A PROOF backend for re-earning L3-L5 organically (2026-10-28).
+
+The operator's own backend, code and keys, started as a second process with five
+overrides, each named here so nothing about it is implicit:
+
+    AIOS_DATA_DIR       C:\\ocdata     a SQLite-backup copy of his live store, so the
+                                      corpus-scoped skill and approval never land
+                                      in his daily store
+    AIOS_SCOPE_ROOTS    C:\\oc\\ai-editor-selfcorpus
+                                      a fresh checkout of this repo at de88e7dd:
+                                      the self-corpus, as organic runs use. His
+                                      live scope (training_ground, lab) is not
+                                      touched
+    AIOS_CONTAINER_IMAGE aios-aios:latest
+                                      the app image, which has the repo's
+                                      dependencies; the default worker image has
+                                      only pytest. Same sandbox flags (no network,
+                                      read-only, caps dropped, 1 GB, uid 65534)
+    AIOS_API_PORT       8010           beside, not instead of, :8000
+    AIOS_REPLAY_APPROVED_COMMANDS 1    Phase 5, as on his dev backend
+
+Keys come from his keystore (Windows Credential Manager) into this child only,
+never printed or written. Exact-command approvals are keyed to the workspace
+(the active scope roots), so anything approved here cannot authorise anything
+in his live workspace.
+"""
+
+import json
+import os
+import subprocess
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+LIVE = Path(r"C:\Users\kumar\ai-editor")
+DATA = Path(r"C:\ocdata")
+CORPUS = Path(r"C:\oc\ai-editor-selfcorpus")
+PORT = 8010
+DETACH = 0x00000008 | 0x00000200
+
+sys.path.insert(0, str(LIVE))
+from aios.launcher import _keystore  # noqa: E402
+from aios.operations import keystore as _ksmod  # noqa: E402
+
+env = dict(os.environ)
+store = _keystore()
+needed = {
+    "AIOS_VERIFICATION_AUTHORITY_KEY",
+    "AIOS_PROMOTION_AUTHORITY_KEY",
+    "AIOS_CHECKPOINT_AUTHORITY_KEY",
+    "AIOS_LEARNING_KEY_LIVE",
+}
+if store is not None:
+    for name, value in _ksmod.production_environment(store).items():
+        if name in needed:
+            env.setdefault(name, value)
+if env.get("AIOS_CHECKPOINT_AUTHORITY_KEY"):
+    env.setdefault("CHECKPOINT_AUTHORITY_KEY", env["AIOS_CHECKPOINT_AUTHORITY_KEY"])
+missing = sorted(n for n in needed if not env.get(n))
+if missing:
+    raise SystemExit(f"keystore lacks {missing}; not starting")
+
+env.update(
+    AIOS_DATA_DIR=str(DATA),
+    AIOS_SCOPE_ROOTS=str(CORPUS),
+    AIOS_CONTAINER_IMAGE="aios-aios:latest",
+    AIOS_API_PORT=str(PORT),
+    AIOS_REPLAY_APPROVED_COMMANDS="1",
+)
+logs = DATA / "services"
+logs.mkdir(exist_ok=True)
+log = (logs / "proof-backend.log").open("w", encoding="utf-8")
+proc = subprocess.Popen(
+    [str(LIVE / ".venv" / "Scripts" / "python.exe"), "-m", "aios"],
+    cwd=str(LIVE), env=env, stdout=log, stderr=subprocess.STDOUT,
+    stdin=subprocess.DEVNULL, creationflags=DETACH,
+)
+health = None
+t0 = time.time()
+while time.time() - t0 < 300:
+    try:
+        with urllib.request.urlopen(f"http://127.0.0.1:{PORT}/health", timeout=5) as r:
+            health = r.status
+            break
+    except Exception:
+        time.sleep(3)
+record = {"pid": proc.pid, "port": PORT, "health": health, "data": str(DATA),
+          "scope": str(CORPUS), "image": "aios-aios:latest"}
+(logs / "proof-backend.json").write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(record, indent=2))
