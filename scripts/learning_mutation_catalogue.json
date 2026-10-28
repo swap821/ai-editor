@@ -1941,6 +1941,26 @@
    "also": []
   },
   {
+   "id": "6c:X11 --activate by key reaches a suspended skill",
+   "file": "tools/activate_skills.py",
+   "old": "    eligible = (*candidates(repository), *active(repository))",
+   "new": "    eligible = tuple(repository.list_skills())",
+   "tests": [
+    "tests/test_activate_skills_tool.py::test_a_key_names_only_a_candidate_or_an_active_skill"
+   ],
+   "also": []
+  },
+  {
+   "id": "6c:X12 a skill learned after the migration cannot be named",
+   "file": "tools/activate_skills.py",
+   "old": "    by_name: dict[str, SkillRecord] = {key(r): r for r in eligible}",
+   "new": "    by_name: dict[str, SkillRecord] = {}",
+   "tests": [
+    "tests/test_activate_skills_tool.py::test_a_skill_learned_after_the_migration_can_be_activated_by_its_key"
+   ],
+   "also": []
+  },
+  {
    "id": "6c:X9 RT-20 credited on absence",
    "file": "tools/learning_redteam_runner.py",
    "old": "        and skill_state == \"suspended\"\n        and row_status == \"retired\"",
