@@ -153,7 +153,13 @@ model never reached the check" as a violation (fixed in #392).
     - a sandbox outage had counted as a failed verification (#535);
     - the turn consulted two models before checking for a reflex (#537).
   - Five new dependency advisories turned master red; #536 fixed them.
-- **10-28: the reflex re-proved with #537.** The operator re-ran the check. The whole turn made **no model call**: the reflex served it, the verify passed STRONG, and no approval was asked. Its skill was learned on a toy test, so this proves the mechanism, not organic learning. The Learning Ledger records it that way, and L4 and L5 stay yellow.
+- **10-28: the reflex re-proved with #537.** The operator re-ran the check. The whole turn made **no model call**: the reflex served it, the verify passed STRONG, and no approval was asked. Its skill was learned on a toy test, so this proves the mechanism, not organic learning.
+- **10-28: the learning chain, end to end on real code.**
+  - A new skill was learned from three live turns over a real repository test.
+  - The operator activated it; the sweep compiled it into a reflex; and that reflex served a request with **no model call**.
+  - It ran on a separate proof backend scoped to a fresh checkout of the repo.
+  - Learning Ledger L3, L4 and L5 are now earned organically: 8 of 8 green on the laptop, 3 of 8 in a clean clone (the rest cite gitignored trails).
+  - Found on the way: the activation tool could not name any newly learned skill (#543).
 - **10-25 to 10-28: D12's local judged run: not met, no harm** (`docs/learning/PAYOFF_D12_RESULT.md`).
   - With lessons, the local student earned 91 of 249, against 103 without: 12 targets better, 18 worse, p = 0.21.
   - **The D12 family is not met.** Learning has now been judged by two pre-registered families, and neither found a benefit.
