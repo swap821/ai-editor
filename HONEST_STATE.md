@@ -40,11 +40,10 @@ became a reflex that served a request with no model call at all.**
   - no command approval is withdrawn.
 - **Learning Ledger: L3, L4 and L5 earned organically** (`.aios/state/LEARNING_LEDGER.json`).
   - Their blockers are discharged with the real-code evidence above. The two toy live runs stay recorded as live, NOT organic.
-  - **The green count still depends on where it is measured.** Measured 2026-10-28:
-    - **8 green / 8** with the laptop's trail files present. Measured by copying the two gitignored trails into a clean worktree, then removing them. Before this work it was 5 / 8.
-    - **3 green / 8 in a clean clone:** L2, L4, L5. Before this work it was 1 / 8.
-    - L1 and L6–L8 cite `.aios/audit/organic-chain-runs.jsonl`, and L3's LC4 note cites `.aios/audit/reverse-engineering-runs.jsonl`. Both files are gitignored and exist only on the laptop.
-    - The CI job reports these verdicts but does not require green, so it stays green either way.
+  - **8 green / 8, in a clean clone too** (measured 2026-10-28). Before this work it was 5 / 8 on the laptop and 1 / 8 in a clean clone.
+    - Five faculties had cited two trails that exist only on the laptop: `.aios/audit/` is gitignored. Those are now committed as frozen, byte-identical copies in `docs/learning/trails/`, and the ledger points there.
+    - Before committing, both were read for secrets: every scanner hit was a false positive (a commit hash, a test name, a model id). Each faculty's cited run was also checked to support its claim.
+    - The CI job reports these verdicts but does not require green.
 - **Organ ledger: 50 green / 9 yellow / 59**, unchanged. Every organ's evidence was re-gathered and passed at `b5ddaed7` (#538). Master CI is green on every job.
 
 ## State on 2026-10-21 (measured 2026-10-19 to 10-21 on master `501c2536`, unless a line says otherwise)

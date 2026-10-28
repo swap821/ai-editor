@@ -158,7 +158,8 @@ model never reached the check" as a violation (fixed in #392).
   - A new skill was learned from three live turns over a real repository test.
   - The operator activated it; the sweep compiled it into a reflex; and that reflex served a request with **no model call**.
   - It ran on a separate proof backend scoped to a fresh checkout of the repo.
-  - Learning Ledger L3, L4 and L5 are now earned organically: 8 of 8 green on the laptop, 3 of 8 in a clean clone (the rest cite gitignored trails).
+  - Learning Ledger L3, L4 and L5 are now earned organically.
+  - Two local trails were committed as frozen copies, so the ledger reads **8 of 8 green in a clean clone too**. Before this it was 1 of 8.
   - Found on the way: the activation tool could not name any newly learned skill (#543).
 - **10-25 to 10-28: D12's local judged run: not met, no harm** (`docs/learning/PAYOFF_D12_RESULT.md`).
   - With lessons, the local student earned 91 of 249, against 103 without: 12 targets better, 18 worse, p = 0.21.
