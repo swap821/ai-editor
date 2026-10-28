@@ -31,7 +31,7 @@
     "motion": "^14.6.0",
     "react": "~19.3.1",
     "react-dom": "~19.3.1",
-    "react-resizable-panels": "^4.14.8",
+    "react-resizable-panels": "^4.15.0",
     "three": "^0.186.1",
     "troika-three-text": "^0.52.5"
   },
