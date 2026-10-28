@@ -94,6 +94,11 @@ training_ground/*
 # fixtures from the learning-loop prover are ignored; lab/__init__.py and
 # lab/conftest.py are force-added.
 lab/*
+# work/ holds the operator's REAL working checkouts that GAGOS may act on when
+# his backend runs with work/ as a scope root (docs/operations/WORK_SCOPE.md).
+# Unlike training_ground/ and lab/ it is not a playground: nothing in it is a
+# fixture, and a checkout there reaches master only by a reviewed PR.
+work/
 
 scratch.py
 
