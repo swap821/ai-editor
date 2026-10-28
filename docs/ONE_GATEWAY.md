@@ -1,7 +1,7 @@
 # One gateway, measured
 
-*2026-10-12. The production scoreboard's `one_gateway` gate:
-"every model call through the one gateway".*
+*2026-10-12, updated 2026-10-28. The production scoreboard's `one_gateway`
+gate: "every model call through the one gateway".*
 
 ## What was true before
 
@@ -33,6 +33,58 @@ There were two kinds of evidence that every call passed it:
 - Every request the fake server and the transport **received** must have a
   ledger record. A call the ledger missed would otherwise read as no call.
 - A surface that made no model call is **not reached**, never clean.
+
+## 2026-10-28: real use found a call the inventory missed
+
+**The operator's own ledger held ungated production calls.** On 2026-10-28 it
+held 163 calls (`data/model_calls/`, written on 2026-10-12 and 2026-10-21), and
+25 passed no entrance.
+
+- **12 have no repository frame at all.**
+  - They were made on 2026-10-12 by scripts outside the repository, writing to
+    the live data directory.
+  - Their models and times match that day's clerk-model trials. They are not
+    production, but the scoreboard judges them, because their site is not
+    under `tools/` or `tests/`.
+- **13 were production, every one from `aios/core/router_wiring.py:picker`.**
+  They were made on `/api/generate` turns on 2026-10-21.
+
+**What the picker is.**
+- When routing policy allows two or more candidates, a small local model is
+  asked to prefer one. The operator's machine allows that for reasoning and
+  coding (`AIOS_ROUTER_CLOUD_TASKS`).
+- Its prompt holds the task type and the allow-list, no user text. So nothing
+  private left the machine.
+- But the call skipped the emergency-stop check and output redaction. "Every
+  model call through the one gateway" was false in daily use.
+
+**Why the inventory missed it.** Its auto-routed turn ran with cloud off, so
+every turn had one candidate and no pick. It listed the picker as not
+reached, which was true of the inventory and not of the machine.
+
+**Fixed:**
+- **The picker runs only through a gate.**
+  - `/api/generate` and `/api/v1/chat` build the gate on the local-only
+    compatibility entrance.
+  - Without a gate there is no pick, and routing stays deterministic.
+  - An engaged stop refuses the pick before any model call.
+- **Only the chosen allow-list position leaves the gated call.** Redaction
+  rewrites the real id `qwen3-coder-480b-a35b-v1:0` as high-entropy, so a
+  redacted reply would have silently lost that pick.
+- **Tests:** `tests/test_route_picker_gateway.py`.
+- **The inventory gained the surface `generate_routed`.** It runs with cloud
+  allowed for coding, as on the operator's machine.
+  - **Positive control:** on master `777da7ff`'s code it reports
+    `UNGATED x1: aios/core/router_wiring.py:picker`.
+  - On the fix, all of the surface's 4 calls are gated, the pick among them
+    (`router_wiring.py:_pick_position`, through `complete_compatibility`).
+
+**The inventory, 2026-10-28** (`release/one-gateway/inventory-2026-10-28.json`):
+- 12 surfaces, 66 model calls, all 66 gated.
+- The ledger is complete: 64 Ollama and 2 Bedrock requests received, every one
+  recorded.
+- 15 of 27 static sites observed. The 12 not observed are the table below,
+  less the picker.
 
 ## The inventory, 2026-10-12
 
@@ -88,7 +140,7 @@ observed.** The 13 below were not, so nothing here says they are gated:
 | `runtime/intelligence_gateway.*` (3), `council_orchestrator.execute` | Worker reasoning (`AIOS_WORKER_REASONING`, off by default) and execution after King approval. |
 | `maintenance/service.run_approved_repair` | Needs an approved repair mission. |
 | `self_analysis_agent.propose_fix` | Self-analysis proposals. |
-| `models/model_router.complete`, `router_wiring.picker` | Not reached by any driven route. |
+| `models/model_router.complete`, `router_wiring.picker` | Not reached by any driven route. *The picker WAS reached on the operator's machine, ungated: see 2026-10-28 above.* |
 | `governance/runtime_proof._probe_mission` | A proof fixture, not a production caller. |
 
 On a live machine, the scoreboard gate covers whatever real use reaches.

@@ -560,8 +560,10 @@ resists attacks nobody has written yet.
 ### Still being completed or proven
 
 - One universal gateway for every model call — measured, not enforced: the
-  inventory observed 14 of 27 model-call sites (`docs/ONE_GATEWAY.md`), and an
-  ungated call is recorded rather than refused; organ 32 is yellow for this
+  inventory observed 15 of 27 model-call sites (`docs/ONE_GATEWAY.md`), and an
+  ungated call is recorded rather than refused; organ 32 is yellow for this.
+  On 2026-10-28 the operator's own ledger showed the route picker calling its
+  model ungated on every routed turn; it now passes the gateway
 - Complete human-representation context for every provider — the agentic
   `/api/generate` path compiles its own representative context and carries
   neither operator preferences nor the project passport

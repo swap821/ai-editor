@@ -817,7 +817,7 @@ def test_the_route_picker_is_skipped_only_when_asked(monkeypatch) -> None:
 
     asked: list[str] = []
 
-    def spy(ollama, providers, cands, task):
+    def spy(ollama, providers, cands, task, **kwargs):
         asked.append(task)
         return None
 

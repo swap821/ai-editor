@@ -20,6 +20,7 @@ from fastapi import HTTPException
 from aios.application.intelligence.gateway import (
     AdvisoryChatCompletionAdapter,
     GovernedAdvisoryCompletionClient,
+    complete_compatibility_intelligence_request,
     stream_structured_intelligence_request,
 )
 from aios.agents.reflection_agent import ReflectionAgent
@@ -279,6 +280,15 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         metrics=_route_metrics(runtime.development, req.model_id),
         calibration_weight=config.ROUTER_CALIBRATION_WEIGHT,
         data_classification=context.data_classification,
+        # The route picker's model call passes the gateway. The local-only
+        # compatibility entrance fits it: the pick prompt holds the task type
+        # and the allow-list, no user text and no principal authority.
+        picker_gate=lambda pick: complete_compatibility_intelligence_request(
+            request_id=f"{context.turn_id}:route-pick",
+            target="local",
+            model_call=pick,
+            emergency_stop=extra["emergency_stop"],
+        ),
         # Passed only when it changes something, so a substituted selector
         # (tests patch this binding) is called exactly as before otherwise.
         **({"llm_picker": False} if reflex_match is not None else {}),
