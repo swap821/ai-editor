@@ -21,7 +21,7 @@ is `HONEST_STATE.md`. This file records how the project got there.*
 | July | 648 | #73–#169 | The cerebellum (learned reflexes), the sovereignty proof, voice, the worker foundry, the 54-organ model | "54/54 organs green" (#155) |
 | August | 129 | #170–#273 | A mechanical green contract, the operator's §VIII signature, three red-team campaigns, the golden cohort, security fixes | "54 green / 0 yellow" again (#256) |
 | September | 185 | #274–#429 | The recount (5, not 54), organs re-earned on executing proofs, organ 55, fail-closed guards, the learning-loop audit and hardening | Several greens that were not; evidence orphaned by squash merges |
-| October | 137 | #429–#527 | Production readiness (H1–H8), the payoff experiments, the first self-repair, key and identity recovery, the D12 lessons | Learning has not yet been shown to help |
+| October | 137 by 10-21 | #429–#538 | Production readiness (H1–H8), the payoff experiments, the first self-repair, key and identity recovery, the D12 lessons, the first live reflex | Learning was judged twice and did not help |
 
 ## June: from a chat app to a governed agent
 
@@ -144,8 +144,19 @@ model never reached the check" as a violation (fixed in #392).
   - Every one of 168 verified lessons was fact-checked: 106 true and specific, 9 false (5%).
   - The operator re-admitted the 106. **117 lessons now reach the operator's turns**.
   - The cloud judged run: **neither cloud member met, no harm** (`docs/learning/PAYOFF_D12_RESULT.md`).
-  - The local judged run has not been run yet.
+  - The local judged run had not been run yet (it ran 10-25 to 10-28, below).
 - **10-21.** A new certifi advisory (PYSEC-2026-4320) failed every PR's CI. Fixed by #527.
+- **10-21 to 10-25: the first live reflex.**
+  - The operator activated and signed three skills (#529).
+  - A learned reflex served one of his real turns with no model call in its action. His own script checked it. The record is local, not in git.
+  - Two defects the check exposed were fixed:
+    - a sandbox outage had counted as a failed verification (#535);
+    - the turn consulted two models before checking for a reflex (#537).
+  - Five new dependency advisories turned master red; #536 fixed them.
+- **10-28: the reflex re-proved with #537.** The operator re-ran the check. The whole turn made **no model call**: the reflex served it, the verify passed STRONG, and no approval was asked. Its skill was learned on a toy test, so this proves the mechanism, not organic learning. The Learning Ledger records it that way, and L4 and L5 stay yellow.
+- **10-25 to 10-28: D12's local judged run: not met, no harm** (`docs/learning/PAYOFF_D12_RESULT.md`).
+  - With lessons, the local student earned 91 of 249, against 103 without: 12 targets better, 18 worse, p = 0.21.
+  - **The D12 family is not met.** Learning has now been judged by two pre-registered families, and neither found a benefit.
 
 ## Claims that were wrong, and their corrections
 
@@ -159,7 +170,7 @@ model never reached the check" as a violation (fixed in #392).
 | "The clean-box stranger test is blocked" | It was not, and it found 4 real install gaps | #314, #315 |
 | The endurance nightly was a signal | It was red for about 60 runs, gated on a 0.5b model's obedience | #346 |
 | The "universal" intelligence gateway | Measured, not enforced; organ 32 demoted | #467, #489 |
-| The learning loop helps | Not shown: Phase 8 not met, D12 cloud not met | #480, `PAYOFF_D12_RESULT.md` |
+| The learning loop helps | Not shown: Phase 8 not met; D12 not met, cloud or local | #480, `PAYOFF_D12_RESULT.md` |
 | The One Law holds | Writes could not compile until 09-07, and no skill is active on the operator's machine today | #316, `HONEST_STATE.md` |
 
 ## Mistakes by the agents, recorded so they are not repeated

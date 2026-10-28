@@ -1,9 +1,43 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-10-21 ("State on 2026-10-21" below; earlier sections keep
+**Last updated:** 2026-10-28 ("State on 2026-10-28" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-10-28 (measured 2026-10-21 to 10-28; master `de88e7dd` unless a line says otherwise)
+
+**Learning has now been judged twice, and neither time did it help. A learned
+reflex has served a real turn with no model call at all, but its skill is a toy.**
+
+- **D12 is judged: not met, and no harm** (`docs/learning/PAYOFF_D12_RESULT.md`, `payoff_d12_judged_result.json`).
+  - The local student (`qwen3.5:9b`) ran the same 150 targets on the cloud run's code, from the store as it was before skills were activated.
+  - With lessons it earned 91 of 249, against 103 without. By target: 12 better, 18 worse, p = 0.21. That is not significant, and not harm by the registered rule.
+  - Real lessons against a placebo of the same size: 9 vs 12.
+  - So no member of the four-member family is met, and the usefulness gate stays FAIL.
+  - Diagnostic: recall does vary by task, but it is rarely about the task. Only 27 of 150 targets were shown a lesson from their own module.
+- **Skills.** On 2026-10-21 the operator activated three skills (41, 49, 79) and signed them (#529). The census admits 3 of 3.
+- **A learned reflex served a live turn with no model call at all** (2026-10-28, `docs/learning/reflex_live_proof_20261028.json`).
+  - The operator ran the check himself, on his backend running master `de88e7dd` (which has #537), started after the checkout moved to it.
+  - Playbook 5 replayed a verify command he had approved exactly. It passed STRONG. No approval was asked, and no interpreter or planner ran.
+  - **Zero model calls in the whole turn.** The model-call ledger stayed at 163 lines, and Ollama's own request log shows no inference request in that window.
+  - On 2026-10-21 the same reflex served a turn that still made two model calls, the route picker and the interpreter (`reflex_live_proof_20261021.json`). #537 removed both.
+  - **The limit, stated plainly:** playbook 5's skill (41) was learned by the July learning-loop prover on a toy test (`assert 1 + 1 == 2`). This proves the mechanism on the live product path. It does not prove that organically learned skill served real work.
+  - The committed records have the operator's principal id redacted, and each carries the sha256 of its original.
+- **An outage is no longer a verdict** (#535). When the sandbox cannot start a command:
+  - no verify verdict is given;
+  - no skill is marked against;
+  - no reflex is retired;
+  - no command approval is withdrawn.
+- **Learning Ledger L4 and L5: updated, and still yellow** (`.aios/state/LEARNING_LEDGER.json`).
+  - **L5:** the two live runs are recorded as live and NOT organic. LC10 counts only organic evidence, so they cannot turn L5 green.
+    - Two of its three blockers are discharged: the replay needed a human-approved step (Phase 5 now supplies it), and the skill had to be activated (done 2026-10-21).
+    - The one blocker left is the organic re-earn. The one active organic skill, 79, has never replayed under an approval: its command targets the self-corpus, which exists only during an organic run and lies outside the live scope roots.
+  - **L4:** the activation half of its blocker is discharged. The compile half is not: every compiled playbook predates the activations, and the journal's last compile is 2026-09-27.
+  - **The ledger's green count depends on where it is measured.** Measured 2026-10-28 at `de88e7dd`: **5 green / 8 on the operator's laptop** (L1, L2, L6, L7, L8), but **1 green / 8 in a clean clone** (L2 only).
+    - Six faculties (L1, L3, L5, L6, L7, L8) cite `.aios/audit/organic-chain-runs.jsonl` as their organic evidence. That file is gitignored and exists only on the laptop, so a clean clone, and CI, fail LC10 for all six.
+    - The CI job reports these verdicts but does not require green, so it stays green either way.
+- **Organ ledger: 50 green / 9 yellow / 59**, unchanged. Every organ's evidence was re-gathered and passed at `b5ddaed7` (#538). Master CI is green on every job.
 
 ## State on 2026-10-21 (measured 2026-10-19 to 10-21 on master `501c2536`, unless a line says otherwise)
 

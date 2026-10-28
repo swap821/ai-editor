@@ -575,7 +575,9 @@ resists attacks nobody has written yet.
   machine (0 of 80), so no learned reflex serves a live turn yet
 - Learning usefulness — the pre-registered Phase 8 judged run found no
   measurable benefit from memory (H1 not met; no harm;
-  `docs/learning/PAYOFF_PHASE8_RESULT.md`); D12 is the next registered test
+  `docs/learning/PAYOFF_PHASE8_RESULT.md`); D12, its successor with fact-checked
+  lessons from a strong teacher, was not met either, cloud or local
+  (`docs/learning/PAYOFF_D12_RESULT.md`, 2026-10-28)
 - Endurance evidence — the nightly fires, but its endurance job failed on each
   night 2026-10-07 to 2026-10-11: the tester aborts on 5 consecutive errors, so
   no usable endurance evidence has been recorded. It is also wired at
