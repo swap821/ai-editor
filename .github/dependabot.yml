@@ -44,6 +44,14 @@ updates:
       # accepts huggingface-hub 2.x.
       - dependency-name: "huggingface-hub"
         versions: [">=2.0.0"]
+      # botocore -- every release through 1.43.120, the latest on 2026-10-28 --
+      # requires `python-dateutil <3.0.0,>=2.1`, so #540's major bump to 3.0.0
+      # made requirements.txt unresolvable: every backend job died at
+      # `pip install` with ResolutionImpossible and no test ran. Nothing here
+      # imports dateutil; botocore is the only package that needs it. Same shape
+      # as the entries above. Lift when botocore accepts python-dateutil 3.x.
+      - dependency-name: "python-dateutil"
+        versions: [">=3.0.0"]
     groups:
       python-minor-patch:
         patterns:
