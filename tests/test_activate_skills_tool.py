@@ -234,3 +234,82 @@ def test_an_active_skill_is_named_to_be_signed_through_the_same_route(
     ]
     assert "signing active legacy 1" in out
     assert code == 0
+
+
+def _learned(name: str, *, ready: bool = True) -> SkillRecord:
+    """An arc the library learned AFTER the migration: no legacy id at all."""
+    record = _record(0, ["verify: command=pytest v.py -q"], ready=ready)
+    return record.model_copy(
+        update={
+            "skill_id": name,
+            "success_count": 3 if ready else 1,
+            "provenance": {"source": "live", "signature_v2": name},
+        }
+    )
+
+
+def test_a_skill_learned_after_the_migration_can_be_activated_by_its_key(
+    world, monkeypatch, capsys
+) -> None:
+    """2026-10-28: `--activate` took legacy ids only, and a skill the library
+    learned since slice 2.4c-B has none. No newly learned skill could become a
+    reflex; L4 and L5 could only be re-earned on migrated skills."""
+    world.save(_learned("arc-live"))
+    assert tool.main([]) == 0
+    listing = json.loads(capsys.readouterr().out)
+    [row] = [r for r in listing["review_ready"] if r["skill_id"] == "arc-live"]
+    assert row["legacy_id"] is None and row["activate"] == "arc-live@1"
+
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    code = tool.main(["--activate", "arc-live@1", "--i-am-the-operator", "Operator"])
+    out = capsys.readouterr().out
+    assert FakeSession.instances[0].posts == [
+        "/api/v1/skills/arc-live/versions/1/activate"
+    ]
+    assert "activating arc-live@1" in out
+    assert code == 0
+    assert SECRET not in out
+
+
+def test_legacy_ids_and_keys_can_be_mixed_and_keep_their_order(
+    world, monkeypatch
+) -> None:
+    world.save(_learned("arc-live"))
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    tool.main(["--activate", "arc-live@1", "1", "--i-am-the-operator", "Operator"])
+    assert FakeSession.instances[0].posts == [
+        "/api/v1/skills/arc-live/versions/1/activate",
+        "/api/v1/skills/arc-1/versions/1/activate",
+    ]
+
+
+def test_a_key_names_only_a_candidate_or_an_active_skill(world, monkeypatch) -> None:
+    """A suspended skill returns through --reactivate alone, and a key that
+    names nothing is refused before any session opens."""
+    _suspend(world, 5)
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    for target in ("arc-5@1", "arc-nope@1", "arc-1@2"):
+        with pytest.raises(SystemExit, match="not an activatable candidate"):
+            tool.main(["--activate", target, "--i-am-the-operator", "Operator"])
+    assert not FakeSession.instances
+
+
+def test_a_learned_skill_that_is_not_review_ready_needs_the_flag(
+    world, monkeypatch
+) -> None:
+    world.save(_learned("arc-young", ready=False))
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    with pytest.raises(SystemExit, match=r"not review-ready: \['arc-young@1'\]"):
+        tool.main(["--activate", "arc-young@1", "--i-am-the-operator", "Operator"])
+    assert not FakeSession.instances
+
+
+def test_an_unsigned_learned_skill_is_named_by_its_key(
+    world, monkeypatch, capsys
+) -> None:
+    world.save(_learned("arc-live"))
+    FakeSession.signs = False
+    monkeypatch.setenv("AIOS_OPERATOR_CREDENTIAL", SECRET)
+    code = tool.main(["--activate", "arc-live@1", "--i-am-the-operator", "Operator"])
+    assert code == 1
+    assert "NOT SIGNED: ['arc-live@1']" in capsys.readouterr().out
