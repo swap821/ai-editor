@@ -204,7 +204,7 @@
         "claim": "Recovery must be buyable ONLY with new promotable successes: a WEAK green, a failure, and simply re-running the compiler each leave the reflex retired."
       },
       "known_blockers": [
-        "PHASE 2 SLICE 2.4c-B (2026-09-28). A reflex compiles only from a skill the OPERATOR activated in the institutional library, with exactly the activated steps. The organic compile below (playbook 16) was of a skill the legacy store promoted by itself, which can no longer happen. It is true history and is kept; it does not describe master. Re-earn: the operator activates an organically earned, review-ready skill (tools/activate_skills.py), then an organic run compiles it."
+        "COMPILE FROM AN ACTIVATED SKILL NOT YET OBSERVED (2026-10-28). Every compiled playbook predates the operator's activations: playbook 15 (skill 79) was compiled 2026-09-21 by the legacy store, playbook 5 (skill 41) 2026-09-07. The learning journal's last `compiled` event is playbook 16 on 2026-09-27. Live turns on 2026-10-21 and 2026-10-28 show an activated skill's EXISTING reflex serving (that is L5), not a compile. Re-earn: an organic run makes a new library arc review-ready, the operator activates it, and the cerebellum compiles it."
       ],
       "live_evidence": [
         {
@@ -220,6 +220,12 @@
       "na_by_design": {},
       "live_path_symbols": [
         "Cerebellum"
+      ],
+      "discharged_blockers": [
+        {
+          "blocker": "PHASE 2 SLICE 2.4c-B (2026-09-28). A reflex compiles only from a skill the OPERATOR activated in the institutional library, with exactly the activated steps. The organic compile below (playbook 16) was of a skill the legacy store promoted by itself, which can no longer happen. It is true history and is kept; it does not describe master. Re-earn: the operator activates an organically earned, review-ready skill (tools/activate_skills.py), then an organic run compiles it.",
+          "discharged_by": "The ACTIVATION half only, 2026-10-21: the operator activated an organically earned, review-ready skill (79, earned by the 2026-09-22 self-corpus run), and the activation is signed (#529). The COMPILE half is not discharged; it is the blocker that remains."
+        }
       ]
     },
     {
@@ -259,9 +265,7 @@
         "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
       },
       "known_blockers": [
-        "PHASE 0b CONTAINMENT (2026-09-25). A replayed command is no longer pre-approved without a recorded human approval of that command (ToolAgent._dispatch_approved; operator decision 2026-09-25: a reflex may auto-approve only a step a human approved). This faculty's organic evidence is playbook 15, whose step is a YELLOW `pytest` verify: on master the same replay is now withheld by `reflex_authority` and falls through to the model. The evidence is true history and is kept; it no longer describes master. Re-earn organically with a reflex whose steps need no approval, or under approval provenance for commands (plan Phase 5).",
-        "Re-confirmed 2026-09-28 (run 20260927T221713-b131ac59): playbook 16 matched, its approval-needing pytest step was refused during replay ('blocked'), and the model was consulted. A reflex learned with no human approval cannot serve a turn alone by design; zero-LLM replay needs a step a human approved (Phase 5), not a loosened gate.",
-        "PHASE 2 SLICE 2.4c-B (2026-09-28): a reflex now exists only for an operator-activated skill, so re-earning L5 also needs L4's activation first."
+        "ORGANIC RE-EARN OUTSTANDING (2026-10-28). The only reflex that has served a live turn is playbook 5, whose skill the July learning-loop prover learned on a toy test; LC10 rightly does not count it. The one active ORGANIC skill is 79 (playbook 15, `pytest ai-editor-selfcorpus/tests/test_code_chunking.py`, earned by the 2026-09-22 self-corpus run). It has never replayed under Phase 5 approval provenance: its command targets the self-corpus worktree, which exists only during an organic run and lies outside the live backend's scope roots. Re-earn: an organic reflex serves its request with no model call under a human's exact-command approval. Not by widening the live scope roots (a frozen guardrail, the operator's call) or by a harness grant (harness grants never cross into live turns)."
       ],
       "live_evidence": [
         {
@@ -271,6 +275,22 @@
           "commit_sha": "00dbf6f38956935e0c168a14c77ce5f9ed1e32cc",
           "proof_level": "live",
           "organic": true
+        },
+        {
+          "description": "LIVE, NOT ORGANIC. 2026-10-21 15:37 UTC, the operator's own backend and session (POST /api/generate, modelId auto): playbook 5 replayed `pytest lab/test_llp_reflex_xkj.py -q` under his recorded exact-command approval (Phase 5, #510). The replayed verify passed STRONG, the replay count went 0 -> 1, and no approval was asked. The TURN still made 2 model calls before anything checked for a reflex (the route picker and the interpreter), so the record says proven: false. Skill 41 (playbook 5) was learned by the July learning-loop prover on a toy test (lab/test_llp_reflex_xkj.py asserts 1 + 1 == 2), so this is the replay MECHANISM on the live product path, not organic learning: organic is false.",
+          "command": "python data/services/prove_reflex_live.py (version 1, run by the operator with his credential)",
+          "artifact": "docs/learning/reflex_live_proof_20261021.json",
+          "commit_sha": "5eab33df53b327ac1c2daafee7a548f58468896c",
+          "proof_level": "live",
+          "organic": false
+        },
+        {
+          "description": "LIVE, NOT ORGANIC. 2026-10-28 04:27 UTC, the same request on the operator's backend running #537 (reflex checked before routing and interpretation), started after its checkout moved to that code. Playbook 5 served the turn: verify passed STRONG, replay count 1 -> 2, no approval asked, no interpreter or planner frame, and ZERO model calls in the whole turn (the model-call ledger stayed at 163 lines; Ollama's own request log shows no inference request in that window). The learning journal recorded it (learning_events: L5 replayed, subject 5). Skill 41 (playbook 5) was learned by the July learning-loop prover on a toy test (lab/test_llp_reflex_xkj.py asserts 1 + 1 == 2), so this is the replay MECHANISM on the live product path, not organic learning: organic is false.",
+          "command": "python data/services/prove_reflex_live.py (version 2, run by the operator with his credential)",
+          "artifact": "docs/learning/reflex_live_proof_20261028.json",
+          "commit_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
+          "proof_level": "live",
+          "organic": false
         }
       ],
       "last_verified_sha": "00dbf6f38956935e0c168a14c77ce5f9ed1e32cc",
@@ -286,6 +306,18 @@
         {
           "blocker": "(2) APPROVAL GATE. The write-free alternative -- a read+verify arc over a real module -- is blocked at the gateway: `pytest` is on the YELLOW (approval-required) list, and the auto-execute allowlist is `echo` and `pwd` only. An unattended training run has no approver, so the verify never executes. Observed directly: `tool_blocked` on `pytest tests/test_code_chunking.py` inside the corpus.",
           "discharged_by": "Operator granted the scoped approval on 2026-09-22 (asked for by name in this ledger's previous revision). The harness now holds ONE exact command string for the duration of one run: not a prefix, not a pattern, nothing written to config. The gateway is unchanged -- `pytest` stays YELLOW for everyone else, which tests/test_training_approval_is_narrow.py::TestTheGatewayItselfIsUnchanged fails if anyone reclassifies it. Approval still cannot buy RED (execute_approved re-evaluates) and the scope lock still confines the command to the throwaway worktree; both directions are asserted in that file."
+        },
+        {
+          "blocker": "PHASE 0b CONTAINMENT (2026-09-25). A replayed command is no longer pre-approved without a recorded human approval of that command (ToolAgent._dispatch_approved; operator decision 2026-09-25: a reflex may auto-approve only a step a human approved). This faculty's organic evidence is playbook 15, whose step is a YELLOW `pytest` verify: on master the same replay is now withheld by `reflex_authority` and falls through to the model. The evidence is true history and is kept; it no longer describes master. Re-earn organically with a reflex whose steps need no approval, or under approval provenance for commands (plan Phase 5).",
+          "discharged_by": "The MECHANISM half, 2026-10-21 and 2026-10-28: approval provenance for commands exists (#510) and a reflex replayed a YELLOW `pytest` verify on the operator's live system under his recorded exact-command approval, asking for none; on 2026-10-28 the whole turn made no model call (docs/learning/reflex_live_proof_20261028.json). The gate was not loosened: an unapproved command is still withheld. The ORGANIC half is NOT discharged; it is the blocker that remains."
+        },
+        {
+          "blocker": "Re-confirmed 2026-09-28 (run 20260927T221713-b131ac59): playbook 16 matched, its approval-needing pytest step was refused during replay ('blocked'), and the model was consulted. A reflex learned with no human approval cannot serve a turn alone by design; zero-LLM replay needs a step a human approved (Phase 5), not a loosened gate.",
+          "discharged_by": "Phase 5 supplied the human-approved step this blocker asked for, and the 2026-10-21 and 2026-10-28 live turns replayed it with no approval asked. Nothing was loosened to get there."
+        },
+        {
+          "blocker": "PHASE 2 SLICE 2.4c-B (2026-09-28): a reflex now exists only for an operator-activated skill, so re-earning L5 also needs L4's activation first.",
+          "discharged_by": "2026-10-21: the operator activated skills 41, 49 and 79 with tools/activate_skills.py and the activations are signed under the pinned live key (#529; census 3 of 3 skills)."
         }
       ]
     },
