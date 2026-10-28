@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import math
 import re
+from typing import Iterable
 
 _TOKEN = re.compile(r"[a-z0-9_./-]+")
 _STOP = frozenset(
@@ -155,6 +156,97 @@ def specific_relevance(query: str, document: str) -> float:
     if not shared:
         return 0.0
     return round(len(shared) / math.sqrt(len(query_tokens) * len(document_tokens)), 6)
+
+
+# --------------------------------------------------------------------------- #
+# Which code a lesson is about (D13, 2026-10-28)
+# --------------------------------------------------------------------------- #
+
+#: Where practice records a lesson's code: ``<kind>:<run>:<module>.py::<function>``.
+#: Searched, not anchored: a redacted run id can itself contain colons.
+_TASK_HOME = re.compile(r"(?P<module>[\w./-]*\w\.py)?::(?P<function>[A-Za-z_]\w*)")
+#: A module path (``aios/council/reasoning.py``). Only one with a directory
+#: counts: a bare ``auth.py`` in prose, or the ``ce.py`` the secret scanner
+#: left of ``…/provenance.py``, names no particular code.
+_PATH = re.compile(r"[\w./-]*\w\.py\b")
+#: A dotted name a lesson's text names (``aios.agents.tool_handlers.verify_command``).
+_TEXT_DOTTED = re.compile(r"\baios(?:\.\w+)+")
+
+
+def _paths(text: str) -> set[str]:
+    found = (path.lstrip("./") for path in _PATH.findall(text or ""))
+    return {path for path in found if "/" in path}
+
+
+def _mentions(text: str, name: str) -> bool:
+    """Is *name* in *text* whole: not inside a longer name (``x.py`` in
+    ``service_x.py``, ``aios.a.b`` in ``aios.a.b_c``)?"""
+    return re.search(rf"(?<![\w.]){re.escape(name)}(?!\w)", text) is not None
+
+
+def distinctive_name(name: str) -> bool:
+    """Is *name* specific enough to identify code on its own?
+
+    A short generic name (``run``, ``main``, ``parse``) would match unrelated
+    code everywhere; a long or multi-part one (``reconcile_plan_steps``,
+    ``learning_public_key``) does not.
+    """
+    return len(name) >= 12 or name.count("_") >= 2
+
+
+def lesson_homes(task_id: str, texts: Iterable[str]) -> tuple[set[str], set[str]]:
+    """The code a lesson names: ``(module paths and dotted names, functions)``.
+
+    From the task it was learned on, when practice recorded one, and from the
+    module paths and ``aios.`` names its own text gives. A lesson that names
+    no code has no home.
+    """
+    modules: set[str] = set()
+    functions: set[str] = set()
+    match = _TASK_HOME.search(task_id or "")
+    if match:
+        modules.update(_paths(match["module"] or ""))
+        functions.add(match["function"])
+    for text in texts:
+        modules.update(_paths(text))
+        modules.update(_TEXT_DOTTED.findall(text or ""))
+    return modules, functions
+
+
+def names_code(text: str) -> bool:
+    """Does *text* name code: a module path or an ``aios.`` dotted name?"""
+    return bool(_paths(text) or _TEXT_DOTTED.search(text or ""))
+
+
+def names_the_same_code(query: str, task_id: str, texts: Iterable[str]) -> bool:
+    """Does *query* name code that this lesson is about?
+
+    True when the query names one of the lesson's modules, as a path or as a
+    dotted import path (or, for a dotted name like ``aios.pkg.mod.func``, a
+    prefix of at least three parts), or one of its functions, if that name is
+    distinctive. Measured 2026-10-28 (PAYOFF_D12_RESULT.md): recall by shared
+    words showed 150 judged targets lessons that were rarely about their code,
+    one of them on 109 targets. A lesson is now recalled across tasks only when
+    the task names its code.
+    """
+    if not query:
+        return False
+    modules, functions = lesson_homes(task_id, texts)
+    for module in modules:
+        if module.endswith(".py"):
+            if _mentions(query, module) or _mentions(
+                query, module[:-3].replace("/", ".")
+            ):
+                return True
+            continue
+        parts = module.split(".")
+        for size in range(len(parts), 2, -1):
+            if _mentions(query, ".".join(parts[:size])):
+                return True
+    return any(
+        distinctive_name(function) and re.search(rf"\b{re.escape(function)}\b", query)
+        for function in functions
+    )
 
 
 def signature(text: str) -> str:

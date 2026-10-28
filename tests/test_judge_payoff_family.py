@@ -130,3 +130,25 @@ def test_a_partial_d12_family_is_never_written(tmp_path, monkeypatch, capsys) ->
     assert jf.main(["--family", "d12", "--write"]) == 1
     assert not (tmp_path / "result.json").exists()
     assert "partial family is not a verdict" in capsys.readouterr().out
+
+
+def test_the_d13_family_is_holm_over_two_local_members() -> None:
+    """Written 2026-10-28, before the D13 run produced any data."""
+    result = jf.judge_d13(_d12_run(_stats(22, 9, 0.029), _stats(20, 10, 0.099)))
+    family = result["family"]
+    assert set(family) == {"H1-local-D13", "H1c-local-D13"}
+    # Holm over two: the smaller p is doubled.
+    assert family["H1-local-D13"]["holm_p"] == 0.058
+    assert family["H1-local-D13"]["met"] is False, "0.029 x 2 is not below 0.05"
+    assert result["h1_met"] is False and "D13 family not met" in result["summary"]
+    assert set(result["h2_harm"]) == {"local"}
+    met = jf.judge_d13(_d12_run(_stats(24, 6, 0.001), _stats(20, 10, 0.099)))
+    assert met["family"]["H1-local-D13"]["met"] is True and met["h1_met"] is True
+
+
+def test_no_d13_run_no_d13_verdict(tmp_path, monkeypatch, capsys) -> None:
+    monkeypatch.setattr(jf, "D13_LOCAL", tmp_path / "missing.json")
+    monkeypatch.setattr(jf, "D13_RESULT", tmp_path / "result.json")
+    assert jf.main(["--family", "d13", "--write"]) == 1
+    assert not (tmp_path / "result.json").exists()
+    assert "nothing written" in capsys.readouterr().out

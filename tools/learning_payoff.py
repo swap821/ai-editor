@@ -122,6 +122,7 @@ from aios.api.turn_pipeline import (  # noqa: E402
 from aios.agents.reflection_agent import ReflectionAgent  # noqa: E402
 from aios.memory.db import init_memory_db  # noqa: E402
 from aios.memory.mistake import MistakeMemory  # noqa: E402
+from aios.memory.relevance import distinctive_name  # noqa: E402
 from aios.memory.skills import SkillMemory  # noqa: E402
 from aios.core.llm import LLMError  # noqa: E402
 from tools.self_corpus import CorpusError, self_corpus  # noqa: E402
@@ -342,7 +343,7 @@ def about_this_target(item: dict, target) -> bool:
     # direction to be wrong in: a false SEEN only weakens the NOVEL claim. A
     # short generic name (`run`, `main`, `parse`) would match unrelated work
     # everywhere, so it still requires the module.
-    return names_function and (len(function) >= 12 or function.count("_") >= 2)
+    return names_function and distinctive_name(function)
 
 
 def enrich_lessons(db: Path, lessons: list[dict]) -> list[dict]:

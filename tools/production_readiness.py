@@ -674,6 +674,9 @@ JUDGED_PAYOFF = Path("docs") / "learning" / "payoff_judged_result.json"
 #: D12's family verdict. Once it exists it supersedes Phase 8's
 #: (PAYOFF_PREREGISTRATION.md D12: "the usefulness gate reads the newer one").
 JUDGED_PAYOFF_D12 = Path("docs") / "learning" / "payoff_d12_judged_result.json"
+#: D13's family verdict (PAYOFF_PREREGISTRATION.md D13). The newest judged
+#: family is the one the gate reads.
+JUDGED_PAYOFF_D13 = Path("docs") / "learning" / "payoff_d13_judged_result.json"
 #: The census asks as a principal that owns nothing. The recall gate refuses
 #: a row "another principal" only after its signature verified, it is not
 #: revoked and it names an owner -- exactly a row its OWNER's turn admits --
@@ -721,7 +724,7 @@ def animal_usefulness(world: World) -> Gate:
     judged_path = next(
         (
             world.repo / rel
-            for rel in (JUDGED_PAYOFF_D12, JUDGED_PAYOFF)
+            for rel in (JUDGED_PAYOFF_D13, JUDGED_PAYOFF_D12, JUDGED_PAYOFF)
             if (world.repo / rel).is_file()
         ),
         None,

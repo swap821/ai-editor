@@ -19,6 +19,12 @@ verdict -- and its result sits beside Phase 8's, which the usefulness gate
 then stops reading (written 2026-10-21, before the local run produced data):
 
     python tools/judge_payoff_family.py --family d12 [--write]
+
+D13 (PAYOFF_PREREGISTRATION.md D13) is a local-only family: Holm over
+{H1-local-D13, H1c-local-D13}; H2 for the local cohort. Written 2026-10-28,
+before the run, so the judgement cannot be fitted to its data:
+
+    python tools/judge_payoff_family.py --family d13 [--write]
 """
 
 from __future__ import annotations
@@ -42,6 +48,8 @@ RESULT = LEARNING / "payoff_judged_result.json"
 D12_CLOUD = LEARNING / "payoff_d12_cloud_trail.json"
 D12_LOCAL = LEARNING / "payoff_d12_local_trail.json"
 D12_RESULT = LEARNING / "payoff_d12_judged_result.json"
+D13_LOCAL = LEARNING / "payoff_d13_local_trail.json"
+D13_RESULT = LEARNING / "payoff_d13_judged_result.json"
 ALPHA = 0.05
 
 
@@ -195,12 +203,48 @@ def judge_d12(cloud: dict, local: dict) -> dict:
     }
 
 
+def judge_d13(local: dict) -> dict:
+    """The D13 family (PAYOFF_PREREGISTRATION.md D13): the local student only."""
+    ls = local["summary"]
+    family = family_verdict(
+        {"H1-local-D13": ls["novel"], "H1c-local-D13": ls["content_novel"]}
+    )
+    h2 = harm({"local": ls["all"]})
+    met = any(m["met"] for m in family.values())
+    parts = ", ".join(
+        f"{n} {m['on_only']} vs {m['off_only']} (Holm p={m['holm_p']:.2f})"
+        for n, m in family.items()
+    )
+    summary = (
+        f"D13 family {'MET' if met else 'not met'}: {parts}; "
+        f"harm (H2) {'seen' if any(v['violated'] for v in h2.values()) else 'not seen'}"
+    )
+    return {
+        "judged": "D13 family, docs/learning/PAYOFF_PREREGISTRATION.md D13",
+        "result_doc": "docs/learning/PAYOFF_D13_RESULT.md",
+        "runs": {"local": {k: local.get(k) for k in _D12_KEYS}},
+        "family_alpha": ALPHA,
+        "family": family,
+        "h2_harm": h2,
+        "h1_met": met,
+        "summary": summary,
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--write", action="store_true", help="write the result file")
-    parser.add_argument("--family", choices=("phase8", "d12"), default="phase8")
+    parser.add_argument("--family", choices=("phase8", "d12", "d13"), default="phase8")
     args = parser.parse_args(argv)
-    if args.family == "d12":
+    if args.family == "d13":
+        if not D13_LOCAL.is_file():
+            print(
+                f"D13 family incomplete: {D13_LOCAL.name} missing. "
+                "No run, no verdict; nothing written."
+            )
+            return 1
+        result, target = judge_d13(_load(D13_LOCAL)), D13_RESULT
+    elif args.family == "d12":
         missing = [p.name for p in (D12_CLOUD, D12_LOCAL) if not p.is_file()]
         if missing:
             print(
