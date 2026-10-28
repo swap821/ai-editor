@@ -145,9 +145,7 @@
         "referent": "tests/test_learning_conformance.py::test_m2_fails_when_the_successes_are_below_floor",
         "claim": "Forcing every success to WEAK must turn mission M2 red, proving the learning floor -- not the count alone -- is what makes a library skill review-ready."
       },
-      "known_blockers": [
-        "PHASE 2 SLICE 2.4c-B (2026-09-28). Skills are learned in the institutional library, where nothing promotes itself: evidence makes an arc REVIEW-READY and only the operator activates it. The organic evidence below is of the legacy store verifying skill 66 by itself, a path that no longer runs (procedural_skills is read-only history). It is true history and is kept; it does not describe master. Re-earn with an organic run that makes a library arc review-ready (tools/organic_chain_run.py now writes the library)."
-      ],
+      "known_blockers": [],
       "live_evidence": [
         {
           "description": "ORGANIC. Run 20260922T044658-557cc9a6 at 00dbf6f38956: the verify-only arc over this repository's own tests/test_code_chunking.py earned three STRONG turns and SkillMemory verified skill 66.",
@@ -156,15 +154,29 @@
           "commit_sha": "00dbf6f38956935e0c168a14c77ce5f9ed1e32cc",
           "proof_level": "live",
           "organic": true
+        },
+        {
+          "description": "ORGANIC. 2026-10-28: the live turn path (POST /api/generate, the operator's session, the local model answering) recorded three verification-backed attempts of a NEW arc (arc-59221bfd...@1, source=live, principal = the operator) for a real repository test, each a STRONG pass (4 passed, 0 failed) run under his exact-command approval; InstitutionalSkillAdapter.record_attempt made it review-ready (3 ok / 0 failed, confidence 0.9). One further turn earned nothing and counted nothing: its approval token expired (120 s) before the operator approved, so the command never ran. Setup, stated in full: a PROOF backend -- the operator's own code at de88e7dd and keys, as a second process on :8010 -- with data = a SQLite-backup copy of his store (C:\\ocdata), scope = a fresh clean checkout of this repo at de88e7dd (the self-corpus, as organic runs use), sandbox image = aios-aios:latest (the repo's dependencies; same flags: no network, read-only, caps dropped, 1 GB, uid 65534), replay of approved commands on. Exact-command approvals are keyed to that workspace, so nothing approved there authorises anything in his daily one. The task was chosen to earn the faculty (as organic runs choose targets): `pytest ai-editor-selfcorpus/tests/test_relevance.py -q`, 4 real tests of aios/memory/relevance.py, never a skill or a reflex before.",
+          "command": "python docs/learning/organic_reflex_proof_2026-10-28/proof_backend_up.py.txt (the proof backend; exact bytes as run, stored as .txt), then, by the operator: python docs/learning/organic_reflex_proof_2026-10-28/prove_organic_reflex.py.txt (exact bytes as run), with the activation in between by python tools/activate_skills.py --activate SKILL_ID@VERSION (#543)",
+          "artifact": "docs/learning/organic_reflex_proof_2026-10-28/2_stage_a_review_ready.json",
+          "commit_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
+          "proof_level": "live",
+          "organic": true
         }
       ],
-      "last_verified_sha": "00dbf6f38956935e0c168a14c77ce5f9ed1e32cc",
+      "last_verified_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
       "na_by_design": {
         "LC4": "Skill state is a mutable counter row, not a journal. The append-only record of the attempts that produced it is the self-corpus trail. Referent: .aios/audit/reverse-engineering-runs.jsonl"
       },
       "live_path_symbols": [
         "runtime.skills",
         "\"skills\": runtime.skills"
+      ],
+      "discharged_blockers": [
+        {
+          "blocker": "PHASE 2 SLICE 2.4c-B (2026-09-28). Skills are learned in the institutional library, where nothing promotes itself: evidence makes an arc REVIEW-READY and only the operator activates it. The organic evidence below is of the legacy store verifying skill 66 by itself, a path that no longer runs (procedural_skills is read-only history). It is true history and is kept; it does not describe master. Re-earn with an organic run that makes a library arc review-ready (tools/organic_chain_run.py now writes the library).",
+          "discharged_by": "2026-10-28: a library arc was made review-ready organically -- three STRONG live turns over a real repository test, recorded by InstitutionalSkillAdapter.record_attempt on the live path, nothing promoting itself; the operator then activated it (docs/learning/organic_reflex_proof_2026-10-28/2_stage_a_review_ready.json)."
+        }
       ]
     },
     {
@@ -203,9 +215,7 @@
         "referent": "tests/test_decompiled_reflex_can_recover.py::TestWhatMustStayBarred",
         "claim": "Recovery must be buyable ONLY with new promotable successes: a WEAK green, a failure, and simply re-running the compiler each leave the reflex retired."
       },
-      "known_blockers": [
-        "COMPILE FROM AN ACTIVATED SKILL NOT YET OBSERVED (2026-10-28). Every compiled playbook predates the operator's activations: playbook 15 (skill 79) was compiled 2026-09-21 by the legacy store, playbook 5 (skill 41) 2026-09-07. The learning journal's last `compiled` event is playbook 16 on 2026-09-27. Live turns on 2026-10-21 and 2026-10-28 show an activated skill's EXISTING reflex serving (that is L5), not a compile. Re-earn: an organic run makes a new library arc review-ready, the operator activates it, and the cerebellum compiles it."
-      ],
+      "known_blockers": [],
       "live_evidence": [
         {
           "description": "ORGANIC. Same run: a NEW verify-only arc (skill 90: the pin test for build_auto_verify_command, never before a reflex) earned three STRONG turns and try_compile_all compiled playbook 16 -- a fresh compile, not the idempotent re-run the old blocker described.",
@@ -214,9 +224,17 @@
           "commit_sha": "701dda4637dab92f568b040cf949ec82d7b4865d",
           "proof_level": "live",
           "organic": true
+        },
+        {
+          "description": "ORGANIC. 2026-10-28 05:51:17 UTC: the operator activated the arc above (capability-backed route, signed under the pinned live key; the recall gate admits 4 of 4 skills), and the next request's sweep (get_cerebellum -> try_compile_all) compiled it into playbook 17. The learning journal recorded it: learning_events 33, L4 compiled, subject 17, source 'operator-activated library skill'. The first compile ever observed from an operator-activated skill. Setup, stated in full: a PROOF backend -- the operator's own code at de88e7dd and keys, as a second process on :8010 -- with data = a SQLite-backup copy of his store (C:\\ocdata), scope = a fresh clean checkout of this repo at de88e7dd (the self-corpus, as organic runs use), sandbox image = aios-aios:latest (the repo's dependencies; same flags: no network, read-only, caps dropped, 1 GB, uid 65534), replay of approved commands on. Exact-command approvals are keyed to that workspace, so nothing approved there authorises anything in his daily one. The task was chosen to earn the faculty (as organic runs choose targets): `pytest ai-editor-selfcorpus/tests/test_relevance.py -q`, 4 real tests of aios/memory/relevance.py, never a skill or a reflex before.",
+          "command": "python docs/learning/organic_reflex_proof_2026-10-28/proof_backend_up.py.txt (the proof backend; exact bytes as run, stored as .txt), then, by the operator: python docs/learning/organic_reflex_proof_2026-10-28/prove_organic_reflex.py.txt (exact bytes as run), with the activation in between by python tools/activate_skills.py --activate SKILL_ID@VERSION (#543)",
+          "artifact": "docs/learning/organic_reflex_proof_2026-10-28/3_stage_c_compile_and_serve.json",
+          "commit_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
+          "proof_level": "live",
+          "organic": true
         }
       ],
-      "last_verified_sha": "701dda4637dab92f568b040cf949ec82d7b4865d",
+      "last_verified_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
       "na_by_design": {},
       "live_path_symbols": [
         "Cerebellum"
@@ -225,6 +243,10 @@
         {
           "blocker": "PHASE 2 SLICE 2.4c-B (2026-09-28). A reflex compiles only from a skill the OPERATOR activated in the institutional library, with exactly the activated steps. The organic compile below (playbook 16) was of a skill the legacy store promoted by itself, which can no longer happen. It is true history and is kept; it does not describe master. Re-earn: the operator activates an organically earned, review-ready skill (tools/activate_skills.py), then an organic run compiles it.",
           "discharged_by": "The ACTIVATION half only, 2026-10-21: the operator activated an organically earned, review-ready skill (79, earned by the 2026-09-22 self-corpus run), and the activation is signed (#529). The COMPILE half is not discharged; it is the blocker that remains."
+        },
+        {
+          "blocker": "COMPILE FROM AN ACTIVATED SKILL NOT YET OBSERVED (2026-10-28). Every compiled playbook predates the operator's activations: playbook 15 (skill 79) was compiled 2026-09-21 by the legacy store, playbook 5 (skill 41) 2026-09-07. The learning journal's last `compiled` event is playbook 16 on 2026-09-27. Live turns on 2026-10-21 and 2026-10-28 show an activated skill's EXISTING reflex serving (that is L5), not a compile. Re-earn: an organic run makes a new library arc review-ready, the operator activates it, and the cerebellum compiles it.",
+          "discharged_by": "2026-10-28: an organically earned, review-ready skill was activated by the operator and compiled by the sweep into playbook 17 (journal event 33). Found on the way: tools/activate_skills.py could not name any skill learned after the migration (legacy ids only), so this compile was impossible until #543 (docs/learning/organic_reflex_proof_2026-10-28/3_stage_c_compile_and_serve.json)."
         }
       ]
     },
@@ -264,9 +286,7 @@
         "referent": "tests/test_learning_conformance.py::test_m4_fails_when_there_is_no_reflex_to_serve_the_turn",
         "claim": "With the cerebellum removed the same turn REACHES the LLM and the rigged client raises, so M4 cannot pass for any reason other than a reflex serving the turn."
       },
-      "known_blockers": [
-        "ORGANIC RE-EARN OUTSTANDING (2026-10-28). The only reflex that has served a live turn is playbook 5, whose skill the July learning-loop prover learned on a toy test; LC10 rightly does not count it. The one active ORGANIC skill is 79 (playbook 15, `pytest ai-editor-selfcorpus/tests/test_code_chunking.py`, earned by the 2026-09-22 self-corpus run). It has never replayed under Phase 5 approval provenance: its command targets the self-corpus worktree, which exists only during an organic run and lies outside the live backend's scope roots. Re-earn: an organic reflex serves its request with no model call under a human's exact-command approval. Not by widening the live scope roots (a frozen guardrail, the operator's call) or by a harness grant (harness grants never cross into live turns)."
-      ],
+      "known_blockers": [],
       "live_evidence": [
         {
           "description": "ORGANIC. Run 20260922T044658-557cc9a6 at 00dbf6f38956: playbook 15 -- compiled from an arc earned on real code -- served the request for its goal with the LLM client rigged to raise if consulted. llm_calls=0, events ended cerebellum_done. The playbook cited is one whose skill this run re-earned; `_organic_playbook` refuses to count any other.",
@@ -291,9 +311,17 @@
           "commit_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
           "proof_level": "live",
           "organic": false
+        },
+        {
+          "description": "ORGANIC. 2026-10-28 05:51:29 UTC: in the same request, playbook 17 -- compiled from a skill learned on real code -- served it: the replayed verify passed STRONG (4 passed, 0 failed), no approval was asked, no interpreter or planner ran, replay count 0 -> 1, journal event 34 (L5 replayed, subject 17), and ZERO model calls in the whole request (the proof store's model-call ledger did not grow; Ollama's own request log shows only a GET /api/tags, no inference). Setup, stated in full: a PROOF backend -- the operator's own code at de88e7dd and keys, as a second process on :8010 -- with data = a SQLite-backup copy of his store (C:\\ocdata), scope = a fresh clean checkout of this repo at de88e7dd (the self-corpus, as organic runs use), sandbox image = aios-aios:latest (the repo's dependencies; same flags: no network, read-only, caps dropped, 1 GB, uid 65534), replay of approved commands on. Exact-command approvals are keyed to that workspace, so nothing approved there authorises anything in his daily one. The task was chosen to earn the faculty (as organic runs choose targets): `pytest ai-editor-selfcorpus/tests/test_relevance.py -q`, 4 real tests of aios/memory/relevance.py, never a skill or a reflex before.",
+          "command": "python docs/learning/organic_reflex_proof_2026-10-28/proof_backend_up.py.txt (the proof backend; exact bytes as run, stored as .txt), then, by the operator: python docs/learning/organic_reflex_proof_2026-10-28/prove_organic_reflex.py.txt (exact bytes as run), with the activation in between by python tools/activate_skills.py --activate SKILL_ID@VERSION (#543)",
+          "artifact": "docs/learning/organic_reflex_proof_2026-10-28/3_stage_c_compile_and_serve.json",
+          "commit_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
+          "proof_level": "live",
+          "organic": true
         }
       ],
-      "last_verified_sha": "00dbf6f38956935e0c168a14c77ce5f9ed1e32cc",
+      "last_verified_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
       "na_by_design": {},
       "live_path_symbols": [
         "Cerebellum"
@@ -318,6 +346,10 @@
         {
           "blocker": "PHASE 2 SLICE 2.4c-B (2026-09-28): a reflex now exists only for an operator-activated skill, so re-earning L5 also needs L4's activation first.",
           "discharged_by": "2026-10-21: the operator activated skills 41, 49 and 79 with tools/activate_skills.py and the activations are signed under the pinned live key (#529; census 3 of 3 skills)."
+        },
+        {
+          "blocker": "ORGANIC RE-EARN OUTSTANDING (2026-10-28). The only reflex that has served a live turn is playbook 5, whose skill the July learning-loop prover learned on a toy test; LC10 rightly does not count it. The one active ORGANIC skill is 79 (playbook 15, `pytest ai-editor-selfcorpus/tests/test_code_chunking.py`, earned by the 2026-09-22 self-corpus run). It has never replayed under Phase 5 approval provenance: its command targets the self-corpus worktree, which exists only during an organic run and lies outside the live backend's scope roots. Re-earn: an organic reflex serves its request with no model call under a human's exact-command approval. Not by widening the live scope roots (a frozen guardrail, the operator's call) or by a harness grant (harness grants never cross into live turns).",
+          "discharged_by": "2026-10-28: playbook 17, compiled from a skill learned on real code and activated by the operator, served its request under his exact-command approval with zero model calls. Not by widening his live scope roots and not by a harness grant: a separate proof backend scoped to the self-corpus, every approval and the activation his own (docs/learning/organic_reflex_proof_2026-10-28/3_stage_c_compile_and_serve.json)."
         }
       ]
     },
