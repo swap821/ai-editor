@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, Sequence
+from typing import Any, Callable, Optional, Sequence
 
 from fastapi import HTTPException
 
@@ -205,11 +205,19 @@ def _client_for(
     return ollama
 
 
+#: How the route picker reaches its model: runs the given zero-argument model
+#: call through a gateway entrance and returns what the entrance returns. The
+#: turn routes build it on the local-only compatibility entrance.
+PickerGate = Callable[[Callable[[], str]], str]
+
+
 def _maybe_llm_picker(
     ollama: Any,
     providers: list[router.Provider],
     cands: Sequence[router.Route],
     task: str,
+    *,
+    gate: Optional[PickerGate] = None,
 ) -> Optional[Any]:
     """Build the HYBRID local-LLM route picker, or ``None`` to stay deterministic.
 
@@ -221,8 +229,20 @@ def _maybe_llm_picker(
     The picker asks a small/fast local model to choose from the allow-list; its
     answer is still validated against the allowed candidates in
     :func:`aios.core.router.pick_from`, so it can prefer but never escape the policy.
+
+    The pick is a model call, so it passes the gateway like any other: *gate*
+    runs it through an entrance (emergency-stop check, output redaction, a
+    model-call ledger record). Without a gate there is no pick, and routing
+    stays deterministic. Until 2026-10-28 the picker called Ollama directly; on
+    the operator's machine its calls were the only ungated production calls in
+    the model-call ledger (13 of 163, docs/ONE_GATEWAY.md).
+
+    The reply is parsed INSIDE the gated call, and only the chosen allow-list
+    position leaves it: redaction cannot tell some model ids from secrets
+    (``qwen3-coder-480b-a35b-v1:0`` scans as high-entropy), so a redacted reply
+    would silently lose that pick.
     """
-    if not config.ROUTER_LLM_PICK or len(cands) < 2:
+    if gate is None or not config.ROUTER_LLM_PICK or len(cands) < 2:
         return None
     local_tags = next(
         (list(p.models) for p in providers if p.name == router.PROVIDER_OLLAMA), []
@@ -233,7 +253,7 @@ def _maybe_llm_picker(
         return None  # no local model to decide with -> deterministic ranking wins
 
     def picker(candidates: Sequence[router.Route]) -> Optional[str]:
-        try:
+        def _pick_position() -> str:
             resp = ollama.chat(
                 [
                     {"role": "system", "content": router.PICKER_SYSTEM},
@@ -242,13 +262,23 @@ def _maybe_llm_picker(
                 tools=None,
                 model=meta_model,
             )
-            return router.parse_pick((resp or {}).get("content", ""), candidates)
+            chosen = router.parse_pick((resp or {}).get("content", ""), candidates)
+            ids = [r.model_id for r in candidates]
+            return "" if chosen is None else str(ids.index(chosen))
+
+        try:
+            # An engaged emergency stop refuses here, before the model call;
+            # the turn's own model call then meets the same stop.
+            position = str(gate(_pick_position) or "").strip()
         except Exception as exc:  # noqa: BLE001 - a flaky local pick must never break routing
             logger.warning(
                 "Local LLM route picker failed; falling back to deterministic",
                 exc_info=exc,
             )
             return None
+        if not position.isdigit() or int(position) >= len(candidates):
+            return None
+        return candidates[int(position)].model_id
 
     return picker
 
@@ -354,8 +384,12 @@ def _select_chat_client(
     calibration_weight: float = 0.0,
     data_classification: str = "PROJECT_INTERNAL",
     llm_picker: bool = True,
+    picker_gate: Optional[PickerGate] = None,
 ) -> tuple[Any, str]:
     """Pick the ``(chat_client, model)`` for the requested UI model id.
+
+    *picker_gate* is the gateway entrance the hybrid route picker's model call
+    goes through; without one, ``auto`` ranks deterministically.
 
     ``auto`` runs the **cross-provider router**: the agent picks the best model for
     *task* across local + (policy-permitted) cloud providers. The privacy boundary
@@ -419,7 +453,7 @@ def _select_chat_client(
             # ``llm_picker=False``: a turn a compiled reflex will serve consults
             # no model, so the route is ranked deterministically. The picker
             # only PREFERS among the same policy-allowed candidates.
-            picker=_maybe_llm_picker(ollama, providers, cands, task)
+            picker=_maybe_llm_picker(ollama, providers, cands, task, gate=picker_gate)
             if llm_picker
             else None,
         )

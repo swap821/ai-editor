@@ -21,6 +21,10 @@ from aios.api.deps import (
     get_provider_health,
 )
 from aios.api.main import _build_providers, _provider_name, _select_chat_client
+from aios.application.intelligence.gateway import (
+    complete_compatibility_intelligence_request,
+)
+from aios.core.autonomy import UNGOVERNED_FIXTURE
 from aios.core.catalog import clear_catalog_cache
 from aios.core.llm import LLMError
 from aios.runtime import profiles
@@ -92,6 +96,17 @@ class FakeOllama:
         self.chat_called = True
         self.chat_model = model
         return self._chat_reply
+
+
+def _picker_gate(pick):
+    """The turn routes' picker gate: the real local-only compatibility entrance
+    (tests/test_route_picker_gateway.py). Without one, ``auto`` never picks."""
+    return complete_compatibility_intelligence_request(
+        request_id="test:route-pick",
+        target="local",
+        model_call=pick,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
 
 
 # --- Default policy (cloud OFF): auto stays local, exactly as before --------
@@ -176,7 +191,12 @@ def test_hybrid_picker_honours_local_model_choice(monkeypatch) -> None:
         chat_reply={"content": "ollama.llama3.1:8b"},
     )
     client, model = _select_chat_client(
-        "auto", ollama, None, gemini=object(), task="reasoning"
+        "auto",
+        ollama,
+        None,
+        gemini=object(),
+        task="reasoning",
+        picker_gate=_picker_gate,
     )
     assert ollama.chat_called  # the hybrid pick ran (there was a real choice)
     # 2 candidates -> a failover wrapper whose PRIMARY is the picked local model.
@@ -192,7 +212,12 @@ def test_hybrid_picker_garbage_reply_falls_back_to_deterministic(monkeypatch) ->
     gemini = object()
     ollama = FakeOllama(["qwen2.5-coder:7b"], chat_reply={"content": "uhh not sure"})
     client, model = _select_chat_client(
-        "auto", ollama, None, gemini=gemini, task="reasoning"
+        "auto",
+        ollama,
+        None,
+        gemini=gemini,
+        task="reasoning",
+        picker_gate=_picker_gate,
     )
     assert ollama.chat_called
     assert client.active_provider == "gemini" and model == config.GEMINI_MODEL
@@ -206,7 +231,12 @@ def test_hybrid_picker_not_invoked_when_single_candidate(monkeypatch) -> None:
         ["qwen2.5-coder:7b"], chat_reply={"content": "should not be read"}
     )
     client, model = _select_chat_client(
-        "auto", ollama, bedrock=object(), gemini=object(), task="reasoning"
+        "auto",
+        ollama,
+        bedrock=object(),
+        gemini=object(),
+        task="reasoning",
+        picker_gate=_picker_gate,
     )
     assert not ollama.chat_called
     assert client is ollama and model == "qwen2.5-coder:7b"
@@ -220,7 +250,12 @@ def test_hybrid_picker_disabled_by_config_stays_deterministic(monkeypatch) -> No
         ["qwen2.5-coder:7b"], chat_reply={"content": "ollama.qwen2.5-coder:7b"}
     )
     client, model = _select_chat_client(
-        "auto", ollama, None, gemini=gemini, task="reasoning"
+        "auto",
+        ollama,
+        None,
+        gemini=gemini,
+        task="reasoning",
+        picker_gate=_picker_gate,
     )
     assert not ollama.chat_called  # picker disabled
     assert (

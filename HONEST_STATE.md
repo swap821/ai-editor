@@ -54,6 +54,13 @@ became a reflex that served a request with no model call at all.**
   - It uses a pinned verify image (`Dockerfile.verify`) and a 120 s command budget; the default budget stays 30 s.
   - Measured through the backend's own executor: tests in `work/ai-editor` pass, and they import that checkout's code. The live checkout's tests stay RED even when approved.
   - Earlier skills and approvals no longer match, because the scope identity changed. Per-task scope binding is still unused: `work/` is a global root.
+- **The gateway was not universal in daily use, and the inventory had not seen it** (`docs/ONE_GATEWAY.md`, "2026-10-28").
+  - The operator's model-call ledger held 163 calls. 13 production calls passed no gateway entrance, every one from the route picker (`aios/core/router_wiring.py`). That is the small local model that prefers a route when policy allows two or more.
+  - Its prompt carries no user text, so nothing private left. But it skipped the emergency stop and redaction.
+  - The inventory never reached it, because its turns ran with cloud off. A new surface with the operator's routing policy reproduces it on master's code: `UNGATED x1`.
+  - The picker now runs only through the local-only compatibility entrance, and without a gate there is no pick. The inventory now shows 66 of 66 calls gated across 12 surfaces, with 15 of 27 sites observed.
+  - Still open (organ 32 stays yellow): 12 sites are never driven, and an ungated call is recorded, not refused.
+  - 12 more ledger calls came from scripts outside the repository on 2026-10-12, not production.
 - **Organ ledger: 50 green / 9 yellow / 59**, unchanged. Every organ's evidence was re-gathered and passed at `b5ddaed7` (#538). Master CI is green on every job.
 
 ## State on 2026-10-21 (measured 2026-10-19 to 10-21 on master `501c2536`, unless a line says otherwise)

@@ -55,6 +55,9 @@ from aios.application.capabilities.authority import EmergencyStopHardWiringAutho
 from aios.application.intelligence.authenticated_chat import (
     AuthenticatedChatRepresentation,
 )
+from aios.application.intelligence.gateway import (
+    complete_compatibility_intelligence_request,
+)
 from aios.application.turns import (
     RuntimeDeps,
     TurnCoordinator,
@@ -252,6 +255,16 @@ def chat(
                     anthropic=anthropic_client,
                     task=selected_task,
                     data_classification=ctx.data_classification,
+                    # The route picker's model call passes the gateway, as
+                    # on /api/generate (aios/core/router_wiring.py).
+                    picker_gate=lambda pick: (
+                        complete_compatibility_intelligence_request(
+                            request_id=f"{ctx.turn_id}:route-pick",
+                            target="local",
+                            model_call=pick,
+                            emergency_stop=emergency_stop,
+                        )
+                    ),
                 ),
                 "active_route": _active_route,
                 "sse_writer": _sse_writer,
