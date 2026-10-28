@@ -815,7 +815,7 @@ class Executor:
         approved_runner: Optional[Runner] = None,
         rate_limiter: Optional[RateLimiter] = None,
         policy_kernel: Optional["PolicyKernel"] = None,
-        timeout_s: int = 30,
+        timeout_s: Optional[int] = None,
         actor: str = "executor",
         audit_log: Optional[Callable[..., object]] = None,
         emergency_stop: Any | None = None,
@@ -847,7 +847,12 @@ class Executor:
                 constitution_authority=get_constitution_authority(),
             )
         self.policy_kernel = policy_kernel
-        self.timeout_s = timeout_s
+        # An explicit budget wins (the self-apply verifier passes 120); without
+        # one, the deployment's setting -- 30 s unless AIOS_EXECUTOR_TIMEOUT_S
+        # says otherwise.
+        self.timeout_s = (
+            int(timeout_s) if timeout_s is not None else config.EXECUTOR_TIMEOUT_S
+        )
         self.actor = actor
         self.emergency_stop = emergency_stop
         #: Audit sink; defaults to the real tamper-evident ledger. Injectable so

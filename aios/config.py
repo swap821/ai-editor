@@ -443,6 +443,23 @@ CONTAINER_PIDS_LIMIT: Final[int] = _env_int("AIOS_CONTAINER_PIDS_LIMIT", 128)
 #: 512 MiB is far above any verification run (the largest legitimate artefact a
 #: mission produces is a test log) and far below "fills a laptop".
 CONTAINER_FSIZE_MB: Final[int] = _env_int("AIOS_CONTAINER_FSIZE_MB", 512)
+#: How long one sandboxed command may run before it is killed. The default is
+#: the budget the executor always had. A deployment that verifies a real
+#: repository's tests raises it: this repository's test files that load the API
+#: app take 33-41 s in the 1-CPU sandbox (measured 2026-10-28), so at 30 s every
+#: one of them was killed and reported TIMEOUT (docs/operations/WORK_SCOPE.md).
+#: Bounded both ways, so a misconfiguration can neither make every command time
+#: out nor let one run unbounded.
+EXECUTOR_TIMEOUT_S_DEFAULT: Final[int] = 30
+EXECUTOR_TIMEOUT_S_MIN: Final[int] = 5
+EXECUTOR_TIMEOUT_S_MAX: Final[int] = 600
+EXECUTOR_TIMEOUT_S: Final[int] = min(
+    max(
+        _env_int("AIOS_EXECUTOR_TIMEOUT_S", EXECUTOR_TIMEOUT_S_DEFAULT),
+        EXECUTOR_TIMEOUT_S_MIN,
+    ),
+    EXECUTOR_TIMEOUT_S_MAX,
+)
 MAX_COMMAND_CHARS: Final[int] = _env_int("AIOS_MAX_COMMAND_CHARS", 8192)
 MAX_COMMAND_OUTPUT_BYTES: Final[int] = _env_int(
     "AIOS_MAX_COMMAND_OUTPUT_BYTES", 1_048_576
@@ -961,6 +978,7 @@ __all__ = [
     "CONTAINER_CPUS",
     "CONTAINER_PIDS_LIMIT",
     "CONTAINER_FSIZE_MB",
+    "EXECUTOR_TIMEOUT_S",
     "MAX_COMMAND_CHARS",
     "MAX_COMMAND_OUTPUT_BYTES",
     "EXECUTOR_URL",

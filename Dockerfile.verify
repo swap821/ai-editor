@@ -1,0 +1,43 @@
+# The sandbox image for VERIFYING this repository's own tests (2026-10-28).
+#
+# The default sandbox image (Dockerfile.worker, aios-worker:local) carries pytest
+# and nothing else, so on the operator's system the verify tool could not run a
+# single test under tests/: the shared conftest imports FastAPI. This image
+# carries requirements.txt -- with torch from the CPU index, because the CUDA
+# build adds gigabytes of GPU libraries a network-less verify never uses -- and
+# NO copy of the code: a test imports the checkout mounted at /workspace, never
+# a stale copy baked in here (Dockerfile's app image bakes one in at /app).
+#
+# The executor runs it with the same flags as any sandbox (no network, read-only
+# root, every capability dropped, memory and pid limits, uid 65534). Rebuild it
+# whenever requirements.txt changes; the tag names the requirements it holds:
+#
+#   docker build -f Dockerfile.verify \
+#     --label requirements.sha256=<sha256 of requirements.txt> \
+#     -t aios-verify:<first 12 of that sha256> .
+#
+# See docs/operations/WORK_SCOPE.md.
+FROM python:3.12-slim
+
+ENV PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+# Tests drive git (worktrees, status, rev-parse) against the mounted checkout.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt /tmp/requirements.txt
+# torch first, from the CPU index, at exactly the version requirements.txt pins;
+# the full install then finds it satisfied (a `+cpu` local version still
+# satisfies `torch==X`).
+RUN TORCH_PIN="$(grep -E '^torch==' /tmp/requirements.txt)" \
+    && test -n "$TORCH_PIN" \
+    && pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu "$TORCH_PIN" \
+    && pip install --no-cache-dir -r /tmp/requirements.txt
+
+WORKDIR /workspace
+RUN mkdir -p /workspace && chown -R 65534:65534 /workspace
+USER 65534:65534
+ENTRYPOINT []
