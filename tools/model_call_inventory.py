@@ -235,18 +235,18 @@ def _sse(response: Any) -> dict[str, Any]:
     }
 
 
-def _generate(h: Any, model_id: str) -> dict[str, Any]:
+def _generate(
+    h: Any,
+    model_id: str,
+    text: str = "What is the capital of France?",
+    session: str = "",
+) -> dict[str, Any]:
     return _sse(
         h.client.post(
             "/api/generate",
             json={
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [{"text": "What is the capital of France?"}],
-                    }
-                ],
-                "sessionId": f"inventory-{model_id}",
+                "messages": [{"role": "user", "content": [{"text": text}]}],
+                "sessionId": session or f"inventory-{model_id}",
                 "modelId": model_id,
             },
         )
@@ -261,6 +261,41 @@ def surface_generate_local(h: Any) -> dict[str, Any]:
 def surface_generate_cloud(h: Any) -> dict[str, Any]:
     """The agentic forge with an explicit cloud model."""
     return _generate(h, CLOUD_MODEL)
+
+
+def surface_generate_routed(h: Any) -> dict[str, Any]:
+    """The forge auto-routed with cloud allowed for the turn's task, as on the
+    operator's machine (``AIOS_ROUTER_CLOUD_TASKS=reasoning,coding``). The
+    local model and Bedrock are both candidates, so the hybrid route picker
+    asks the local model to choose. ``generate_local`` never reaches it: with
+    cloud off a turn has one candidate. Added 2026-10-28, when the operator's
+    own ledger showed the picker's calls passing no entrance."""
+    from dataclasses import replace
+
+    from aios import config
+    from aios.api.deps import get_policy_kernel
+
+    kernel = get_policy_kernel()
+    cloud_tasks = ("reasoning", "coding")
+    saved = (kernel._active_profile, kernel.constitution, config.ROUTER_CLOUD_TASKS)
+    try:
+        # The constitution is the ceiling (aios/policy/egress.py); open both
+        # to the operator's policy, as tests/test_route_wiring.py does.
+        kernel._active_profile = replace(
+            kernel._active_profile, router_cloud_tasks=cloud_tasks
+        )
+        kernel.constitution = replace(
+            kernel.constitution, router_cloud_tasks=cloud_tasks
+        )
+        config.ROUTER_CLOUD_TASKS = cloud_tasks
+        return _generate(
+            h,
+            "auto",
+            text="Write a Python function that reverses a string.",
+            session="inventory-routed",
+        )
+    finally:
+        kernel._active_profile, kernel.constitution, config.ROUTER_CLOUD_TASKS = saved
 
 
 def _chat(client: Any, transcript: str, session: str) -> dict[str, Any]:
@@ -395,6 +430,7 @@ def surface_council(h: Any) -> dict[str, Any]:
 SURFACES: dict[str, Callable[[Any], dict[str, Any]]] = {
     "generate_local": surface_generate_local,
     "generate_cloud": surface_generate_cloud,
+    "generate_routed": surface_generate_routed,
     "chat": surface_chat,
     "chat_advisory": surface_chat_advisory,
     "chat_bearer": surface_chat_bearer,
