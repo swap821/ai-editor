@@ -1941,7 +1941,7 @@
    "also": []
   },
   {
-   "id": "6c:X9 --activate by key reaches a suspended skill",
+   "id": "6c:X11 --activate by key reaches a suspended skill",
    "file": "tools/activate_skills.py",
    "old": "    eligible = (*candidates(repository), *active(repository))",
    "new": "    eligible = tuple(repository.list_skills())",
@@ -1951,7 +1951,7 @@
    "also": []
   },
   {
-   "id": "6c:X10 a skill learned after the migration cannot be named",
+   "id": "6c:X12 a skill learned after the migration cannot be named",
    "file": "tools/activate_skills.py",
    "old": "    by_name: dict[str, SkillRecord] = {key(r): r for r in eligible}",
    "new": "    by_name: dict[str, SkillRecord] = {}",
