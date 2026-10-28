@@ -17,6 +17,11 @@ became a reflex that served a request with no model call at all.**
   - Real lessons against a placebo of the same size: 9 vs 12.
   - So no member of the four-member family is met, and the usefulness gate stays FAIL.
   - Diagnostic: recall does vary by task, but it is rarely about the task. Only 27 of 150 targets were shown a lesson from their own module.
+- **D13 is pre-registered, not run** (`docs/learning/PAYOFF_PREREGISTRATION.md` D13; the operator chose it on 2026-10-28).
+  - Lesson recall changes in the product: a task that names code is shown only lessons about that code, or none. Plain conversation keeps the old rule.
+  - Measured offline, with no model: on D12's 150 targets the most-shown lesson drops from 109 targets to 9, and 51 targets see any lesson at all.
+  - The run: 85 never-practised targets that a lesson about their code exists for, on D12's store snapshot, code and student. Only the recall rule differs. It takes about 1.5 days of the laptop.
+  - Stated before it runs: it can only see a large effect (about 22 targets better against 8 worse), and D12's same-module targets leaned the other way (9 vs 15).
 - **Skills.** On 2026-10-21 the operator activated three skills (41, 49, 79) and signed them (#529). The census admits 3 of 3.
 - **The learning chain, end to end on real code** (2026-10-28, `docs/learning/organic_reflex_proof_2026-10-28/`).
   - **L3, learned:** three live turns, answered by the local model through the real API, ran `pytest ai-editor-selfcorpus/tests/test_relevance.py -q`. That is 4 real tests of `aios/memory/relevance.py`, each run a STRONG pass under the operator's exact approval. The library made the new arc review-ready, and nothing promoted itself.

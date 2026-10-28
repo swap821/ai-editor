@@ -155,3 +155,17 @@ def test_the_d12_verdict_supersedes_phase_8_once_it_exists(tmp_path, census) -> 
     )
     gate = pr.animal_usefulness(world)
     assert gate.status == pr.PASS and "d12 verdict" in gate.evidence
+
+
+def test_the_d13_verdict_supersedes_d12_once_it_exists(tmp_path, census) -> None:
+    world = _world(tmp_path)
+    census["value"] = _census(23, 5)
+    (world.repo / pr.JUDGED_PAYOFF_D12).write_text(
+        json.dumps({"h1_met": False, "summary": "d12 verdict"}), encoding="utf-8"
+    )
+    assert "d12 verdict" in pr.animal_usefulness(world).evidence
+    (world.repo / pr.JUDGED_PAYOFF_D13).write_text(
+        json.dumps({"h1_met": False, "summary": "d13 verdict"}), encoding="utf-8"
+    )
+    gate = pr.animal_usefulness(world)
+    assert gate.status == pr.FAIL and "d13 verdict" in gate.evidence

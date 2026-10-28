@@ -24,7 +24,12 @@ from aios.core.verification_strength import (
     meets_learning_floor,
 )
 from aios.memory.db import get_connection, init_memory_db
-from aios.memory.relevance import content_hash, specific_relevance
+from aios.memory.relevance import (
+    content_hash,
+    names_code,
+    names_the_same_code,
+    specific_relevance,
+)
 from aios.security.secret_scanner import scan_and_redact
 from aios.memory.construction_ledger import record_construction
 
@@ -175,13 +180,19 @@ class MistakeMemory:
     ) -> list[dict]:
         """Return verified lessons relevant to *query*, regardless of session.
 
-        The score is deterministic lexical overlap on SPECIFIC terms only
-        (``specific_relevance``): a lesson is relevant only if it shares a name,
-        identifier or domain word with the task, never on generic vocabulary
-        alone. A lesson must already be verified before it can influence a
-        different future task. Duplicates are NOT collapsed here: recall does
-        that after its gate (``distinct_lessons``), so a refused copy can never
-        hide an admitted one.
+        When *query* names code (a module path or an ``aios.`` name), a lesson
+        is relevant only if it is about that code (``names_the_same_code``):
+        its module, as a path or an import path, or a distinctive function it
+        was learned on. Sharing words is not enough there (D13, 2026-10-28):
+        under that rule one lesson was shown on 109 of 150 judged targets, and
+        most targets saw no lesson about their own code. A query that names no
+        code keeps D9's rule: a lesson must share a SPECIFIC term with it.
+
+        Either way the order is deterministic lexical overlap on specific
+        terms (``specific_relevance``). A lesson must already be verified
+        before it can influence a different future task. Duplicates are NOT
+        collapsed here: recall does that after its gate (``distinct_lessons``),
+        so a refused copy can never hide an admitted one.
         """
         if not query or not query.strip() or limit <= 0:
             return []
@@ -192,14 +203,17 @@ class MistakeMemory:
                 "AND principal_id IS ?",
                 (principal_id,),
             ).fetchall()
+        about_code = names_code(query)
         ranked: list[dict] = []
         for row in rows:
-            document = " ".join(
-                str(row[key])
-                for key in ("error_type", "root_cause", "fix_applied", "lesson_text")
-            )
+            fields = ("error_type", "root_cause", "fix_applied", "lesson_text")
+            document = " ".join(str(row[key]) for key in fields)
             score = specific_relevance(query, document)
-            if score <= 0:
+            if about_code:
+                texts = [str(row[key] or "") for key in fields]
+                if not names_the_same_code(query, str(row["task_id"] or ""), texts):
+                    continue
+            elif score <= 0:
                 continue
             ranked.append(
                 {

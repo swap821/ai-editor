@@ -886,3 +886,115 @@ judged run: what is recorded, what code is measured, and how it is judged.**
   - `tools/judge_payoff_family.py --family d12` judges the four members with the same D4 rule as Phase 8 (one shared function, `family_verdict`). It refuses to write a verdict while either trail is missing.
   - The usefulness gate reads `payoff_d12_judged_result.json` once it exists, as D12 said.
 - **Duration.** The plan said the local run "is expected to run overnight". Measured practice speed (about 7 tokens/s; 23% of attempts reaching 420 s) puts 150 × 3 × 3 = 1,350 graded attempts at about **2–3 days**. Only the estimate changes, not the design.
+
+### D13 — 2026-10-28 — a task that names code is shown only lessons about that code; a local-only family
+
+**Applies to** the D13 judged run, after this entry. Recorded after both the
+Phase 8 and the D12 verdicts (no benefit, no harm), and before any D13 run.
+**Operator decision**, 2026-10-28: "Retrieval fix, then a new run". The
+alternatives recorded against it were:
+- measure the payoff of reflexes in daily use;
+- park lessons as "not shown".
+
+**D12's verdict stands.** D13 is a new family. It is not a re-grade of D12.
+
+**Why.** D12's local trail recorded which lessons each target was shown
+(`PAYOFF_D12_RESULT.md`, diagnostics):
+- recall varied by task, but was rarely about it: 27 of 150 targets saw a
+  lesson from their own module;
+- one lesson (#171, about `plan_with_llm`) was shown on 109 of 150;
+- lessons almost doubled the prompt.
+
+D12 named three hypotheses. D13 tests the third, that **a small local model is
+distracted by long text that is not about its task**, together with relevance:
+show only lessons about the code the task names, or none.
+
+**Evidence against, stated first.** On the 13 comparable D12 targets that saw a
+same-module lesson, ON earned 9 and OFF 15. Those targets also saw unrelated
+lessons beside it, which is the condition D13 removes. Hypothesis 1 (specific
+facts about practised functions do not transfer by construction) is not
+addressed by D13.
+
+**What changed (the product's recall, so a live turn and the ON arm together).**
+- **A task that names code** (a module path with a directory, or an `aios.`
+  dotted name) is shown a verified lesson only if the lesson is about that code
+  (`names_the_same_code`, `aios/memory/relevance.py`):
+  - the lesson's module, from the task it was learned on or from its own text,
+    is named by the task as a path or an import path, matched whole (never
+    inside a longer name); or
+  - for a dotted name such as `aios.pkg.mod.func`, a prefix of three or more
+    parts is; or
+  - a function the lesson was learned on is named by the task as a whole word,
+    and that name is distinctive (12 or more characters, or two or more
+    underscores: `distinctive_name`, now shared with `about_this_target`).
+- **A task that names no code** keeps D9's rule unchanged. So plain
+  conversation recalls as before.
+- **Unchanged:** what a recalled lesson shows (type and text only: RT-04),
+  ranking by `specific_relevance`, the limit of five, `distinct_lessons`, the
+  gate, principal scoping, skills recall, and the placebo rule (D5: as many
+  other stored lessons as ON was shown, none of recall's picks).
+
+**How the rule was fixed, disclosed in full.** As in D9, the rule was checked
+offline: no model was asked and no outcome was read.
+1. The first check ran on all corpus targets, D12's 150 judged ones included.
+   One lesson (#195) was shown on 143 of D12's 150. Two leaks:
+   - the secret scanner had cut its task id's path to `ce.py`, a substring of
+     `service.py`, `reference.py` and others;
+   - a bare filename in a lesson's prose (`auth.py`) counted as a home.
+2. Fixed: a path needs a directory, and names match whole. Each leak has a test.
+3. The rule was then frozen and the numbers below computed once.
+
+**The effect, measured without a model** (D12's snapshot, the operator's gate):
+
+| | D12's recall | D13's rule |
+|---|---|---|
+| D12's 150 judged targets shown any lesson | 150 | 51 |
+| Targets shown the most-shown lesson | 109 (#171) | 9 |
+| Never-practised, non-calibration targets shown any lesson | | 107 |
+
+**The judged run, once.**
+- **Store:** D12's pre-activation snapshot, unchanged: `C:\d12out\local-store-pre-activation`,
+  `aios_memory.db` sha256 `90c009d9e5b5d52d…`, `aios_operational_state.db`
+  `f95c7d7d83705fc6…`. 117 admitted lessons, 0 active skills. The only
+  difference from D12's local run is the recall rule.
+- **Corpus:** `--ref 501c25369c32`, D12's.
+- **Student and arms:** `ollama.qwen3.5:9b@nothink`, K = 3, OFF / ON /
+  PLACEBO, 420 s timeout, `--novel-only`, calibration excluded. Local only:
+  every cloud credential is removed from the run's environment, as in D12.
+- **Harness:** master after this entry merges; its commit is recorded in the
+  run.
+- **Targets:** `docs/learning/payoff_targets_d13.txt`, **85**, frozen
+  (LF-normalised sha256 `09bcac0819ed36d1…`). Derived by
+  `tools/payoff_d13_targets.py`, which asks no model and reads no outcome. A
+  target is in it when it:
+  - was never practised;
+  - is not a calibration target;
+  - is shown at least one lesson by the rule above;
+  - is shown no lesson about itself (such a pair is reported apart from NOVEL,
+    so running it would measure nothing judged).
+
+  42 of the 85 are D12 judged targets. Order is the corpus ranking. The
+  selection report is `docs/learning/payoff_d13_selection.json`.
+- **The family:** {H1-local-D13 (NOVEL: ON vs OFF), H1c-local-D13 (NOVEL: ON
+  vs PLACEBO)}, Holm at family-wise α = 0.05.
+  - A member is met only if its direction is positive and its Holm-adjusted p
+    is below 0.05 (D4).
+  - H2 (harm) for the local cohort, uncorrected.
+- **Recording:** `tools/judge_payoff_family.py --family d13`, written now,
+  refuses a verdict without the trail. The usefulness gate reads the newest
+  judged family.
+
+**Stated before any number exists.**
+1. **Power.** D12's local run had 30 discordant targets among 83 comparable. At
+   that rate, D13's 85 targets give about 30. Holm over two members needs a p
+   below 0.025 for the first, so about **22 targets better against 8 worse**.
+   Only a large effect can be seen.
+2. **A null result is likely** given the evidence above, and would be reported
+   as such. Together with Phase 8 and D12, it would mean that prompted lessons
+   do not help this student, even when they are about the code.
+3. **If H1 is met and H1c is not,** relevant lessons beat none, but not other
+   lessons. Then the effect may be about any added text, not this content.
+4. **Duration:** 85 × 3 × 3 = 765 graded attempts. At D12's measured pace,
+   about **1.5 days** of the laptop. The operator is asked before it starts.
+5. **The live product changes too:** a turn that names code is shown fewer
+   lessons, or none. Plain conversation is unchanged.
