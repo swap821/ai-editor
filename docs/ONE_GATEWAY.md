@@ -100,16 +100,20 @@ drive's job is to show that enforcing breaks nothing.
 
 | Step | What holds | Pinned by |
 |---|---|---|
-| 1. Only an adapter can reach a model | Every module under `aios/` that can open a connection is either a provider adapter or listed with what it talks to. None of those names a model endpoint. A new one fails the test until someone says what it talks to. | `tests/test_gateway_enforcement.py` |
+| 1. Only an adapter can reach a model | Every module under `aios/` that can open a connection is either a provider adapter or listed with what it talks to, and none of those names a model endpoint. Nothing but an adapter calls a provider SDK's inference method (`converse`, `generate_content`, ...) or names an inference endpoint, so an adapter's private client cannot be reached through. A new one fails the test until someone says what it talks to. | `tests/test_gateway_enforcement.py` |
 | 2. Every adapter records before it sends | Each request method calls `model_calls.observe()` before the request leaves. | `tests/test_model_calls.py`, per adapter |
 | 3. `observe()` refuses an ungated production call | It raises `UngatedModelCall` before the adapter sends anything. The call is recorded with `"refused": true`. | `tests/test_gateway_enforcement.py` |
+| 4. Only the gateway opens an entrance | `gateway_scope` and `scoped_iter` are named nowhere but the gateway, so no code can mark its own call as gated. | `tests/test_gateway_enforcement.py` |
 
 So no production model call can leave the process without passing an
 entrance, on any path, driven or not.
 
-**Production** means the scoreboard's rule, `model_calls.judged()`: the code
-that asked is outside `tools/` and `tests/`. Code outside the repository counts
-as production.
+**Production** means the scoreboard's rule, `model_calls.judged_stack()`: some
+frame on the call's stack is outside `tools/` and `tests/`. The whole stack is
+read, not only the innermost frame, so production code cannot pass a call off
+as a tool's by reaching the model through a `tools/` helper. Code outside the
+repository counts as production. Each ledger record carries its verdict as
+`judged`.
 
 **The switch** is `AIOS_GATEWAY_ENFORCE`:
 - **Unset (the default):** ungated calls are refused everywhere except in a
@@ -119,11 +123,17 @@ as production.
   measurement and protect nothing. Their calls are still recorded and judged.
 - **`1`:** refused there too.
 - **`0`:** never refused, but every call is still recorded.
+- **Anything else** counts as unset: a typo never turns refusing off.
 
 The backend, its Council worker processes and the test suite all refuse by
-default. The switch is read in `aios/config.py`, not with the egress guardrails
-behind the freeze (`aios/security/limits.py`). `aios/security/*` is frozen to
-agents, so moving it there is a §VIII proposal for the operator.
+default.
+
+**The switch and both exemption lists are defined behind the freeze**, in
+`aios/security/limits.py` with the other egress guardrails. `aios/config.py`
+only re-exports them. The operator authorized the move on 2026-10-29
+(`release/section-viii/2026-10-29-gateway-enforcement-behind-the-freeze.md`).
+So changing the default, or adding `aios/` to an exemption, now needs §VIII
+ceremony.
 
 The scoreboard fails on a refused call too, and names it separately. Nothing
 left, but that code still passes no entrance.
@@ -205,6 +215,52 @@ New surfaces:
 | `self_analysis_agent.propose_fix` | Its only client is the turn's governed planner client |
 | `local_workforce/service._execute_advisory_job` | It wraps its client in `CompatibilityAdvisoryCompletionClient` |
 | `runtime/intelligence_gateway.py` (2) | Unit tests pin `route` when bound and `complete_compatibility` when unbound. The worker runs as its own process with a restricted environment that cannot be pointed at the drive's fake model, and that process refuses by default. |
+
+### Organ 32's adversarial re-read (2026-10-29)
+
+Organ 32 was yellow on C9, on two residuals:
+- universality unmeasured, and not enforced;
+- the switch outside the freeze.
+
+The re-read tried to break the claim. Each attack, and what it found:
+
+| Attack | Result |
+|---|---|
+| Pass a production call off as a tool's, through a `tools/` helper | **Open, and closed.** Judging looked only at the innermost frame. Now the full stack decides. No live path did it: the one production import from `tools/` is a data class. |
+| Fake a gate: open `gateway_scope` from production code | None found. Now pinned: only the gateway may. |
+| Reach a provider SDK through an adapter's private client, or hand an endpoint to another transport | None found. Now pinned. |
+| Count `<frozen runpy>`-style pseudo-files as repo frames | **A real bug, fixed.** It was harmless until the whole stack was read. |
+| Turn refusing off with a typo | Pinned: only a clear "no" turns it off. |
+| Frontend calls straight to a provider | None: the frontend talks only to GAGOS's own routes. |
+| In-process inference | Embeddings and voice (faster-whisper) run locally and send nothing. |
+| Approved commands | The sandbox runs them with `--network none`. The host backend is development only. |
+
+**The live probe shows refusing too.** Organ 32's Phase 4 probe
+(`scripts/phase4_live_evidence.py`) now also has a production frame ask a real
+adapter for a model call through no entrance. It is refused before anything is
+sent.
+
+**The ledger** (`scripts/organ32_adversarial_reread.py`):
+- `aios/core/model_calls.py` and `aios/security/limits.py` join the organ's
+  production entrypoints. The claim rests on them, so a change to either now
+  stales its evidence.
+- The proof's tests join its focused tests.
+- C9 records the re-read. Both residuals are discharged.
+- `scripts/promote_verified_organs.py` flipped the organ green. Organ 32 was
+  the only organ that qualified.
+- `scripts/verify_organ_twelve_conditions.py` then executed every green organ's
+  tests: 144 files, 2824 passed, 0 failed.
+  - **Organ 32 survives** with no mechanical failure
+    (`release/phase5/organ-32.md`).
+  - Its first run did reject one thing: the evidence row from `6815ee82`,
+    gathered before the two new entrypoints changed. Re-attaching retired that
+    row, and the second run passed.
+  - The run's other 5 failures are this machine's: no vitest results and no
+    live Ollama. CI supplies both.
+
+**What the green rests on, stated plainly:** one reviewer, the agent, did the
+re-read. The verifier and CI execute the tests; nothing else checked the
+reasoning.
 
 **Out of scope, stated:**
 - Commands the agent runs are not GAGOS model calls. The sandbox runs them
