@@ -10,6 +10,9 @@ it may do without a human:
 * ``MAX_RED_ACTIONS_PER_SESSION`` -- how much destructive work one session may
   even propose
 * ``AUDIT_GENESIS_HASH`` -- the anchor the whole tamper-evident chain hangs from
+* ``GATEWAY_ENFORCE``, ``GATEWAY_UNJUDGED_SITES``, ``GATEWAY_EXEMPT_PROGRAMS``
+  -- whether a model call that passed no gateway entrance is refused, and who
+  is exempt (added 2026-10-29, ``release/section-viii/2026-10-29-gateway-enforcement-behind-the-freeze.md``)
 
 They lived in ``aios/config.py``, which is not frozen, so an agent with
 ordinary edit rights could widen its own sandbox, lower its own evidence bar, or
@@ -41,7 +44,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Final
+from typing import Final, Optional
 
 #: This file is ``<root>/aios/security/limits.py``; the project root is three
 #: parents up. `aios/config.py` derives the same directory two parents up from
@@ -75,6 +78,21 @@ def _env_scope_roots(name: str, default: tuple[Path, ...]) -> tuple[Path, ...]:
     return tuple(
         Path(part).expanduser().resolve() for part in raw.split(os.pathsep) if part
     )
+
+
+def _env_switch(name: str) -> Optional[bool]:
+    """``True``/``False`` for a clear yes/no, ``None`` for unset. An
+    unrecognised value is ``None`` too: the default, never a guess that could
+    turn a guard off."""
+    raw = os.getenv(name)
+    if raw is None:
+        return None
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "on"}:
+        return True
+    if value in {"0", "false", "no", "off"}:
+        return False
+    return None
 
 
 #: Router task classes eligible for cloud routing. An unrecognised entry is
@@ -130,11 +148,33 @@ MAX_RED_ACTIONS_PER_SESSION: Final[int] = _env_int("AIOS_MAX_RED_ACTIONS", 3)
 #: how a rewritten history is made to verify.
 AUDIT_GENESIS_HASH: Final[str] = "0" * 64
 
+#: Refuse a model call that passed no Organ 32 gateway entrance, before it
+#: leaves (aios/core/model_calls.py, docs/ONE_GATEWAY.md). ``None`` (unset):
+#: refused everywhere except in an exempt program's own process; ``True``:
+#: refused there too; ``False``: never refused, every call still recorded.
+#: Turning refusing off is the operator's act (``AIOS_GATEWAY_ENFORCE=0``); an
+#: unrecognised value leaves it on.
+GATEWAY_ENFORCE: Final[Optional[bool]] = _env_switch("AIOS_GATEWAY_ENFORCE")
+
+#: Where a measurement tool's or a test's OWN calls come from: reported, never
+#: judged or refused. A call is judged when any frame on its stack is outside
+#: these, so production code cannot pass a call off as a tool's.
+GATEWAY_UNJUDGED_SITES: Final[tuple[str, ...]] = ("tools/", "tests/")
+
+#: Programs whose own process does not refuse unless ``AIOS_GATEWAY_ENFORCE=1``:
+#: measurement tools and operator scripts run as the main program. Several hand
+#: a raw client to production code on purpose (the payoff harness's teacher,
+#: the clerk benchmark); their calls are still recorded and judged.
+GATEWAY_EXEMPT_PROGRAMS: Final[tuple[str, ...]] = ("tools/", "scripts/")
+
 
 __all__ = [
     "AUDIT_GENESIS_HASH",
     "EARNED_AUTONOMY_ENABLED",
     "EARNED_AUTONOMY_MIN_SUCCESSES",
+    "GATEWAY_ENFORCE",
+    "GATEWAY_EXEMPT_PROGRAMS",
+    "GATEWAY_UNJUDGED_SITES",
     "MAX_RED_ACTIONS_PER_SESSION",
     "PROJECT_ROOT",
     "ROUTER_CLOUD_TASKS",

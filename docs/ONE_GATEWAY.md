@@ -1,7 +1,10 @@
 # One gateway, measured
 
-*2026-10-12, updated 2026-10-28. The production scoreboard's `one_gateway`
-gate: "every model call through the one gateway".*
+*2026-10-12, updated 2026-10-28 and 2026-10-29. The production scoreboard's
+`one_gateway` gate: "every model call through the one gateway".*
+
+> **Since 2026-10-29 it is refused, not only measured** (section "2026-10-29"
+> below). An ungated production call is stopped before it leaves.
 
 ## What was true before
 
@@ -86,6 +89,186 @@ reached, which was true of the inventory and not of the machine.
 - 15 of 27 static sites observed. The 12 not observed are the table below,
   less the picker.
 
+## 2026-10-29: universal by construction
+
+The operator asked for universality to be proven, not argued. A drive can
+only show that the paths it reached are gated, and real use had already
+found a call no drive had reached. So the property is now enforced, and the
+drive's job is to show that enforcing breaks nothing.
+
+### The proof
+
+| Step | What holds | Pinned by |
+|---|---|---|
+| 1. Only an adapter can reach a model | Every module under `aios/` that can open a connection is either a provider adapter or listed with what it talks to, and none of those names a model endpoint. Nothing but an adapter calls a provider SDK's inference method (`converse`, `generate_content`, ...) or names an inference endpoint, so an adapter's private client cannot be reached through. A new one fails the test until someone says what it talks to. | `tests/test_gateway_enforcement.py` |
+| 2. Every adapter records before it sends | Each request method calls `model_calls.observe()` before the request leaves. | `tests/test_model_calls.py`, per adapter |
+| 3. `observe()` refuses an ungated production call | It raises `UngatedModelCall` before the adapter sends anything. The call is recorded with `"refused": true`. | `tests/test_gateway_enforcement.py` |
+| 4. Only the gateway opens an entrance | `gateway_scope` and `scoped_iter` are named nowhere but the gateway, so no code can mark its own call as gated. | `tests/test_gateway_enforcement.py` |
+
+So no production model call can leave the process without passing an
+entrance, on any path, driven or not.
+
+**Production** means the scoreboard's rule, `model_calls.judged_stack()`: some
+frame on the call's stack is outside `tools/` and `tests/`. The whole stack is
+read, not only the innermost frame, so production code cannot pass a call off
+as a tool's by reaching the model through a `tools/` helper. Code outside the
+repository counts as production. Each ledger record carries its verdict as
+`judged`.
+
+**The switch** is `AIOS_GATEWAY_ENFORCE`:
+- **Unset (the default):** ungated calls are refused everywhere except in a
+  measurement tool's own process, a `tools/` or `scripts/` program run as main.
+  Several tools give a raw client to production code on purpose (the payoff
+  harness's teacher, the clerk benchmark). Refusing there would break the
+  measurement and protect nothing. Their calls are still recorded and judged.
+- **`1`:** refused there too.
+- **`0`:** never refused, but every call is still recorded.
+- **Anything else** counts as unset: a typo never turns refusing off.
+
+The backend, its Council worker processes and the test suite all refuse by
+default.
+
+**The switch and both exemption lists are defined behind the freeze**, in
+`aios/security/limits.py` with the other egress guardrails. `aios/config.py`
+only re-exports them. The operator authorized the move on 2026-10-29
+(`release/section-viii/2026-10-29-gateway-enforcement-behind-the-freeze.md`).
+So changing the default, or adding `aios/` to an exemption, now needs §VIII
+ceremony.
+
+The scoreboard fails on a refused call too, and names it separately. Nothing
+left, but that code still passes no entrance.
+
+### What the drive found
+
+The inventory now runs with refusing on (`AIOS_GATEWAY_ENFORCE=1` in its
+child), with every opt-in model call switched on: CRAG's judge and cloud
+source, and Council execution with its independent reviewer.
+
+**1. Recall could call the model itself.**
+- With no judge or cloud source passed in, `_recall_memory` used to call the
+  local model (`_crag_llm_judge`) and the cloud model (`_crag_cloud_source`)
+  directly. `/api/v1/chat` passed neither.
+- **No turn could actually reach it.** An authenticated chat turn builds a
+  representative context instead of recalling. An anonymous turn's recall
+  admits no row ("no principal"). So the leak was latent: in the code, but on
+  no live path.
+- **Fixed anyway.**
+  - The fallbacks are gone: with no judge, relevance is scored lexically, and
+    with no source, nothing leaves.
+  - Both routes build their CRAG calls in one place,
+    `aios/application/turns/crag_model_calls.py`. A bound principal gets the
+    governed entrance, anyone else the local-only compatibility entrance.
+  - Tests: `tests/test_crag_model_calls_gated.py`.
+
+**2. Unbound worker reasoning called the model directly.**
+- `aios/runtime/intelligence_gateway.py` called the model with no entrance
+  when a mission carried no operator binding, and could reach the cloud.
+- The Council route always binds. No route was found that creates an unbound
+  mission, but that none exists is not proven.
+- **Fixed:**
+  - Unbound reasoning takes the local-only compatibility entrance.
+  - It gets no cloud: no entrance carries an unbound call there.
+  - Tests: `tests/test_runtime_intelligence_gateway.py`.
+
+**3. The inventory itself sent one request to AWS.**
+- The Council's independent reviewer builds its Bedrock client by calling the
+  factory, not through a route. So it got a real client, not the drive's fake.
+- The integrity check caught it: 2 Bedrock calls recorded, 1 received. The
+  call was gated, and it carried the placeholder key, not a real one.
+- The drive now gives that factory the fake too.
+
+The static scan also gained two kinds of candidate site:
+- **a bound reference:** `king_complete=council_llm.complete` hands the model
+  call on without calling it there;
+- **a `getattr`** that is used, not merely tested.
+
+That found 3 more real call paths, and all 3 were reached and gated:
+- 2 in the Council route;
+- 1 in the forge's stream (`getattr(chat_client, ...)`).
+
+`intelligence_gateway.py:request` left the list, because its direct calls are
+gone. So there are 29 sites, against 27 before.
+
+### The inventory, 2026-10-29
+
+Evidence: `release/one-gateway/inventory-2026-10-29.json`.
+
+**15 surfaces drove 74 model calls with refusing on. All 74 are gated; none
+was refused.** The ledger is complete: 70 Ollama and 4 Bedrock requests
+received, every one recorded.
+
+New surfaces:
+- `generate_crag`: the judge and the cloud source, 5 calls.
+- `chat_crag`: chat with every CRAG switch on. It makes no ungated call; its
+  judge cannot be reached, as above.
+- `council_execute`: King approval, execution and the independent reviewer.
+
+**Of 29 candidate sites:**
+- **21 observed.**
+- **2 not model calls:** `MissionService.complete`, checked by receiver.
+- **2 with no production caller:** `ModelRouter`, and the clerical runtime
+  outside its proof fake.
+- **4 not driven.** Each is gated by how it is built, and refused if not:
+
+| Site | Why it is gated |
+|---|---|
+| `self_analysis_agent.propose_fix` | Its only client is the turn's governed planner client |
+| `local_workforce/service._execute_advisory_job` | It wraps its client in `CompatibilityAdvisoryCompletionClient` |
+| `runtime/intelligence_gateway.py` (2) | Unit tests pin `route` when bound and `complete_compatibility` when unbound. The worker runs as its own process with a restricted environment that cannot be pointed at the drive's fake model, and that process refuses by default. |
+
+### Organ 32's adversarial re-read (2026-10-29)
+
+Organ 32 was yellow on C9, on two residuals:
+- universality unmeasured, and not enforced;
+- the switch outside the freeze.
+
+The re-read tried to break the claim. Each attack, and what it found:
+
+| Attack | Result |
+|---|---|
+| Pass a production call off as a tool's, through a `tools/` helper | **Open, and closed.** Judging looked only at the innermost frame. Now the full stack decides. No live path did it: the one production import from `tools/` is a data class. |
+| Fake a gate: open `gateway_scope` from production code | None found. Now pinned: only the gateway may. |
+| Reach a provider SDK through an adapter's private client, or hand an endpoint to another transport | None found. Now pinned. |
+| Count `<frozen runpy>`-style pseudo-files as repo frames | **A real bug, fixed.** It was harmless until the whole stack was read. |
+| Turn refusing off with a typo | Pinned: only a clear "no" turns it off. |
+| Frontend calls straight to a provider | None: the frontend talks only to GAGOS's own routes. |
+| In-process inference | Embeddings and voice (faster-whisper) run locally and send nothing. |
+| Approved commands | The sandbox runs them with `--network none`. The host backend is development only. |
+
+**The live probe shows refusing too.** Organ 32's Phase 4 probe
+(`scripts/phase4_live_evidence.py`) now also has a production frame ask a real
+adapter for a model call through no entrance. It is refused before anything is
+sent.
+
+**The ledger** (`scripts/organ32_adversarial_reread.py`):
+- `aios/core/model_calls.py` and `aios/security/limits.py` join the organ's
+  production entrypoints. The claim rests on them, so a change to either now
+  stales its evidence.
+- The proof's tests join its focused tests.
+- C9 records the re-read. Both residuals are discharged.
+- `scripts/promote_verified_organs.py` flipped the organ green. Organ 32 was
+  the only organ that qualified.
+- `scripts/verify_organ_twelve_conditions.py` then executed every green organ's
+  tests: 144 files, 2824 passed, 0 failed.
+  - **Organ 32 survives** with no mechanical failure
+    (`release/phase5/organ-32.md`).
+  - Its first run did reject one thing: the evidence row from `6815ee82`,
+    gathered before the two new entrypoints changed. Re-attaching retired that
+    row, and the second run passed.
+  - The run's other 5 failures are this machine's: no vitest results and no
+    live Ollama. CI supplies both.
+
+**What the green rests on, stated plainly:** one reviewer, the agent, did the
+re-read. The verifier and CI execute the tests; nothing else checked the
+reasoning.
+
+**Out of scope, stated:**
+- Commands the agent runs are not GAGOS model calls. The sandbox runs them
+  with `--network none`.
+- The host backend, which is development only, has no such isolation.
+- A worker ignores a remote `OLLAMA_HOST` (its environment drops it). That is
+  a separate finding, not changed here.
+
 ## The inventory, 2026-10-12
 
 Evidence: `release/one-gateway/inventory-2026-10-12.json`.
@@ -147,9 +330,9 @@ On a live machine, the scoreboard gate covers whatever real use reaches.
 
 ## What this does not do
 
-- **It does not refuse an ungated call.** It measures. Refusing (fail closed
-  in the adapters) is a later decision, for the operator, once real use
-  shows zero.
+- ~~**It does not refuse an ungated call.**~~ *Superseded 2026-10-29: it
+  refuses (see "2026-10-29"). Kept as written: it measured, and refusing
+  was left to the operator.*
 - **Embeddings are not counted.** They run in-process (sentence-transformers)
   and send nothing out.
 - **Measurement tools are reported, not judged.** Their own direct calls (the

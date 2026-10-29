@@ -63,6 +63,7 @@ def test_a_call_outside_the_gateway_is_recorded_as_ungated_with_its_site(
         "entrance",
         "site",
         "stack",
+        "judged",
         "pid",
     }, "nothing else -- no prompt, no output, no key"
 

@@ -1,14 +1,13 @@
 # Phase 5 proof — Organ 20: Living Mirror Reaction Registry (construction)
 
-**Status under re-read:** `green`
+**Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
-**Generated:** 2026-09-20T19:40:51+00:00
+**Evaluated tip:** `9408fd03e2697d5142c05d9ef993aa92337343ff`
+**Generated:** 2026-10-29T05:20:48+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **C6**: focused_tests not executed here (needs vitest): frontend/src/superbrain/lib/livingMirrorRegistry.test.ts -- pass --frontend-junit or --allow-unexecuted-frontend
-- **C7**: integration_tests not executed here (needs vitest): frontend/src/superbrain/lib/aiosMirror.test.ts -- pass --frontend-junit or --allow-unexecuted-frontend
+- **residual**: Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/superbrain/lib/livingMirrorRegistry.ts changed by this PR. This organ is green on live evidence captured in the operator's OWN browser (Kimi WebBridge, not headless) at cdfd7d16d2f6; that capture predates the new registry and cannot be re-earned mechanically. Re-capture against the shipped UI to restore green.
 
 ## Written verdict keys that are not PASS/N/A
 

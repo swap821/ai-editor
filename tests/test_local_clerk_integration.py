@@ -78,6 +78,24 @@ def live_client() -> OllamaClient:
     return client
 
 
+def _as_production(client: OllamaClient):
+    """The client as production hands it to the qualification authority:
+    behind the local-only gateway entrance
+    (``LocalWorkforceService._local_probe_client``). Given the raw client, the
+    authority's model calls pass no entrance, and since 2026-10-29 they are
+    refused before they leave (docs/ONE_GATEWAY.md)."""
+    from aios.application.intelligence.gateway import (
+        CompatibilityAdvisoryCompletionClient,
+    )
+    from aios.core.autonomy import UNGOVERNED_FIXTURE
+
+    return CompatibilityAdvisoryCompletionClient(
+        client,
+        request_id=f"local-workforce:qualification:{_MODEL}",
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+
+
 def test_the_local_runtime_is_actually_reachable(live_client: OllamaClient) -> None:
     """Organ 35's floor. Everything below is meaningless if this is a fixture."""
     discovery = live_client.list_models()
@@ -110,7 +128,7 @@ def test_the_qualification_suite_runs_against_a_live_model(
     `LocalModelQualificationAuthority` IS organ 37's declared authority_owner,
     so this exercises the named owner rather than a stand-in.
     """
-    suite = LocalModelQualificationAuthority(live_client)
+    suite = LocalModelQualificationAuthority(_as_production(live_client))
 
     result = suite.run()
 
@@ -135,7 +153,7 @@ def test_the_dispatcher_honours_the_live_verdict(live_client: OllamaClient) -> N
     """
     from aios.application.local_workforce.dispatcher import dispatch_clerical_job
 
-    result = LocalModelQualificationAuthority(live_client).run()
+    result = LocalModelQualificationAuthority(_as_production(live_client)).run()
 
     decision = dispatch_clerical_job(
         deterministic_available=False,
@@ -173,7 +191,7 @@ def test_deterministic_code_still_wins_over_a_live_model(
     """
     from aios.application.local_workforce.dispatcher import dispatch_clerical_job
 
-    result = LocalModelQualificationAuthority(live_client).run()
+    result = LocalModelQualificationAuthority(_as_production(live_client)).run()
 
     decision = dispatch_clerical_job(
         deterministic_available=True,
@@ -192,7 +210,7 @@ def test_the_live_verdict_is_recorded_as_evidence(live_client: OllamaClient) -> 
     Organ 37's whole purpose is evidence-backed admission; a result that
     cannot be serialised could not be attached to a passport or a ledger row.
     """
-    result = LocalModelQualificationAuthority(live_client).run()
+    result = LocalModelQualificationAuthority(_as_production(live_client)).run()
 
     payload = json.loads(result.model_dump_json())
 

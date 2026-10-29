@@ -1,14 +1,13 @@
 # Phase 5 proof — Organ 40: Isolated Workspace and Executor (live proof)
 
-**Status under re-read:** `green`
+**Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
-**Generated:** 2026-09-20T19:40:55+00:00
+**Evaluated tip:** `9408fd03e2697d5142c05d9ef993aa92337343ff`
+**Generated:** 2026-10-29T05:20:56+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **C6**: focused_tests not executed here (needs vitest): frontend/src/workbench/CouncilDashboard.sovereign.test.tsx -- pass --frontend-junit or --allow-unexecuted-frontend
-- **C7**: no integration_tests proved anything here (unverified: tests/test_executor_integration.py (all 4 skipped))
+- **residual**: Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/workbench/SovereignStatePanel.jsx changed by this PR. The Phase 4 live run at cc8492f314eb that proved this organ no longer claims it (organ 40 is absent from the current runner's proof set), so the evidence cannot be refreshed by re-running it. Re-earn via the executor live path at a current tip to restore green.
 
 ## Written verdict keys that are not PASS/N/A
 

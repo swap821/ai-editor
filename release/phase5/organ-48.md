@@ -1,15 +1,13 @@
 # Phase 5 proof — Organ 48: Truthful Living Mirror (full truthful UI)
 
-**Status under re-read:** `green`
+**Status under re-read:** `yellow`
 **Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
-**Generated:** 2026-09-20T19:40:57+00:00
+**Evaluated tip:** `9408fd03e2697d5142c05d9ef993aa92337343ff`
+**Generated:** 2026-10-29T05:20:58+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **C6**: focused_tests not executed here (needs vitest): frontend/src/workbench/SovereignStatePanel.organ48.test.jsx -- pass --frontend-junit or --allow-unexecuted-frontend
-- **C6**: focused_tests not executed here (needs vitest): frontend/src/workbench/SovereignStatePanel.authorities.test.jsx -- pass --frontend-junit or --allow-unexecuted-frontend
-- **C7**: integration_tests not executed here (needs vitest): frontend/src/workbench/CouncilDashboard.sovereign.test.tsx -- pass --frontend-junit or --allow-unexecuted-frontend
+- **residual**: Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/workbench/SovereignStatePanel.jsx changed by this PR. This organ is green on live evidence captured in the operator's OWN browser at cdfd7d16d2f6; the truthful-UI claim is precisely about the surface this PR rewrites, so the old capture cannot stand. Re-capture against the shipped UI to restore green.
 
 ## Written verdict keys that are not PASS/N/A
 

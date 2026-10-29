@@ -553,17 +553,13 @@ Each row names the check. The check is the claim.
 | A ratified constitutional amendment changes enforced behaviour, including at worker spawn | `pytest tests/adversarial/test_control_consistency.py tests/test_governance_red_team_corpus.py` |
 | The audit chain rejects a forged key, a stripped signature, and total erasure | `pytest tests/adversarial/test_audit_key_trust.py` |
 | Known attacks against every governed boundary stay closed | `python -m pytest tests/adversarial/ -q` — 486 passed, 0 failed on `9381121` |
+| Every production model call passes the one gateway: only the provider adapters can reach a model, each records before it sends, a call that passed no entrance is refused before it leaves, and only the gateway can open an entrance (organ 32 green since 2026-10-29, `docs/ONE_GATEWAY.md`) | `pytest tests/test_gateway_enforcement.py tests/test_model_calls.py`; the real-app drive `python tools/model_call_inventory.py` — 74 calls, all gated, with refusing on |
 
 Green here means those specific checks pass. It does not mean the boundary
 resists attacks nobody has written yet.
 
 ### Still being completed or proven
 
-- One universal gateway for every model call — measured, not enforced: the
-  inventory observed 15 of 27 model-call sites (`docs/ONE_GATEWAY.md`), and an
-  ungated call is recorded rather than refused; organ 32 is yellow for this.
-  On 2026-10-28 the operator's own ledger showed the route picker calling its
-  model ungated on every routed turn; it now passes the gateway
 - Complete human-representation context for every provider — the agentic
   `/api/generate` path compiles its own representative context and carries
   neither operator preferences nor the project passport

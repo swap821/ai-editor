@@ -1,13 +1,14 @@
 # Phase 5 proof — Organ 35: Local Clerk Runtime
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `yes`
-**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
-**Generated:** 2026-09-20T19:40:54+00:00
+**Survives mechanical adversarial re-read:** `no`
+**Evaluated tip:** `9408fd03e2697d5142c05d9ef993aa92337343ff`
+**Generated:** 2026-10-29T05:20:54+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- (none — mechanical subset passed)
+- **C10**: cited test tests/test_local_clerk_integration.py::test_the_dispatcher_honours_the_live_verdict did not run and pass
+- **C10**: cited test tests/test_local_clerk_integration.py::test_deterministic_code_still_wins_over_a_live_model did not run and pass
 
 ## Written verdict keys that are not PASS/N/A
 

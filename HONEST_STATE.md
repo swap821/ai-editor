@@ -1,9 +1,37 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-10-28 ("State on 2026-10-28" below; earlier sections keep
+**Last updated:** 2026-10-29 ("State on 2026-10-29" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-10-29 (measured on branch `feat/gateway-universal`, off master `692c5c78`)
+
+- **The one gateway is enforced, not only measured** (`docs/ONE_GATEWAY.md`, "2026-10-29"). The operator asked for it to be proven.
+  - **Why enforcement:** a drive only shows the paths it reached, and real use had already found one it missed. Now an ungated production call is refused before the adapter sends it.
+  - **The proof, in three tested steps:**
+    1. Only the provider adapters can reach a model.
+    2. Each adapter records a call before sending it.
+    3. A call with no entrance is refused.
+  - **`AIOS_GATEWAY_ENFORCE`:** on by default. A `tools/` or `scripts/` program's own process is exempt unless the switch is set to `1`, and its calls are still recorded and judged. `0` turns refusing off.
+  - **Driven with refusing on:** 15 surfaces made 74 model calls, all gated and none refused, and the ledger is complete. 21 of 29 candidate sites were observed. Of the rest, 2 are not model calls and 2 have no production caller, and the 4 not driven are gated by how they are built.
+  - **Found and fixed:**
+    - Memory recall could call the model directly when a route passed it no gated judge. `/api/v1/chat` passed none, but no turn could reach that, so it was latent.
+    - Unbound Council worker reasoning called the model directly. The Council route always binds, so no reachable route is known.
+  - **The switch is behind the freeze.** The operator authorized the move ("Honestly fix this", then "I'll allow it" after the safety classifier stopped the record). `AIOS_GATEWAY_ENFORCE` and both exemption lists now live in `aios/security/limits.py` (`release/section-viii/2026-10-29-gateway-enforcement-behind-the-freeze.md`). A typo never turns refusing off.
+  - **Organ 32 is green: 51 green / 8 yellow** (was 50 / 9).
+    - **The adversarial re-read closed three ways the proof could be broken.** None was a live hole.
+      - Passing a call off as a measurement tool's: a call is now production if any frame on its stack is.
+      - Faking an entrance: only the gateway may open one.
+      - Reaching a provider SDK past the adapters.
+    - **It also fixed one real bug:** pseudo-files such as `<frozen runpy>` counted as repo frames.
+    - **CI caught a real case:** the live clerk tests ran organ 37's qualifier with a raw client, and the calls were refused. The tests now use the production composition.
+    - **Its live evidence now includes a refused call.** `aios/core/model_calls.py` and `aios/security/limits.py` joined its entrypoints.
+    - **The 12-condition verifier passes it:** 144 test files, 2824 passed, 0 failed. The verifier's other 5 local failures are environmental: no vitest and no live Ollama locally, both of which CI supplies.
+    - **One reviewer, the agent, did the re-read.** The verifier and CI executed the tests.
+- **D13's judged run was killed by Windows Update** on 2026-10-29 at 00:08, at target 8 of 85. Windows rebooted on its own to install KB5127936.
+  - The harness writes its trail only at the end, so nothing can be judged. It restarts from scratch, on the same pinned code and store.
+  - No interim result was tallied, so the restart is clean.
 
 ## State on 2026-10-28 (measured 2026-10-21 to 10-28; master `de88e7dd` unless a line says otherwise)
 

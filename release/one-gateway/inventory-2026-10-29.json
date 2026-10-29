@@ -1,0 +1,349 @@
+{
+  "surfaces": {
+    "generate_local": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 3,
+      "error": null,
+      "events": [
+        "turn.started",
+        "alignment",
+        "step",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "generate_cloud": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 3,
+      "error": null,
+      "events": [
+        "turn.started",
+        "alignment",
+        "step",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "generate_routed": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 4,
+      "error": null,
+      "events": [
+        "turn.started",
+        "alignment",
+        "step",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "chat": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 1,
+      "error": null,
+      "events": [
+        "turn.started",
+        "human_state",
+        "representative_context",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "chat_advisory": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 1,
+      "error": null,
+      "events": [
+        "turn.started",
+        "human_state",
+        "representative_context",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "chat_bearer": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 1,
+      "error": null,
+      "events": [
+        "turn.started",
+        "human_state",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "reflect": {
+      "verdict": "gated",
+      "status": 422,
+      "calls": 2,
+      "error": null,
+      "events": null,
+      "stream_errors": null,
+      "body": null
+    },
+    "plan": {
+      "verdict": "gated",
+      "status": 422,
+      "calls": 1,
+      "error": null,
+      "events": null,
+      "stream_errors": null,
+      "body": null
+    },
+    "generate_recall": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 6,
+      "error": null,
+      "events": [
+        "turn.started",
+        "alignment",
+        "step",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "hiring": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 1,
+      "error": null,
+      "events": null,
+      "stream_errors": null,
+      "body": "{\"content\":\"Paris.\",\"call\":{\"request_id\":\"inventory-hiring-1\",\"principal_id\":\"operator:ef12a283e1ed4e71b3b26a401a1949f9\",\"mission_id\":\"inventory\",\"turn_id\":null,\"purpose\":\"inventory\",\"data_classification\":\"PUBLIC\",\"redactions\":[],\"allowed_providers\":[\"ollama\"],\"selected_provider\":\"ollama\",\"selected_"
+    },
+    "clerk": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 42,
+      "error": null,
+      "events": null,
+      "stream_errors": null,
+      "body": "{\"status\":\"rejected\",\"reason\":\"Failed qualification suite\",\"qualification\":{\"suite_version\":\"r15-v3\",\"passed\":false,\"schema_validity\":0.0,\"identifier_preservation\":0.0,\"authority_mutation_attempts\":0,\"tool_requests_accepted\":0,\"secret_reproduction\":1,\"unsupported_claim_rate\":1.0,\"timeout_rate\":0.0,\""
+    },
+    "council": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 1,
+      "error": null,
+      "events": null,
+      "stream_errors": null,
+      "body": "{\"missionId\":\"mission-3efd20e0695e\",\"summary\":{\"verificationStrength\":null,\"verificationMeetsFloor\":false,\"verificationBelowFloorWarning\":null,\"missionId\":\"mission-3efd20e0695e\",\"mission\":\"Add a one-line summary to notes.md\",\"status\":\"needs_revision\",\"recommendation\":\"revise\",\"risk\":\"YELLOW\",\"approvalNeeded\":true,\"rollbackAvailable\":false,\"rollbackId\":null,\"filesTouched\":[],\"blockedAttempts\":0,\"verificationPassed\":null,\"councilVerdicts\":[{\"queen\":\"planner\",\"verdict\":\"defer\",\"risk\":\"YELLOW\",\"reason\":\"Planner cannot spawn a worker without explicit verification commands.\",\"confidence\":0.82},{\"queen\":\"security\",\"verdict\":\"allow_with_approval\",\"risk\":\"YELLOW\",\"reason\":\"MissionContract passed deterministic security review.\",\"confidence\":0.9},{\"queen\":\"memory\",\"verdict\":\"allow\",\"risk\":\"GREEN\",\"reason\":\"No reusable memory hints or prior failures found.\",\"confidence\":0.5},{\"queen\":\"routing\",\"verdict\":\"allow\",\"risk\":\"YELLOW\",\"reason\":\"Routing Queen recommends hybrid_plan_worker with bounded provider constraints.\",\"confidence\":0.88}],\"gangliaSignals\":[{\"source\":\"planner\",\"verdict\":\"defer\",\"risk\":\"YELLOW\",\"polarity\":\"block\",\"strength\":0.82,\"reason\":\"Planner cannot spawn a worker without explicit verification commands.\",\"constraints\":[\"Worker execution remains bounded by MissionContract.\",\"Add at least one verification command before worker birth.\"],\"authority\":\"strengthen_only\",\"can_veto\":false,\"can_authorize\":false,\"metadata\":{\"worker_type\":\"hybrid_plan_worker\",\"allowed_files\":[\"notes.md\"],\"verification_commands\":[],\"reasoned\":false}},{\"source\":\"security\",\"verdict\":\"allow_with_approval\",\"risk\":\"YELLOW\",\"polarity\":\"caution\",\"strength\":0.9,\"reason\":\"MissionContract passed deterministic security review.\",\"constraints\":[\"write_file remains contract-gated and auditable.\",\"run_command remains contract-gated and auditable.\",\"request_change remains IntelligenceGateway-gated with explicit model policy.\"],\"authority\":\"deterministic\",\"can_veto\":false,\"can_authorize\":false,\"metadata\":{\"gateway_checks\":[]}},{\"source\":\"memory\",\"verdict\":\"allow\",\"risk\":\"GREEN\",\"polarity\":\"support\",\"strength\":0.5,\"reason\":\"No reusable memory hints or prior failures found.\",\"constraints\":[],\"authority\":\"strengthen_only\",\"can_veto\":false,\"can_authorize\":false,\"metadata\":{\"memory_hints\":[],\"cautions\":[]}},{\"source\":\"routing\",\"verdict\":\"allow\",\"risk\":\"YELLOW\",\"polarity\":\"caution\",\"strength\":0.88,\"reason\":\"Routing Queen recommends hybrid_plan_worker with bounded provider constraints.\",\"constraints\":[\"routing: worker strategy locked to hybrid_plan_worker\"],\"authority\":\"advisory\",\"can_veto\":false,\"can_authorize\":false,\"metadata\":{\"recommended_strategy\":\"hybrid_plan_worker\",\"provider_constraints\":[]}}],\"gangliaSynthesis\":{\"status\":\"blocked\",\"risk\":\"YELLOW\",\"reason\":\"planner requested block/defer: Planner cannot spawn a worker without explicit verification commands.\",\"security_veto\":false,\"advisory_only\":true,\"authority\":\"proposal/evidence\",\"can_authorize\":false,\"constraints\":[\"Worker execution remains bounded by MissionContract.\",\"Add at least one verification command before worker birth.\",\"write_file remains contract-gated and auditable.\",\"run_command remains contract-gated and auditable.\",\"request_change remains IntelligenceGateway-gated with explicit model policy.\",\"routing: worker strategy locked to hybrid_plan_worker\"]},\"modelRouting\":{},\"pendingApprovals\":[],\"kingDecision\":null,\"royalDecree\":null,\"updatedAt\":1793237804.1572826},\"report\":{\"mission_id\":\"mission-3efd20e0695e\",\"mission\":\"Add a one-line summary to notes.md\",\"status\":\"needs_revision\",\"council_summary\":{\"workers_created\":[],\"blocked_attempts\":0,\"backend\":\"controlled_subprocess\",\"council_verdicts\":[{\"queen\":\"planner\",\"verdict\":\"defer\",\"risk\":\"YELLOW\",\"reason\":\"Planner cannot spawn a worker without explicit verification commands.\",\"confidence\":0.82},{\"queen\":\"security\",\"verdict\":\"allow_with_approval\",\"risk\":\"YELLOW\",\"reason\":\"MissionContract passed deterministic security review.\",\"confidence\":0.9},{\"queen\":\"memory"
+    },
+    "generate_crag": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 5,
+      "error": null,
+      "events": [
+        "turn.started",
+        "alignment",
+        "step",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "chat_crag": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 1,
+      "error": null,
+      "events": [
+        "turn.started",
+        "human_state",
+        "representative_context",
+        "route",
+        "text_chunk",
+        "done"
+      ],
+      "stream_errors": [],
+      "body": ""
+    },
+    "council_execute": {
+      "verdict": "gated",
+      "status": 200,
+      "calls": 2,
+      "error": null,
+      "events": null,
+      "stream_errors": null,
+      "body": "{\"missionId\":\"mission-89db676dac0b\",\"decision\":{\"mission_id\":\"mission-89db676dac0b\",\"request_id\":null,\"decision\":\"approve\",\"approved\":true,\"reason\":\"\",\"decided_at\":\"2026-10-29T01:36:46+00:00\",\"decided_by\":\"operator:ef12a283e1ed4e71b3b26a401a1949f9\"},\"approvalResponseWritten\":false,\"missionAuthority\" | {\"missionId\":\"mission-89db676dac0b\",\"summary\":{\"verificationStrength\":\"NONE\",\"verificationMeetsFloor\":false,\"verificationBelowFloorWarning\":null,\"missionId\":\"mission-89db676dac0b\",\"mission\":\"Add a one-line summary to notes.md\",\"status\":\"failed\",\"recommendation\":\"rollback\",\"risk\":\"YELLOW\",\"approvalNeeded\":true,\"rollbackAvailable\":true,\"rollbackId\":\"d2786b03c72c30a7f6514d3af42c627681a712e2\",\"filesTouched\":[\"notes.md\"],\"blockedAttempts\":1,\"verificationPassed\":false,\"councilVerdicts\":[{\"queen\":\"planner\",\"verdict\":\"allow_with_approval\",\"risk\":\"YELLOW\",\"reason\":\"MissionContract drafted from CouncilMissionRequest.\",\"confidence\":0.82},{\"queen\":\"security\",\"verdict\":\"allow_with_approval\",\"risk\":\"YELLOW\",\"reason\":\"MissionContract passed deterministic security review.\",\"confidence\":0.9},{\"queen\":\"memory\",\"verdict\":\"allow\",\"risk\":\"GREEN\",\"reason\":\"No reusable memory hints or prior failures found.\",\"confidence\":0.5},{\"queen\":\"routing\",\"verdict\":\"allow\",\"risk\":\"YELLOW\",\"reason\":\"Routing Queen recommends hybrid_plan_worker with bounded provider constraints.\",\"confidence\":0.88},{\"queen\":\"testing\",\"verdict\":\"deny\",\"risk\":\"YELLOW\",\"reason\":\"1 verification command(s) failed.\",\"confidence\":0.92}],\"gangliaSignals\":[{\"source\":\"planner\",\"verdict\":\"allow_with_approval\",\"risk\":\"YELLOW\",\"polarity\":\"caution\",\"strength\":0.82,\"reason\":\"MissionContract drafted from CouncilMissionRequest.\",\"constraints\":[\"Worker execution remains bounded by MissionContract.\",\"builder caste profile applied; constraints can only narrow authority.\"],\"authority\":\"strengthen_only\",\"can_veto\":false,\"can_authorize\":false,\"metadata\":{\"worker_type\":\"hybrid_plan_worker\",\"allowed_files\":[\"notes.md\"],\"verification_commands\":[\"echo ok\"],\"reasoned\":false}},{\"source\":\"security\",\"verdict\":\"allow_with_approval\",\"risk\":\"YELLOW\",\"polarity\":\"caution\",\"strength\":0.9,\"reason\":\"MissionContract passed deterministic security review.\",\"constraints\":[\"write_file remains contract-gated and auditable.\",\"run_command remains contract-gated and auditable.\",\"request_change remains IntelligenceGateway-gated with explicit model policy.\"],\"authority\":\"deterministic\",\"can_veto\":false,\"can_authorize\":false,\"metadata\":{\"gateway_checks\":[{\"kind\":\"verification_command\",\"command\":\"echo ok\",\"gateway_command\":\"echo ok\",\"zone\":\"GREEN\",\"reason\":\"Known read-only/test command; within scope.\"}]}},{\"source\":\"memory\",\"verdict\":\"allow\",\"risk\":\"GREEN\",\"polarity\":\"support\",\"strength\":0.5,\"reason\":\"No reusable memory hints or prior failures found.\",\"constraints\":[],\"authority\":\"strengthen_only\",\"can_veto\":false,\"can_authorize\":false,\"metadata\":{\"memory_hints\":[],\"cautions\":[]}},{\"source\":\"routing\",\"verdict\":\"allow\",\"risk\":\"YELLOW\",\"polarity\":\"caution\",\"strength\":0.88,\"reason\":\"Routing Queen recommends hybrid_plan_worker with bounded provider constraints.\",\"constraints\":[\"routing: worker strategy locked to hybrid_plan_worker\"],\"authority\":\"advisory\",\"can_veto\":false,\"can_authorize\":false,\"metadata\":{\"recommended_strategy\":\"hybrid_plan_worker\",\"provi"
+    }
+  },
+  "ungated_sites": {},
+  "gated_sites": {
+    "aios/agents/reflection_agent.py:_complete_reflection [ollama.complete]": 2,
+    "aios/agents/tool_agent.py:_stream_iteration [bedrock.converse_stream]": 2,
+    "aios/agents/tool_agent.py:run [ollama.chat]": 4,
+    "aios/api/turn_http.py:_stream_chat_chunks [ollama.chat]": 4,
+    "aios/api/turn_pipeline.py:_crag_cloud_source [bedrock.converse]": 1,
+    "aios/api/turn_pipeline.py:_crag_llm_judge [ollama.chat]": 1,
+    "aios/application/local_workforce/service.py:health_check [ollama.complete]": 2,
+    "aios/application/models/hiring_service.py:complete [ollama.chat]": 1,
+    "aios/core/alignment.py:understand [ollama.complete]": 6,
+    "aios/core/planner.py:plan [ollama.complete]": 7,
+    "aios/core/router_wiring.py:_pick_position [ollama.chat]": 1,
+    "aios/council/gateway_reasoning.py:<lambda> [ollama.complete]": 2,
+    "aios/council/gateway_reasoning.py:complete [bedrock.converse]": 1,
+    "aios/domain/local_workforce/qualifier.py:_attempt_case [ollama.complete]": 40
+  },
+  "observed_frames": [
+    "aios/agents/reflection_agent.py:_complete_reflection",
+    "aios/agents/reflection_agent.py:_reflect_parsed",
+    "aios/agents/reflection_agent.py:reflect",
+    "aios/agents/tool_agent.py:_stream_iteration",
+    "aios/agents/tool_agent.py:run",
+    "aios/api/routes/actions.py:plan",
+    "aios/api/routes/actions.py:reflect",
+    "aios/api/routes/council.py:_run_council_deliberation",
+    "aios/api/routes/council.py:_run_council_execution",
+    "aios/api/routes/generate.py:generate",
+    "aios/api/routes/hiring.py:execute_hiring_call",
+    "aios/api/routes/local_workforce.py:health_check_model",
+    "aios/api/routes/local_workforce.py:qualify_model",
+    "aios/api/turn_http.py:_stream_chat_chunks",
+    "aios/api/turn_pipeline.py:_crag_cloud_source",
+    "aios/api/turn_pipeline.py:_crag_llm_judge",
+    "aios/api/turn_pipeline.py:_recall_memory",
+    "aios/application/local_workforce/service.py:health_check",
+    "aios/application/local_workforce/service.py:qualify",
+    "aios/application/models/hiring_service.py:<lambda>",
+    "aios/application/models/hiring_service.py:_execute",
+    "aios/application/models/hiring_service.py:complete",
+    "aios/application/turns/conversation_pipeline.py:stream_conversation",
+    "aios/application/turns/crag_model_calls.py:<lambda>",
+    "aios/application/turns/generate_pipeline.py:<lambda>",
+    "aios/application/turns/generate_pipeline.py:_safe_iter",
+    "aios/application/turns/generate_pipeline.py:prepare_generate_state",
+    "aios/application/turns/generate_pipeline.py:stream_generate",
+    "aios/application/turns/turn_coordinator.py:coordinate",
+    "aios/application/turns/turn_coordinator.py:prepare",
+    "aios/core/alignment.py:understand",
+    "aios/core/planner.py:plan",
+    "aios/core/router.py:pick_from",
+    "aios/core/router_wiring.py:_pick_position",
+    "aios/core/router_wiring.py:_select_chat_client",
+    "aios/core/router_wiring.py:picker",
+    "aios/council/council_orchestrator.py:_maybe_persist_deliberation",
+    "aios/council/council_orchestrator.py:deliberate",
+    "aios/council/council_orchestrator.py:execute",
+    "aios/council/deliberation_gather.py:maybe_deliberate",
+    "aios/council/gateway_reasoning.py:<lambda>",
+    "aios/council/gateway_reasoning.py:complete",
+    "aios/council/queens/planner.py:_reason",
+    "aios/council/queens/planner.py:draft",
+    "aios/council/reasoning.py:plan_with_llm",
+    "aios/domain/local_workforce/qualifier.py:_attempt_case",
+    "aios/domain/local_workforce/qualifier.py:_run_case",
+    "aios/domain/local_workforce/qualifier.py:run",
+    "aios/memory/crag.py:evaluate_retrieval",
+    "aios/memory/crag.py:external_retrieve"
+  ],
+  "integrity": {
+    "ollama_requests_received": 70,
+    "ollama_calls_recorded": 70,
+    "bedrock_requests_received": 4,
+    "bedrock_calls_recorded": 4,
+    "ledger_complete": true
+  },
+  "error": null,
+  "coverage": {
+    "static_candidates": 29,
+    "observed": [
+      "aios/agents/reflection_agent.py:_complete_reflection",
+      "aios/agents/tool_agent.py:run",
+      "aios/api/routes/council.py:_run_council_deliberation",
+      "aios/api/routes/council.py:_run_council_execution",
+      "aios/api/routes/hiring.py:execute_hiring_call",
+      "aios/api/turn_http.py:_stream_chat_chunks",
+      "aios/api/turn_pipeline.py:_crag_cloud_source",
+      "aios/api/turn_pipeline.py:_crag_llm_judge",
+      "aios/application/local_workforce/service.py:health_check",
+      "aios/application/models/hiring_service.py:<lambda>",
+      "aios/application/models/hiring_service.py:_execute",
+      "aios/application/models/hiring_service.py:complete",
+      "aios/application/turns/generate_pipeline.py:stream_generate",
+      "aios/core/alignment.py:understand",
+      "aios/core/planner.py:plan",
+      "aios/core/router_wiring.py:_pick_position",
+      "aios/council/council_orchestrator.py:execute",
+      "aios/council/gateway_reasoning.py:<lambda>",
+      "aios/council/gateway_reasoning.py:complete",
+      "aios/council/reasoning.py:plan_with_llm",
+      "aios/domain/local_workforce/qualifier.py:_attempt_case"
+    ],
+    "not_a_model_call": [
+      "aios/application/governance/runtime_proof.py:_probe_mission",
+      "aios/application/maintenance/service.py:run_approved_repair"
+    ],
+    "no_production_caller": [
+      "aios/application/models/model_router.py:complete",
+      "aios/domain/local_workforce/runtime.py:execute_job"
+    ],
+    "not_observed": [
+      "aios/agents/self_analysis_agent.py:propose_fix",
+      "aios/application/local_workforce/service.py:_execute_advisory_job",
+      "aios/runtime/intelligence_gateway.py:<lambda>",
+      "aios/runtime/intelligence_gateway.py:complete"
+    ],
+    "observed_outside_static": [
+      "aios/agents/reflection_agent.py:_reflect_parsed",
+      "aios/agents/reflection_agent.py:reflect",
+      "aios/agents/tool_agent.py:_stream_iteration",
+      "aios/api/routes/actions.py:plan",
+      "aios/api/routes/actions.py:reflect",
+      "aios/api/routes/generate.py:generate",
+      "aios/api/routes/local_workforce.py:health_check_model",
+      "aios/api/routes/local_workforce.py:qualify_model",
+      "aios/api/turn_pipeline.py:_recall_memory",
+      "aios/application/local_workforce/service.py:qualify",
+      "aios/application/turns/conversation_pipeline.py:stream_conversation",
+      "aios/application/turns/crag_model_calls.py:<lambda>",
+      "aios/application/turns/generate_pipeline.py:<lambda>",
+      "aios/application/turns/generate_pipeline.py:_safe_iter",
+      "aios/application/turns/generate_pipeline.py:prepare_generate_state",
+      "aios/application/turns/turn_coordinator.py:coordinate",
+      "aios/application/turns/turn_coordinator.py:prepare",
+      "aios/core/router.py:pick_from",
+      "aios/core/router_wiring.py:_select_chat_client",
+      "aios/core/router_wiring.py:picker",
+      "aios/council/council_orchestrator.py:_maybe_persist_deliberation",
+      "aios/council/council_orchestrator.py:deliberate",
+      "aios/council/deliberation_gather.py:maybe_deliberate",
+      "aios/council/queens/planner.py:_reason",
+      "aios/council/queens/planner.py:draft",
+      "aios/domain/local_workforce/qualifier.py:_run_case",
+      "aios/domain/local_workforce/qualifier.py:run",
+      "aios/memory/crag.py:evaluate_retrieval",
+      "aios/memory/crag.py:external_retrieve"
+    ]
+  }
+}

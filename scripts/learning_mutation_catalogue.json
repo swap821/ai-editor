@@ -736,8 +736,8 @@
   {
    "id": "4c:P10 a graph walk crosses principals",
    "file": "aios/memory/facts.py",
-   "old": "              AND g.path NOT LIKE '%\u2192' || f.object || '\u2192%'\n              AND f.principal_id IS :principal\n              AND f.rowid IN (\n                  SELECT rowid FROM semantic_facts\n                  WHERE subject = g.object AND status = 'active'\n                    AND principal_id IS :principal\n",
-   "new": "              AND g.path NOT LIKE '%\u2192' || f.object || '\u2192%'\n              AND f.rowid IN (\n                  SELECT rowid FROM semantic_facts\n                  WHERE subject = g.object AND status = 'active'\n",
+   "old": "              AND g.path NOT LIKE '%→' || f.object || '→%'\n              AND f.principal_id IS :principal\n              AND f.rowid IN (\n                  SELECT rowid FROM semantic_facts\n                  WHERE subject = g.object AND status = 'active'\n                    AND principal_id IS :principal\n",
+   "new": "              AND g.path NOT LIKE '%→' || f.object || '→%'\n              AND f.rowid IN (\n                  SELECT rowid FROM semantic_facts\n                  WHERE subject = g.object AND status = 'active'\n",
    "tests": [
     "tests/test_phase4c_principal_scope.py::TestOnePrincipalCannotTouchAnothersRow::test_a_graph_walk_never_crosses_principals"
    ],
@@ -3986,10 +3986,10 @@
    "note": "generated: _recall_memory line 521 condition forced False: config.CRAG"
   },
   {
-   "id": "gen:turn_pipeline:_recall_memory:530:always",
+   "id": "gen:turn_pipeline:_recall_memory:513:always",
    "file": "aios/api/turn_pipeline.py",
-   "old": "                    if config.CRAG_LLM_JUDGE and crag_judge is not None\n",
-   "new": "                    if (True)\n",
+   "old": "                judge=crag_judge if config.CRAG_LLM_JUDGE else None,\n",
+   "new": "                judge=crag_judge if (True) else None,\n",
    "tests": [
     "tests/test_api_main_gaps.py",
     "tests/test_phase3c_recall_gate.py",
@@ -3999,13 +3999,13 @@
     "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
-   "note": "generated: _recall_memory line 530 condition forced True: config.CRAG_LLM_JUDGE and crag_judge is not None"
+   "note": "generated: _recall_memory line 513 condition forced True: config.CRAG_LLM_JUDGE"
   },
   {
-   "id": "gen:turn_pipeline:_recall_memory:530:never",
+   "id": "gen:turn_pipeline:_recall_memory:513:never",
    "file": "aios/api/turn_pipeline.py",
-   "old": "                    if config.CRAG_LLM_JUDGE and crag_judge is not None\n",
-   "new": "                    if (False)\n",
+   "old": "                judge=crag_judge if config.CRAG_LLM_JUDGE else None,\n",
+   "new": "                judge=crag_judge if (False) else None,\n",
    "tests": [
     "tests/test_api_main_gaps.py",
     "tests/test_phase3c_recall_gate.py",
@@ -4015,39 +4015,7 @@
     "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
-   "note": "generated: _recall_memory line 530 condition forced False: config.CRAG_LLM_JUDGE and crag_judge is not None"
-  },
-  {
-   "id": "gen:turn_pipeline:_recall_memory:532:always",
-   "file": "aios/api/turn_pipeline.py",
-   "old": "                    if config.CRAG_LLM_JUDGE\n",
-   "new": "                    if (True)\n",
-   "tests": [
-    "tests/test_api_main_gaps.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_crag.py",
-    "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py",
-    "tests/test_phase7_guard_branches.py"
-   ],
-   "also": [],
-   "note": "generated: _recall_memory line 532 condition forced True: config.CRAG_LLM_JUDGE"
-  },
-  {
-   "id": "gen:turn_pipeline:_recall_memory:532:never",
-   "file": "aios/api/turn_pipeline.py",
-   "old": "                    if config.CRAG_LLM_JUDGE\n",
-   "new": "                    if (False)\n",
-   "tests": [
-    "tests/test_api_main_gaps.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_crag.py",
-    "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py",
-    "tests/test_phase7_guard_branches.py"
-   ],
-   "also": [],
-   "note": "generated: _recall_memory line 532 condition forced False: config.CRAG_LLM_JUDGE"
+   "note": "generated: _recall_memory line 513 condition forced False: config.CRAG_LLM_JUDGE"
   },
   {
    "id": "gen:turn_pipeline:_recall_memory:539:always",
@@ -4080,38 +4048,6 @@
    ],
    "also": [],
    "note": "generated: _recall_memory line 539 condition forced False: config.CRAG_EXTERNAL and verdict.action in (\n                CragAction.INCORREC"
-  },
-  {
-   "id": "gen:turn_pipeline:_recall_memory:546:always",
-   "file": "aios/api/turn_pipeline.py",
-   "old": "                        if crag_cloud_source is not None\n",
-   "new": "                        if (True)\n",
-   "tests": [
-    "tests/test_api_main_gaps.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_crag.py",
-    "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py",
-    "tests/test_phase7_guard_branches.py"
-   ],
-   "also": [],
-   "note": "generated: _recall_memory line 546 condition forced True: crag_cloud_source is not None"
-  },
-  {
-   "id": "gen:turn_pipeline:_recall_memory:546:never",
-   "file": "aios/api/turn_pipeline.py",
-   "old": "                        if crag_cloud_source is not None\n",
-   "new": "                        if (False)\n",
-   "tests": [
-    "tests/test_api_main_gaps.py",
-    "tests/test_phase3c_recall_gate.py",
-    "tests/test_crag.py",
-    "tests/test_phase4c_principal_scope.py",
-    "tests/test_recall_blocks_match_live_path.py",
-    "tests/test_phase7_guard_branches.py"
-   ],
-   "also": [],
-   "note": "generated: _recall_memory line 546 condition forced False: crag_cloud_source is not None"
   },
   {
    "id": "gen:turn_pipeline:_recall_memory:550:always",
@@ -9402,6 +9338,36 @@
    "id": "s23:unmapped status passes",
    "file": "tools/migrate_skills_to_institutional.py",
    "reason": "its anchor no longer matches the code exactly once (anchor x15965): the guard was rewritten by a later slice"
+  },
+  {
+   "id": "gen:turn_pipeline:_recall_memory:530:always",
+   "file": "aios/api/turn_pipeline.py",
+   "reason": "its anchor no longer exists: 2026-10-29 removed recall's ungated fallback judge and cloud source (docs/ONE_GATEWAY.md, '2026-10-29'); the judge choice is now one conditional, attacked by gen:turn_pipeline:_recall_memory:513"
+  },
+  {
+   "id": "gen:turn_pipeline:_recall_memory:530:never",
+   "file": "aios/api/turn_pipeline.py",
+   "reason": "its anchor no longer exists: 2026-10-29 removed recall's ungated fallback judge and cloud source (docs/ONE_GATEWAY.md, '2026-10-29'); the judge choice is now one conditional, attacked by gen:turn_pipeline:_recall_memory:513"
+  },
+  {
+   "id": "gen:turn_pipeline:_recall_memory:532:always",
+   "file": "aios/api/turn_pipeline.py",
+   "reason": "its anchor no longer exists: 2026-10-29 removed recall's ungated fallback judge and cloud source (docs/ONE_GATEWAY.md, '2026-10-29'); the judge choice is now one conditional, attacked by gen:turn_pipeline:_recall_memory:513"
+  },
+  {
+   "id": "gen:turn_pipeline:_recall_memory:532:never",
+   "file": "aios/api/turn_pipeline.py",
+   "reason": "its anchor no longer exists: 2026-10-29 removed recall's ungated fallback judge and cloud source (docs/ONE_GATEWAY.md, '2026-10-29'); the judge choice is now one conditional, attacked by gen:turn_pipeline:_recall_memory:513"
+  },
+  {
+   "id": "gen:turn_pipeline:_recall_memory:546:always",
+   "file": "aios/api/turn_pipeline.py",
+   "reason": "its anchor no longer exists: 2026-10-29 removed recall's ungated fallback judge and cloud source (docs/ONE_GATEWAY.md, '2026-10-29'); the judge choice is now one conditional, attacked by gen:turn_pipeline:_recall_memory:513"
+  },
+  {
+   "id": "gen:turn_pipeline:_recall_memory:546:never",
+   "file": "aios/api/turn_pipeline.py",
+   "reason": "its anchor no longer exists: 2026-10-29 removed recall's ungated fallback judge and cloud source (docs/ONE_GATEWAY.md, '2026-10-29'); the judge choice is now one conditional, attacked by gen:turn_pipeline:_recall_memory:513"
   }
  ],
  "guards": {

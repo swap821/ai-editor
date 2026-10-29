@@ -1806,30 +1806,39 @@ def test_recall_facts_swallows_traverse_weighted_exception() -> None:
 # --------------------------------------------------------------------------- #
 # CRAG source helpers (2584-2632)
 # --------------------------------------------------------------------------- #
-def test_crag_cloud_source_empty_when_no_cloud_client(monkeypatch) -> None:
-    monkeypatch.setattr("aios.api.turn_pipeline.get_gemini_client", lambda: None)
-    monkeypatch.setattr("aios.api.turn_pipeline.get_bedrock_client", lambda: None)
-    assert _crag_cloud_source("what is the weather") == []
+class _Completion:
+    """The cloud source's gated completion client (crag_model_calls builds the
+    real one); the source has no other way to reach a model."""
+
+    def __init__(self, reply: str = "", error: Exception | None = None) -> None:
+        self.reply, self.error = reply, error
+
+    def complete(self, prompt, *, system=None, json_mode=False):
+        if self.error is not None:
+            raise self.error
+        return self.reply
 
 
-def test_crag_cloud_source_returns_text_from_client(monkeypatch) -> None:
-    class FakeCloud:
-        def chat(self, messages, tools=None):
-            return {"content": "42 degrees"}
-
-    monkeypatch.setattr("aios.api.turn_pipeline.get_gemini_client", lambda: FakeCloud())
-    monkeypatch.setattr("aios.api.turn_pipeline.get_bedrock_client", lambda: None)
-    assert _crag_cloud_source("weather?") == ["42 degrees"]
+def test_crag_cloud_source_empty_answer_is_no_source() -> None:
+    assert _crag_cloud_source("what is the weather", completion=_Completion("  ")) == []
 
 
-def test_crag_cloud_source_swallows_chat_exception(monkeypatch) -> None:
-    class BoomCloud:
-        def chat(self, messages, tools=None):
-            raise RuntimeError("cloud unreachable")
+def test_crag_cloud_source_returns_text_from_completion() -> None:
+    assert _crag_cloud_source("weather?", completion=_Completion("42 degrees")) == [
+        "42 degrees"
+    ]
 
-    monkeypatch.setattr("aios.api.turn_pipeline.get_gemini_client", lambda: BoomCloud())
-    monkeypatch.setattr("aios.api.turn_pipeline.get_bedrock_client", lambda: None)
-    assert _crag_cloud_source("weather?") == []
+
+def test_crag_cloud_source_swallows_completion_exception() -> None:
+    boom = _Completion(error=RuntimeError("cloud unreachable"))
+    assert _crag_cloud_source("weather?", completion=boom) == []
+
+
+def test_crag_cloud_source_has_no_ungated_default() -> None:
+    """2026-10-29: with no completion it used to call the cloud client itself;
+    /api/v1/chat did exactly that (docs/ONE_GATEWAY.md)."""
+    with pytest.raises(TypeError):
+        _crag_cloud_source("weather?")  # type: ignore[call-arg]
 
 
 def test_crag_web_source_inert_by_default() -> None:
@@ -1853,9 +1862,15 @@ def test_crag_external_sources_respects_config_flags(monkeypatch) -> None:
     monkeypatch.setattr(config, "CRAG_WEBSEARCH", False)
     assert _crag_external_sources() == []
 
+    # The cloud source is the turn's gated one: with none passed, none is used,
+    # even when it is switched on.
     monkeypatch.setattr(config, "CRAG_CLOUD", True)
-    sources = _crag_external_sources()
-    assert len(sources) == 1
+    assert _crag_external_sources() == []
+
+    def gated(query):
+        return []
+
+    assert _crag_external_sources(cloud_source=gated) == [gated]
 
 
 # --------------------------------------------------------------------------- #

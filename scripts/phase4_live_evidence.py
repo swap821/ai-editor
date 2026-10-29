@@ -909,15 +909,44 @@ def _run_wave(scratch: Path) -> list[OrganProof]:
             model_call=model_call,
             emergency_stop=get_emergency_stop(),
         )
+
+        # Universal by construction (2026-10-29, docs/ONE_GATEWAY.md): a
+        # production frame asking a REAL adapter for a model call through no
+        # entrance is refused before anything is sent. This runner is a
+        # scripts/ program, exempt by default, so the probe asks for refusing
+        # as AIOS_GATEWAY_ENFORCE=1 would. Port 9 (discard) is never reached:
+        # reaching it at all would be the failure.
+        from aios import config as _config
+        from aios.core import model_calls
+        from aios.core.llm import OllamaClient
+        from aios.runtime.intelligence_gateway import LocalOllamaReasoner
+
+        saved = _config.GATEWAY_ENFORCE
+        _config.GATEWAY_ENFORCE = True
+        try:
+            LocalOllamaReasoner(
+                OllamaClient("phase4-probe", host="http://127.0.0.1:9")
+            ).complete("probe")
+        except model_calls.UngatedModelCall:
+            refusal = "an ungated production call was refused before it was sent"
+        except Exception as exc:  # noqa: BLE001 - anything else reached the transport
+            raise AssertionError(
+                f"an ungated production call reached the transport: {exc!r}"
+            ) from exc
+        else:
+            raise AssertionError("an ungated production call was answered")
+        finally:
+            _config.GATEWAY_ENFORCE = saved
         return (
             f"route output={result.output!r} secrets_redacted={result.secrets_redacted} "
-            f"context_digest={result.context.context_digest[:16]}…"
+            f"context_digest={result.context.context_digest[:16]}…; {refusal}"
         )
 
     claim(
         32,
         "Universal Intelligence Gateway",
-        "UniversalIntelligenceGatewayAuthority.route local model_call",
+        "UniversalIntelligenceGatewayAuthority.route local model_call; "
+        "an ungated production call refused",
         _organ32,
     )
 

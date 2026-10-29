@@ -18,7 +18,6 @@ from typing import Any, Callable, Iterator, Optional
 from fastapi import HTTPException
 
 from aios.application.intelligence.gateway import (
-    AdvisoryChatCompletionAdapter,
     GovernedAdvisoryCompletionClient,
     complete_compatibility_intelligence_request,
     stream_structured_intelligence_request,
@@ -26,6 +25,7 @@ from aios.application.intelligence.gateway import (
 from aios.agents.reflection_agent import ReflectionAgent
 from aios.core.alignment import AlignmentInterpreter
 from aios.core import turn_failures
+from aios.application.turns.crag_model_calls import crag_model_calls
 from aios.application.turns.turn_context import TurnContext
 from aios.application.turns.turn_coordinator import RuntimeDeps
 from aios.domain.intelligence.representative_context import (
@@ -54,8 +54,6 @@ _LIVE_NAMES = (
     "_generate_capability_binding",
     "_calibrate_default_confidence",
     "_cortex_bus",
-    "_crag_cloud_source",
-    "_crag_llm_judge",
     "_index_turn",
     "_latest_user",
     "_make_confirm_hook",
@@ -466,51 +464,14 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         emergency_stop=runtime.extra["emergency_stop"],
     )
 
-    crag_judge = None
-    crag_cloud_source = None
-    if config.CRAG_LLM_JUDGE:
-        local_provider = runtime.llm_client
-        if callable(getattr(local_provider, "chat", None)):
-            governed_crag_judge = GovernedAdvisoryCompletionClient(
-                AdvisoryChatCompletionAdapter(local_provider, model=config.LLM_MODEL),
-                request_id=f"{context.turn_id}:crag-judge",
-                operator_identity_digest=credential_digest(principal.principal_id),
-                constitution_digest=str(principal.constitution_digest or ""),
-                target="local",
-                desired_outcome="bounded advisory CRAG relevance judgment",
-                context_store=runtime.extra["representative_context_store"],
-                emergency_stop=runtime.extra["emergency_stop"],
-            )
-
-            def crag_judge(query: str, passage: str) -> float:
-                return _crag_llm_judge(query, passage, completion=governed_crag_judge)
-        else:
-
-            def crag_judge(query: str, passage: str) -> float:
-                raise RuntimeError(
-                    "CRAG judge has no local chat provider at the governed boundary"
-                )
-
-    if config.CRAG_CLOUD:
-        cloud_provider = runtime.gemini or runtime.bedrock
-        if callable(getattr(cloud_provider, "chat", None)):
-            governed_crag_cloud = GovernedAdvisoryCompletionClient(
-                AdvisoryChatCompletionAdapter(cloud_provider),
-                request_id=f"{context.turn_id}:crag-cloud",
-                operator_identity_digest=credential_digest(principal.principal_id),
-                constitution_digest=str(principal.constitution_digest or ""),
-                target="cloud",
-                desired_outcome="bounded advisory CRAG external source",
-                context_store=runtime.extra["representative_context_store"],
-                emergency_stop=runtime.extra["emergency_stop"],
-            )
-
-            def crag_cloud_source(query: str) -> list[str]:
-                return _crag_cloud_source(query, completion=governed_crag_cloud)
-        else:
-
-            def crag_cloud_source(query: str) -> list[str]:
-                return []
+    crag_judge, crag_cloud_source = crag_model_calls(
+        turn_id=context.turn_id,
+        principal=principal,
+        local_provider=runtime.llm_client,
+        cloud_provider=runtime.gemini or runtime.bedrock,
+        context_store=runtime.extra["representative_context_store"],
+        emergency_stop=runtime.extra["emergency_stop"],
+    )
 
     runtime.extra["generate_state"] = {
         "_issue_generate_capability": issue_generate_capability,

@@ -1269,13 +1269,22 @@ class TestIntelligenceGatewayCloudFallback:
     ) -> None:
         local = _FakeReasoner("local fallback plan")
         cloud = _FakeReasoner("unused", fail=True)
+
+        class _Contexts:
+            def save(self, context) -> None:  # noqa: ANN001 - test spy
+                pass
+
         gateway = IntelligenceGateway(
             local_client=local,
             cloud_clients={"cloud": cloud},
+            context_store=_Contexts(),
             emergency_stop=UNGOVERNED_FIXTURE,
         )
+        # Bound: only a governed mission may reason in the cloud at all.
         contract = _gateway_contract(
             tmp_path,
+            operator_identity_digest="a" * 64,
+            constitution_digest="b" * 64,
             metadata={
                 "model_policy": {
                     "mode": "hybrid",

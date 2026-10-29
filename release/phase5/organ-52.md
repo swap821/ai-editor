@@ -1,13 +1,13 @@
 # Phase 5 proof — Organ 52: Observability and Health Organ
 
 **Status under re-read:** `green`
-**Survives mechanical adversarial re-read:** `no`
-**Evaluated tip:** `aea675025b2e8ade58db001d1960157865ff9e95`
-**Generated:** 2026-09-20T19:40:57+00:00
+**Survives mechanical adversarial re-read:** `yes`
+**Evaluated tip:** `9408fd03e2697d5142c05d9ef993aa92337343ff`
+**Generated:** 2026-10-29T05:20:59+00:00
 
 ## Mechanical failures (enforceable subset)
 
-- **C12**: attestation is STALE: 1 of this organ's own production_entrypoints changed after cc8492f314eb -- aios/api/main.py. Re-verify at a current commit, or record the organ as yellow with the reason. An ancestor of HEAD is not the same as a current one.
+- (none — mechanical subset passed)
 
 ## Written verdict keys that are not PASS/N/A
 
