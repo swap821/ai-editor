@@ -39,6 +39,7 @@ each step, inside that step (:func:`bound_stream_factory`,
 from __future__ import annotations
 
 import inspect
+import os
 from collections.abc import Callable, Iterable, Iterator
 from pathlib import Path
 from typing import Any, Optional, TypeVar
@@ -64,18 +65,32 @@ def resolve_task_scope(requested: Optional[str]) -> Optional[ScopeContext]:
     raw = (requested or "").strip() or str(config.TASK_SCOPE or "").strip()
     if not raw:
         return None
-    path = Path(raw)
-    if not path.is_absolute():
-        path = Path(config.PROJECT_ROOT) / path
-    path = path.resolve()
+    outside = TaskScopeError(f"task scope {raw!r} is not inside a declared scope root")
+    # First, with no filesystem access at all: the path, normalised as text,
+    # must lie inside a declared root. A path the client sent is not touched
+    # on disk until it is known to be one of ours.
+    normalized = os.path.normcase(
+        os.path.normpath(os.path.join(str(config.PROJECT_ROOT), raw))
+    )
+    declared = [
+        os.path.normcase(os.path.normpath(str(root)))
+        for root in scope_lock.get_scope_roots()
+    ]
+    if not any(
+        normalized == root or normalized.startswith(root.rstrip(os.sep) + os.sep)
+        for root in declared
+    ):
+        raise outside
+    # Then on disk: a link inside a root may point anywhere, so the frozen
+    # authority judges the RESOLVED path. Its own rule decides, so this check
+    # and every later containment decision cannot disagree: it keeps a bound
+    # root only inside a declared root (or an admitted staged workspace).
+    path = Path(normalized).resolve()
+    scope = ScopeContext.of([path])
+    if not scope_lock.get_scope_roots(scope):
+        raise outside
     if not path.is_dir():
         raise TaskScopeError(f"task scope {raw!r} is not a directory")
-    scope = ScopeContext.of([path])
-    # The frozen authority's own rule decides, so the check and every later
-    # containment decision cannot disagree: it keeps a bound root only inside
-    # a declared root (or an admitted staged workspace).
-    if not scope_lock.get_scope_roots(scope):
-        raise TaskScopeError(f"task scope {raw!r} is not inside a declared scope root")
     return scope
 
 

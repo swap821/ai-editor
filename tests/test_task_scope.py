@@ -246,3 +246,38 @@ def test_a_bound_turn_tells_the_model_its_scope_and_where_commands_run() -> None
     # lab's parent is the project root, so lab is named as `lab`.
     assert "only inside lab." in note
     assert ROOT.as_posix() in note
+
+
+def test_a_path_outside_the_roots_is_refused_before_the_disk_is_touched(
+    monkeypatch,
+) -> None:
+    """The client's path is judged as text first: one that is not inside a
+    declared root never reaches a filesystem call (CodeQL py/path-injection)."""
+    touched: list[str] = []
+    real_resolve = Path.resolve
+
+    def spy(self, *args, **kwargs):
+        touched.append(str(self))
+        return real_resolve(self, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "resolve", spy)
+    with pytest.raises(TaskScopeError, match="not inside a declared scope root"):
+        resolve_task_scope("training_ground/../../somewhere-else")
+    assert not any("somewhere-else" in p for p in touched)
+
+
+def test_a_link_inside_a_root_that_points_out_is_refused(tmp_path) -> None:
+    """Text says inside; the disk says outside. The frozen lock judges the
+    resolved path, so the link does not carry the scope out."""
+    import os
+
+    link = ROOT / "lab" / "_task_scope_link_probe"
+    try:
+        os.symlink(tmp_path, link, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        pytest.skip("this machine cannot create a directory symlink")
+    try:
+        with pytest.raises(TaskScopeError, match="not inside a declared scope root"):
+            resolve_task_scope("lab/_task_scope_link_probe")
+    finally:
+        link.unlink()
