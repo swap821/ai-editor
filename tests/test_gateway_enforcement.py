@@ -8,11 +8,14 @@ that came through no entrance. Pinned here:
 
 * refused before the transport is touched, and recorded as refused;
 * not refused inside an entrance, from a measurement site, or when switched
-  off; a measurement tool's own process only when asked;
+  off; an exempt program's own process only when asked;
+* a call is production if ANY frame on its stack is, so it cannot be laundered
+  through a tool's helper;
 * the scoreboard fails on a refused call too, named apart;
+* only the gateway can name an entrance, so none can be faked;
 * only the provider adapters can reach a model at all: every network-capable
-  module under ``aios/`` is accounted for, and none but the adapters names a
-  model endpoint.
+  module under ``aios/`` is accounted for, none but the adapters names a model
+  endpoint, and nothing else calls a provider SDK's inference method.
 """
 
 from __future__ import annotations
@@ -38,7 +41,7 @@ REPO = Path(__file__).resolve().parents[1]
 @pytest.fixture
 def ledger(tmp_path, monkeypatch) -> Path:
     monkeypatch.setattr(config, "DATA_DIR", tmp_path)
-    monkeypatch.setattr(config, "GATEWAY_ENFORCE", "")
+    monkeypatch.setattr(config, "GATEWAY_ENFORCE", None)
     monkeypatch.setattr(model_calls, "_WRITE_FAILED", False)
     return tmp_path / "model_calls"
 
@@ -91,6 +94,7 @@ def test_an_ungated_production_call_is_refused_before_it_is_sent(ledger, sent) -
     (record,) = _records(ledger)
     assert record["site"] == SITE
     assert record["entrance"] is None
+    assert record["judged"] is True
     assert record["refused"] is True
 
 
@@ -111,15 +115,62 @@ def test_a_measurement_sites_own_call_is_reported_not_refused(ledger, sent) -> N
     assert len(sent) == 1
     (record,) = _records(ledger)
     assert record["site"].startswith("tests/")
+    assert record["judged"] is False
     assert "refused" not in record
 
 
+def _frame_in(rel: str, name: str, body: str, scope: dict[str, Any]) -> Any:
+    """A function whose frames report *rel* as their file, as code living
+    there would."""
+    code = compile(body, str(REPO / rel), "exec")
+    exec(code, scope)
+    return scope[name]
+
+
+def test_a_call_cannot_be_laundered_through_a_tools_helper(ledger, sent) -> None:
+    """Production code that reaches a model through a ``tools/`` helper is
+    still production. Judged by the innermost frame alone, the call would
+    have been a tool's own, so neither refused nor counted (found by the
+    adversarial re-read, 2026-10-29; no live path did this)."""
+    from aios.core.llm import OllamaClient
+
+    scope: dict[str, Any] = {"OllamaClient": OllamaClient}
+    _frame_in(
+        "tools/_laundering_probe.py",
+        "helper",
+        "def helper():\n"
+        "    return OllamaClient('m', host='http://ollama.test').complete('hi')\n",
+        scope,
+    )
+    production = _frame_in(
+        "aios/_laundering_probe.py",
+        "production",
+        "def production():\n    return helper()\n",
+        scope,
+    )
+
+    with pytest.raises(model_calls.UngatedModelCall):
+        production()
+    assert sent == []
+    (record,) = _records(ledger)
+    assert record["site"] == "tools/_laundering_probe.py:helper"
+    assert record["judged"] is True and record["refused"] is True
+
+
 def test_switched_off_it_records_and_sends(ledger, sent, monkeypatch) -> None:
-    monkeypatch.setattr(config, "GATEWAY_ENFORCE", "0")
+    monkeypatch.setattr(config, "GATEWAY_ENFORCE", False)
     assert _production_call() == "ok"
     assert len(sent) == 1
     (record,) = _records(ledger)
     assert record["entrance"] is None and "refused" not in record
+
+
+def test_the_switch_and_its_exemptions_are_defined_behind_the_freeze() -> None:
+    from aios.security import limits
+
+    assert config.GATEWAY_ENFORCE is limits.GATEWAY_ENFORCE
+    assert config.GATEWAY_UNJUDGED_SITES is limits.GATEWAY_UNJUDGED_SITES
+    assert config.GATEWAY_EXEMPT_PROGRAMS is limits.GATEWAY_EXEMPT_PROGRAMS
 
 
 @pytest.fixture
@@ -130,22 +181,22 @@ def tool_process(monkeypatch) -> None:
     monkeypatch.setitem(sys.modules, "__main__", main)
 
 
-def test_a_measurement_tools_process_is_not_refused_unless_asked(
+def test_an_exempt_programs_process_is_not_refused_unless_asked(
     ledger, sent, tool_process, monkeypatch
 ) -> None:
     assert model_calls.measurement_process()
     assert _production_call() == "ok"
     (record,) = _records(ledger)
     # Still recorded and judged: the scoreboard sees it as an ungated call.
-    assert record["entrance"] is None and model_calls.judged(record["site"])
+    assert record["entrance"] is None and record["judged"] is True
 
-    monkeypatch.setattr(config, "GATEWAY_ENFORCE", "1")
+    monkeypatch.setattr(config, "GATEWAY_ENFORCE", True)
     with pytest.raises(model_calls.UngatedModelCall):
         _production_call()
     assert len(sent) == 1
 
 
-def test_this_test_process_is_not_a_measurement_tool() -> None:
+def test_this_test_process_is_not_an_exempt_program() -> None:
     """The suite runs enforced: a test that drives production code with a
     real adapter outside an entrance fails, which is how such paths are
     found."""
@@ -168,6 +219,43 @@ def test_the_scoreboard_fails_on_a_refused_call_and_names_it(ledger, sent) -> No
     assert gate.status == FAIL
     assert "refused before they left" in gate.evidence
     assert SITE in gate.evidence
+
+
+# --------------------------------------------------------------------------- #
+# Only the gateway can name an entrance
+# --------------------------------------------------------------------------- #
+
+#: Where an entrance may be opened: the gateway, and the ledger that defines it.
+ENTRANCE_OWNERS = {
+    "aios/application/intelligence/gateway.py",
+    "aios/core/model_calls.py",
+}
+
+
+def test_only_the_gateway_opens_an_entrance() -> None:
+    """``gateway_scope`` and ``scoped_iter`` mark a call as having passed an
+    entrance. Production code that opened one itself would skip the stop
+    check, context record and redaction while the ledger said "gated", and
+    enforcement would let it through. So nothing else may name them."""
+    names = {"gateway_scope", "scoped_iter", "_ENTRANCE"}
+    offenders = []
+    for path in sorted((REPO / "aios").rglob("*.py")):
+        rel = path.relative_to(REPO).as_posix()
+        if rel in ENTRANCE_OWNERS:
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            named = (
+                node.attr
+                if isinstance(node, ast.Attribute)
+                else node.id
+                if isinstance(node, ast.Name)
+                else node.name
+                if isinstance(node, ast.alias)
+                else None
+            )
+            if named in names:
+                offenders.append(f"{rel}:{getattr(node, 'lineno', '?')} {named}")
+    assert offenders == []
 
 
 # --------------------------------------------------------------------------- #
@@ -230,6 +318,22 @@ MODEL_ENDPOINTS = (
     ":generateContent",
 )
 
+#: Provider SDK methods that run a model.
+SDK_INFERENCE = frozenset(
+    {
+        "converse",
+        "converse_stream",
+        "invoke_model",
+        "invoke_model_with_response_stream",
+        "generate_content",
+        "generate_content_stream",
+    }
+)
+
+#: Not adapters, but the adapters' own retry plumbing (aios/core/model_calls.py
+#: _PLUMBING): it runs a call an adapter has already recorded.
+ADAPTER_PLUMBING = {"aios/core/failover.py", "aios/core/provider_retry.py"}
+
 
 def _network_modules() -> dict[str, set[str]]:
     found: dict[str, set[str]] = {}
@@ -271,3 +375,38 @@ def test_no_module_but_an_adapter_names_a_model_endpoint() -> None:
         text = (REPO / rel).read_text(encoding="utf-8")
         named = [marker for marker in MODEL_ENDPOINTS if marker in text]
         assert named == [], f"{rel} names a model endpoint: {named}"
+
+
+def test_nothing_but_an_adapter_runs_a_provider_sdk_or_names_an_endpoint() -> None:
+    """A module needs no network import to reach a model: it could call an
+    adapter's private SDK client (``bedrock._client.converse(...)``) or hand
+    an inference URL to someone else's transport. Read as code, not text, so
+    a docstring that mentions one is not a call."""
+    offenders = []
+    for path in sorted((REPO / "aios").rglob("*.py")):
+        rel = path.relative_to(REPO).as_posix()
+        if rel in ADAPTERS or rel in ADAPTER_PLUMBING:
+            continue
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        docstrings = {
+            id(node.body[0].value)
+            for node in ast.walk(tree)
+            if isinstance(
+                node,
+                (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef),
+            )
+            and node.body
+            and isinstance(node.body[0], ast.Expr)
+            and isinstance(node.body[0].value, ast.Constant)
+        }
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and node.attr in SDK_INFERENCE:
+                offenders.append(f"{rel}:{node.lineno} .{node.attr}")
+            elif (
+                isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+                and id(node) not in docstrings
+                and any(marker in node.value for marker in MODEL_ENDPOINTS[:3])
+            ):
+                offenders.append(f"{rel}:{node.lineno} {node.value[:60]!r}")
+    assert offenders == []

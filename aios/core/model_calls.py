@@ -23,9 +23,10 @@ anything, and is recorded with ``"refused": true``. "Every model call through
 the one gateway" then holds by construction, not only as far as a drive
 reached (docs/ONE_GATEWAY.md). ``AIOS_GATEWAY_ENFORCE=0`` turns refusing off
 and leaves measuring on. Production means the scoreboard's rule,
-:func:`judged`: a call whose site is outside ``tools/`` and ``tests/``. A
-measurement tool's own process is not refused unless asked to
-(:func:`enforcing`); its calls are still recorded and judged.
+:func:`judged_stack`: some frame on the call's stack is outside ``tools/`` and
+``tests/``. An exempt program's own process is not refused unless asked to
+(:func:`enforcing`); its calls are still recorded and judged. The switch and
+both exemptions are defined behind the freeze, in ``aios/security/limits.py``.
 
 Scope is a context variable, so it follows the code that runs a model call,
 not the thread that happens to hold it: a provider call made in a worker
@@ -43,7 +44,7 @@ import os
 import sys
 import threading
 from collections import Counter
-from collections.abc import Callable, Iterable, Iterator
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from contextlib import contextmanager
 from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
@@ -115,17 +116,26 @@ def current_entrance() -> Optional[str]:
     return _ENTRANCE.get()
 
 
-#: Where a measurement tool's own calls come from. They are reported, never
-#: judged; everything else is production, code outside the repository too.
-MEASUREMENT_SITES = ("tools/", "tests/")
-#: A measurement tool's own process: one of these run as the main program.
-MEASUREMENT_PROGRAMS = ("tools/", "scripts/")
+# Who is judged and who is exempt is decided behind the freeze
+# (aios/security/limits.py: GATEWAY_ENFORCE, GATEWAY_UNJUDGED_SITES,
+# GATEWAY_EXEMPT_PROGRAMS), and read here through aios.config at call time.
 
 
 def judged(site: str) -> bool:
-    """Is a call from *site* production, so it must come through an entrance?
+    """Is a call from *site* production? Code outside ``tools/`` and
+    ``tests/`` is, code outside the repository too."""
+    from aios import config
+
+    return not str(site or "").startswith(tuple(config.GATEWAY_UNJUDGED_SITES))
+
+
+def judged_stack(stack: Sequence[str]) -> bool:
+    """Is a call with this calling stack production? Yes if ANY frame on it
+    is: production code that reaches a model through a tool's helper is
+    still production, so a call cannot be passed off as a tool's by where
+    its innermost frame happens to live. No repo frame at all is production.
     The one rule for the scoreboard and for refusing."""
-    return not str(site or "").startswith(MEASUREMENT_SITES)
+    return not stack or any(judged(frame) for frame in stack)
 
 
 class UngatedModelCall(RuntimeError):
@@ -134,34 +144,39 @@ class UngatedModelCall(RuntimeError):
 
 
 def measurement_process() -> bool:
-    """Is this process a measurement tool (``tools/`` or ``scripts/`` run as
+    """Is this process an exempt program (``tools/`` or ``scripts/`` run as
     the main program)?"""
+    from aios import config
+
     main = sys.modules.get("__main__")
     path = getattr(main, "__file__", None)
     rel = _relative(path) if path else None
-    return bool(rel) and str(rel).startswith(MEASUREMENT_PROGRAMS)
+    return bool(rel) and str(rel).startswith(tuple(config.GATEWAY_EXEMPT_PROGRAMS))
 
 
 def enforcing() -> bool:
     """Are ungated production calls refused in this process?
 
-    ``AIOS_GATEWAY_ENFORCE`` unset: everywhere except a measurement tool's own
-    process. Several tools hand a raw client to production code on purpose
-    (the payoff harness's teacher, the clerk benchmark); there, refusing would
-    break the measurement and protect nothing, and the calls are still
-    recorded and judged. ``1``: there too. ``0``: nowhere (still recorded).
+    ``AIOS_GATEWAY_ENFORCE`` unset (or unrecognised): everywhere except an
+    exempt program's own process. Several tools hand a raw client to
+    production code on purpose (the payoff harness's teacher, the clerk
+    benchmark); there, refusing would break the measurement and protect
+    nothing, and the calls are still recorded and judged. ``1``: there too.
+    ``0``: nowhere (still recorded).
     """
     from aios import config
 
-    setting = str(getattr(config, "GATEWAY_ENFORCE", "") or "").strip().lower()
-    if setting in ("0", "false", "no", "off"):
-        return False
-    if setting in ("1", "true", "yes", "on"):
-        return True
+    setting = config.GATEWAY_ENFORCE
+    if setting is not None:
+        return bool(setting)
     return not measurement_process()
 
 
 def _relative(filename: str) -> Optional[str]:
+    # "<frozen runpy>", "<string>", "<stdin>": no file at all. Resolved, they
+    # would land under the working directory and read as repo frames.
+    if not filename or filename.startswith("<"):
+        return None
     try:
         return Path(filename).resolve().relative_to(_REPO_ROOT).as_posix()
     except (ValueError, OSError):
@@ -232,9 +247,13 @@ def observe(provider: str, model: str, method: str) -> None:
     entrance, while enforcing."""
     now = datetime.now(timezone.utc)
     entrance = _ENTRANCE.get()
-    stack = calling_stack()
+    # The whole stack decides whether the call is production; the record
+    # keeps the innermost STACK_DEPTH frames.
+    full = calling_stack(depth=sys.getrecursionlimit())
+    stack = full[:STACK_DEPTH]
     site = stack[0] if stack else "outside-repo"
-    refused = entrance is None and judged(site) and enforcing()
+    production = judged_stack(full)
+    refused = entrance is None and production and enforcing()
     record: dict[str, Any] = {
         "ts": now.isoformat(),
         "provider": provider,
@@ -243,6 +262,7 @@ def observe(provider: str, model: str, method: str) -> None:
         "entrance": entrance,
         "site": site,
         "stack": stack,
+        "judged": production,
         "pid": os.getpid(),
     }
     if refused:
@@ -302,8 +322,6 @@ def read_ledger(data_dir: Path, since: datetime) -> list[dict[str, Any]]:
 
 
 __all__ = [
-    "MEASUREMENT_PROGRAMS",
-    "MEASUREMENT_SITES",
     "RETENTION",
     "UngatedModelCall",
     "calling_site",
@@ -313,6 +331,7 @@ __all__ = [
     "enforcing",
     "gateway_scope",
     "judged",
+    "judged_stack",
     "measurement_process",
     "observe",
     "read_ledger",

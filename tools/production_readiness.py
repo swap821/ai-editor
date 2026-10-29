@@ -493,12 +493,21 @@ def clerk_one_gateway(world: World) -> Gate:
     entrance; a measurement tool's own direct calls (``tools/``, ``tests/``)
     are reported, not judged -- a production path a tool drives is still
     judged, by the production frame that called the model. The rule is
-    ``model_calls.judged``, the one the adapters refuse by. A refused call
-    never left, but its code still passes no entrance, so it fails the gate
-    too, named apart.
+    ``model_calls.judged_stack``, the one the adapters refuse by; each record
+    carries its own verdict (``judged``), and an older record without one is
+    judged by its recorded stack. A refused call never left, but its code still
+    passes no entrance, so it fails the gate too, named apart.
     """
-    from aios.core.model_calls import judged as is_production
-    from aios.core.model_calls import read_ledger
+    from aios.core.model_calls import judged_stack, read_ledger
+
+    def is_production(record: dict) -> bool:
+        if "judged" in record:
+            return bool(record["judged"])
+        stack = list(record.get("stack") or [])
+        site = str(record.get("site") or "")
+        if not stack and site and site != "outside-repo":
+            stack = [site]
+        return judged_stack(stack)
 
     records = read_ledger(world.data_dir, world.now - GATEWAY_WINDOW)
     days = GATEWAY_WINDOW.days
@@ -518,7 +527,7 @@ def clerk_one_gateway(world: World) -> Gate:
             ERROR,
             f"{len(damaged)} unreadable ledger line(s): calls that cannot be judged",
         )
-    judged = [r for r in records if is_production(str(r.get("site", "")))]
+    judged = [r for r in records if is_production(r)]
     instruments = len(records) - len(judged)
     ungated: dict[str, int] = {}
     refused: dict[str, int] = {}

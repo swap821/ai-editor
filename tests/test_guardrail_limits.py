@@ -32,6 +32,11 @@ GUARDRAILS = (
     "ROUTER_CLOUD_TASKS",
     "MAX_RED_ACTIONS_PER_SESSION",
     "AUDIT_GENESIS_HASH",
+    # 2026-10-29: whether an ungated model call is refused, and who is exempt
+    # (release/section-viii/2026-10-29-gateway-enforcement-behind-the-freeze.md).
+    "GATEWAY_ENFORCE",
+    "GATEWAY_UNJUDGED_SITES",
+    "GATEWAY_EXEMPT_PROGRAMS",
 )
 
 
@@ -168,3 +173,29 @@ def test_an_explicit_frozen_set_still_overrides() -> None:
     assert (
         classify_target("aios/security/gateway.py", frozen_subdirs=("foo",)) == "YELLOW"
     )
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (None, None),
+        ("", None),
+        ("1", True),
+        ("on", True),
+        ("0", False),
+        ("false", False),
+        ("O", None),
+        ("disable", None),
+        ("0 ", False),
+    ],
+)
+def test_the_gateway_switch_turns_off_only_on_a_clear_no(
+    raw, expected, monkeypatch
+) -> None:
+    """Refusing ungated model calls stays on unless the operator clearly says
+    no: a typo is the default, never a guess that turns the guard off."""
+    if raw is None:
+        monkeypatch.delenv("AIOS_GATEWAY_ENFORCE", raising=False)
+    else:
+        monkeypatch.setenv("AIOS_GATEWAY_ENFORCE", raw)
+    assert limits._env_switch("AIOS_GATEWAY_ENFORCE") is expected
