@@ -158,6 +158,12 @@ if os.name == "nt":
 _DEFAULT_SCRATCH_ROOT = (
     Path(__file__).resolve().parents[1] / ".aios" / "tmp" / "pytest-root"
 )
+#: A pytest session started from inside another (a test that runs pytest in a
+#: subprocess) inherits PYTEST_DEBUG_TEMPROOT below, so its "own" session root
+#: is its parent's. Deleting it at exit deleted the parent's data dir mid-run
+#: (2026-10-29: 178 sqlite errors after one such test). Only a root this
+#: process created is deleted.
+_SESSION_ROOT_IS_OURS = "PYTEST_DEBUG_TEMPROOT" not in os.environ
 _PYTEST_SESSION_ROOT = Path(
     os.environ.get(
         "PYTEST_DEBUG_TEMPROOT",
@@ -228,12 +234,15 @@ os.environ["AIOS_COUNCIL_RUNTIME_DIR"] = str(_PYTEST_SESSION_ROOT)
 # Best-effort cleanup at interpreter exit (the OS would reclaim the temp dir
 # anyway, but tidy up so repeated local runs don't accumulate scratch dirs).
 atexit.register(shutil.rmtree, _TEST_DATA_DIR_PATH, ignore_errors=True)
-atexit.register(shutil.rmtree, _PYTEST_SESSION_ROOT, ignore_errors=True)
+if _SESSION_ROOT_IS_OURS:
+    atexit.register(shutil.rmtree, _PYTEST_SESSION_ROOT, ignore_errors=True)
 
 # The default RollbackEngine leaves training_ground/.git pointing into this
-# session's scratch (tests/rollback_pointer_hygiene.py). Heal one an earlier,
-# crashed session left dangling; remove this session's own at exit. atexit runs
-# last-registered first, so this runs before the scratch above is deleted.
+# session's data dir (tests/rollback_pointer_hygiene.py). Heal one an earlier,
+# crashed session left dangling; remove this session's own at exit -- only one
+# into THIS process's data dir, so a nested session never removes its parent's
+# live pointer. atexit runs last-registered first, so this runs before the
+# data dir above is deleted.
 from tests.rollback_pointer_hygiene import remove_pytest_pointer  # noqa: E402
 
 _TRAINING_GROUND = Path(__file__).resolve().parents[1] / "training_ground"
@@ -241,7 +250,7 @@ remove_pytest_pointer(_TRAINING_GROUND, _DEFAULT_SCRATCH_ROOT, only_if_dangling=
 atexit.register(
     remove_pytest_pointer,
     _TRAINING_GROUND,
-    _PYTEST_SESSION_ROOT,
+    _TEST_DATA_DIR_PATH,
     only_if_dangling=False,
 )
 
