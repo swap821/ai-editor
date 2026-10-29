@@ -295,3 +295,50 @@ def test_a_link_inside_a_root_that_points_out_is_refused(tmp_path) -> None:
             resolve_task_scope("lab/_task_scope_link_probe")
     finally:
         link.unlink()
+
+
+# --------------------------------------------------------------------------- #
+# Parity: /api/v1/chat (2026-10-29)
+# --------------------------------------------------------------------------- #
+
+
+def test_chat_has_nothing_a_task_scope_would_narrow(monkeypatch) -> None:
+    """``/api/v1/chat`` is a real entry surface (the HUD's voice channel), so
+    the operator asked whether it needs the binding ``/api/generate`` has. It
+    does not, and this is why: a task scope narrows creating files, editing
+    them and running commands, and a chat turn reaches none of them. It builds
+    no tool agent and executes nothing (``tests/test_chat.py`` pins that it
+    offers the model no tools). If this fails, chat has grown an action
+    surface, and it must be bound as ``/api/generate`` is
+    (``aios/application/turns/task_scope.py``)."""
+    from aios.agents.tool_agent import ToolAgent
+    from aios.core.executor import Executor
+    from tests.test_chat import chat_setup as _chat_setup
+
+    reached: list[str] = []
+    real_init = ToolAgent.__init__
+
+    def agent_built(self, *args, **kwargs):
+        reached.append("ToolAgent")
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(ToolAgent, "__init__", agent_built)
+    for name in ("execute", "execute_approved"):
+        monkeypatch.setattr(
+            Executor,
+            name,
+            lambda self, *a, _name=name, **k: reached.append(f"Executor.{_name}"),
+        )
+
+    setup = _chat_setup.__wrapped__()
+    client, model = next(setup)
+    try:
+        response = client.post(
+            "/api/v1/chat",
+            json={"transcript": "run the tests in work/ai-editor and fix them"},
+        )
+    finally:
+        next(setup, None)
+    assert response.status_code == 200
+    assert model.tools_seen == [None]
+    assert reached == []

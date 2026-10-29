@@ -846,6 +846,78 @@ class Cerebellum:
         self._record_decision("replayed", best, best_score, user_message, "matched")
         return best
 
+    def readiness(self, *, emergency_stop: Any = None) -> list[dict[str, Any]]:
+        """Whether each compiled reflex would serve its own request here, now,
+        and if not, why. Read-only: nothing is matched, compiled, withdrawn or
+        replayed.
+
+        Added 2026-10-29 ("make the daily animal boring"). A reflex stops
+        serving silently. A restart under another scope binding, an approval
+        recorded in another workspace, replay of approved commands switched off,
+        or a changed file the skill touches each leave the playbook compiled,
+        and the operator learns of it only when a turn he expected to cost no
+        model call calls the model. A changed file is worse: the first turn
+        that matches withdraws the reflex, and only his re-activation brings
+        it back. This asks the questions :meth:`match` and the replay preflight
+        (``ToolAgent._withheld_reflex_step``) ask, with the same helpers, before
+        any turn does.
+        """
+        from aios.core import replay_commands
+        from aios.security.gateway import Zone, classify
+
+        self._refresh_cache()
+        everyone = self._activated(compiling=True)
+        report: list[dict[str, Any]] = []
+        for pb in sorted(self._cache.values(), key=lambda p: p.id):
+            entry = everyone.get(pb.skill_id) or {}
+            principal = entry.get("principal")
+            reasons: list[str] = []
+            if not entry or not _backed(pb, self._activated(principal=principal)):
+                reasons.append(
+                    "its skill is not active, or its steps are not the activated ones"
+                )
+            refusal = self._inapplicable(pb)
+            if refusal is not None:
+                reasons.append(
+                    f"stale, and the first matching turn will withdraw it: {refusal}"
+                    if self._stale(refusal)
+                    else f"not applicable: {refusal}"
+                )
+            for step in pb.steps:
+                if step.tool_name not in ("execute_terminal", "verify"):
+                    continue
+                command = str(step.args.get("command", ""))
+                zone = classify(command).zone
+                if zone is Zone.RED:
+                    reasons.append(f"`{command}` is RED here, refused even if approved")
+                elif zone is Zone.YELLOW and not replay_commands.is_approved_command(
+                    command,
+                    principal=principal,
+                    db_path=self.db_path,
+                    emergency_stop=emergency_stop,
+                ):
+                    reasons.append(
+                        f"`{command}` would ask for approval: "
+                        + (
+                            "replay of approved commands is off"
+                            if not config.REPLAY_APPROVED_COMMANDS_ENABLED
+                            else "no approval of exactly this command by this "
+                            "principal in this workspace, or the stop is engaged"
+                        )
+                    )
+            report.append(
+                {
+                    "playbook_id": pb.id,
+                    "skill_trail": pb.skill_id,
+                    "goal": pb.goal_pattern,
+                    "principal": principal,
+                    "replay_count": pb.replay_count,
+                    "ready": not reasons,
+                    "reasons": reasons,
+                }
+            )
+        return report
+
     def _stale(self, refusal: str) -> bool:
         """Whether the library calls this refusal staleness. A library that
         cannot say withdraws nothing: the reflex is refused either way."""

@@ -5,6 +5,27 @@ the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## Later on 2026-10-29: the daily backend made dependable (branch `feat/daily-boring`, off master `062a328a`)
+
+The operator's ask: "make the daily animal boring". Four things are built here; the fifth needs his own runs.
+
+- **One way to start his daily backend** (`tools/daily_backend.py`, `docs/operations/DAILY_BACKEND.md`).
+  - **Before:** its settings lived in an agent's scratch script. A backend started any other way failed silently: a different scope identity, so no earned reflex matched; or no learning key; or his user-wide cloud opt-in.
+  - **Now:** `up` starts it with every setting he chose, each dated in the tool, and then runs `check`.
+- **`check`: would each reflex serve here, now?** (`Cerebellum.readiness`, `tests/test_reflex_readiness.py`)
+  - It is read-only and calls no model. It asks what a match and the replay preflight ask, using their own helpers.
+  - It names each reason a reflex would not serve: another scope, replay of approved commands off, no approval in this workspace, an inactive skill, a RED command, or a stale file.
+  - **Stale matters most.** A file the skill touches changed, for example after a refresh of `work/ai-editor`. The first matching turn withdraws that reflex, and only his re-activation brings it back. `check` says so before any turn does, and changes nothing. The test shows `match` then doing exactly what it warned of.
+- **The cloud-first noise is fixed at its root** (`tests/test_bedrock_needs_credentials.py`).
+  - Bedrock is offered only when a request could be signed. With `coding` opted into the cloud and no AWS key loaded, `auto` goes straight to the local model.
+  - The positive control: with a key, it routes to Bedrock as before.
+  - The daily tool also always sets `AIOS_ROUTER_CLOUD_TASKS` (empty unless chosen at launch), so his user-wide `reasoning,coding` no longer decides. Removing the user-wide value is his choice.
+- **Chat needs no task scope, and the reason is now a test.** `/api/v1/chat` is a real entry surface: the HUD's voice channel.
+  - A chat turn builds no tool agent and executes nothing, so a scope has nothing to narrow there.
+  - The test fails if that ever changes. Its spies were checked against an `/api/generate` turn, where they do fire.
+- **Not done yet: reflexes on more real modules, and serving after a restart.** These need his approvals, his activation and his credential.
+  - The script and both targets are ready: `tests/test_failover.py` (21 tests) and `tests/test_privacy_filter.py`. Each passed in the real sandbox under the bound scope.
+
 ## State on 2026-10-29 (measured on branch `feat/gateway-universal`, off master `692c5c78`)
 
 - **A forge turn can be confined to one project** (`docs/operations/WORK_SCOPE.md`, "Per-task binding").
@@ -39,6 +60,11 @@ the commit they were measured on). The whole story, from the first commit, is
 - **D13's judged run was killed by Windows Update** on 2026-10-29 at 00:08, at target 8 of 85. Windows rebooted on its own to install KB5127936.
   - The harness writes its trail only at the end, so nothing can be judged. It restarts from scratch, on the same pinned code and store.
   - No interim result was tallied, so the restart is clean.
+- **D13 was relaunched, then stopped at the operator's word, the same day.**
+  - Relaunched at 11:44 UTC: the same code `e6e8d668`, the store re-copied with its hashes checked, the same arguments.
+  - Stopped at about 12:50 UTC, at target 2 of 85, with no trail written, so nothing is judged. He asked for the daily system to be made dependable first.
+  - **Memory was the hazard.** About 0.2 GB was free while the 9B model ran. Two of the first target's arms timed out, so the target was dropped as not comparable. The killed first attempt had 9 model errors in 66 attempts.
+  - Kept as `C:\d13out\stopped-by-operator-20261029`. D13 stays pre-registered and unrun.
 
 ## State on 2026-10-28 (measured 2026-10-21 to 10-28; master `de88e7dd` unless a line says otherwise)
 
