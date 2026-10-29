@@ -19,7 +19,7 @@ from __future__ import annotations
 import ast
 import difflib
 from dataclasses import dataclass
-from typing import Optional, Sequence
+from typing import Optional
 
 
 @dataclass(frozen=True)
