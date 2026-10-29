@@ -379,8 +379,6 @@ def test_get_bedrock_client_none_on_llm_error(monkeypatch) -> None:
     monkeypatch.setattr(config, "BEDROCK_REGION", "us-east-1")
     monkeypatch.setattr(config, "BEDROCK_MODEL", "some-model")
     monkeypatch.setattr(deps_mod, "_bedrock_client", None)
-    # Reach the construction this test is about: a request could be signed.
-    monkeypatch.setattr(deps_mod, "bedrock_credentials_available", lambda region: True)
 
     def _boom(*a, **k):
         raise LLMError("no boto3")

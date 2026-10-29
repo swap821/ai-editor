@@ -55,7 +55,6 @@ from aios.application.memory.bootstrap import (
 from aios.core.autonomy import AutonomyLedger
 from aios.core.alignment import AlignmentInterpreter
 from aios.core.bedrock import BedrockClient
-from aios.core.bedrock import credentials_available as bedrock_credentials_available
 from aios.core.cerebellum import Cerebellum
 from aios.core.executor import Executor
 from aios.core.gemini import GeminiClient
@@ -153,11 +152,9 @@ def get_ollama_client() -> OllamaClient:
 def get_bedrock_client() -> Optional[BedrockClient]:
     """Provide the AWS Bedrock cloud chat client, or ``None`` when unconfigured.
 
-    Returns ``None`` unless Bedrock is opted in (region + model set), boto3
-    is importable *and* a request could be signed (:func:`credentials_available`)
-    — so the agent transparently stays on local inference when the cloud isn't
-    set up, and is never offered a provider whose every call would fail before
-    sending. Overridden in tests with a fake.
+    Returns ``None`` unless Bedrock is opted in (region + model set) *and* boto3
+    is importable — so the agent transparently stays on local inference when the
+    cloud isn't set up. Overridden in tests with a fake.
 
     The client is built lazily and reused across requests; enablement is checked
     fresh each call (mirrors ``_router_policy``).
@@ -167,8 +164,6 @@ def get_bedrock_client() -> Optional[BedrockClient]:
         return None
     if _bedrock_client is not None:
         return _bedrock_client
-    if not bedrock_credentials_available(config.BEDROCK_REGION):
-        return None
     with _bedrock_lock:
         if _bedrock_client is not None:
             return _bedrock_client

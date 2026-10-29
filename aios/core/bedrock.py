@@ -349,7 +349,9 @@ def credentials_available(region: str = config.BEDROCK_REGION) -> bool:
     each failing "Unable to locate credentials" before anything was sent, and
     only then to the local model: cloud-first routing the operator never had,
     the privacy filter run for nothing, and three ledger lines for calls that
-    could not happen. A provider that cannot sign a request is not offered.
+    could not happen. A provider that cannot sign a request is not offered:
+    :class:`BedrockClient` refuses to be built without a credential, and
+    ``aios.api.deps.get_bedrock_client`` answers ``None`` for that refusal.
 
     A Bedrock API key (``AWS_BEARER_TOKEN_BEDROCK``) or anything boto3's
     default chain resolves (environment keys, a shared profile, SSO, a role)
@@ -404,6 +406,10 @@ class BedrockClient:
                 raise LLMError(
                     "boto3 is required for AWS Bedrock; pip install boto3"
                 ) from exc
+            if not credentials_available(region):
+                # A client that cannot sign is never built, so it is never
+                # offered (get_bedrock_client answers None on LLMError).
+                raise LLMError("no AWS credential could sign a Bedrock request")
             self._client = boto3.client(
                 "bedrock-runtime",
                 region_name=region or None,

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import pytest
 
+import aios.core.bedrock as bedrock_module
 from aios.core.bedrock import (
     BedrockClient,
     _parse_output,
@@ -536,6 +537,9 @@ def test_the_runtime_client_waits_as_long_as_the_caller(monkeypatch) -> None:
         seen.update(kwargs)
         return FakeBedrock({})
 
+    # These inspect how a client is built; since 2026-10-29 one is built only
+    # when a request could be signed (tests/test_bedrock_needs_credentials.py).
+    monkeypatch.setattr(bedrock_module, "credentials_available", lambda region: True)
     monkeypatch.setattr(boto3, "client", fake_client)
     BedrockClient(model="m", region="us-east-1", timeout_s=420)
     cfg = seen["config"]
@@ -550,6 +554,9 @@ def test_the_default_wait_is_the_configured_llm_timeout(monkeypatch) -> None:
     from aios import config
 
     seen = {}
+    # These inspect how a client is built; since 2026-10-29 one is built only
+    # when a request could be signed (tests/test_bedrock_needs_credentials.py).
+    monkeypatch.setattr(bedrock_module, "credentials_available", lambda region: True)
     monkeypatch.setattr(
         boto3, "client", lambda service, **kw: seen.update(kw) or FakeBedrock({})
     )
@@ -567,6 +574,9 @@ def test_the_practice_harness_gives_bedrock_its_own_attempt_budget(
 
     # Bedrock "configured", without real credentials or a network call.
     monkeypatch.setattr(deps, "get_bedrock_client", lambda: object())
+    # These inspect how a client is built; since 2026-10-29 one is built only
+    # when a request could be signed (tests/test_bedrock_needs_credentials.py).
+    monkeypatch.setattr(bedrock_module, "credentials_available", lambda region: True)
     monkeypatch.setattr(boto3, "client", lambda service, **kw: FakeBedrock({}))
     client, model = resolve_client("qwen.qwen3-coder-30b-a3b-v1:0", timeout_s=420)
     assert model == "qwen.qwen3-coder-30b-a3b-v1:0"

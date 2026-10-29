@@ -4,8 +4,9 @@ Found on the operator's daily backend: ``.env`` names a Bedrock region and
 model, his user-wide environment opts ``coding`` into cloud routing, and the
 backend loads no AWS key. Each ``auto`` coding turn's first model call went to
 three Bedrock models in turn, every one failing "Unable to locate credentials"
-before anything was sent, and only then to the local model. ``get_bedrock_client``
-now offers Bedrock only when a request could be signed. Pinned:
+before anything was sent, and only then to the local model. ``BedrockClient``
+now refuses to be built when no request could be signed, and
+``get_bedrock_client`` answers ``None`` for that, as for any refusal. Pinned:
 
 * no credential: no client, so nothing to route to, and ``auto`` stays local
   even with ``coding`` opted into the cloud;
@@ -23,6 +24,7 @@ import aios.api.deps as deps
 from aios import config
 from aios.core import bedrock
 from aios.core.failover import FailoverChatClient
+from aios.core.llm import LLMError
 from aios.core.router_wiring import _select_chat_client
 from tests.test_route_wiring import (  # noqa: F401 - autouse fixtures
     FakeOllama,
@@ -44,13 +46,6 @@ AWS_VARIABLES = (
 )
 
 
-class FakeBedrock:
-    """Stands in for the boto3-backed client; never sends anything."""
-
-    def __init__(self, **_kwargs) -> None:
-        pass
-
-
 @pytest.fixture()
 def no_aws(tmp_path: Path, monkeypatch):
     """A machine with no AWS credential anywhere boto3 looks."""
@@ -59,9 +54,11 @@ def no_aws(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("AWS_SHARED_CREDENTIALS_FILE", str(tmp_path / "no-credentials"))
     monkeypatch.setenv("AWS_CONFIG_FILE", str(tmp_path / "no-config"))
     monkeypatch.setenv("AWS_EC2_METADATA_DISABLED", "true")
+    # BedrockClient binds config.BEDROCK_REGION as a default at import; boto3
+    # then reads the region from the environment, as on the operator's laptop.
+    monkeypatch.setenv("AWS_DEFAULT_REGION", "us-east-1")
     monkeypatch.setattr(config, "BEDROCK_REGION", "us-east-1")
     monkeypatch.setattr(config, "BEDROCK_MODEL", "amazon.nova-pro-v1:0")
-    monkeypatch.setattr(deps, "BedrockClient", FakeBedrock)
     monkeypatch.setattr(deps, "_bedrock_client", None)
     yield
     monkeypatch.setattr(deps, "_bedrock_client", None)
@@ -69,13 +66,20 @@ def no_aws(tmp_path: Path, monkeypatch):
 
 def test_no_credential_means_no_bedrock_client(no_aws) -> None:
     assert bedrock.credentials_available("us-east-1") is False
+    with pytest.raises(LLMError, match="no AWS credential"):
+        bedrock.BedrockClient(region="us-east-1")
     assert deps.get_bedrock_client() is None
+
+
+def test_an_injected_client_is_not_asked_for_credentials(no_aws) -> None:
+    """Tests and callers that hand in their own client are unaffected."""
+    assert bedrock.BedrockClient(region="us-east-1", client=object()) is not None
 
 
 def test_a_bedrock_api_key_is_a_credential(no_aws, monkeypatch) -> None:
     monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "ABSK-test-not-a-real-key")
     assert bedrock.credentials_available("us-east-1") is True
-    assert isinstance(deps.get_bedrock_client(), FakeBedrock)
+    assert isinstance(deps.get_bedrock_client(), bedrock.BedrockClient)
 
 
 def test_keys_the_default_chain_resolves_are_a_credential(no_aws, monkeypatch) -> None:
@@ -114,6 +118,10 @@ def test_with_a_credential_auto_still_goes_to_the_cloud_it_may_use(
     nothing else. With a key, the operator's opt-in routes as before."""
     _set_cloud_policy(monkeypatch, cloud_tasks=("coding",))
     monkeypatch.setenv("AWS_BEARER_TOKEN_BEDROCK", "ABSK-test-not-a-real-key")
-    client, _model = _route(deps.get_bedrock_client())
+    cloud = deps.get_bedrock_client()
+    assert cloud is not None
+    # No control-plane discovery from a test: the configured default only.
+    monkeypatch.setattr(cloud, "list_models", lambda: [])
+    client, _model = _route(cloud)
     assert isinstance(client, FailoverChatClient)
     assert client.candidates[0][2] == "bedrock"
