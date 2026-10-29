@@ -41,7 +41,11 @@ The operator's ask: "make the daily animal boring". Four things are built here; 
   - **The mutation probe could score a kill that the mutation did not cause.**
     - A test leaves `training_ground/.git` pointing into a pytest folder that is then deleted. Every later session in that checkout fails, so every later mutation looked killed.
     - This happened here too, after the agent's own run.
-    - The fix is a separate PR.
+    - **Fixed on branch `fix/probe-closing-control`, 2026-10-30.**
+      - Sessions remove their own pointer and heal a dangling one.
+      - The probe has a closing control: each test set that backed a kill runs once more on the unmutated code, and a failing one makes those kills NO VERDICT.
+      - Fixed on the way: a nested pytest session deleted its parent's scratch, and `tests/test_bandit_gate.py` rewrote a tracked file's line endings. Both now leave the tree as they found it.
+      - The full suite passes.
   - **Found while checking that: tests write into the operator's own rollback history.**
     - In his main checkout, `training_ground/.git` is a real git repository: his daily backend's rollback history.
     - A full test run there commits `[SNAPSHOT]` entries into it, and some tests create and delete files in `training_ground/`. One run added 5 commits.
