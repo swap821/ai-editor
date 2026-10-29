@@ -1121,9 +1121,13 @@ class TestTheLiveTurnsRecall:
         assert asked == []
         assert block
 
-    def test_with_the_llm_judge_on_and_none_passed_the_default_is_asked(
+    def test_with_the_llm_judge_on_and_none_passed_no_model_is_asked(
         self, monkeypatch
     ) -> None:
+        """A caller that passes no judge gets lexical scoring, never a model
+        call. Until 2026-10-29 it got the bare default judge, an ungated call
+        to the local model, and /api/v1/chat was such a caller
+        (docs/ONE_GATEWAY.md)."""
         from aios import config
         from aios.api import turn_pipeline
 
@@ -1133,12 +1137,13 @@ class TestTheLiveTurnsRecall:
         monkeypatch.setattr(
             turn_pipeline,
             "_crag_llm_judge",
-            lambda query, passage: asked.append(passage) or 1.0,
+            lambda *a, **k: asked.append("bare") or 1.0,
         )
-        self._recall(
+        block, _ = self._recall(
             monkeypatch, [_Hit("the build steps are make then test", "verified")]
         )
-        assert asked == ["the build steps are make then test"]
+        assert asked == []
+        assert block
 
     def _external(self, monkeypatch, *, master: bool, upper: float) -> list[str]:
         """Recall with only the cloud corrective source enabled; returns the

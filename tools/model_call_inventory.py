@@ -54,6 +54,8 @@ FAKE_JSON = "{}"
 #: stops to ask a question before the agent's model is ever called -- so the
 #: fake answers it as a clear request would be read.
 SCRIPTED = (
+    # CRAG's judge: a low score, so recall is unsure and asks the cloud source.
+    ("Rate how RELEVANT the passage is", "0.1"),
     (
         "Interpret the latest USER request",
         json.dumps(
@@ -427,6 +429,85 @@ def surface_council(h: Any) -> dict[str, Any]:
     return {"status": r.status_code, "body": r.text[:300]}
 
 
+#: What the CRAG surfaces recall: verified, so it is not withheld, and the
+#: inventory principal's, so it is theirs to recall.
+CRAG_MEMORY = "The capital of France is Paris, on the river Seine."
+
+
+def _seed_verified_memory(h: Any) -> None:
+    """Through the memory authority, as trusted memory is written live, so it
+    is signed: recall refuses an unsigned row (plan Phase 3)."""
+    from aios.api.deps import get_memory_authority
+
+    get_memory_authority().semantic_add_verified(
+        CRAG_MEMORY, memory_type="fact", principal=h.principal_id
+    )
+
+
+def surface_generate_crag(h: Any) -> dict[str, Any]:
+    """CRAG on a forge turn: recall finds verified memory, the local judge
+    scores it (a model call), finds it weak, and the cloud source is asked (a
+    model call). Needs AIOS_CRAG_LLM_JUDGE, _EXTERNAL and _CLOUD, which the
+    child sets. Added 2026-10-29: no drive had reached either call."""
+    _seed_verified_memory(h)
+    return _generate(h, "auto", session="inventory-crag")
+
+
+def surface_chat_crag(h: Any) -> dict[str, Any]:
+    """/api/v1/chat with every CRAG switch on. Until 2026-10-29 this route
+    passed recall no judge or source, and recall would have called the models
+    itself, ungated. No turn could reach that, measured 2026-10-29: an
+    authenticated turn builds a representative context instead of recalling,
+    and an anonymous turn's recall admits no row ("no principal"). So this
+    surface shows the route makes no ungated call; the judge itself is reached
+    by generate_crag."""
+    _seed_verified_memory(h)
+    return _chat(h.client, "What is the capital of France?", "inv-chat-crag")
+
+
+def surface_council_execute(h: Any) -> dict[str, Any]:
+    """A Council mission the King approves and executes, with the independent
+    cloud reviewer (Organ 39). Added 2026-10-29.
+
+    The worker itself runs as its own process with a restricted environment
+    (``aios/runtime/backends.py``): it gets neither this child's fake Ollama
+    nor ``AIOS_WORKER_REASONING``, so its reasoning is not driven here. It is
+    pinned in tests/test_runtime_intelligence_gateway.py, and the worker
+    process refuses an ungated call by default (it is not a tools/ process)."""
+    from aios import config
+
+    workspace = Path(config.COUNCIL_WORKSPACE_ROOT)
+    workspace.mkdir(parents=True, exist_ok=True)
+    (workspace / "notes.md").write_bytes(b"# notes" + bytes([10]))
+    created = _approved_post(
+        h.client,
+        "/api/v1/council/missions",
+        {
+            "goal": "Add a one-line summary to notes.md",
+            "allowedFiles": ["notes.md"],
+            # The Planner Queen defers a mission it cannot verify.
+            "verificationCommands": ["echo ok"],
+        },
+    )
+    mission = (
+        (created.json() or {}).get("missionId") if created.status_code == 200 else None
+    )
+    if not mission:
+        return {"status": created.status_code, "body": created.text[:300]}
+    detail = h.client.get(f"/api/v1/council/missions/{mission}").json()
+    digest = (detail.get("missionAuthority") or {}).get("contractDigest")
+    approved = _approved_post(
+        h.client,
+        "/api/v1/council/approve",
+        {"missionId": mission, "contractDigest": digest},
+    )
+    report = h.client.get(f"/api/v1/council/missions/{mission}")
+    return {
+        "status": approved.status_code,
+        "body": approved.text[:300] + " | " + report.text[:3000],
+    }
+
+
 SURFACES: dict[str, Callable[[Any], dict[str, Any]]] = {
     "generate_local": surface_generate_local,
     "generate_cloud": surface_generate_cloud,
@@ -440,6 +521,10 @@ SURFACES: dict[str, Callable[[Any], dict[str, Any]]] = {
     "hiring": surface_hiring,
     "clerk": surface_clerk,
     "council": surface_council,
+    # Last: they seed memory the surfaces above must not recall.
+    "generate_crag": surface_generate_crag,
+    "chat_crag": surface_chat_crag,
+    "council_execute": surface_council_execute,
 }
 
 
@@ -476,6 +561,14 @@ def run_child(names: list[str], root: Path, out: Path, ollama_url: str) -> int:
             ctrl_client=_NoDiscovery(),
         )
         h.app.dependency_overrides[get_bedrock_client] = lambda: bedrock
+        # Some production code calls the factory itself, outside a route (the
+        # Council's independent reviewer, aios/council/gateway_reasoning.py).
+        # Without this its Bedrock client was a real one: the 2026-10-29 drive
+        # recorded 2 Bedrock calls and the transport received 1, the second
+        # sent to AWS with the placeholder key. The integrity check caught it.
+        import aios.api.deps as deps
+
+        deps.get_bedrock_client = lambda: bedrock
         # With an API token set, every request must carry it; the session
         # client keeps its session, so its turns stay authenticated.
         h.client.headers["Authorization"] = f"Bearer {API_TOKEN}"
@@ -512,7 +605,15 @@ def _ledger(data_dir: Path) -> list[dict[str, Any]]:
                 records.append(
                     {
                         k: record.get(k)
-                        for k in ("provider", "method", "entrance", "site", "stack")
+                        for k in (
+                            "provider",
+                            "method",
+                            "entrance",
+                            "site",
+                            "stack",
+                            "refused",
+                            "pid",
+                        )
                     }
                 )
     return records
@@ -539,6 +640,16 @@ def _env(root: Path, ollama_url: str) -> dict[str, str]:
             # Production defaults the reel turns off, back on: CRAG's judge is a
             # model call, and it must be counted.
             "AIOS_CRAG": "1",
+            # Every opt-in model call on, so the drive reaches it: CRAG's judge
+            # and cloud source, and the Council worker's reasoning.
+            "AIOS_CRAG_LLM_JUDGE": "1",
+            "AIOS_CRAG_EXTERNAL": "1",
+            "AIOS_CRAG_CLOUD": "1",
+            "AIOS_WORKER_REASONING": "1",
+            # Refusing on, here too (this child is a tools/ process, which is
+            # otherwise exempt): the drive proves enforcement breaks no
+            # production path, and an ungated call shows as REFUSED.
+            "AIOS_GATEWAY_ENFORCE": "1",
             "AWS_BEARER_TOKEN_BEDROCK": "inventory-placeholder-not-a-key",
             "AIOS_BEDROCK_REGION": "ap-south-1",
             "AIOS_BEDROCK_MODEL": CLOUD_MODEL,
@@ -561,52 +672,131 @@ MODEL_METHODS = frozenset(
 )
 
 
-def static_call_sites(repo: Path = REPO_ROOT) -> list[str]:
-    """``path:function`` of every candidate model call in ``aios/``.
+def static_call_receivers(repo: Path = REPO_ROOT) -> dict[str, set[str]]:
+    """Every candidate model call in ``aios/``: ``path:function`` -> the
+    receivers it is made on (``client``, ``self.mission_service``).
 
     The function is the innermost def or lambda around the call -- the same
     name the ledger records as a call's site -- so the two lists compare.
     Calls inside the adapters and the gateway are plumbing, as in the ledger.
+
+    A candidate is a call of a model method (``client.chat(...)``), a
+    reference to one that is not called on the spot (``fn = client.chat``,
+    receiver suffixed ``(ref)``), or a ``getattr`` of one that is not merely
+    tested with ``callable``/``hasattr`` (receiver suffixed ``(getattr)``).
     """
     import ast
 
     from aios.core.model_calls import _PLUMBING
 
-    sites: set[str] = set()
+    sites: dict[str, set[str]] = {}
     for path in sorted((repo / "aios").rglob("*.py")):
         rel = path.relative_to(repo).as_posix()
         if rel in _PLUMBING:
             continue
         tree = ast.parse(path.read_text(encoding="utf-8"))
 
+        def note(scope: str, receiver: str) -> None:
+            sites.setdefault(f"{rel}:{scope}", set()).add(receiver)
+
         def visit(node: ast.AST, scope: str) -> None:
+            called = {id(node.func)} if isinstance(node, ast.Call) else set()
+            probe = (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in ("callable", "hasattr")
+            )
             for child in ast.iter_child_nodes(node):
                 if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     visit(child, child.name)
-                elif isinstance(child, ast.Lambda):
+                    continue
+                if isinstance(child, ast.Lambda):
                     visit(child, "<lambda>")
-                else:
-                    if (
-                        isinstance(child, ast.Call)
-                        and isinstance(child.func, ast.Attribute)
-                        and child.func.attr in MODEL_METHODS
-                    ):
-                        sites.add(f"{rel}:{scope}")
-                    visit(child, scope)
+                    continue
+                if (
+                    isinstance(child, ast.Attribute)
+                    and child.attr in MODEL_METHODS
+                    and isinstance(child.ctx, ast.Load)
+                ):
+                    receiver = ast.unparse(child.value)
+                    note(scope, receiver if id(child) in called else f"{receiver}(ref)")
+                elif (
+                    isinstance(child, ast.Call)
+                    and isinstance(child.func, ast.Name)
+                    and child.func.id == "getattr"
+                    and len(child.args) >= 2
+                    and isinstance(child.args[1], ast.Constant)
+                    and child.args[1].value in MODEL_METHODS
+                    and not probe
+                ):
+                    note(scope, f"{ast.unparse(child.args[0])}(getattr)")
+                visit(child, scope)
 
         visit(tree, "<module>")
-    return sorted(sites)
+    return sites
 
 
-def coverage(result: dict[str, Any], static: list[str]) -> dict[str, Any]:
+def static_call_sites(repo: Path = REPO_ROOT) -> list[str]:
+    """``path:function`` of every candidate model call in ``aios/``."""
+    return sorted(static_call_receivers(repo))
+
+
+#: Candidate sites that are not model calls: every candidate there is made on
+#: this receiver, which is not a model client. Checked, not trusted: a model
+#: call added at the site on any other receiver makes it a candidate again.
+NOT_MODEL_CALLS: dict[str, tuple[str, str]] = {
+    "aios/application/governance/runtime_proof.py:_probe_mission": (
+        "service",
+        "MissionService.complete finishes a mission",
+    ),
+    "aios/application/maintenance/service.py:run_approved_repair": (
+        "self.mission_service",
+        "MissionService.complete finishes a mission",
+    ),
+    "aios/council/council_orchestrator.py:execute": (
+        "self.mission_service",
+        "MissionService.complete finishes a mission",
+    ),
+}
+
+#: Model-call sites no production path reaches (tests/test_gateway_enforcement.py
+#: checks each reason). If one is ever wired, enforcement refuses its call
+#: unless it passes an entrance.
+NO_PRODUCTION_CALLER: dict[str, str] = {
+    "aios/application/models/model_router.py:complete": (
+        "nothing in aios/ constructs ModelRouter; its package only re-exports it"
+    ),
+    "aios/domain/local_workforce/runtime.py:execute_job": (
+        "production builds StructuredClericalRuntime only around the r15 proof's "
+        "in-process fake; tools/clerk_benchmark.py drives it with real clients, "
+        "as measurement"
+    ),
+}
+
+
+def coverage(result: dict[str, Any], static: dict[str, set[str]]) -> dict[str, Any]:
     """Which static candidate sites the drive actually observed: a site counts
     when it is anywhere on a recorded call's stack, not only innermost (an
-    outer caller that reaches the model through an inner one did run)."""
+    outer caller that reaches the model through an inner one did run).
+
+    Of the rest, a site whose candidates are all on its declared non-model
+    receiver is ``not_a_model_call``; one no production path reaches is
+    ``no_production_caller``; anything else is ``not_observed``: not
+    measured, NOT clean."""
     observed = set(result.get("observed_frames") or ())
+    missed = sorted(set(static) - observed)
+    not_a_model = sorted(
+        site
+        for site in missed
+        if site in NOT_MODEL_CALLS and static[site] == {NOT_MODEL_CALLS[site][0]}
+    )
+    unreachable = sorted(site for site in missed if site in NO_PRODUCTION_CALLER)
     return {
         "static_candidates": len(static),
         "observed": sorted(set(static) & observed),
-        "not_observed": sorted(set(static) - observed),
+        "not_a_model_call": not_a_model,
+        "no_production_caller": unreachable,
+        "not_observed": sorted(set(missed) - set(not_a_model) - set(unreachable)),
         "observed_outside_static": sorted(observed - set(static)),
     }
 
@@ -623,9 +813,12 @@ def judge(report: dict[str, Any], ollama_requests: int) -> dict[str, Any]:
         for call in calls:
             frames.update(call.get("stack") or [call.get("site")])
             key = f"{call.get('site')} [{call.get('provider')}.{call.get('method')}]"
+            if call.get("refused"):
+                # Enforcing: refused before it left, so no server received it.
+                key += " REFUSED"
             bucket = gated if call.get("entrance") else ungated
             bucket[key] = bucket.get(key, 0) + 1
-            if call.get("provider") in recorded:
+            if call.get("provider") in recorded and not call.get("refused"):
                 recorded[call["provider"]] += 1
         if result.get("error"):
             verdict = "error"
@@ -716,7 +909,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     finally:
         server.close()
     result = judge(report, len(server.requests))
-    result["coverage"] = coverage(result, static_call_sites())
+    result["coverage"] = coverage(result, static_call_receivers())
     for name, verdict in result["surfaces"].items():
         extra = f"  {verdict['error']}" if verdict.get("error") else ""
         print(f"{name:<16} {verdict['verdict']:<12} calls={verdict['calls']}{extra}")
@@ -726,8 +919,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     cov = result["coverage"]
     print(
         f"coverage: {len(cov['observed'])} of {cov['static_candidates']} static "
-        "candidate sites observed; not observed (not measured, NOT clean):"
+        "candidate sites observed"
     )
+    for site in cov["not_a_model_call"]:
+        print(f"  not a model call: {site} ({NOT_MODEL_CALLS[site][1]})")
+    for site in cov["no_production_caller"]:
+        print(f"  no production caller: {site} ({NO_PRODUCTION_CALLER[site]})")
+    print("not observed (not measured, NOT clean):")
     for site in cov["not_observed"]:
         print(f"  - {site}")
     if result.get("error"):

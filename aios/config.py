@@ -654,6 +654,11 @@ ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _limits.ROUTER_CLOUD_TASKS
 ROUTER_PREFER_LOCAL: Final[bool] = _env_bool("AIOS_ROUTER_PREFER_LOCAL", True)
 ROUTER_MAX_COST: Final[str] = _env_str("AIOS_ROUTER_MAX_COST", "high").strip().lower()
 ROUTER_LLM_PICK: Final[bool] = _env_bool("AIOS_ROUTER_LLM_PICK", True)
+#: Refuse a production model call that came through no Organ 32 entrance,
+#: before it leaves (aios/core/model_calls.py ``enforcing``, docs/ONE_GATEWAY.md).
+#: Unset: refused everywhere but a measurement tool's own process; ``1``: there
+#: too; ``0``: never refused, though every call is still recorded.
+GATEWAY_ENFORCE: Final[str] = _env_str("AIOS_GATEWAY_ENFORCE", "")
 
 # ── Corrective-RAG (CRAG) ────────────────────────────────────────────────────
 # Metacognitive gate on memory recall: evaluate retrieved context, drop junk,

@@ -7,10 +7,12 @@ large share of that file's size, unlike every other domain (council,
 security, memory, voice, sovereignty, ...) which was already split into
 ``aios/api/routes/*.py``. Lives in ``aios/api/`` rather than ``aios/core/``
 (the audit's suggested location) because several of these functions call the
-client-provider factories in ``aios/api/deps.py`` (``get_gemini_client``,
-``get_bedrock_client``, ``get_ollama_client``) directly -- moving them into
+provider factories in ``aios/api/deps.py`` (``get_memory_authority``,
+``get_human_state_hypothesis_store``) directly -- moving them into
 ``aios/core/`` would make core/ depend on api/, a new layering inversion of
-exactly the kind this extraction is meant to fix, not a smaller one.
+exactly the kind this extraction is meant to fix, not a smaller one. (CRAG's
+model clients are no longer fetched here: the turn passes its gated ones,
+``aios/application/turns/crag_model_calls.py``.)
 """
 
 from __future__ import annotations
@@ -24,11 +26,8 @@ from typing import Any, Optional
 from aios import config
 from aios.agents.reflection_agent import ReflectionAgent, ReflectionError
 from aios.api.deps import (
-    get_bedrock_client,
-    get_gemini_client,
     get_human_state_hypothesis_store,
     get_memory_authority,
-    get_ollama_client,
 )
 from aios.core.websearch import web_search
 from aios.logging_config import get_logger
@@ -269,13 +268,13 @@ _MEM_EXTERNAL_HEADER = (
 )
 
 
-def _crag_cloud_source(query: str, *, completion: Any | None = None) -> list[str]:
+def _crag_cloud_source(query: str, *, completion: Any) -> list[str]:
     """CRAG external source A — the configured cloud model.
 
-    The compatibility call shape remains available for the existing helper
-    tests. The authenticated generate path supplies ``completion`` after
-    wrapping the real cloud chat client with Organ 32, so no cloud model call
-    escapes the identity/constitution/stop/context boundary there.
+    ``completion`` is the turn's gated client
+    (``aios/application/turns/crag_model_calls.py``). There is no default:
+    until 2026-10-29 a caller that passed none got the cloud client itself,
+    and ``/api/v1/chat`` was such a caller (docs/ONE_GATEWAY.md).
     """
     prompt = (
         "Answer the question concisely and factually using only what you are "
@@ -283,14 +282,7 @@ def _crag_cloud_source(query: str, *, completion: Any | None = None) -> list[str
         f"Question: {query}"
     )
     try:
-        if completion is not None:
-            text = completion.complete(prompt).strip()
-        else:
-            client = get_gemini_client() or get_bedrock_client()
-            if client is None:
-                return []
-            response = client.chat([{"role": "user", "content": prompt}], tools=None)
-            text = str((response or {}).get("content", "")).strip()
+        text = completion.complete(prompt).strip()
     except Exception:  # noqa: BLE001 - a cloud miss must not break recall
         logger.warning("CRAG cloud source failed", exc_info=True)
         return []
@@ -316,12 +308,13 @@ def _crag_document_source(query: str) -> list[str]:
 
 
 def _crag_external_sources(*, cloud_source: Any | None = None) -> list:
-    """The enabled external corrective sources (each independently opt-in)."""
+    """The enabled external corrective sources (each independently opt-in).
+    The cloud source is the turn's gated one, or none at all."""
     sources: list = []
     if config.CRAG_DOCUMENTS:
         sources.append(_crag_document_source)
-    if config.CRAG_CLOUD:
-        sources.append(cloud_source or _crag_cloud_source)
+    if config.CRAG_CLOUD and cloud_source is not None:
+        sources.append(cloud_source)
     if config.CRAG_WEBSEARCH:
         sources.append(_crag_web_source)
     return sources
@@ -330,30 +323,20 @@ def _crag_external_sources(*, cloud_source: Any | None = None) -> list:
 _CRAG_JUDGE_NUMBER = re.compile(r"\d*\.?\d+")
 
 
-def _crag_llm_judge(
-    query: str, passage: str, *, completion: Any | None = None
-) -> float:
+def _crag_llm_judge(query: str, passage: str, *, completion: Any) -> float:
     """Return a local-model relevance score in [0,1].
 
-    ``completion`` is the authenticated Organ 32 adapter used by the real
-    generate path. Leaving it optional preserves the narrow legacy helper
-    contract used by direct CRAG unit tests; that compatibility seam is not the
-    production caller.
+    ``completion`` is the turn's gated client
+    (``aios/application/turns/crag_model_calls.py``). There is no default:
+    until 2026-10-29 a caller that passed none got the local model itself,
+    and ``/api/v1/chat`` was such a caller (docs/ONE_GATEWAY.md).
     """
     prompt = (
         "Rate how RELEVANT the passage is to answering the query, from "
         "0.0 (irrelevant) to 1.0 (directly answers it). Reply with ONLY "
         f"the number.\n\nQuery: {query}\nPassage: {passage}"
     )
-    if completion is not None:
-        text = completion.complete(prompt)
-    else:
-        response = get_ollama_client().chat(
-            [{"role": "user", "content": prompt}],
-            tools=None,
-            model=config.LLM_MODEL,
-        )
-        text = str((response or {}).get("content", ""))
+    text = completion.complete(prompt)
     match = _CRAG_JUDGE_NUMBER.search(str(text))
     if not match:
         raise ValueError(f"CRAG judge returned no score: {text!r}")
@@ -525,13 +508,9 @@ def _recall_memory(
                 hits,
                 upper=config.CRAG_UPPER,
                 lower=config.CRAG_LOWER,
-                judge=(
-                    crag_judge
-                    if config.CRAG_LLM_JUDGE and crag_judge is not None
-                    else _crag_llm_judge
-                    if config.CRAG_LLM_JUDGE
-                    else None
-                ),
+                # Only the turn's gated judge: with none, relevance is scored
+                # lexically and no model is asked.
+                judge=crag_judge if config.CRAG_LLM_JUDGE else None,
             )
             # Slice 3: on a low-confidence local recall, gather refined external
             # knowledge (privacy-gated, default off, only when a source is enabled).
@@ -541,11 +520,7 @@ def _recall_memory(
                 CragAction.AMBIGUOUS,
             ):
                 try:
-                    sources = (
-                        _crag_external_sources(cloud_source=crag_cloud_source)
-                        if crag_cloud_source is not None
-                        else _crag_external_sources()
-                    )
+                    sources = _crag_external_sources(cloud_source=crag_cloud_source)
                     ext_docs = external_retrieve(query, sources)
                     external_body = refine_context(query, ext_docs) if ext_docs else ""
                 except Exception as exc:  # noqa: BLE001 - external is additive

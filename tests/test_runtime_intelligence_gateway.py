@@ -77,9 +77,10 @@ def test_gateway_uses_cloud_only_when_policy_budget_and_secrets_allow(
     gateway = IntelligenceGateway(
         local_client=local,
         cloud_clients={"gemini": cloud},
+        context_store=_ContextSpy(),
         emergency_stop=UNGOVERNED_FIXTURE,
     )
-    contract = _mission(tmp_path)
+    contract = _mission(tmp_path, **_BOUND)
 
     response = gateway.request(
         request=gateway_request(contract, allow_cloud=True),
@@ -91,6 +92,82 @@ def test_gateway_uses_cloud_only_when_policy_budget_and_secrets_allow(
     assert response.text == "cloud plan"
     assert cloud.calls
     assert local.calls == []
+
+
+class _ContextSpy:
+    def __init__(self) -> None:
+        self.saved: list = []
+
+    def save(self, context) -> None:  # noqa: ANN001 - test spy
+        self.saved.append(context)
+
+
+#: A mission bound to an operator and a constitution: the only kind the
+#: gateway lets reason in the cloud.
+_BOUND = {
+    "operator_identity_digest": "a" * 64,
+    "constitution_digest": "b" * 64,
+}
+
+
+class _EntranceSpy(FakeReasoner):
+    """Records which gateway entrance each call ran inside."""
+
+    def __init__(self, text: str) -> None:
+        super().__init__(text)
+        self.entrances: list = []
+
+    def complete(self, prompt: str, *, system: str | None = None) -> str:
+        from aios.core.model_calls import current_entrance
+
+        self.entrances.append(current_entrance())
+        return super().complete(prompt, system=system)
+
+
+def test_an_unbound_mission_reasons_locally_through_an_entrance(
+    tmp_path: Path,
+) -> None:
+    """2026-10-29: an unbound mission's reasoning called the model directly,
+    outside every gateway entrance, and could reach the cloud. It now takes
+    the local-only compatibility entrance; no entrance carries an unbound call
+    to the cloud, so none is made (docs/ONE_GATEWAY.md)."""
+    local = _EntranceSpy("local plan")
+    cloud = _EntranceSpy("cloud plan")
+    gateway = IntelligenceGateway(
+        local_client=local,
+        cloud_clients={"gemini": cloud},
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+    contract = _mission(tmp_path)
+
+    response = gateway.request(
+        request=gateway_request(contract, allow_cloud=True),
+        contract=contract,
+    )
+
+    assert response.used_cloud is False
+    assert response.text == "local plan"
+    assert response.policy["cloud_error"] == "cloud reasoning needs a governed binding"
+    assert cloud.calls == []
+    assert local.entrances == ["complete_compatibility"]
+
+
+def test_a_bound_mission_reasons_through_the_route_entrance(tmp_path: Path) -> None:
+    local = _EntranceSpy("local plan")
+    cloud = _EntranceSpy("cloud plan")
+    gateway = IntelligenceGateway(
+        local_client=local,
+        cloud_clients={"gemini": cloud},
+        context_store=_ContextSpy(),
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+    for allow_cloud, spy in ((True, cloud), (False, local)):
+        contract = _mission(tmp_path, **_BOUND)
+        gateway.request(
+            request=gateway_request(contract, allow_cloud=allow_cloud),
+            contract=contract,
+        )
+        assert spy.entrances == ["route"]
 
 
 def test_gateway_falls_back_to_local_when_budget_blocks_cloud(

@@ -17,8 +17,15 @@ CALLS. Nothing counted the calls. This module does:
   calling site, pid. No prompt, no output, no key. The production scoreboard
   reads these files (``tools/production_readiness.py``, ``one_gateway``).
 
-It measures; it does not refuse. Refusing an ungated call is a later decision,
-taken once the inventory reads zero on real use.
+It also REFUSES (2026-10-29): a production call that came through no entrance
+raises :class:`UngatedModelCall` in :func:`observe`, before the adapter sends
+anything, and is recorded with ``"refused": true``. "Every model call through
+the one gateway" then holds by construction, not only as far as a drive
+reached (docs/ONE_GATEWAY.md). ``AIOS_GATEWAY_ENFORCE=0`` turns refusing off
+and leaves measuring on. Production means the scoreboard's rule,
+:func:`judged`: a call whose site is outside ``tools/`` and ``tests/``. A
+measurement tool's own process is not refused unless asked to
+(:func:`enforcing`); its calls are still recorded and judged.
 
 Scope is a context variable, so it follows the code that runs a model call,
 not the thread that happens to hold it: a provider call made in a worker
@@ -108,6 +115,52 @@ def current_entrance() -> Optional[str]:
     return _ENTRANCE.get()
 
 
+#: Where a measurement tool's own calls come from. They are reported, never
+#: judged; everything else is production, code outside the repository too.
+MEASUREMENT_SITES = ("tools/", "tests/")
+#: A measurement tool's own process: one of these run as the main program.
+MEASUREMENT_PROGRAMS = ("tools/", "scripts/")
+
+
+def judged(site: str) -> bool:
+    """Is a call from *site* production, so it must come through an entrance?
+    The one rule for the scoreboard and for refusing."""
+    return not str(site or "").startswith(MEASUREMENT_SITES)
+
+
+class UngatedModelCall(RuntimeError):
+    """A production model call that came through no gateway entrance, refused
+    before the adapter sent it."""
+
+
+def measurement_process() -> bool:
+    """Is this process a measurement tool (``tools/`` or ``scripts/`` run as
+    the main program)?"""
+    main = sys.modules.get("__main__")
+    path = getattr(main, "__file__", None)
+    rel = _relative(path) if path else None
+    return bool(rel) and str(rel).startswith(MEASUREMENT_PROGRAMS)
+
+
+def enforcing() -> bool:
+    """Are ungated production calls refused in this process?
+
+    ``AIOS_GATEWAY_ENFORCE`` unset: everywhere except a measurement tool's own
+    process. Several tools hand a raw client to production code on purpose
+    (the payoff harness's teacher, the clerk benchmark); there, refusing would
+    break the measurement and protect nothing, and the calls are still
+    recorded and judged. ``1``: there too. ``0``: nowhere (still recorded).
+    """
+    from aios import config
+
+    setting = str(getattr(config, "GATEWAY_ENFORCE", "") or "").strip().lower()
+    if setting in ("0", "false", "no", "off"):
+        return False
+    if setting in ("1", "true", "yes", "on"):
+        return True
+    return not measurement_process()
+
+
 def _relative(filename: str) -> Optional[str]:
     try:
         return Path(filename).resolve().relative_to(_REPO_ROOT).as_posix()
@@ -174,25 +227,40 @@ def _prune(directory: Path, now: datetime) -> None:
 
 
 def observe(provider: str, model: str, method: str) -> None:
-    """Record one model request about to leave the process."""
+    """Record one model request about to leave the process, and refuse it
+    (:class:`UngatedModelCall`) when it is production and came through no
+    entrance, while enforcing."""
     now = datetime.now(timezone.utc)
     entrance = _ENTRANCE.get()
     stack = calling_stack()
     site = stack[0] if stack else "outside-repo"
+    refused = entrance is None and judged(site) and enforcing()
+    record: dict[str, Any] = {
+        "ts": now.isoformat(),
+        "provider": provider,
+        "model": model,
+        "method": method,
+        "entrance": entrance,
+        "site": site,
+        "stack": stack,
+        "pid": os.getpid(),
+    }
+    if refused:
+        record["refused"] = True
     with _LOCK:
         _COUNTS[(provider, model, method, entrance, site)] += 1
-        _append(
-            {
-                "ts": now.isoformat(),
-                "provider": provider,
-                "model": model,
-                "method": method,
-                "entrance": entrance,
-                "site": site,
-                "stack": stack,
-                "pid": os.getpid(),
-            },
-            now,
+        _append(record, now)
+    if refused:
+        _LOGGER.error(
+            "model call refused: %s asked %s for a model through no gateway "
+            "entrance (AIOS_GATEWAY_ENFORCE)",
+            site,
+            provider,
+        )
+        raise UngatedModelCall(
+            f"{site} asked {provider} for a model call through no gateway "
+            "entrance; it was refused before it left (docs/ONE_GATEWAY.md, "
+            "AIOS_GATEWAY_ENFORCE)"
         )
 
 
@@ -234,12 +302,18 @@ def read_ledger(data_dir: Path, since: datetime) -> list[dict[str, Any]]:
 
 
 __all__ = [
+    "MEASUREMENT_PROGRAMS",
+    "MEASUREMENT_SITES",
     "RETENTION",
+    "UngatedModelCall",
     "calling_site",
     "calling_stack",
     "counts",
     "current_entrance",
+    "enforcing",
     "gateway_scope",
+    "judged",
+    "measurement_process",
     "observe",
     "read_ledger",
     "scoped_iter",

@@ -298,7 +298,7 @@ def _patch_recall_external(monkeypatch, hits, *, sources):
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
     monkeypatch.setattr(config, "CRAG_EXTERNAL", True)
-    monkeypatch.setattr(turn_pipeline, "_crag_external_sources", lambda: sources)
+    monkeypatch.setattr(turn_pipeline, "_crag_external_sources", lambda **_: sources)
     return main
 
 
@@ -373,57 +373,75 @@ def test_an_unverified_hit_never_reaches_crag_or_the_prompt(monkeypatch) -> None
 # ── Local-LLM judge (opt-in, AIOS_CRAG_LLM_JUDGE) ───────────────────────────
 
 
-class _FakeOllama:
+class _FakeCompletion:
+    """The judge's gated completion client (crag_model_calls builds the real
+    one); the judge has no other way to reach a model."""
+
     def __init__(self, reply: str) -> None:
         self._reply = reply
 
-    def chat(self, messages, *, tools=None, model=None):
-        return {"content": self._reply}
+    def complete(self, prompt: str, *, system=None, json_mode=False) -> str:
+        return self._reply
 
 
-def test_crag_llm_judge_parses_score(monkeypatch) -> None:
-    from aios.api import main, turn_pipeline
+def test_crag_llm_judge_parses_score() -> None:
+    from aios.api import main
 
-    monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("0.82"))
-    assert main._crag_llm_judge("q", "passage") == 0.82
-
-
-def test_crag_llm_judge_extracts_and_clamps(monkeypatch) -> None:
-    from aios.api import main, turn_pipeline
-
-    monkeypatch.setattr(
-        turn_pipeline, "get_ollama_client", lambda: _FakeOllama("I'd say 1.5 relevance")
-    )
-    assert main._crag_llm_judge("q", "p") == 1.0  # parsed + clamped to [0,1]
+    completion = _FakeCompletion("0.82")
+    assert main._crag_llm_judge("q", "passage", completion=completion) == 0.82
 
 
-def test_crag_llm_judge_raises_on_unparseable(monkeypatch) -> None:
+def test_crag_llm_judge_extracts_and_clamps() -> None:
+    from aios.api import main
+
+    completion = _FakeCompletion("I'd say 1.5 relevance")
+    # parsed + clamped to [0,1]
+    assert main._crag_llm_judge("q", "p", completion=completion) == 1.0
+
+
+def test_crag_llm_judge_raises_on_unparseable() -> None:
     import pytest
 
-    from aios.api import main, turn_pipeline
+    from aios.api import main
 
-    monkeypatch.setattr(
-        turn_pipeline, "get_ollama_client", lambda: _FakeOllama("no number at all")
-    )
+    completion = _FakeCompletion("no number at all")
     with pytest.raises(Exception):  # noqa: B017 - evaluate_retrieval catches & ignores
-        main._crag_llm_judge("q", "p")
+        main._crag_llm_judge("q", "p", completion=completion)
 
 
-def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
-    # A judge verdict of 0.0 caution-clamps a deterministically-strong hit down to
-    # INCORRECT, so the recall is dropped — the judge catches a false-positive.
+def _judged_recall(monkeypatch, verdict: str):
     from aios import config
     from aios.api import main, turn_pipeline
 
-    hits = [_Hit("strongly worded but actually off-topic note here", faiss=0.95)]
+    hits = [
+        _Hit(
+            "strongly worded but actually off-topic note here",
+            faiss=0.95,
+            verification_status="verified",
+        )
+    ]
     monkeypatch.setattr(turn_pipeline, "hybrid_search", lambda _q, top_k=3, **_: hits)
-    monkeypatch.setattr(turn_pipeline, "get_ollama_client", lambda: _FakeOllama("0.0"))
     monkeypatch.setattr(config, "CRAG", True)
     monkeypatch.setattr(config, "CRAG_UPPER", 0.6)
     monkeypatch.setattr(config, "CRAG_LOWER", 0.2)
     monkeypatch.setattr(config, "CRAG_LLM_JUDGE", True)
     monkeypatch.setattr(config, "CRAG_EXTERNAL", False)
-    assert main._recall_memory("some query", principal=None) is None
+    completion = _FakeCompletion(verdict)
+    return main._recall_memory(
+        "some query",
+        crag_judge=lambda query, passage: main._crag_llm_judge(
+            query, passage, completion=completion
+        ),
+        principal=None,
+    )
+
+
+def test_recall_llm_judge_can_drop_a_strong_local_hit(monkeypatch) -> None:
+    # A judge verdict of 0.0 caution-clamps a deterministically-strong hit down to
+    # INCORRECT, so the recall is dropped — the judge catches a false-positive.
+    assert _judged_recall(monkeypatch, "0.0") is None
+    # Positive control: the same hit, judged relevant, reaches the prompt.
+    assert _judged_recall(monkeypatch, "1.0") is not None
 
 
 # ── Threshold calibration harness (tune AIOS_CRAG_UPPER/LOWER from real data) ─

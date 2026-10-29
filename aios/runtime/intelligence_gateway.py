@@ -7,7 +7,10 @@ from typing import Any, Literal, Protocol
 from pydantic import BaseModel, ConfigDict, Field
 
 from aios import config
-from aios.application.intelligence.gateway import route_intelligence_request
+from aios.application.intelligence.gateway import (
+    complete_compatibility_intelligence_request,
+    route_intelligence_request,
+)
 from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
 from aios.core.llm import LLMClient, OllamaClient
 from aios.runtime.budget_guard import BudgetGuard
@@ -150,28 +153,30 @@ class IntelligenceGateway:
             )
         policy["universal_gateway"] = governed
 
+        if cloud_allowed and not governed:
+            # No entrance carries an unbound call to the cloud: the only
+            # unbound one, compatibility, is local-only. So an unbound mission
+            # reasons locally (docs/ONE_GATEWAY.md, 2026-10-29).
+            cloud_allowed = False
+            policy["cloud_allowed"] = False
+            policy["cloud_error"] = "cloud reasoning needs a governed binding"
         if cloud_allowed and self.cloud_clients:
             provider = self._choose_cloud_provider(contract)
             client = self.cloud_clients.get(provider)
             if client is not None:
                 try:
-                    if governed:
-                        raw, context_digest = self._complete_via_universal(
-                            request,
-                            contract,
-                            client,
-                            provider,
-                            "cloud",
-                            operator_identity_digest,
-                            constitution_digest,
-                        )
-                        policy.setdefault("representative_context_digests", []).append(
-                            context_digest
-                        )
-                    else:
-                        raw = client.complete(
-                            safe_prompt, system=self.PLAN_SYSTEM_PROMPT
-                        )
+                    raw, context_digest = self._complete_via_universal(
+                        request,
+                        contract,
+                        client,
+                        provider,
+                        "cloud",
+                        operator_identity_digest,
+                        constitution_digest,
+                    )
+                    policy.setdefault("representative_context_digests", []).append(
+                        context_digest
+                    )
                     text = self.secret_policy.redact_text(raw)
                     self.budget_guard.record_cloud_usage(
                         contract,
@@ -205,8 +210,21 @@ class IntelligenceGateway:
                     context_digest
                 )
             else:
-                raw = self.local_client.complete(
-                    safe_prompt, system=self.PLAN_SYSTEM_PROMPT
+                # Unbound: the local-only compatibility entrance, which checks
+                # the stop and redacts. Until 2026-10-29 this called the model
+                # directly, outside every entrance (docs/ONE_GATEWAY.md).
+                local_client = self.local_client
+                raw = complete_compatibility_intelligence_request(
+                    request_id=(
+                        f"worker:{request.mission_id}:{request.worker_id}:"
+                        f"{request.purpose}"
+                    ),
+                    target="local",
+                    model_call=lambda: local_client.complete(
+                        safe_prompt, system=self.PLAN_SYSTEM_PROMPT
+                    ),
+                    emergency_stop=self.emergency_stop,
+                    secret_policy=self.secret_policy,
                 )
         except Exception as exc:  # noqa: BLE001 - normalize provider failures
             raise IntelligenceGatewayError(

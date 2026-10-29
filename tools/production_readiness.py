@@ -492,8 +492,12 @@ def clerk_one_gateway(world: World) -> Gate:
     that made it: production code (``aios/``) must have come through an
     entrance; a measurement tool's own direct calls (``tools/``, ``tests/``)
     are reported, not judged -- a production path a tool drives is still
-    judged, by the production frame that called the model.
+    judged, by the production frame that called the model. The rule is
+    ``model_calls.judged``, the one the adapters refuse by. A refused call
+    never left, but its code still passes no entrance, so it fails the gate
+    too, named apart.
     """
+    from aios.core.model_calls import judged as is_production
     from aios.core.model_calls import read_ledger
 
     records = read_ledger(world.data_dir, world.now - GATEWAY_WINDOW)
@@ -514,36 +518,46 @@ def clerk_one_gateway(world: World) -> Gate:
             ERROR,
             f"{len(damaged)} unreadable ledger line(s): calls that cannot be judged",
         )
-    judged = [
-        r
-        for r in records
-        if not str(r.get("site", "")).startswith(("tools/", "tests/"))
-    ]
+    judged = [r for r in records if is_production(str(r.get("site", "")))]
     instruments = len(records) - len(judged)
     ungated: dict[str, int] = {}
+    refused: dict[str, int] = {}
     entrances: dict[str, int] = {}
     for record in judged:
         entrance = record.get("entrance")
+        site = str(record.get("site") or "?")
         if entrance:
             entrances[entrance] = entrances.get(entrance, 0) + 1
+        elif record.get("refused"):
+            refused[site] = refused.get(site, 0) + 1
         else:
-            site = str(record.get("site") or "?")
             ungated[site] = ungated.get(site, 0) + 1
     tail = (
         f"; {instruments} more from measurement tools, reported not judged"
         if instruments
         else ""
     )
-    if ungated:
-        worst = sorted(ungated.items(), key=lambda kv: -kv[1])[:5]
+    if ungated or refused:
+        parts = []
+        if ungated:
+            worst = sorted(ungated.items(), key=lambda kv: -kv[1])[:5]
+            parts.append(
+                f"{sum(ungated.values())} of {len(judged)} model calls in {days} "
+                "days passed no gateway entrance: "
+                + ", ".join(f"{site} x{n}" for site, n in worst)
+            )
+        if refused:
+            worst = sorted(refused.items(), key=lambda kv: -kv[1])[:5]
+            parts.append(
+                f"{sum(refused.values())} were refused before they left, their "
+                "code passing no entrance: "
+                + ", ".join(f"{site} x{n}" for site, n in worst)
+            )
         return Gate(
             "clerk",
             "one_gateway",
             FAIL,
-            f"{sum(ungated.values())} of {len(judged)} model calls in {days} days "
-            f"passed no gateway entrance: "
-            + ", ".join(f"{site} x{n}" for site, n in worst)
-            + tail,
+            "; ".join(parts) + tail,
             next_step="route each site through an Organ 32 entrance",
         )
     if not judged:

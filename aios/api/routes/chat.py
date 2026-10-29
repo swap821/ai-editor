@@ -63,6 +63,7 @@ from aios.application.turns import (
     TurnCoordinator,
     production_handlers,
 )
+from aios.application.turns.crag_model_calls import crag_model_calls
 from aios.core import (
     router,
     telemetry,
@@ -88,6 +89,7 @@ from fastapi import (
     Request,
 )
 from fastapi.responses import StreamingResponse
+from functools import partial
 from typing import (
     Any,
     Optional,
@@ -229,6 +231,15 @@ def chat(
     # supplies validated input plus injected infrastructure callbacks.
     from aios.application.turns.conversation_pipeline import stream_conversation
 
+    crag_judge, crag_cloud_source = crag_model_calls(
+        turn_id=ctx.turn_id,
+        principal=principal,
+        local_provider=client,
+        cloud_provider=gemini or bedrock,
+        context_store=representative_context_store,
+        emergency_stop=emergency_stop,
+    )
+
     task = infer_task(user_text)
     turn = TurnCoordinator(
         deps=RuntimeDeps(
@@ -280,7 +291,14 @@ def chat(
                 "authenticated_representation": authenticated_representation,
                 "index_turn": _index_turn,
                 "operator_facts_block": _operator_facts_block,
-                "recall_memory": _recall_memory,
+                # CRAG's judge and cloud source are model calls: this route
+                # passes them gated, as /api/generate does. With none passed,
+                # recall used to call the model itself (docs/ONE_GATEWAY.md).
+                "recall_memory": partial(
+                    _recall_memory,
+                    crag_judge=crag_judge,
+                    crag_cloud_source=crag_cloud_source,
+                ),
                 # Plan Phase 4c: whose turn this is; None (unauthenticated)
                 # recalls no learned row and records unattributed ones.
                 "principal_id": (
