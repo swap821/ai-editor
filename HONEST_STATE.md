@@ -66,9 +66,10 @@ became a reflex that served a request with no model call at all.**
   - **L4, compiled:** he activated it, and the activation is signed. The next request's sweep compiled it into playbook 17 of his daily store (journal event 33).
   - **L5, served:** in that same request the reflex served the turn. The verify passed STRONG; no approval was asked and no interpreter or planner ran. **Zero model calls:** his model-call ledger stayed at 195 lines.
   - **So a reflex learned on his real code now serves his daily turns,** under the scope those turns run in.
-  - **Recorded, not yet explained.** On the first leg of each Stage A turn, the tool agent's failover tried Bedrock before the local model, five attempts in all.
+  - **Recorded, and explained.** On the first leg of each Stage A turn, the tool agent's failover tried Bedrock before the local model, five attempts in all.
     - Each attempt failed with "Unable to locate credentials" before sending, because this backend loads no AWS key. The local model answered.
-    - With AWS keys loaded, those calls would have gone to the cloud, after the privacy filter.
+    - **The cause is the operator's own setting.** The backend inherited `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding` from his user-wide Windows environment. That makes an `auto` coding turn cloud-eligible, and the router ranks the Bedrock models above the local one.
+    - With AWS keys loaded, those calls would go to the cloud, after the privacy filter. Setting it to `""` in the launch environment keeps `auto` local-only. That is his choice.
 - **The learning chain, end to end on real code** (2026-10-28, `docs/learning/organic_reflex_proof_2026-10-28/`).
   - **L3, learned:** three live turns, answered by the local model through the real API, ran `pytest ai-editor-selfcorpus/tests/test_relevance.py -q`. That is 4 real tests of `aios/memory/relevance.py`, each run a STRONG pass under the operator's exact approval. The library made the new arc review-ready, and nothing promoted itself.
   - **L4, compiled:** the operator activated it, and the activation is signed. The next request's sweep compiled it into playbook 17. This is the first compile ever observed from an operator-activated skill (journal event 33).
