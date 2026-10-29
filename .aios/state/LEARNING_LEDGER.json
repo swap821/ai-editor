@@ -164,9 +164,17 @@
           "commit_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
           "proof_level": "live",
           "organic": true
+        },
+        {
+          "description": "ORGANIC, ON THE DAILY BACKEND (the second organic L3; the first on his daily system). 2026-10-29 10:01-10:08 UTC: three live turns (POST /api/generate, the operator's session, modelId auto, the local qwen2.5-coder:7b answering) each asked for the exact command, the operator approved it each time, and each ran STRONG (13 passed, 0 failed, exit 0). InstitutionalSkillAdapter.record_attempt recorded them against a NEW arc (arc-8e7227ed...@1, source=live, principal = the operator): 1, 2, 3 ok / 0 failed, review-ready after the third (confidence 0.9). His first approval was recorded as an exact-command decision (10:05:42 UTC). Also recorded, not yet explained: on the first leg of each turn the tool agent's failover tried Bedrock before the local model (5 attempts: mistral-large-3 three times, claude-3-5-sonnet and nova-pro once each). Every one failed 'Unable to locate credentials' before sending, because this backend loads no AWS key, and the local model answered; all are in the model-call ledger. Setup, stated in full: the operator's DAILY backend -- his code at master cd5faf54 (the backend started after its checkout moved there), his keys, his own store (not a copy), on :8000 -- with scope roots training_ground;lab;work and every forge turn bound to work/ai-editor by AIOS_TASK_SCOPE (#554); the requests carried no scopeRoot, so the launch default bound them exactly as it binds his own turns, and commands ran from work/. Corpus: work/ai-editor, his work checkout, clean at cd5faf54. Sandbox image aios-verify:83b20d9b8dbd (same flags: no network, read-only, caps dropped). Replay of approved commands on. What was learned is filed under his daily workspace and serves his daily turns. The task was chosen to earn the faculty: `pytest ai-editor/tests/test_gateway_enforcement.py -q`, 13 real tests of the gateway enforcement shipped in #552, never a skill or a reflex before. Playbook 17 and journal event 33 are ids in his daily store; the 2026-10-28 proof's playbook 17 and event 33 were in the proof backend's copy of it.",
+          "command": "python docs/learning/organic_reflex_proof_2026-10-29_daily/daily_backend_up.py.txt LIVE C:\\gm (the operator's daily backend; exact bytes as run, stored as .txt), then, by the operator: python docs/learning/organic_reflex_proof_2026-10-29_daily/prove_organic_reflex_daily.py.txt (exact bytes as run), with the activation in between by python tools/activate_skills.py --activate SKILL_ID@VERSION",
+          "artifact": "docs/learning/organic_reflex_proof_2026-10-29_daily/organic_proof_daily.json",
+          "commit_sha": "cd5faf54c64914d884c2e6fc3012079cccf45c67",
+          "proof_level": "live",
+          "organic": true
         }
       ],
-      "last_verified_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
+      "last_verified_sha": "cd5faf54c64914d884c2e6fc3012079cccf45c67",
       "na_by_design": {
         "LC4": "Skill state is a mutable counter row, not a journal. The append-only record of the attempts that produced it is the self-corpus trail. Referent: .aios/audit/reverse-engineering-runs.jsonl (gitignored; its frozen, byte-identical copy is committed at docs/learning/trails/reverse-engineering-runs.jsonl)"
       },
@@ -234,9 +242,17 @@
           "commit_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
           "proof_level": "live",
           "organic": true
+        },
+        {
+          "description": "ORGANIC, ON THE DAILY BACKEND (the second compile from an operator-activated skill). 2026-10-29 10:12:48 UTC: the operator activated the arc above with tools/activate_skills.py (capability-backed route, HTTP 200, state active, signed under the live key), and the next request's sweep compiled it into playbook 17 (10:12:49 UTC). The learning journal recorded it: learning_events 33, L4 compiled, subject 17, source 'operator-activated library skill'. Setup, stated in full: the operator's DAILY backend -- his code at master cd5faf54 (the backend started after its checkout moved there), his keys, his own store (not a copy), on :8000 -- with scope roots training_ground;lab;work and every forge turn bound to work/ai-editor by AIOS_TASK_SCOPE (#554); the requests carried no scopeRoot, so the launch default bound them exactly as it binds his own turns, and commands ran from work/. Corpus: work/ai-editor, his work checkout, clean at cd5faf54. Sandbox image aios-verify:83b20d9b8dbd (same flags: no network, read-only, caps dropped). Replay of approved commands on. What was learned is filed under his daily workspace and serves his daily turns. The task was chosen to earn the faculty: `pytest ai-editor/tests/test_gateway_enforcement.py -q`, 13 real tests of the gateway enforcement shipped in #552, never a skill or a reflex before. Playbook 17 and journal event 33 are ids in his daily store; the 2026-10-28 proof's playbook 17 and event 33 were in the proof backend's copy of it.",
+          "command": "python docs/learning/organic_reflex_proof_2026-10-29_daily/daily_backend_up.py.txt LIVE C:\\gm (the operator's daily backend; exact bytes as run, stored as .txt), then, by the operator: python docs/learning/organic_reflex_proof_2026-10-29_daily/prove_organic_reflex_daily.py.txt (exact bytes as run), with the activation in between by python tools/activate_skills.py --activate SKILL_ID@VERSION",
+          "artifact": "docs/learning/organic_reflex_proof_2026-10-29_daily/organic_proof_daily.json",
+          "commit_sha": "cd5faf54c64914d884c2e6fc3012079cccf45c67",
+          "proof_level": "live",
+          "organic": true
         }
       ],
-      "last_verified_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
+      "last_verified_sha": "cd5faf54c64914d884c2e6fc3012079cccf45c67",
       "na_by_design": {},
       "live_path_symbols": [
         "Cerebellum"
@@ -322,9 +338,17 @@
           "commit_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
           "proof_level": "live",
           "organic": true
+        },
+        {
+          "description": "ORGANIC, ON THE DAILY BACKEND (a track record: the second organic L5, the first on his daily system). 2026-10-29 10:13 UTC, in the same request: playbook 17 matched (cerebellum_match), replayed the verify STRONG (13 passed, 0 failed, exit 0), cerebellum_done with replay count 0 -> 1, the turn finished; no approval asked, no interpreter or planner frame, and ZERO model calls in the whole request (his model-call ledger stayed at 195 lines; refused calls would have counted). The request before it was refused 401 at the auth layer, never reaching a turn: Stage A had outlasted the 900 s reauthentication window, and the probe session logged in again (aios/probe_session.py). Setup, stated in full: the operator's DAILY backend -- his code at master cd5faf54 (the backend started after its checkout moved there), his keys, his own store (not a copy), on :8000 -- with scope roots training_ground;lab;work and every forge turn bound to work/ai-editor by AIOS_TASK_SCOPE (#554); the requests carried no scopeRoot, so the launch default bound them exactly as it binds his own turns, and commands ran from work/. Corpus: work/ai-editor, his work checkout, clean at cd5faf54. Sandbox image aios-verify:83b20d9b8dbd (same flags: no network, read-only, caps dropped). Replay of approved commands on. What was learned is filed under his daily workspace and serves his daily turns. The task was chosen to earn the faculty: `pytest ai-editor/tests/test_gateway_enforcement.py -q`, 13 real tests of the gateway enforcement shipped in #552, never a skill or a reflex before. Playbook 17 and journal event 33 are ids in his daily store; the 2026-10-28 proof's playbook 17 and event 33 were in the proof backend's copy of it.",
+          "command": "python docs/learning/organic_reflex_proof_2026-10-29_daily/daily_backend_up.py.txt LIVE C:\\gm (the operator's daily backend; exact bytes as run, stored as .txt), then, by the operator: python docs/learning/organic_reflex_proof_2026-10-29_daily/prove_organic_reflex_daily.py.txt (exact bytes as run), with the activation in between by python tools/activate_skills.py --activate SKILL_ID@VERSION",
+          "artifact": "docs/learning/organic_reflex_proof_2026-10-29_daily/organic_proof_daily.json",
+          "commit_sha": "cd5faf54c64914d884c2e6fc3012079cccf45c67",
+          "proof_level": "live",
+          "organic": true
         }
       ],
-      "last_verified_sha": "de88e7dd9844b14552739f7d5abfd12d1321e345",
+      "last_verified_sha": "cd5faf54c64914d884c2e6fc3012079cccf45c67",
       "na_by_design": {},
       "live_path_symbols": [
         "Cerebellum"

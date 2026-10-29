@@ -122,6 +122,15 @@ below:
 $env:AIOS_TASK_SCOPE = "work\ai-editor"
 ```
 
+**In use, 2026-10-29.** The operator's daily backend runs with that line set.
+A reflex was earned and served under it, on his own store, as his own turns
+are bound:
+- three approved turns ran `pytest ai-editor/tests/test_gateway_enforcement.py -q`;
+- he activated the skill;
+- the next request was served by the reflex with zero model calls.
+
+The evidence is in `docs/learning/organic_reflex_proof_2026-10-29_daily/`.
+
 ## Measured, 2026-10-28 (master `c62e85ef`)
 
 All of these ran with the settings above, through the backend's own `deps.get_executor().execute_approved`, the path a human-approved command takes.

@@ -58,6 +58,17 @@ became a reflex that served a request with no model call at all.**
   - The run: 85 never-practised targets that a lesson about their code exists for, on D12's store snapshot, code and student. Only the recall rule differs. It takes about 1.5 days of the laptop.
   - Stated before it runs: it can only see a large effect (about 22 targets better against 8 worse), and D12's same-module targets leaned the other way (9 vs 15).
 - **Skills.** On 2026-10-21 the operator activated three skills (41, 49, 79) and signed them (#529). The census admits 3 of 3.
+- **The learning chain again, on the operator's daily system** (2026-10-29, `docs/learning/organic_reflex_proof_2026-10-29_daily/`). This makes a track record, not a first. It differs from 10-28 in one way: it ran on his daily backend, with his own store, rather than on a proof backend with a copied store.
+  - **The setup.** His daily backend ran master `cd5faf54` and was started after its checkout moved there.
+    - Every forge turn was bound to his work checkout `work/ai-editor` by `AIOS_TASK_SCOPE` (#554). The requests named no scope, so they were bound exactly as his own turns are.
+    - The sandbox image was `aios-verify`. Replay of approved commands was on.
+  - **L3, learned:** three live turns ran `pytest ai-editor/tests/test_gateway_enforcement.py -q`, 13 real tests of the enforcement shipped in #552. The local `qwen2.5-coder:7b` answered. Each turn was a STRONG pass, and he approved the exact command each time. The library made the new arc review-ready.
+  - **L4, compiled:** he activated it, and the activation is signed. The next request's sweep compiled it into playbook 17 of his daily store (journal event 33).
+  - **L5, served:** in that same request the reflex served the turn. The verify passed STRONG; no approval was asked and no interpreter or planner ran. **Zero model calls:** his model-call ledger stayed at 195 lines.
+  - **So a reflex learned on his real code now serves his daily turns,** under the scope those turns run in.
+  - **Recorded, not yet explained.** On the first leg of each Stage A turn, the tool agent's failover tried Bedrock before the local model, five attempts in all.
+    - Each attempt failed with "Unable to locate credentials" before sending, because this backend loads no AWS key. The local model answered.
+    - With AWS keys loaded, those calls would have gone to the cloud, after the privacy filter.
 - **The learning chain, end to end on real code** (2026-10-28, `docs/learning/organic_reflex_proof_2026-10-28/`).
   - **L3, learned:** three live turns, answered by the local model through the real API, ran `pytest ai-editor-selfcorpus/tests/test_relevance.py -q`. That is 4 real tests of `aios/memory/relevance.py`, each run a STRONG pass under the operator's exact approval. The library made the new arc review-ready, and nothing promoted itself.
   - **L4, compiled:** the operator activated it, and the activation is signed. The next request's sweep compiled it into playbook 17. This is the first compile ever observed from an operator-activated skill (journal event 33).
