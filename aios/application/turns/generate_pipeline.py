@@ -26,6 +26,7 @@ from aios.agents.reflection_agent import ReflectionAgent
 from aios.core.alignment import AlignmentInterpreter
 from aios.core import turn_failures
 from aios.application.turns.crag_model_calls import crag_model_calls
+from aios.application.turns.task_scope import task_scope_guidance
 from aios.application.turns.turn_context import TurnContext
 from aios.application.turns.turn_coordinator import RuntimeDeps
 from aios.domain.intelligence.representative_context import (
@@ -685,6 +686,11 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     #: words, not read back from a learning store, so they keep the system
     #: channel as before.
     guidance_parts: list[str] = []
+    # A turn confined to one directory says so, and where its commands run:
+    # the tool descriptions name only training_ground/.
+    _scope_note = task_scope_guidance()
+    if _scope_note:
+        guidance_parts.append(_scope_note)
     alignment = None
     # Hoisted above the (conditional) alignment block: the plan stage below
     # must be able to read it even when AIOS_INTERPRET_ALIGNMENT is off.

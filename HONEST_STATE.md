@@ -7,6 +7,13 @@ the commit they were measured on). The whole story, from the first commit, is
 
 ## State on 2026-10-29 (measured on branch `feat/gateway-universal`, off master `692c5c78`)
 
+- **A forge turn can be confined to one project** (`docs/operations/WORK_SCOPE.md`, "Per-task binding").
+  - **What it is:** the frozen scope lock's narrow-only binding is now wired into `/api/generate`. The client declares it per turn (`scopeRoot`) or the launch environment does (`AIOS_TASK_SCOPE`), never the model.
+  - **Refused, never ignored:** a scope the lock would not honour is a 400.
+  - **Proof:** the same model command pauses for approval in one bound scope and is a scope violation in another. That proves the binding reaches the checks inside the streamed turn.
+  - **What it narrows:** creating, editing and running commands. Reads stay project-wide.
+  - **What it changes:** approvals and reflexes earned in a bound turn apply only to turns bound the same way. The model is told its scope and where its commands run.
+
 - **The one gateway is enforced, not only measured** (`docs/ONE_GATEWAY.md`, "2026-10-29"). The operator asked for it to be proven.
   - **Why enforcement:** a drive only shows the paths it reached, and real use had already found one it missed. Now an ungated production call is refused before the adapter sends it.
   - **The proof, in three tested steps:**
@@ -81,7 +88,7 @@ became a reflex that served a request with no model call at all.**
   - It does so in a separate checkout, `work/ai-editor` on branch `gagos/work`, never the live one.
   - It uses a pinned verify image (`Dockerfile.verify`) and a 120 s command budget; the default budget stays 30 s.
   - Measured through the backend's own executor: tests in `work/ai-editor` pass, and they import that checkout's code. The live checkout's tests stay RED even when approved.
-  - Earlier skills and approvals no longer match, because the scope identity changed. Per-task scope binding is still unused: `work/` is a global root.
+  - Earlier skills and approvals no longer match, because the scope identity changed. Per-task scope binding is still unused: `work/` is a global root. *(Superseded 2026-10-29: a turn can be bound; see "State on 2026-10-29".)*
 - **The gateway was not universal in daily use, and the inventory had not seen it** (`docs/ONE_GATEWAY.md`, "2026-10-28").
   - The operator's model-call ledger held 163 calls. 13 production calls passed no gateway entrance, every one from the route picker (`aios/core/router_wiring.py`). That is the small local model that prefers a route when policy allows two or more.
   - Its prompt carries no user text, so nothing private left. But it skipped the emergency stop and redaction.

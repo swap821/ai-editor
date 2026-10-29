@@ -61,6 +61,12 @@ from aios.application.turns import (
     TurnCoordinator,
     production_handlers,
 )
+from aios.application.turns.task_scope import (
+    TaskScopeError,
+    bound_preparer,
+    bound_stream_factory,
+    resolve_task_scope,
+)
 from aios.core.alignment import AlignmentInterpreter
 from aios.core.autonomy import AutonomyLedger
 from aios.core.bedrock import BedrockClient
@@ -164,6 +170,14 @@ def generate(
         emergency_stop, boundary="api-main"
     )
 
+    # Per-task scope (aios/application/turns/task_scope.py): declared by the
+    # client or the launch environment, never by the model, and refused when
+    # it cannot be honoured rather than run unbound.
+    try:
+        task_scope = resolve_task_scope(req.scope_root)
+    except TaskScopeError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     chat_messages = _to_chat_messages(req.messages)
     user_text = _latest_user(chat_messages)
     # Agentic generation can execute tools and therefore must be bound to the
@@ -229,12 +243,16 @@ def generate(
         stream_generate,
     )
 
+    stream_factory, preparer = stream_generate, prepare_generate_state
+    if task_scope is not None:
+        # Prepared inside the binding (the reflex match reads the scope), and
+        # streamed with it bound step by step: each step may run on another
+        # thread-pool thread.
+        stream_factory = bound_stream_factory(stream_generate, task_scope)
+        preparer = bound_preparer(prepare_generate_state, task_scope)
     turn = TurnCoordinator(
         deps=runtime,
-        handlers=production_handlers(
-            stream_generate,
-            preparer=prepare_generate_state,
-        ),
+        handlers=production_handlers(stream_factory, preparer=preparer),
     ).coordinate(ctx)
     return StreamingResponse(
         turn.events,

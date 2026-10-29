@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `0baf8d22bc26e16b15d47a43b41dcb08e8540fb92042b8042ea06bb666fc10e4`
+- **Source ledger sha256:** `6f2af05815acff6be73bcb86a57d5d1665f4c2a48303c3b7c6d240333b868bd3`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -826,52 +826,52 @@ re-audits recorded above.
 | 3 | Secret Scanner | `SecretScannerAuthority` | `8848c35fd512` | live |
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `8848c35fd512` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `8848c35fd512` | live |
-| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `356e9cda0953` | live |
-| 7 | Policy Kernel | `PolicyKernelAuthority` | `356e9cda0953` | live |
-| 8 | Action Broker | `ActionBrokerAuthority` | `356e9cda0953` | live |
-| 9 | Exact Capability Authority | `CapabilityAuthority` | `356e9cda0953` | live |
-| 10 | Mission Authority | `MissionAuthority` | `356e9cda0953` | live |
-| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `356e9cda0953` | live |
-| 12 | Worker Foundry | `WorkerFoundryAuthority` | `356e9cda0953` | live |
-| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `356e9cda0953` | live |
-| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `356e9cda0953` | live |
-| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `356e9cda0953` | live |
-| 16 | Promotion Authority (construction) | `PromotionAuthority` | `356e9cda0953` | live |
-| 17 | Cortex Observation Bus | `CortexBusAuthority` | `356e9cda0953` | live |
-| 18 | Memory Authority (construction) | `MemoryAuthority` | `356e9cda0953` | live |
-| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `356e9cda0953` | live |
-| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `356e9cda0953` | live |
-| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `356e9cda0953` | live |
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `a5b8f7abbc54` | live |
+| 7 | Policy Kernel | `PolicyKernelAuthority` | `a5b8f7abbc54` | live |
+| 8 | Action Broker | `ActionBrokerAuthority` | `a5b8f7abbc54` | live |
+| 9 | Exact Capability Authority | `CapabilityAuthority` | `a5b8f7abbc54` | live |
+| 10 | Mission Authority | `MissionAuthority` | `a5b8f7abbc54` | live |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `a5b8f7abbc54` | live |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | `a5b8f7abbc54` | live |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `a5b8f7abbc54` | live |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `a5b8f7abbc54` | live |
+| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `a5b8f7abbc54` | live |
+| 16 | Promotion Authority (construction) | `PromotionAuthority` | `a5b8f7abbc54` | live |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | `a5b8f7abbc54` | live |
+| 18 | Memory Authority (construction) | `MemoryAuthority` | `a5b8f7abbc54` | live |
+| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `a5b8f7abbc54` | live |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `a5b8f7abbc54` | live |
+| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `a5b8f7abbc54` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `a696aa699e67` | live |
-| 24 | Human Sovereign Identity | `IdentityAuthority` | `356e9cda0953` | live |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `356e9cda0953` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `356e9cda0953` | live |
-| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `356e9cda0953` | live |
-| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `356e9cda0953` | live |
-| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `356e9cda0953` | live |
-| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `356e9cda0953` | live |
-| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `356e9cda0953` | live |
-| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `356e9cda0953` | live |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | `a5b8f7abbc54` | live |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `a5b8f7abbc54` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `a5b8f7abbc54` | live |
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `a5b8f7abbc54` | live |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `a5b8f7abbc54` | live |
+| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `a5b8f7abbc54` | live |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `a5b8f7abbc54` | live |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `a5b8f7abbc54` | live |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `a5b8f7abbc54` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `64f78f3bfefa` | live |
-| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `356e9cda0953` | live |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `a5b8f7abbc54` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `59ce79b34e4e` | live |
-| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `356e9cda0953` | live |
+| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `a5b8f7abbc54` | live |
 | 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `51fabf17fab1` | live |
-| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `356e9cda0953` | live |
-| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `356e9cda0953` | live |
-| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `356e9cda0953` | live |
-| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `356e9cda0953` | live |
-| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `356e9cda0953` | live |
-| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `356e9cda0953` | live |
-| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `356e9cda0953` | live |
-| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `356e9cda0953` | live |
-| 52 | Observability and Health Organ | `ObservabilityAuthority` | `356e9cda0953` | live |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `356e9cda0953` | live |
-| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `356e9cda0953` | live |
-| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `356e9cda0953` | live |
-| 57 | Reflex Authority | `Cerebellum` | `356e9cda0953` | live |
-| 58 | Recall Isolation | `RecallGate` | `356e9cda0953` | live |
-| 59 | Learning Freeze | `LearningFreezeAuthority` | `356e9cda0953` | live |
+| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `a5b8f7abbc54` | live |
+| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `a5b8f7abbc54` | live |
+| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `a5b8f7abbc54` | live |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `a5b8f7abbc54` | live |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `a5b8f7abbc54` | live |
+| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `a5b8f7abbc54` | live |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `a5b8f7abbc54` | live |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `a5b8f7abbc54` | live |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `a5b8f7abbc54` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `a5b8f7abbc54` | live |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `a5b8f7abbc54` | live |
+| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `a5b8f7abbc54` | live |
+| 57 | Reflex Authority | `Cerebellum` | `a5b8f7abbc54` | live |
+| 58 | Recall Isolation | `RecallGate` | `a5b8f7abbc54` | live |
+| 59 | Learning Freeze | `LearningFreezeAuthority` | `a5b8f7abbc54` | live |
 
 ### Yellow (8) — exact residual, from the ledger's own `known_blockers`
 
