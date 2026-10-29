@@ -29,6 +29,7 @@ The operator's ask: "make the daily animal boring". Four things are built here; 
     - It failed closed, so nothing got through.
     - CI and the agent's worktrees run a virtualenv outside the tree, so both stayed green, and every full-suite run the agent reported was green for that reason.
     - Now installed code is never repository code (`aios/core/model_calls.py::_relative`). Two tests fail without the change.
+    - **The full suite then ran in his own checkout, with `.venv` inside.** Every test passed except 6, and those 6 fail the same way on unchanged master there. His `.env` values (`AIOS_LLM_MODEL`, `AIOS_BEDROCK_MODEL`) reach the tests: `tests/test_local_clerk_default.py` and five in `tests/test_route_wiring.py`. That leak is separate, and still open.
   - **His user-wide `AIOS_ROUTER_CLOUD_TASKS` also breaks the test suite.** `tests/test_aliveness_defaults.py` asserts that cloud routing is off by default, and it fails in any shell that inherits the value.
   - **The audit chain cannot verify on his machine, because its key could never be stored.**
     - `AIOS_AUDIT_PRIVATE_KEY` had no place in the keystore, so every start signed with a throwaway key: key_id 81 today.
