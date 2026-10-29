@@ -42,6 +42,9 @@ services:
       - AIOS_PROMOTION_AUTHORITY_KEY
       - AIOS_CHECKPOINT_AUTHORITY_KEY
       - AIOS_LEARNING_KEY_LIVE
+      # The audit chain's signing seed; unset, every start signs with a throwaway
+      # key and the chain cannot verify (2026-10-29).
+      - AIOS_AUDIT_PRIVATE_KEY
       - AWS_BEARER_TOKEN_BEDROCK
       - AWS_ACCESS_KEY_ID
       - AWS_SECRET_ACCESS_KEY

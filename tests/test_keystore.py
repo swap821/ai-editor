@@ -115,3 +115,25 @@ def test_off_windows_the_store_says_it_is_unavailable(monkeypatch) -> None:
     monkeypatch.setattr(ks.sys, "platform", "linux")
     with pytest.raises(ks.KeystoreUnavailable):
         ks.WindowsCredentialStore()
+
+
+def test_the_audit_key_is_storable_and_anchors_the_frozen_logger(monkeypatch) -> None:
+    """2026-10-29 (a review): the audit chain's signing seed had no place in
+    the keystore, so it could not be stored, every process signed with a
+    throwaway key, and the live chain could never verify. A generated seed is
+    one the frozen logger accepts as durable and anchors its trust on."""
+    from aios.security import audit_logger
+
+    assert "AIOS_AUDIT_PRIVATE_KEY" in ks.NAMES
+    store = ks.MemoryKeystore()
+    assert ks.generate(store, "AIOS_AUDIT_PRIVATE_KEY") is None
+    seed = store.get("AIOS_AUDIT_PRIVATE_KEY")
+    assert seed and len(bytes.fromhex(seed)) == 32
+
+    monkeypatch.delenv("AIOS_AUDIT_PUBLIC_KEY", raising=False)
+    monkeypatch.setenv("AIOS_AUDIT_PRIVATE_KEY", seed)
+    _key, ephemeral = audit_logger._load_or_create_private_key()
+    assert ephemeral is False
+    assert len(audit_logger._pinned_public_keys()) == 1
+    # And it reaches the production containers like every stored key.
+    assert ks.production_environment(store)["AIOS_AUDIT_PRIVATE_KEY"] == seed

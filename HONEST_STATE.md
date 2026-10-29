@@ -23,6 +23,24 @@ The operator's ask: "make the daily animal boring". Four things are built here; 
 - **Chat needs no task scope, and the reason is now a test.** `/api/v1/chat` is a real entry surface: the HUD's voice channel.
   - A chat turn builds no tool agent and executes nothing, so a scope has nothing to narrow there.
   - The test fails if that ever changes. Its spies were checked against an `/api/generate` turn, where they do fire.
+- **A review the same day found four more problems.** Each was checked on this machine before anything was changed.
+  - **A `.venv` inside the repository counted as production code. It was a bug from #552, and it is now fixed.**
+    - The README's install puts the virtualenv inside the repository. The gateway then judged pytest's own installed frames as repository code outside `tests/`, refused test-made calls, and the README's layout ran red: 28 tests, 42 across the gate.
+    - It failed closed, so nothing got through.
+    - CI and the agent's worktrees run a virtualenv outside the tree, so both stayed green, and every full-suite run the agent reported was green for that reason.
+    - Now installed code is never repository code (`aios/core/model_calls.py::_relative`). Two tests fail without the change.
+  - **His user-wide `AIOS_ROUTER_CLOUD_TASKS` also breaks the test suite.** `tests/test_aliveness_defaults.py` asserts that cloud routing is off by default, and it fails in any shell that inherits the value.
+  - **The audit chain cannot verify on his machine, because its key could never be stored.**
+    - `AIOS_AUDIT_PRIVATE_KEY` had no place in the keystore, so every start signed with a throwaway key: key_id 81 today.
+    - The frozen logger anchors trust on that key's public half, so no anchor existed.
+    - Now the keystore, the daily backend and the production container all carry it.
+    - Still his: generating and storing the key, and deciding on the epoch boundary for the old entries (`docs/security/PROPOSAL_AUDIT_EPOCH_BOUNDARY.md`).
+    - The claim that three of the four release-signing keys are lost or exposed is not yet checked.
+  - **The first self-repair never reached master.** The 2026-10-19 repair stayed in the worktree `C:\gm`. #557 carries GAGOS's byte-identical diff, with its mission, promotion and verification ids.
+  - **The mutation probe could score a kill that the mutation did not cause.**
+    - A test leaves `training_ground/.git` pointing into a pytest folder that is then deleted. Every later session in that checkout fails, so every later mutation looked killed.
+    - This happened here too, after the agent's own run.
+    - The fix is a separate PR.
 - **Not done yet: reflexes on more real modules, and serving after a restart.** These need his approvals, his activation and his credential.
   - The script and both targets are ready: `tests/test_failover.py` (21 tests) and `tests/test_privacy_filter.py`. Each passed in the real sandbox under the bound scope.
 

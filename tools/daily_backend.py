@@ -67,6 +67,9 @@ KEYS = (
     "AIOS_PROMOTION_AUTHORITY_KEY",
     "AIOS_CHECKPOINT_AUTHORITY_KEY",
     "AIOS_LEARNING_KEY_LIVE",
+    # The audit chain's signing seed: without it each start signs with a
+    # throwaway key and the chain cannot verify (2026-10-29). Loaded when stored.
+    "AIOS_AUDIT_PRIVATE_KEY",
 )
 _DETACHED = (0x00000008 | 0x00000200) if os.name == "nt" else 0
 

@@ -46,6 +46,23 @@ The user-wide `reasoning,coding` still reaches every other process he starts. Re
 
 Separately, Bedrock is no longer offered when no credential could sign a request (`aios/core/bedrock.py::credentials_available`). With `auto` opted into the cloud and no AWS key loaded, a turn now goes straight to the local model, and no Bedrock attempt is made or ledgered.
 
+## The audit key
+
+The audit chain signs every entry with `AIOS_AUDIT_PRIVATE_KEY`. Until it is stored, the following holds:
+- Every backend start signs with a throwaway key. The daily backend's log says so: "ephemeral Ed25519 key pair".
+- The frozen audit logger's trust anchor is the public half of this seed, so without the seed there is no anchor, and the live chain can never verify.
+- Until 2026-10-29 the keystore did not even know the name.
+
+Now `up` loads it when it is stored. Storing it is the operator's act:
+
+```
+.venv\Scripts\python.exe -m aios.launcher keys generate AIOS_AUDIT_PRIVATE_KEY
+```
+
+From then on, new entries are signed by one key that survives restarts.
+
+The entries already written stay unverifiable: 351 unsigned June entries, and the rest signed by throwaway keys. Fixing those is the operator-signed epoch boundary in `docs/security/PROPOSAL_AUDIT_EPOCH_BOUNDARY.md`. That proposal changes frozen code, so it is his decision.
+
 ## What `check` says, and what to do
 
 `check` is read-only and calls no model. It asks `Cerebellum.readiness`, under the scope binding the backend uses, whether each learned reflex would serve its own request now. It exits 0 only when at least one reflex is ready and the sandbox image is present.

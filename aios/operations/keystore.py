@@ -51,6 +51,13 @@ OPTIONAL = (
     "AIOS_OPENAI_API_KEY",
     "AIOS_ANTHROPIC_API_KEY",
     "GEMINI_API_KEY",
+    # The audit chain's signing seed (aios/security/audit_logger.py). Without
+    # it every process signs with a throwaway key, and the frozen logger's own
+    # trust anchor -- the public half of this seed -- does not exist, so the
+    # live chain can never verify. Until 2026-10-29 it had no place here, so it
+    # could not be stored at all (found by a review). Optional so production
+    # still starts without it; the logger says loudly that it is ephemeral.
+    "AIOS_AUDIT_PRIVATE_KEY",
 )
 NAMES = REQUIRED + OPTIONAL
 
@@ -81,6 +88,8 @@ GENERATORS: dict[str, Callable[[], str]] = {
     "AIOS_PROMOTION_AUTHORITY_KEY": lambda: secrets.token_hex(32),
     "AIOS_CHECKPOINT_AUTHORITY_KEY": lambda: secrets.token_hex(32),
     "AIOS_LEARNING_KEY_LIVE": _learning_seed,
+    # A 32-byte Ed25519 seed as 64 hex characters, the form the logger reads.
+    "AIOS_AUDIT_PRIVATE_KEY": _learning_seed,
 }
 
 

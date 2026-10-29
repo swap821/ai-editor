@@ -876,12 +876,14 @@ class Cerebellum:
                 reasons.append(
                     "its skill is not active, or its steps are not the activated ones"
                 )
-            refusal = self._inapplicable(pb)
-            if refusal is not None:
+            # Named apart from match's ``refusal``: the mutation catalogue
+            # anchors on match's lines, and an anchor must occur exactly once.
+            why_not = self._inapplicable(pb)
+            if why_not is not None:
                 reasons.append(
-                    f"stale, and the first matching turn will withdraw it: {refusal}"
-                    if self._stale(refusal)
-                    else f"not applicable: {refusal}"
+                    f"stale, and the first matching turn will withdraw it: {why_not}"
+                    if self._stale(why_not)
+                    else f"not applicable: {why_not}"
                 )
             for step in pb.steps:
                 if step.tool_name not in ("execute_terminal", "verify"):
