@@ -131,6 +131,11 @@ class GenerateRequest(BaseModel):
     mission_requested: bool = Field(False, alias="missionRequested")
     #: Explicit governance semantics are separate from mission semantics.
     governance_requested: bool = Field(False, alias="governanceRequested")
+    #: The directory this turn is confined to (one project, e.g.
+    #: ``work/ai-editor``), declared by the client. It can only narrow the
+    #: declared scope roots; one that cannot be honoured is a 400. Absent:
+    #: ``AIOS_TASK_SCOPE``, else no binding (aios/application/turns/task_scope.py).
+    scope_root: Optional[str] = Field(None, alias="scopeRoot", max_length=500)
 
     model_config = {"populate_by_name": True}
 

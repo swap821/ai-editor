@@ -405,6 +405,11 @@ INJECTION_VECTOR_THRESHOLD: Final[float] = _env_float(
 #: act at all is the single most consequential change in the product, so an agent
 #: must not be able to do it without §VIII.
 SCOPE_ROOTS: Final[tuple[Path, ...]] = _limits.SCOPE_ROOTS
+#: The directory a forge turn is confined to when its request names none
+#: (aios/application/turns/task_scope.py). Empty: turns are not bound. It can
+#: only narrow: the frozen scope lock honours a bound root only inside
+#: SCOPE_ROOTS, and a value it would not honour is refused, never ignored.
+TASK_SCOPE: Final[str] = _env_str("AIOS_TASK_SCOPE", "")
 
 VERIFY_RUNNER: Final[str] = _env_str("AIOS_VERIFY_RUNNER", "python -m pytest")
 # Phase 2 (execution boundary): the container is the supported default for running

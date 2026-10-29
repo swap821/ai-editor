@@ -2,7 +2,8 @@
 
 *Operator decision, 2026-10-28: "widen the scope and sandbox honestly". He chose
 this design from three: a `work/` scope root, rather than a checkout inside
-`lab/` or per-task scope binding.*
+`lab/` or per-task scope binding. Per-task binding inside it was added on
+2026-10-29 (below).*
 
 ## Why
 
@@ -61,6 +62,60 @@ $env:AIOS_EXECUTOR_TIMEOUT_S = "120"
 - **Paths need care.**
   - Commands resolve against the repository root, so `pytest work/ai-editor/tests/test_relevance.py -q` works.
   - File tools resolve a *relative* path against the first root, `training_ground/`. To edit the checkout, give them an absolute path, such as `C:\Users\kumar\ai-editor\work\ai-editor\...`.
+
+## Per-task binding (2026-10-29)
+
+`work/` is one root for every turn, so a turn about one project could still
+change another. A forge turn can now be confined to one directory
+(`aios/application/turns/task_scope.py`).
+
+**Where the scope comes from**, in order:
+1. the request's `scopeRoot`, which the client declares;
+2. `AIOS_TASK_SCOPE`, set in the backend's launch environment;
+3. neither: no binding, exactly as before.
+
+It never comes from the model. A scope the model could pick would be a sandbox
+it chose for itself.
+
+**It can only narrow.** The frozen scope lock honours a bound root only inside
+a declared root. A declared scope that cannot be honoured is refused with a
+400, never run unbound.
+
+**What a bound turn changes:**
+- **Containment.** The gateway's command check, the file tools, and the
+  executor's working directory and writable mounts all read the bound root.
+  Creating, editing and running commands are narrowed. Reads are not: the file
+  tools still read anywhere in the project.
+- **Where commands run.** Commands run from the bound root's **parent**
+  (`scope_lock.command_cwd`). Bound to `work/ai-editor`, that is `work/`, so a
+  test is `pytest ai-editor/tests/test_relevance.py -q`. The model is told this
+  in the turn's system guidance, because the tool descriptions name only
+  `training_ground/`.
+- **What earned trust is filed under.** Approvals, earned autonomy and
+  reflexes are keyed to the active scope (`autonomy.workspace_id`,
+  `reflex_contract.scope_identity`). Something earned in a bound turn applies
+  only to turns bound the same way. A reflex the operator wants to serve daily
+  turns must be earned under the scope those turns run in.
+
+**How it is bound.** The turn coordinator advances the forge's stream on
+thread-pool threads, each step in a fresh copy of the request's context. So the
+turn is prepared inside the binding, and the binding is opened and closed around
+each step, inside it.
+
+**Proof** (`tests/test_task_scope.py`): the same model asks to
+`mkdir training_ground/build`.
+- Unbound, or bound to `training_ground`: it pauses for approval.
+- Bound to `lab`: it is a scope violation.
+- Bound to `aios`: the request is a 400.
+
+Without the route's wiring, the last two fail.
+
+**To bind every turn to the checkout**, add this to the launch environment
+below:
+
+```
+$env:AIOS_TASK_SCOPE = "work\ai-editor"
+```
 
 ## Measured, 2026-10-28 (master `c62e85ef`)
 
