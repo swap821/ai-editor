@@ -57,7 +57,11 @@ def main() -> int:
         else:
             refreshed.append(blocker)
     row["known_blockers"] = refreshed
-    LEDGER.write_text(json.dumps(ledger, indent=2) + "\n", encoding="utf-8")
+    # LF: the ledger is hash-pinned (tests/test_spine_release.py), and text
+    # mode on Windows would write CRLF.
+    LEDGER.write_text(
+        json.dumps(ledger, indent=2) + "\n", encoding="utf-8", newline="\n"
+    )
     print("organ 32 residual refreshed")
     return 0
 

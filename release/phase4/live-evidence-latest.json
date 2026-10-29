@@ -1,11 +1,11 @@
 {
   "schema": "phase4-live-evidence-v1",
-  "generated_at": "2026-10-28T15:53:06+00:00",
-  "tip_sha": "ecd24a7d74059532270437433e5ae79ecb8d7d0d",
+  "generated_at": "2026-10-29T02:03:33+00:00",
+  "tip_sha": "6815ee82727b88db68964ba3978d2281fa1fd5e2",
   "runner": "scripts/phase4_live_evidence.py",
-  "command": "C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip ecd24a7d74059532270437433e5ae79ecb8d7d0d",
-  "docker_available": true,
-  "docker_note": "docker info exit 0",
+  "command": "C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 6815ee82727b88db68964ba3978d2281fa1fd5e2",
+  "docker_available": false,
+  "docker_note": "failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine; check if the path is correct and if the daemon is running: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.",
   "proofs": [
     {
       "organ_id": 9,
@@ -75,7 +75,7 @@
       "name": "Scope Lock",
       "passed": true,
       "command": "ScopeLockAuthority.is_path_in_scope (read-only)",
-      "evidence": "owner=ScopeLockAuthority; roots=['C:\\\\gw\\\\training_ground', 'C:\\\\gw\\\\lab']; '../../etc/passwd' refused (in_scope=False, reason=Path 'C:\\etc\\passwd' escapes all declared scope roots.)"
+      "evidence": "owner=ScopeLockAuthority; roots=['C:\\\\gu\\\\training_ground', 'C:\\\\gu\\\\lab']; '../../etc/passwd' refused (in_scope=False, reason=Path 'C:\\etc\\passwd' escapes all declared scope roots.)"
     },
     {
       "organ_id": 3,
@@ -138,14 +138,14 @@
       "name": "Staged Workspace Manager (construction)",
       "passed": true,
       "command": "StagedWorkspaceAuthority.stage+load real disk",
-      "evidence": "staged lease_id=1b65f8ca16604971b5407c82f3d7c55a mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-qdbkv_x1\\staged-root\\1b65f8ca16604971b5407c82f3d7c55a baseline=6fc358b543368ecf\u2026"
+      "evidence": "staged lease_id=acdfe8a5dab940e8ae66af98682d9b88 mission=mission-p4-14 workspace=C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-auk2zqtw\\staged-root\\acdfe8a5dab940e8ae66af98682d9b88 baseline=6fc358b543368ecf\u2026"
     },
     {
       "organ_id": 21,
       "name": "Queen Council Orchestrator",
       "passed": true,
       "command": "QueenCouncilAuthority(runtime_root under AIOS_DATA_DIR/council_runtime)",
-      "evidence": "QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-qdbkv_x1\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority"
+      "evidence": "QueenCouncilAuthority constructed at C:\\Users\\kumar\\AppData\\Local\\Temp\\phase4-live-auk2zqtw\\aios-data\\council_runtime\\phase4-21; deliberation_authority=DeliberationCouncilAuthority"
     },
     {
       "organ_id": 22,
@@ -222,7 +222,7 @@
       "name": "Cloud Budget and Provider-Health Organ",
       "passed": true,
       "command": "ProviderHealthBudgetAuthority circuit open",
-      "evidence": "after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-10-28T15:53:02+00:00'"
+      "evidence": "after 2 failures is_call_allowed=False snapshot=provider='ollama' reachable=True credential_valid=True rate_limited=False recent_failure_count=2 measured_latency_ms=None budget_remaining=None circuit_state='open' last_successful_call_at=None evaluated_at='2026-10-29T02:03:29+00:00'"
     },
     {
       "organ_id": 36,
@@ -285,7 +285,7 @@
       "name": "Provenance and Explanation Surface",
       "passed": true,
       "command": "PrivacyAuditTracker.record + reopen real SQLite",
-      "evidence": "rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-qdbkv_x1\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384"
+      "evidence": "rows_before=1 rows_after_reopen=1 durable_status={'durable': True, 'path': 'C:\\\\Users\\\\kumar\\\\AppData\\\\Local\\\\Temp\\\\phase4-live-auk2zqtw\\\\organ50_privacy_audits.db', 'status': 'available', 'bytes': 16384, 'max_records': 50} db_bytes=16384"
     },
     {
       "organ_id": 19,
@@ -299,14 +299,14 @@
       "name": "Observability and Health Organ",
       "passed": true,
       "command": "ObservabilityAuthority.health + TestClient GET /health",
-      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': '39ecaae8-2758-4fd7-bcc5-d54171ee5e1b'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
+      "evidence": "/health status=ok version=0.1.0; authority.health={'trace': {'request_id': '0ce23dce-9295-415a-bdf5-3c7f39d0eb03'}, 'logs': {'durable': False, 'reason': 'no durable log handler attached'}, 'metrics': {'status': 'available', 'collector': 'MetricsCollector'}}; Docker container log durability NOT claimed (daemon absent on host)"
     },
     {
       "organ_id": 53,
       "name": "Installation, Configuration and Key Authority",
       "passed": true,
       "command": "InstallationConfigurationAuthority.rotate + reopen SQLite",
-      "evidence": "rotate persisted; state=ApiTokenRotationState(current_token_digest='2c09e4c5bc86dfda0bd53f45eaf82e1a7c5864dbed3ba26af753715930fa53a6', current_issued_at=1793202784.5552673, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1793202844.5552673); reopen_configured=True db_bytes=8192"
+      "evidence": "rotate persisted; state=ApiTokenRotationState(current_token_digest='022fc5778c112b143d68943f8c1eb4793e99cf876f9b6f9cb04b2710409ed3b4', current_issued_at=1793239411.1513944, previous_token_digest='d47cc2534bdaaa6990383b852bebbcbb02418db716fb803dd223e72f29df4924', previous_expires_at=1793239471.1513944); reopen_configured=True db_bytes=8192"
     },
     {
       "organ_id": 54,
