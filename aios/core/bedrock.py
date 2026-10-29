@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from typing import Any, Iterator, Optional
 
@@ -338,6 +339,37 @@ def bedrock_runtime_config(timeout_s: float) -> Any:
     )
 
 
+def credentials_available(region: str = config.BEDROCK_REGION) -> bool:
+    """Whether a Bedrock request could be signed at all.
+
+    Found 2026-10-29 on the operator's daily backend. Its ``.env`` names a
+    Bedrock region and model, so Bedrock was offered to every ``auto`` turn the
+    routing policy lets reach the cloud, but that backend loads no AWS key. The
+    first model call of each such turn went to three Bedrock models in turn,
+    each failing "Unable to locate credentials" before anything was sent, and
+    only then to the local model: cloud-first routing the operator never had,
+    the privacy filter run for nothing, and three ledger lines for calls that
+    could not happen. A provider that cannot sign a request is not offered:
+    :class:`BedrockClient` refuses to be built without a credential, and
+    ``aios.api.deps.get_bedrock_client`` answers ``None`` for that refusal.
+
+    A Bedrock API key (``AWS_BEARER_TOKEN_BEDROCK``) or anything boto3's
+    default chain resolves (environment keys, a shared profile, SSO, a role)
+    counts. Only whether one exists is read; no value is kept or printed.
+    """
+    if os.environ.get("AWS_BEARER_TOKEN_BEDROCK", "").strip():
+        return True
+    try:
+        import boto3  # lazy, as in BedrockClient
+    except ImportError:  # pragma: no cover - environment-dependent
+        return False
+    try:
+        session = boto3.Session(region_name=region or None)
+        return session.get_credentials() is not None
+    except Exception:  # noqa: BLE001 - an unreadable profile signs nothing
+        return False
+
+
 class BedrockClient:
     """:class:`~aios.agents.tool_agent.ChatClient` backed by Bedrock Converse."""
 
@@ -374,6 +406,10 @@ class BedrockClient:
                 raise LLMError(
                     "boto3 is required for AWS Bedrock; pip install boto3"
                 ) from exc
+            if not credentials_available(region):
+                # A client that cannot sign is never built, so it is never
+                # offered (get_bedrock_client answers None on LLMError).
+                raise LLMError("no AWS credential could sign a Bedrock request")
             self._client = boto3.client(
                 "bedrock-runtime",
                 region_name=region or None,

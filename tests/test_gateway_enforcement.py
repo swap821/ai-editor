@@ -410,3 +410,51 @@ def test_nothing_but_an_adapter_runs_a_provider_sdk_or_names_an_endpoint() -> No
             ):
                 offenders.append(f"{rel}:{node.lineno} {node.value[:60]!r}")
     assert offenders == []
+
+
+# --------------------------------------------------------------------------- #
+# A virtualenv inside the repository (review, 2026-10-29)
+# --------------------------------------------------------------------------- #
+
+
+def test_installed_code_inside_the_repository_is_not_repository_code(
+    monkeypatch,
+) -> None:
+    """The README's install puts ``.venv`` inside the repository. Its files
+    are the interpreter's, never the repository's own."""
+    from aios.core import model_calls as mc
+
+    root = mc._REPO_ROOT
+    venv = (root / ".venv").resolve()
+    installed = venv / "Lib" / "site-packages" / "_pytest" / "python.py"
+    monkeypatch.setattr(mc, "_INSTALL_ROOTS", (venv,))
+    assert mc._relative(str(installed)) is None
+    # Any site-packages below the repository, whatever its virtualenv is called.
+    monkeypatch.setattr(mc, "_INSTALL_ROOTS", ())
+    assert mc._relative(str(installed)) is None
+    # Positive control: the repository's own code is still its own.
+    assert mc._relative(str(root / "aios" / "core" / "llm.py")) == "aios/core/llm.py"
+    assert mc._relative(str(root / "tests" / "test_x.py")) == "tests/test_x.py"
+
+
+def test_a_test_call_through_an_in_repo_virtualenv_is_not_production(
+    monkeypatch,
+) -> None:
+    """The shape that failed: a call a test makes, with pytest's installed
+    frames on the stack, judged by the real ``calling_stack``. Before the fix
+    the installed frame was kept as repository code outside ``tests/``, so the
+    call was judged production and refused."""
+    from aios.core import model_calls as mc
+
+    venv = (mc._REPO_ROOT / ".venv").resolve()
+    monkeypatch.setattr(mc, "_INSTALL_ROOTS", (venv,))
+    runner = venv / "Lib" / "site-packages" / "_pytest" / "fake_runner.py"
+    namespace: dict = {}
+    exec(  # noqa: S102 - a fixed two-line function, compiled under an installed path
+        compile("def run(callback):\n    return callback()\n", str(runner), "exec"),
+        namespace,
+    )
+    stack = namespace["run"](mc.calling_stack)
+    assert stack, "the test's own frame is kept"
+    assert all(frame.startswith("tests/") for frame in stack), stack
+    assert mc.judged_stack(stack) is False

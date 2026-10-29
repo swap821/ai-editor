@@ -44,7 +44,10 @@ Every learned reflex that served a live turn was therefore a prover toy. The
 
 ## Running the backend with it
 
-PowerShell, from the repository root:
+Since 2026-10-29, `tools/daily_backend.py up` sets all of this, together with
+the task scope and the operator's other daily settings
+(`docs/operations/DAILY_BACKEND.md`). By hand, in PowerShell, from the
+repository root:
 
 ```
 $env:AIOS_SCOPE_ROOTS = "$PWD\training_ground;$PWD\lab;$PWD\work"

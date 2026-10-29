@@ -72,6 +72,23 @@ _PLUMBING = (
     "aios/application/intelligence/gateway.py",
 )
 _REPO_ROOT = Path(__file__).resolve().parents[2]
+#: The interpreter's own install: a virtualenv's root (``sys.prefix``), the
+#: base interpreter and its standard library. Found 2026-10-29 by a review: the
+#: README's install puts ``.venv`` INSIDE the repository, so pytest's own frames
+#: (``.venv/Lib/site-packages/_pytest/...``) read as repository code outside
+#: ``tests/``, every test-made call was judged production, and the gateway
+#: refused it (28 tests, 42 across the gate). It failed closed, so nothing got
+#: through, but the README's layout ran red while CI, which installs outside
+#: the repository, ran green. Installed code is never the repository's own.
+#: Only an install INSIDE the repository needs naming: anything outside it is
+#: not repository code already.
+_INSTALL_ROOTS = tuple(
+    root
+    for root in {
+        Path(p).resolve() for p in (sys.prefix, sys.base_prefix, sys.exec_prefix) if p
+    }
+    if root != _REPO_ROOT and root.is_relative_to(_REPO_ROOT)
+)
 RETENTION = timedelta(days=30)
 
 _LOCK = threading.Lock()
@@ -178,7 +195,13 @@ def _relative(filename: str) -> Optional[str]:
     if not filename or filename.startswith("<"):
         return None
     try:
-        return Path(filename).resolve().relative_to(_REPO_ROOT).as_posix()
+        path = Path(filename).resolve()
+        rel = path.relative_to(_REPO_ROOT)
+        if "site-packages" in rel.parts or any(
+            path.is_relative_to(root) for root in _INSTALL_ROOTS
+        ):
+            return None
+        return rel.as_posix()
     except (ValueError, OSError):
         return None
 
