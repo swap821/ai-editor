@@ -77,9 +77,14 @@ change another. A forge turn can now be confined to one directory
 It never comes from the model. A scope the model could pick would be a sandbox
 it chose for itself.
 
-**It can only narrow.** The frozen scope lock honours a bound root only inside
-a declared root. A declared scope that cannot be honoured is refused with a
-400, never run unbound.
+**What can be bound:** a declared root, or a directory directly inside one,
+which is one project, such as `work/ai-editor`. The server lists these itself.
+The client's string is only compared with those names and never handed to the
+filesystem.
+
+**It can only narrow.** The frozen scope lock judges the resolved directory, so
+a link that points outside is refused. A declared scope that cannot be honoured
+is refused with a 400, never run unbound.
 
 **What a bound turn changes:**
 - **Containment.** The gateway's command check, the file tools, and the

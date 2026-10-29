@@ -55,10 +55,24 @@ def test_no_scope_declared_means_no_binding() -> None:
     assert resolve_task_scope("  ") is None
 
 
-def test_a_declared_root_or_a_directory_inside_one_can_be_bound() -> None:
+def test_a_declared_root_or_a_directory_inside_one_can_be_bound(tmp_path) -> None:
     declared = [Path(r).resolve() for r in scope_lock.get_scope_roots()]
     scope = resolve_task_scope(str(declared[0].relative_to(ROOT)))
     assert scope is not None and scope.roots == (declared[0],)
+
+    project = declared[0] / "_task_scope_probe_project"
+    project.mkdir()
+    try:
+        bound = resolve_task_scope(f"{declared[0].name}/_task_scope_probe_project")
+        assert bound.roots == (project.resolve(),)
+        # Deeper than one project is not offered.
+        (project / "inner").mkdir()
+        with pytest.raises(TaskScopeError, match="directly inside one"):
+            resolve_task_scope(f"{declared[0].name}/_task_scope_probe_project/inner")
+    finally:
+        import shutil
+
+        shutil.rmtree(project)
 
 
 def test_the_launch_default_applies_and_the_request_overrides_it(monkeypatch) -> None:
@@ -78,12 +92,12 @@ def test_the_launch_default_applies_and_the_request_overrides_it(monkeypatch) ->
     ],
 )
 def test_a_scope_outside_the_declared_roots_is_refused(declared: str) -> None:
-    with pytest.raises(TaskScopeError, match="not inside a declared scope root"):
+    with pytest.raises(TaskScopeError, match="not a declared scope root"):
         resolve_task_scope(declared)
 
 
 def test_a_scope_that_is_not_a_directory_is_refused() -> None:
-    with pytest.raises(TaskScopeError, match="not a directory"):
+    with pytest.raises(TaskScopeError, match="not a declared scope root"):
         resolve_task_scope("training_ground/__no_such_directory__")
 
 
@@ -211,7 +225,7 @@ def test_a_scope_the_lock_would_not_honour_is_a_400_not_an_unbound_turn(
 ) -> None:
     response = _turn(tmp_path, "aios")
     assert response.status_code == 400
-    assert "not inside a declared scope root" in response.text
+    assert "not a declared scope root" in response.text
 
 
 def test_a_stream_that_cannot_be_bound_is_refused_not_run_unbound() -> None:
@@ -251,8 +265,8 @@ def test_a_bound_turn_tells_the_model_its_scope_and_where_commands_run() -> None
 def test_a_path_outside_the_roots_is_refused_before_the_disk_is_touched(
     monkeypatch,
 ) -> None:
-    """The client's path is judged as text first: one that is not inside a
-    declared root never reaches a filesystem call (CodeQL py/path-injection)."""
+    """The client's string never reaches a filesystem call: it is only compared
+    with the names the server lists (CodeQL py/path-injection)."""
     touched: list[str] = []
     real_resolve = Path.resolve
 
@@ -261,7 +275,7 @@ def test_a_path_outside_the_roots_is_refused_before_the_disk_is_touched(
         return real_resolve(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "resolve", spy)
-    with pytest.raises(TaskScopeError, match="not inside a declared scope root"):
+    with pytest.raises(TaskScopeError, match="not a declared scope root"):
         resolve_task_scope("training_ground/../../somewhere-else")
     assert not any("somewhere-else" in p for p in touched)
 
@@ -277,7 +291,7 @@ def test_a_link_inside_a_root_that_points_out_is_refused(tmp_path) -> None:
     except (OSError, NotImplementedError):
         pytest.skip("this machine cannot create a directory symlink")
     try:
-        with pytest.raises(TaskScopeError, match="not inside a declared scope root"):
+        with pytest.raises(TaskScopeError, match="resolves outside"):
             resolve_task_scope("lab/_task_scope_link_probe")
     finally:
         link.unlink()

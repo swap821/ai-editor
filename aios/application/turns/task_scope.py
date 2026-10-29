@@ -58,40 +58,55 @@ class TaskScopeError(ValueError):
 def resolve_task_scope(requested: Optional[str]) -> Optional[ScopeContext]:
     """The scope this turn is confined to, or ``None`` for no binding.
 
-    A relative path is taken from the project root. Raises
-    :class:`TaskScopeError` for a scope that is declared but cannot be
-    honoured.
+    A turn may be bound to a declared scope root or a directory directly
+    inside one: one project, such as ``work/ai-editor``. A relative name is
+    taken from the project root. Raises :class:`TaskScopeError` for a scope
+    that is declared but cannot be honoured.
+
+    The client's string is never handed to the filesystem. The server lists
+    what may be bound (:func:`bindable_directories`) and the string is only
+    compared with those names; the path that is resolved and bound is the
+    server's own.
     """
     raw = (requested or "").strip() or str(config.TASK_SCOPE or "").strip()
     if not raw:
         return None
-    outside = TaskScopeError(f"task scope {raw!r} is not inside a declared scope root")
-    # First, with no filesystem access at all: the path, normalised as text,
-    # must lie inside a declared root. A path the client sent is not touched
-    # on disk until it is known to be one of ours.
-    normalized = os.path.normcase(
-        os.path.normpath(os.path.join(str(config.PROJECT_ROOT), raw))
+    wanted = _name(os.path.join(str(config.PROJECT_ROOT), raw))
+    for candidate in bindable_directories():
+        if _name(str(candidate)) != wanted:
+            continue
+        # A link inside a root may point anywhere, so the frozen authority
+        # judges the RESOLVED path. Its own rule decides, so this check and
+        # every later containment decision cannot disagree: it keeps a bound
+        # root only inside a declared root (or an admitted staged workspace).
+        scope = ScopeContext.of([candidate.resolve()])
+        if not scope_lock.get_scope_roots(scope):
+            raise TaskScopeError(
+                f"task scope {raw!r} resolves outside the declared scope roots"
+            )
+        return scope
+    raise TaskScopeError(
+        f"task scope {raw!r} is not a declared scope root or a directory "
+        "directly inside one"
     )
-    declared = [
-        os.path.normcase(os.path.normpath(str(root)))
-        for root in scope_lock.get_scope_roots()
-    ]
-    if not any(
-        normalized == root or normalized.startswith(root.rstrip(os.sep) + os.sep)
-        for root in declared
-    ):
-        raise outside
-    # Then on disk: a link inside a root may point anywhere, so the frozen
-    # authority judges the RESOLVED path. Its own rule decides, so this check
-    # and every later containment decision cannot disagree: it keeps a bound
-    # root only inside a declared root (or an admitted staged workspace).
-    path = Path(normalized).resolve()
-    scope = ScopeContext.of([path])
-    if not scope_lock.get_scope_roots(scope):
-        raise outside
-    if not path.is_dir():
-        raise TaskScopeError(f"task scope {raw!r} is not a directory")
-    return scope
+
+
+def _name(path: str) -> str:
+    """A path as text, for comparison only: normalised, case-folded where the
+    filesystem folds case."""
+    return os.path.normcase(os.path.normpath(path))
+
+
+def bindable_directories() -> list[Path]:
+    """What a turn may be bound to: each declared scope root, and each
+    directory directly inside one. Listed by the server, from its own roots."""
+    found: list[Path] = []
+    for root in scope_lock.get_scope_roots():
+        root = Path(root)
+        found.append(root)
+        if root.is_dir():
+            found.extend(sorted(child for child in root.iterdir() if child.is_dir()))
+    return found
 
 
 def scoped_steps(events: Iterable[_T], scope: ScopeContext) -> Iterator[_T]:
