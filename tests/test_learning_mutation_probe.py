@@ -226,7 +226,9 @@ def test_a_ledger_resumes_and_starts_nothing_after_its_budget(
     state = probe.run_ledger(
         entries, ledger, budget=50.0, runner=runner, identity=lambda: "tree-a"
     )
-    assert calls == ["baseline", "mutation", "mutation"]
+    # The baseline, two mutations, then ONE closing control for their shared
+    # test set (on the unmutated file): the kills are recorded only after it.
+    assert calls == ["baseline", "mutation", "mutation", "baseline"]
     assert sorted(state["results"]) == ["t:one", "t:two"]
     assert sandbox.read_bytes() == original
 
@@ -235,7 +237,10 @@ def test_a_ledger_resumes_and_starts_nothing_after_its_budget(
     state = probe.run_ledger(
         entries, ledger, budget=50.0, runner=runner, identity=lambda: "tree-a"
     )
-    assert calls == ["mutation"], "no baseline again, nothing recorded re-run"
+    assert calls == ["mutation", "baseline"], (
+        "no ledger baseline again and nothing recorded re-run; only the closing "
+        "control of this run's one kill"
+    )
     assert sorted(state["results"]) == ["t:one", "t:three", "t:two"]
     assert all(r["killed"] for r in state["results"].values())
 
@@ -286,3 +291,63 @@ def test_the_cli_reports_only_a_complete_ledger(tmp_path, monkeypatch) -> None:
     assert probe.main(["--ledger", str(tmp_path / "l.json"), "--json", str(out)]) == 0
     report = json.loads(out.read_text(encoding="utf-8"))
     assert report["mutations_killed"] == 3 and report["tree"] == "tree-a"
+
+
+# --------------------------------------------------------------------------- #
+# The closing control (review, 2026-10-29)
+# --------------------------------------------------------------------------- #
+
+_REAL = "if row.signed:", "if True:"
+#: A mutation that changes nothing: it must never be scored as caught.
+_NOTHING = "return False", "return False  # a comment, nothing else"
+
+
+def test_an_environment_that_breaks_mid_run_scores_no_kill(sandbox) -> None:
+    """The review's proof, as a test: after the first session the environment
+    breaks (a dangling training_ground/.git did this), so every later session
+    fails. Without the closing control both mutations, the do-nothing one
+    included, were scored "killed"."""
+    calls: list[int] = []
+
+    def runner(nodes):
+        calls.append(1)
+        return 0 if len(calls) == 1 else 1  # the baseline passed, then it broke
+
+    entries = [
+        probe.Entry("t:real", "guard.py", *_REAL, ["t"]),
+        probe.Entry("t:nothing", "guard.py", *_NOTHING, ["t"]),
+    ]
+    results = {r.id: r for r in probe.run(entries, runner=runner)}
+    for result in results.values():
+        assert not result.killed and result.survived, result
+        assert result.note.startswith("NO VERDICT"), result.note
+
+
+def test_a_kill_is_reported_only_after_its_control_passes(sandbox) -> None:
+    original = sandbox.read_bytes()
+    seen: list[tuple[str, bytes]] = []
+
+    def runner(nodes):
+        content = sandbox.read_bytes()
+        seen.append(("run", content))
+        return 1 if b"if True:" in content else 0
+
+    reported: list[str] = []
+    entries = [probe.Entry("t:real", "guard.py", *_REAL, ["t"])]
+    results = probe.run(
+        entries, runner=runner, on_result=lambda r: reported.append(r.id)
+    )
+    assert results[0].killed and not results[0].survived
+    assert reported == ["t:real"]
+    # baseline, the mutated run, then the control on the restored file
+    assert [c for _, c in seen][-1] == original
+    assert len(seen) == 3
+
+
+def test_a_do_nothing_mutation_survives_a_healthy_run(sandbox) -> None:
+    def runner(nodes):
+        return 1 if b"if True:" in sandbox.read_bytes() else 0
+
+    entries = [probe.Entry("t:nothing", "guard.py", *_NOTHING, ["t"])]
+    [result] = probe.run(entries, runner=runner)
+    assert result.applied and result.survived and not result.killed

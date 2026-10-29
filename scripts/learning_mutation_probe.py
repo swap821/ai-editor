@@ -500,6 +500,8 @@ def run(
         for e in entries
     }
     results: list[Result] = []
+    #: Kills wait for their closing control (below) before they are reported.
+    unconfirmed: dict[tuple[str, ...], list[Result]] = {}
     for entry in entries:
         if deadline is not None and time.monotonic() >= deadline:
             break
@@ -542,7 +544,9 @@ def run(
         else:
             result.survived = not result.killed
         results.append(result)
-        if on_result:
+        if result.killed:
+            unconfirmed.setdefault(tuple(entry.tests), []).append(result)
+        elif on_result:
             on_result(result)
     after = {
         f: hashlib.sha256((REPO_ROOT / f).read_bytes()).hexdigest() for f in before
@@ -550,7 +554,40 @@ def run(
     changed = [f for f in before if before[f] != after[f]]
     if changed:
         raise ProbeError(f"files were not restored byte-identically: {changed}")
+    _closing_control(unconfirmed, run_tests, on_result)
     return results
+
+
+def _closing_control(
+    unconfirmed: dict[tuple[str, ...], list[Result]],
+    run_tests: Callable[[Sequence[str]], int],
+    on_result: Optional[Callable[[Result], None]],
+) -> None:
+    """A kill counts only if its tests pass on the unmutated code AFTER the
+    mutations: the failure must be the mutation's, not the environment's.
+
+    The baseline above runs once, before any mutation, and each mutation then
+    runs in a fresh pytest session. Found 2026-10-29 by a review: the first
+    session to build the default RollbackEngine left ``training_ground/.git``
+    pointing into its own scratch, which pytest deleted at exit, so every later
+    session failed, and every later mutation scored "killed" -- a do-nothing
+    one (a comment) included. An environment that breaks during a run fails
+    this control, and every kill it would have backed becomes NO VERDICT: not
+    a kill, so ``--check`` fails rather than calling a guard proven. One
+    control per distinct test set (704 mutations share 227 sets).
+    """
+    for tests, killed_here in unconfirmed.items():
+        code = run_tests(list(tests))
+        for result in killed_here:
+            if code != 0:
+                result.killed = False
+                result.survived = True
+                result.note = (
+                    f"NO VERDICT -- its tests also fail on the unmutated code at the "
+                    f"close (exit {code}): the environment, not the guard"
+                )
+            if on_result:
+                on_result(result)
 
 
 def _baseline(nodes: Sequence[str], run_tests: Callable[[Sequence[str]], int]) -> None:
@@ -730,7 +767,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         status = (
             "killed"
             if r.killed
-            else ("INERT" if r.note.startswith("INERT") else "SURVIVED")
+            else (
+                "INERT"
+                if r.note.startswith("INERT")
+                else ("NOVERDICT" if r.note.startswith("NO VERDICT") else "SURVIVED")
+            )
         )
         print(f"[{status:8}] {r.id}  (exit {r.returncode}) {r.note}", flush=True)
 
@@ -750,6 +791,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     report = coverage(entries, [r.id for r in results if r.killed], load_guards())
     print()
     print(f"{sum(r.killed for r in results)}/{len(results)} mutations killed")
+    no_verdict = sum(r.note.startswith("NO VERDICT") for r in results)
+    if no_verdict:
+        print(
+            f"{no_verdict} mutation(s) have NO VERDICT: their tests failed on the "
+            "unmutated code at the close, so the environment broke during the run"
+        )
     print(
         f"guard branch coverage: {report['attacked']}/{report['decision_points']} decision "
         f"points in {report['guard_functions']} guard functions attacked by a killed mutation"

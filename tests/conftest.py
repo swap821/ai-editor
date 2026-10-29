@@ -230,6 +230,21 @@ os.environ["AIOS_COUNCIL_RUNTIME_DIR"] = str(_PYTEST_SESSION_ROOT)
 atexit.register(shutil.rmtree, _TEST_DATA_DIR_PATH, ignore_errors=True)
 atexit.register(shutil.rmtree, _PYTEST_SESSION_ROOT, ignore_errors=True)
 
+# The default RollbackEngine leaves training_ground/.git pointing into this
+# session's scratch (tests/rollback_pointer_hygiene.py). Heal one an earlier,
+# crashed session left dangling; remove this session's own at exit. atexit runs
+# last-registered first, so this runs before the scratch above is deleted.
+from tests.rollback_pointer_hygiene import remove_pytest_pointer  # noqa: E402
+
+_TRAINING_GROUND = Path(__file__).resolve().parents[1] / "training_ground"
+remove_pytest_pointer(_TRAINING_GROUND, _DEFAULT_SCRATCH_ROOT, only_if_dangling=True)
+atexit.register(
+    remove_pytest_pointer,
+    _TRAINING_GROUND,
+    _PYTEST_SESSION_ROOT,
+    only_if_dangling=False,
+)
+
 # Allow tests to instantiate PromotionAuthority and VerificationAuthority without
 # a 32-char production signing key.  In production, this env var is NOT set, so
 # the authority classes will refuse an unset or short key (Blocker 13 fix).
