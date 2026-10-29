@@ -41,6 +41,10 @@ The operator's ask: "make the daily animal boring". Four things are built here; 
     - A test leaves `training_ground/.git` pointing into a pytest folder that is then deleted. Every later session in that checkout fails, so every later mutation looked killed.
     - This happened here too, after the agent's own run.
     - The fix is a separate PR.
+  - **Found while checking that: tests write into the operator's own rollback history.**
+    - In his main checkout, `training_ground/.git` is a real git repository: his daily backend's rollback history.
+    - A full test run there commits `[SNAPSHOT]` entries into it, and some tests create and delete files in `training_ground/`. One run added 5 commits.
+    - Not fixed yet. It needs a decision on where the default rollback engine works under test.
 - **Not done yet: reflexes on more real modules, and serving after a restart.** These need his approvals, his activation and his credential.
   - The script and both targets are ready: `tests/test_failover.py` (21 tests) and `tests/test_privacy_filter.py`. Each passed in the real sandbox under the bound scope.
 
