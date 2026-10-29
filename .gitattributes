@@ -51,3 +51,4 @@ release/**/*.md text eol=lf
 # control working correctly on a real byte change. The attestation log is NOT
 # edited to suppress it -- resisting exactly that edit is what the log is for.
 aios/security/*.py text eol=lf
+docs/learning/organic_reflex_proof_2026-10-29_daily/*.py.txt -text

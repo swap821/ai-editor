@@ -1,0 +1,492 @@
+"""A SECOND organic L3 -> L4 -> L5, on your DAILY backend. The OPERATOR runs this.
+
+    cd C:\\Users\\kumar\\ai-editor
+    .venv\\Scripts\\python.exe data\\services\\prove_organic_reflex_daily.py
+
+Why (2026-10-29). The first organic chain (2026-10-28,
+docs/learning/organic_reflex_proof_2026-10-28/) ran on a separate PROOF backend:
+a copy of your store, a self-corpus scope, the app image as sandbox. This one
+runs where you work:
+
+  * your daily backend on :8000 and your real store (data/), so the skill, your
+    approvals and the reflex land in your daily memory;
+  * the work checkout, work/ai-editor, with every forge turn bound to it
+    (AIOS_TASK_SCOPE=work\\ai-editor, your choice 2026-10-29), so the reflex is
+    earned under the scope your daily turns run in, and serves them;
+  * a different real test: tests/test_gateway_enforcement.py (the one-gateway
+    proof, 14 tests, no model);
+  * the gateway refusing ungated model calls (#552): Stage C counts refused
+    calls as model calls too.
+
+Bound to work/ai-editor, commands run from work/ (the bound root's parent), so
+the command is `pytest ai-editor/tests/test_gateway_enforcement.py -q`.
+
+  Stage A  (L3) the same request, answered by the local model, with YOUR approval
+           of the exact command each time, until the library calls the arc
+           review-ready (3 STRONG verified successes).
+  Stage B       YOU activate it in a second terminal (the activation tool).
+  Stage C  (L4) the next request's sweep compiles it into a reflex; (L5) the
+           reflex serves that request: verify STRONG, no approval asked, no
+           interpreter or planner, ZERO model calls.
+
+Your credential is typed at a hidden prompt, held in memory only, never printed
+or written. The record goes to data\\services\\organic_proof_daily_<time>.json.
+"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+REPO = Path(r"C:\Users\kumar\ai-editor")
+DATA = str(REPO / "data")
+CORPUS = REPO / "work" / "ai-editor"
+TASK_SCOPE = r"work\ai-editor"
+# Before aios is imported: its config reads these once.
+os.environ["AIOS_DATA_DIR"] = DATA
+os.environ["AIOS_SCOPE_ROOTS"] = ";".join(
+    str(REPO / d) for d in ("training_ground", "lab", "work")
+)
+
+import getpass  # noqa: E402
+import json  # noqa: E402
+import sqlite3  # noqa: E402
+import subprocess  # noqa: E402
+import sys  # noqa: E402
+import time  # noqa: E402
+import uuid  # noqa: E402
+from datetime import datetime, timezone  # noqa: E402
+
+sys.path.insert(0, str(REPO))
+os.chdir(REPO)
+
+from aios import config  # noqa: E402
+from aios.application.memory.institutional_skills import is_review_ready  # noqa: E402
+from aios.domain.learning.repository import SkillRepository  # noqa: E402
+from aios.probe_session import ProbeSession  # noqa: E402
+from tools.learning_loop_prover import parse_sse  # noqa: E402
+
+assert Path(config.DATA_DIR).resolve() == Path(DATA).resolve(), config.DATA_DIR
+EXPECTED = "pytest ai-editor/tests/test_gateway_enforcement.py -q"
+GOAL = (
+    "Use the verify tool to run exactly this command: "
+    f"`{EXPECTED}` and report the result. Do not create or edit any files."
+)
+BASE = "http://127.0.0.1:8000"
+PORT = 8000
+ACTIVATE_TOOL = REPO / "tools" / "activate_skills.py"
+LEDGER_DIR = Path(DATA) / "model_calls"
+
+
+def _git(repo: Path | str, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), *args], capture_output=True, text=True
+    ).stdout.strip()
+
+
+def code_under_test() -> dict:
+    import psutil
+
+    moved = _git(REPO, "log", "-g", "-1", "--date=unix", "--format=%gd", "HEAD")
+    moved_at = int(moved.split("{", 1)[1].rstrip("}")) if "{" in moved else 0
+    backend = None
+    for conn in psutil.net_connections(kind="tcp"):
+        if conn.laddr and conn.laddr.port == PORT and not conn.raddr and conn.pid:
+            proc = psutil.Process(conn.pid)
+            env = proc.environ()
+            backend = {
+                "pid": conn.pid,
+                "started": datetime.fromtimestamp(
+                    proc.create_time(), timezone.utc
+                ).isoformat(),
+                "started_after_checkout_moved": bool(moved_at)
+                and proc.create_time() > moved_at,
+                "data_dir": env.get("AIOS_DATA_DIR"),
+                "scope_roots": env.get("AIOS_SCOPE_ROOTS"),
+                "task_scope": env.get("AIOS_TASK_SCOPE"),
+                "sandbox_image": env.get("AIOS_CONTAINER_IMAGE"),
+                "replay_approved_commands": env.get("AIOS_REPLAY_APPROVED_COMMANDS"),
+                "gateway_enforce": env.get("AIOS_GATEWAY_ENFORCE"),
+            }
+            break
+    return {
+        "backend_code": _git(REPO, "rev-parse", "HEAD"),
+        "corpus": str(CORPUS),
+        "corpus_head": _git(CORPUS, "rev-parse", "HEAD"),
+        "corpus_clean": _git(CORPUS, "status", "--porcelain") == "",
+        "backend": backend,
+    }
+
+
+def ledger_lines() -> list[str]:
+    lines: list[str] = []
+    for path in sorted(LEDGER_DIR.glob("*.jsonl")) if LEDGER_DIR.is_dir() else []:
+        lines.extend(path.read_text(encoding="utf-8").splitlines())
+    return lines
+
+
+def the_skill():
+    """The library arc whose recipe is exactly the expected verify, if any."""
+    want = f"verify: command={EXPECTED}"
+    found = [
+        r
+        for r in SkillRepository(config.OPERATIONAL_STATE_DB_PATH).list_skills()
+        if want in r.procedure
+    ]
+    return max(found, key=lambda r: r.version) if found else None
+
+
+def state() -> dict:
+    c = sqlite3.connect(f"file:{config.MEMORY_DB_PATH}?mode=ro", uri=True)
+    playbooks = [
+        {
+            "id": r[0],
+            "skill_id": r[1],
+            "status": r[2],
+            "replay_count": r[3],
+            "compiled_at": r[4],
+        }
+        for r in c.execute(
+            "select id, skill_id, status, replay_count, compiled_at from "
+            "compiled_playbooks where steps_json like ?",
+            (f"%{EXPECTED}%",),
+        )
+    ]
+    compiles = [
+        {"id": r[0], "ts": r[1], "subject_id": r[2], "detail": r[3]}
+        for r in c.execute(
+            "select id, ts, subject_id, detail_json from learning_events "
+            "where faculty='L4' and transition='compiled' order by id"
+        )
+    ]
+    approvals = [
+        list(r)
+        for r in c.execute(
+            "select command, principal, workspace, approved_at from "
+            "approved_command_decisions where command = ?",
+            (EXPECTED,),
+        )
+    ]
+    c.close()
+    skill = the_skill()
+    return {
+        "skill": None
+        if skill is None
+        else {
+            "skill_id": skill.skill_id,
+            "version": skill.version,
+            "state": skill.state,
+            "success_count": skill.success_count,
+            "failure_count": skill.failure_count,
+            "confidence": skill.confidence,
+            "review_ready": is_review_ready(skill),
+            "source": skill.provenance.get("source"),
+            "principal": skill.provenance.get("principal"),
+            "procedure": skill.procedure,
+        },
+        "playbooks": playbooks,
+        "l4_compile_events": compiles,
+        "approval_records": approvals,
+        "model_call_lines": len(ledger_lines()),
+    }
+
+
+def run_turn(session: ProbeSession, *, allow_approval: bool) -> dict:
+    """One daily-shaped turn: NO scopeRoot in the request, so the backend's
+    AIOS_TASK_SCOPE binds it, as it binds your own turns."""
+    tokens: list[str] = []
+    session_id = str(uuid.uuid4())
+    seen = {
+        "events": [],
+        "cerebellum": [],
+        "steps": [],
+        "approvals_asked": [],
+        "done": False,
+        "error": None,
+    }
+    for _ in range(4):
+        body = {
+            "messages": [{"role": "user", "content": [{"text": GOAL}]}],
+            "modelId": "auto",
+            "sessionId": session_id,
+            "approvalTokens": tokens,
+        }
+        resp = session.post_stream("/api/generate", body, 900)
+        if resp.status_code != 200:
+            seen["error"] = (
+                f"/api/generate answered {resp.status_code}: {resp.text[:300]}"
+            )
+            return seen
+        paused = None
+        for event, data in parse_sse(resp):
+            seen["events"].append(event)
+            if event.startswith("cerebellum_"):
+                seen["cerebellum"].append(
+                    {
+                        "event": event,
+                        **{
+                            k: data.get(k)
+                            for k in (
+                                "playbook_id",
+                                "tool",
+                                "control",
+                                "reason",
+                                "replay_count",
+                                "output",
+                            )
+                            if k in data
+                        },
+                    }
+                )
+            elif event == "step":
+                seen["steps"].append(
+                    {
+                        "tool": data.get("tool"),
+                        "output": str(data.get("output", ""))[:300],
+                    }
+                )
+            elif event == "human_required":
+                paused = data
+                break
+            elif event == "error":
+                seen["error"] = data
+                return seen
+            elif event == "done":
+                seen["done"] = True
+        if paused is None:
+            return seen
+        commands = (paused.get("input") or {}).get("commands") or []
+        token = (paused.get("input") or {}).get("approvalToken")
+        seen["approvals_asked"].append(commands)
+        print(f"\n  GAGOS asks to run: {commands}")
+        if not allow_approval:
+            print("  Stage C asked for an approval: the reflex did NOT serve this turn.")
+            return seen
+        if commands != [EXPECTED]:
+            print(f"  That is not exactly `{EXPECTED}`. Not approving.")
+            return seen
+        # The server's approval token lives 120 s.
+        answer = input(
+            "  Type approve WITHIN 2 MINUTES to run exactly that command: "
+        ).strip()
+        if answer != "approve":
+            print("  Not approved. Stopping.")
+            return seen
+        tokens = [token]
+    return seen
+
+
+def _strong_pass(run: dict) -> bool:
+    outputs = [s["output"] for s in run["steps"]] + [
+        str(e.get("output") or "")
+        for e in run["cerebellum"]
+        if e["event"] == "cerebellum_step_done"
+    ]
+    return any(
+        o.startswith("[VERIFY PASS]") and "strength=STRONG" in o for o in outputs
+    )
+
+
+def _safe_state() -> dict:
+    """state(), tolerating a moment when the backend holds the write lock."""
+    for _ in range(6):
+        try:
+            return state()
+        except sqlite3.OperationalError:
+            time.sleep(2)
+    return state()
+
+
+def main() -> int:
+    record: dict = {"version": 1, "goal": GOAL, "expected_command": EXPECTED}
+    record["code"] = code_under_test()
+    print("CODE:", json.dumps(record["code"]))
+    b = record["code"]["backend"] or {}
+    expected_roots = os.environ["AIOS_SCOPE_ROOTS"]
+    if not (
+        b.get("started_after_checkout_moved")
+        and b.get("scope_roots") == expected_roots
+        and b.get("task_scope") == TASK_SCOPE
+        and b.get("replay_approved_commands") == "1"
+        and record["code"]["corpus_clean"]
+    ):
+        print(
+            "The daily backend on :8000 is not set up as described above "
+            "(started after the checkout moved; work scope; AIOS_TASK_SCOPE="
+            f"{TASK_SCOPE}; replay on; a clean work checkout). Nothing was sent."
+        )
+        return _write(record, False)
+
+    credential = os.environ.get("AIOS_OPERATOR_CREDENTIAL") or getpass.getpass(
+        "operator credential (hidden, never stored): "
+    )
+    if not credential:
+        raise SystemExit("no credential; nothing was sent")
+    os.environ["AIOS_OPERATOR_CREDENTIAL"] = credential
+    session = ProbeSession(BASE).bootstrap(display_name="Organic Reflex Proof (daily)")
+
+    record["before"] = state()
+    print("\nBEFORE:", json.dumps(record["before"]["skill"]))
+
+    already = (record["before"]["skill"] or {}).get("state") == "active"
+    if already:
+        print("\nThe skill is ALREADY active: resuming at Stage C.")
+        record["resumed_at_stage_c"] = True
+        record["after_stage_a"] = record["before"]
+        record["after_stage_b"] = record["before"]
+        activated_at = "before this run"
+    else:
+        # ---- Stage A: L3, earned on real code with your approval each time ----
+        record["stage_a"] = []
+        for attempt in range(1, 7):
+            current = state()
+            if (
+                current["skill"]
+                and current["skill"]["review_ready"]
+                and current["approval_records"]
+            ):
+                break
+            print(
+                f"\nSTAGE A, run {attempt}: the model answers; you approve the "
+                "exact command..."
+            )
+            run = run_turn(session, allow_approval=True)
+            after = state()
+            record["stage_a"].append({"run": run, "after": after})
+            print("  skill now:", json.dumps(after["skill"]))
+            if run["error"] or not _strong_pass(run):
+                print(
+                    "  This run did not end in a STRONG verified pass, so it earned "
+                    "nothing. Stopping."
+                )
+                return _write(record, False)
+        after_a = state()
+        record["after_stage_a"] = after_a
+        skill = after_a["skill"]
+        if not (skill and skill["review_ready"] and after_a["approval_records"]):
+            print(
+                "\nThe arc is not review-ready (or no exact-command decision was "
+                "recorded). NOT PROVEN."
+            )
+            return _write(record, False)
+        key = f"{skill['skill_id']}@{skill['version']}"
+
+        # ---- Stage B: YOUR activation ----
+        print(
+            "\nSTAGE B: the arc is review-ready. Activate it YOURSELF: open a SECOND "
+            "PowerShell and paste this (any folder works). The tool asks for your "
+            'credential at a hidden prompt and must end with "status": 200.\n\n'
+            f"    {REPO}\\.venv\\Scripts\\python.exe {ACTIVATE_TOOL} --base {BASE} "
+            f'--activate {key} --i-am-the-operator "Swapnil"\n'
+        )
+        print("Waiting for the skill to become active (every 5 s, up to 30 minutes)...")
+        deadline = time.time() + 30 * 60
+        while (
+            time.time() < deadline
+            and (_safe_state()["skill"] or {}).get("state") != "active"
+        ):
+            time.sleep(5)
+        activated_at = datetime.now(timezone.utc).isoformat()
+        record["after_stage_b"] = _safe_state()
+        if (record["after_stage_b"]["skill"] or {}).get("state") != "active":
+            print("The skill did not become active within 30 minutes. NOT PROVEN.")
+            return _write(record, False)
+        print(
+            "Active. (If the tool said NOT SIGNED, stop here: an unsigned skill is "
+            "never replayed.)"
+        )
+
+    # ---- Stage C: L4 compile + L5 serve, in one request ----
+    print(
+        "\nSTAGE C: the same request. Its sweep should compile your skill, and the "
+        "reflex serve it..."
+    )
+    before_c = state()
+    before_lines = ledger_lines()
+    record["stage_c"] = run_turn(session, allow_approval=False)
+    after_c = state()
+    new_calls = [json.loads(line) for line in ledger_lines()[len(before_lines) :]]
+    record["after_stage_c"] = after_c
+    record["stage_c_model_calls"] = [
+        {k: c.get(k) for k in ("ts", "site", "model", "provider", "entrance", "refused")}
+        for c in new_calls
+    ]
+
+    old_ids = {p["id"] for p in before_c["playbooks"]}
+    fresh = [
+        p
+        for p in after_c["playbooks"]
+        if p["id"] not in old_ids and p["status"] == "compiled"
+    ]
+    fresh_id = fresh[0]["id"] if fresh else None
+    compiled_event = [
+        e
+        for e in after_c["l4_compile_events"]
+        if e not in before_c["l4_compile_events"]
+        and str(e["subject_id"]) == str(fresh_id)
+    ]
+    events = record["stage_c"]["events"]
+    served = any(
+        e["event"] == "cerebellum_done" and e.get("playbook_id") == fresh_id
+        for e in record["stage_c"]["cerebellum"]
+    )
+    s = after_c["skill"] or {}
+    checks = {
+        "L3: learned on the live path (source=live), from a real repo test": s.get(
+            "source"
+        )
+        == "live",
+        "L3: >= 3 STRONG successes, 0 failures before activation": (
+            s.get("success_count") or 0
+        )
+        >= 3
+        and (s.get("failure_count") or 0) == 0,
+        "you activated it (state active)": s.get("state") == "active",
+        "L4: a NEW playbook was compiled from your activated skill in this request": fresh_id
+        is not None,
+        "L4: the learning journal recorded that compile": bool(compiled_event),
+        "L5: that reflex served the request (cerebellum_done)": served,
+        "L5: zero model calls in the whole request (refused ones count)": not new_calls,
+        "L5: no interpreter or planner frame": not {"alignment", "plan"} & set(events),
+        "L5: the replayed verify passed STRONG": _strong_pass(record["stage_c"]),
+        "L5: no approval asked": not record["stage_c"]["approvals_asked"],
+        "L5: replay count is 1": bool(fresh)
+        and any(
+            p["id"] == fresh_id and int(p["replay_count"]) == 1
+            for p in after_c["playbooks"]
+        ),
+        "the turn finished (done frame)": record["stage_c"]["done"],
+    }
+    record["activated_at"] = activated_at
+    record["checks"] = checks
+    print()
+    for name, ok in checks.items():
+        print(f"  [{'PASS' if ok else 'FAIL'}] {name}")
+    for call in record["stage_c_model_calls"]:
+        print(
+            f"    model call during stage C: {call['site']} ({call['provider']} "
+            f"{call['model']}, entrance={call['entrance']}, refused={call['refused']})"
+        )
+    proven = all(checks.values())
+    print(
+        "\nPROVEN: on your daily backend, a skill learned from a real test of this "
+        "repo, activated by you, compiled into a reflex and served a request bound "
+        "to your work checkout with no model call."
+        if proven
+        else "\nNOT PROVEN (see the FAIL lines)."
+    )
+    return _write(record, proven)
+
+
+def _write(record: dict, proven: bool) -> int:
+    record["proven"] = proven
+    record["at"] = datetime.now(timezone.utc).isoformat()
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    out = Path(DATA) / "services" / f"organic_proof_daily_{stamp}.json"
+    out.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+    print(f"record: {out}")
+    return 0 if proven else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

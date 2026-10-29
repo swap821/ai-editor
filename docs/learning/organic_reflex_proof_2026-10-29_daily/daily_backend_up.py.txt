@@ -1,0 +1,108 @@
+"""Bring up the executor service, backend and frontend for the first self-repair
+mission and the L5 activation (docs/operations/FIRST_SELF_REPAIR.md).
+
+- executor service on :8081, AIOS_EXECUTOR_WORKSPACE_ROOT = <live>/data/staged_maintenance
+- backend on :8000 from the live checkout, with
+    AIOS_MAINTENANCE_PROJECT_ROOT = C:/gm (clean worktree; staging the live checkout is refused)
+    AIOS_EXECUTOR_URL / AIOS_EXECUTOR_TOKEN (shared with the executor)
+    AIOS_REPLAY_APPROVED_COMMANDS = 1 (operator asked for L5 to be completed, 2026-10-19)
+- frontend dev server on :5173
+
+The executor token is a one-off random value held in memory and handed to both
+children; it is never printed, logged or written. Each child is detached with
+its own log under data/services/.
+"""
+
+import json, os, secrets, shutil, subprocess, sys, time, urllib.request
+from pathlib import Path
+
+LIVE = Path(sys.argv[1])
+GM = Path(sys.argv[2])
+logs = LIVE / "data" / "services"
+logs.mkdir(parents=True, exist_ok=True)
+DETACH = 0x00000008 | 0x00000200
+py = sys.executable
+base = {k: v for k, v in os.environ.items()}
+# The operator's stored keys (Windows Credential Manager), as production start
+# loads them: in memory, into the children only, never printed. A volatile env
+# var wins (setdefault).
+sys.path.insert(0, str(LIVE))
+from aios.launcher import _keystore  # noqa: E402
+from aios.operations import keystore as _ksmod  # noqa: E402
+
+_store = _keystore()
+if _store is not None:
+    # ONLY what these development runs need. Loading every stored key also set
+    # AIOS_API_TOKEN, which turns on token-only auth and refused the operator's
+    # local tools (2026-10-19); his normal development backend runs without it.
+    # 2026-10-21: the live learning key too. Without it the backend activated
+    # skills 79/41/49 but could not sign them (active and inert, #529).
+    _needed = {
+        "AIOS_VERIFICATION_AUTHORITY_KEY",
+        "AIOS_EXECUTOR_TOKEN",
+        "AIOS_PROMOTION_AUTHORITY_KEY",
+        "AIOS_CHECKPOINT_AUTHORITY_KEY",
+        "AIOS_LEARNING_KEY_LIVE",
+    }
+    # Until fix/keystore-promotion-key merges, the live checkout's keystore
+    # does not know this name and refuses it; extend its list in memory only.
+    from aios.operations import keystore as _ks
+
+    for _extra in ("AIOS_PROMOTION_AUTHORITY_KEY", "AIOS_CHECKPOINT_AUTHORITY_KEY"):
+        if _extra not in _ks.NAMES:
+            _ks.NAMES = _ks.NAMES + (_extra,)
+    for _name, _value in _ksmod.production_environment(_store).items():
+        if _name in _needed:
+            base.setdefault(_name, _value)
+# Master's CheckpointAuthority reads only the legacy name until #523 merges.
+if base.get("AIOS_CHECKPOINT_AUTHORITY_KEY"):
+    base.setdefault("CHECKPOINT_AUTHORITY_KEY", base["AIOS_CHECKPOINT_AUTHORITY_KEY"])
+token = base.get("AIOS_EXECUTOR_TOKEN") or secrets.token_hex(32)
+started = {}
+
+
+def spawn(name, cmd, cwd, env):
+    log = (logs / f"{name}.log").open("w", encoding="utf-8")
+    proc = subprocess.Popen(cmd, cwd=str(cwd), env=env, stdout=log, stderr=subprocess.STDOUT,
+                            stdin=subprocess.DEVNULL, creationflags=DETACH)
+    started[name] = proc.pid
+
+
+def wait_for(url, seconds):
+    t0 = time.time()
+    while time.time() - t0 < seconds:
+        try:
+            with urllib.request.urlopen(url, timeout=5) as r:
+                return r.status
+        except urllib.error.HTTPError as e:
+            return e.code
+        except Exception:
+            time.sleep(2)
+    return None
+
+
+executor_env = dict(base, AIOS_EXECUTOR_TOKEN=token,
+                    AIOS_EXECUTOR_WORKSPACE_ROOT=str(LIVE / "data" / "staged_maintenance"),
+                    AIOS_EXECUTOR_HOST="127.0.0.1", AIOS_EXECUTOR_PORT="8081")
+spawn("executor", [py, "-m", "uvicorn", "aios.executor_service:app", "--host", "127.0.0.1", "--port", "8081"],
+      LIVE, executor_env)
+
+backend_env = dict(base, AIOS_MAINTENANCE_PROJECT_ROOT=str(GM), AIOS_EXECUTOR_URL="http://127.0.0.1:8081",
+                   AIOS_EXECUTOR_TOKEN=token, AIOS_REPLAY_APPROVED_COMMANDS="1",
+                   # The work scope (docs/operations/WORK_SCOPE.md, operator decision
+                   # 2026-10-28): launch environment only, training_ground first.
+                   AIOS_SCOPE_ROOTS=";".join(str(LIVE / d) for d in ("training_ground", "lab", "work")),
+                   AIOS_CONTAINER_IMAGE="aios-verify:83b20d9b8dbd",
+                   AIOS_EXECUTOR_TIMEOUT_S="120",
+                   # Per-task scope (operator choice 2026-10-29): every forge turn
+                   # bound to the work checkout unless a request names another.
+                   AIOS_TASK_SCOPE="work\\ai-editor")
+spawn("backend", [py, "-m", "aios"], LIVE, backend_env)
+
+status = {
+    "pids": started,
+    "executor_health": wait_for("http://127.0.0.1:8081/health", 90),
+    "backend_health": wait_for("http://127.0.0.1:8000/health", 240),
+}
+(logs / "services.json").write_text(json.dumps(status, indent=2) + "\n", encoding="utf-8")
+print(json.dumps(status, indent=2))
