@@ -109,3 +109,8 @@ frontend/eslint-report*.json
 release/phase5/junit-organ-tests.xml
 frontend/vitest-junit.xml
 executor-junit/
+
+# The operator's local provider key files (frontend/nvdia/.env, ".env(aws)"): live
+# cloud keys, never committed. Keys at rest belong in Windows Credential Manager
+# (`python -m aios.launcher keys set NAME`). Found unignored 2026-10-30.
+frontend/nvdia/
