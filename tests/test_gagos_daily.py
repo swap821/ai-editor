@@ -546,10 +546,19 @@ def test_deliver_commits_each_accepted_change_with_both_reviews(
         _git(work, "log", "-1", "--format=%an <%ae>|%cn")
         == "GAGOS <gagos@localhost>|GAGOS"
     )
-    assert "Proposed-by: GAGOS (m)" in message
-    assert "Reviewed-by: Claude Code, chief reviewer (opus)" in message
-    assert "Reviewed-by: Codex (gpt)" in message
-    assert "Co-Authored-By" not in message
+    assert (
+        "Proposed-by: GAGOS" in message
+        and "Co-authored-by: m <m@models.invalid>" in message
+    )
+    assert "Reviewed-by: Claude Code, chief reviewer, opus" in message
+    assert "Reviewed-by: Codex, gpt" in message
+    assert [
+        line
+        for line in message.splitlines()
+        if line.lower().startswith("co-authored-by")
+    ] == ["Co-authored-by: m <m@models.invalid>"], (
+        "the model that wrote it is credited; no reviewer is an author"
+    )
 
 
 def test_a_gagos_pr_says_who_opened_it() -> None:

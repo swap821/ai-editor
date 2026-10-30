@@ -462,6 +462,21 @@ CREATE TABLE IF NOT EXISTS deliveries (
     outcome TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS clerk_jobs (
+    proposal_id TEXT PRIMARY KEY,
+    model TEXT,
+    status TEXT NOT NULL,
+    summary TEXT,
+    crux TEXT,
+    reason TEXT,
+    created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS days (
+    day TEXT PRIMARY KEY,
+    status TEXT NOT NULL,
+    reason TEXT,
+    updated_at TEXT NOT NULL
+);
 """
 
 #: Proposal statuses. ``refused`` = failed the unattended checks or the model
@@ -690,6 +705,71 @@ class DailyLedger:
                 (rule, rule, limit),
             ).fetchall()
         return [r["reason"] for r in rows]
+
+    # the clerk and the days
+    def record_clerk(
+        self,
+        proposal_id: str,
+        *,
+        model: str | None,
+        status: str,
+        summary: str | None = None,
+        crux: str | None = None,
+        reason: str | None = None,
+    ) -> None:
+        """What GAGOS's clerk did with a disagreement: its summary, or why it
+        could not (no admitted model is recorded as honestly as a summary)."""
+        with self._db() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO clerk_jobs VALUES (?,?,?,?,?,?,?)",
+                (proposal_id, model, status, summary, crux, reason, _now()),
+            )
+
+    def clerk_job(self, proposal_id: str) -> dict | None:
+        with self._db() as db:
+            row = db.execute(
+                "SELECT * FROM clerk_jobs WHERE proposal_id = ?", (proposal_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def disagreements_without_clerk(self) -> list[dict]:
+        """Proposals both reviewers judged differently that the clerk has not
+        yet summarised."""
+        out = []
+        for p in self.proposals(status="rejected"):
+            reviews = self.reviews(p["proposal_id"])
+            if (
+                all(r in reviews for r in REVIEWERS)
+                and len({reviews[r]["verdict"] for r in REVIEWERS}) == 2
+                and self.clerk_job(p["proposal_id"]) is None
+            ):
+                out.append(p)
+        return out
+
+    def record_day(self, day: str, status: str, reason: str | None = None) -> None:
+        """How a day went: ``ran``, ``blocked`` (and why) or ``idle``. Blocked
+        days are recorded and never caught up (agreed with Codex, 2026-10-30)."""
+        with self._db() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO days VALUES (?,?,?,?)",
+                (day, status, reason, _now()),
+            )
+
+    def days(self) -> list[dict]:
+        with self._db() as db:
+            return [dict(r) for r in db.execute("SELECT * FROM days ORDER BY day")]
+
+    def pr_urls(self) -> list[str]:
+        """Every PR a delivery opened, newest first (whether still open is
+        GitHub's to say)."""
+        with self._db() as db:
+            return [
+                r["pr_url"]
+                for r in db.execute(
+                    "SELECT pr_url, MAX(created_at) AS t FROM deliveries WHERE "
+                    "pr_url IS NOT NULL GROUP BY pr_url ORDER BY t DESC"
+                )
+            ]
 
 
 __all__ = [

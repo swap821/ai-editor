@@ -505,44 +505,106 @@ def cmd_review(args: argparse.Namespace) -> int:
 #: GAGOS's own work is committed as GAGOS: it proposed it. Its reviewers are
 #: named in the message, never as authors (operator, 2026-10-30: "GAGOS only
 #: make its own PR for its own work, u and codex are reviewer and u r chief").
-GAGOS_IDENTITY = ("-c", "user.name=GAGOS", "-c", "user.email=gagos@localhost")
+#: With its GitHub App stored, GAGOS commits and opens PRs as the App's bot.
+GAGOS_IDENTITY = ("GAGOS", "gagos@localhost")
 REVIEWER_LABELS = {"claude": "Claude Code, chief reviewer", "codex": "Codex"}
-#: Said in every GAGOS PR until GAGOS has a GitHub identity of its own.
-PR_FOOTER = (
+#: The chief first, wherever reviews are listed.
+REVIEW_ORDER = ("claude", "codex")
+#: The frontier models are credited by name for what they wrote and judged
+#: (operator, 2026-10-30: "give frontier models their credit").
+MODEL_NAMES = {
+    "mistral.mistral-large-3-675b-instruct": "Mistral Large 3 (Mistral AI, on Amazon Bedrock)",
+    "mistral.devstral-2-123b": "Devstral 2 (Mistral AI, on Amazon Bedrock)",
+    "deepseek.v3.2": "DeepSeek V3.2 (DeepSeek, on Amazon Bedrock)",
+    "us.anthropic.claude-sonnet-4-6": "Claude Sonnet 4.6 (Anthropic, on Amazon Bedrock)",
+    "gpt-6.1-sol": "GPT-6.1 sol (OpenAI, via Codex)",
+    "claude-opus-5-5": "Claude Opus 5.5 (Anthropic, via Claude Code)",
+}
+
+
+def model_name(model_id: str | None) -> str:
+    return MODEL_NAMES.get(model_id or "", model_id or "unknown model")
+
+
+def credit_email(model_id: str) -> str:
+    """A credit address that is plainly not a person's or a company's inbox."""
+    slug = re.sub(r"[^a-z0-9]+", "-", model_id.lower()).strip("-")
+    return f"{slug}@models.invalid"
+
+
+PR_FOOTER_NO_APP = (
     "Opened by GAGOS's delivery step. GAGOS has no GitHub identity of its own "
     "yet, so GitHub shows the operator's account as the opener; every commit "
     "here is authored by GAGOS. Reviewers: Claude Code (chief) and Codex, "
     "independently; a change ships only if both accept. The operator merges."
 )
+PR_FOOTER_APP = (
+    "Opened by GAGOS itself, through its own GitHub App (it can push a branch "
+    "and open a PR; it cannot merge). Reviewers: Claude Code (chief) and "
+    "Codex, independently; a change ships only if both accept. The operator merges."
+)
+#: Kept for callers of the first version.
+PR_FOOTER = PR_FOOTER_NO_APP
 
 
 def commit_message(p: dict, reviews: dict) -> str:
     """GAGOS's commit for one delivered change: what it did, how it was
-    checked, and who reviewed it, as trailers."""
+    checked, who reviewed it, and the frontier model credited as co-author."""
     warnings = json.loads(p["warnings"])
     return "\n".join(
         [
             f"GAGOS: fix {p['rule']} in {p['rel']}",
             "",
             f"GAGOS found {len(warnings)} {p['rule']} warning(s) in this file and "
-            f"proposed this change (proposal {p['proposal_id']}). Unattended checks "
-            "passed: it parses, the warnings are gone, nothing new. Checked again "
-            "on master: it parses, has no ESLint error, and the tests that import "
-            "it pass.",
+            f"proposed this change (proposal {p['proposal_id']}); "
+            f"{model_name(p['model'])} wrote it. Unattended checks passed: it "
+            "parses, the warnings are gone, nothing new. Checked again on master: "
+            "it parses, has no ESLint error, and the tests that import it pass.",
             "",
             *(
-                f"{REVIEWER_LABELS[r]} ({reviews[r]['model']}) accepted: "
+                f"{REVIEWER_LABELS[r]}, {model_name(reviews[r]['model'])}, accepted: "
                 f"{reviews[r]['reason']}"
-                for r in REVIEWERS
+                for r in REVIEW_ORDER
             ),
             "",
-            f"Proposed-by: GAGOS ({p['model']})",
+            "Proposed-by: GAGOS",
+            f"Co-authored-by: {model_name(p['model'])} <{credit_email(p['model'])}>",
             *(
-                f"Reviewed-by: {REVIEWER_LABELS[r]} ({reviews[r]['model']})"
-                for r in REVIEWERS
+                f"Reviewed-by: {REVIEWER_LABELS[r]}, {model_name(reviews[r]['model'])}"
+                for r in REVIEW_ORDER
             ),
         ]
     )
+
+
+def _owner_repo(root: Path) -> tuple[str, str]:
+    url = _git(root, "remote", "get-url", "origin")
+    path = url.split("github.com", 1)[1].lstrip(":/").removesuffix(".git")
+    owner, repo = path.split("/")[:2]
+    return owner, repo
+
+
+def _github_app(root: Path):
+    """``(token, (name, email), owner, repo)`` when GAGOS's App is stored and
+    installed here, else None: then GAGOS falls back to the operator's ``gh``
+    login and its PR says so."""
+    from aios.operations import github_app as gha
+    from aios.operations.keystore import KeystoreUnavailable, default_keystore
+
+    try:
+        creds = gha.stored_credentials(default_keystore())
+    except KeystoreUnavailable:
+        return None
+    if creds is None:
+        return None
+    owner, repo = _owner_repo(root)
+    try:
+        token = gha.installation_token(creds, owner=owner, repo=repo)
+        identity = gha.bot_identity(creds)
+    except gha.GitHubAppError as exc:
+        print(f"GAGOS's App cannot act here ({exc}); using the operator's login")
+        return None
+    return token, identity, owner, repo
 
 
 def cmd_deliver(args: argparse.Namespace) -> int:
@@ -557,6 +619,8 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     if _git(root, "status", "--porcelain"):
         print(f"refused: {root} has uncommitted changes")
         return 2
+    app = _github_app(root) if args.open_pr else None
+    name, email = app[1] if app else GAGOS_IDENTITY
     branch = args.branch or f"gagos/daily-{_today()}"
     _git(root, "fetch", "-q", "origin", "master")
     _git(root, "checkout", "-q", "-B", branch, "origin/master")
@@ -583,7 +647,10 @@ def cmd_deliver(args: argparse.Namespace) -> int:
         _git(root, "add", "--", p["rel"])
         _git(
             root,
-            *GAGOS_IDENTITY,
+            "-c",
+            f"user.name={name}",
+            "-c",
+            f"user.email={email}",
             "commit",
             "-q",
             "-m",
@@ -593,11 +660,44 @@ def cmd_deliver(args: argparse.Namespace) -> int:
         led.record_delivery(pid, branch=branch, outcome="delivered", commit_sha=sha)
         delivered.append(pid)
         print(f"  {pid} {p['rel']}: DELIVERED {sha[:12]}")
-    if delivered and args.open_pr:
-        _git(root, "push", "-q", "-u", "origin", branch)
-        body = report(
-            led, day=_today(), in_pr=delivered, footer=args.pr_footer or PR_FOOTER
+    if not (delivered and args.open_pr):
+        return 0
+    title = (
+        f"GAGOS: daily improvements {_today()} ({len(delivered)} change(s), "
+        "each accepted by both of its reviewers)"
+    )
+    footer = args.pr_footer or (PR_FOOTER_APP if app else PR_FOOTER_NO_APP)
+    body = report(led, day=_today(), in_pr=delivered, footer=footer)
+    if app:
+        from aios.operations import github_app as gha
+
+        token, _identity, owner, repo = app
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(root),
+                "push",
+                "-q",
+                f"https://github.com/{owner}/{repo}.git",
+                f"{branch}:{branch}",
+            ],
+            env={**os.environ, **gha.git_auth_env(token)},
+            check=True,
+            capture_output=True,
+            text=True,
         )
+        url = gha.open_pull_request(
+            token,
+            owner=owner,
+            repo=repo,
+            head=branch,
+            base="master",
+            title=title,
+            body=body,
+        )
+    else:
+        _git(root, "push", "-q", "-u", "origin", branch)
         with tempfile.NamedTemporaryFile(
             "w", suffix=".md", delete=False, encoding="utf-8"
         ) as fh:
@@ -614,8 +714,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                         "--head",
                         branch,
                         "--title",
-                        f"GAGOS: daily improvements {_today()} ({len(delivered)} "
-                        "change(s), each accepted by both of its reviewers)",
+                        title,
                         "--body-file",
                         fh.name,
                     ],
@@ -630,8 +729,8 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             )
         finally:
             os.unlink(fh.name)
-        led.set_pr(delivered, url)
-        print(f"PR: {url}")
+    led.set_pr(delivered, url)
+    print(f"PR: {url}")
     return 0
 
 
@@ -640,6 +739,35 @@ def cmd_deliver(args: argparse.Namespace) -> int:
 
 def _fence(text: str, lang: str = "") -> str:
     return f"```{lang}\n{text.rstrip()}\n```"
+
+
+def credits(led: DailyLedger, ids: list[str]) -> list[str]:
+    """Who did the work in these proposals, by name: the frontier models that
+    wrote and judged it, and GAGOS's clerk where it summarised."""
+    writers: Counter = Counter()
+    judges: dict[str, set] = {r: set() for r in REVIEW_ORDER}
+    clerks: set = set()
+    for pid in ids:
+        [p] = [x for x in led.proposals() if x["proposal_id"] == pid]
+        writers[model_name(p["model"])] += 1
+        for r, review in led.reviews(pid).items():
+            judges[r].add(model_name(review["model"]))
+        job = led.clerk_job(pid)
+        if job and job["status"] == "completed":
+            clerks.add(job["model"])
+    lines = ["**Credits**"]
+    lines += [f"- written by {name} ({n} change(s))" for name, n in writers.items()]
+    lines += [
+        f"- reviewed by {REVIEWER_LABELS[r]}: {', '.join(sorted(judges[r]))}"
+        for r in REVIEW_ORDER
+        if judges[r]
+    ]
+    if clerks:
+        lines.append(
+            f"- disagreements summarised by GAGOS's clerk: {', '.join(sorted(clerks))}"
+        )
+    lines.append("- orchestrated, checked and delivered by GAGOS")
+    return lines
 
 
 def report(
@@ -651,13 +779,14 @@ def report(
 ) -> str:
     """The day's work, every proposal and what happened to it (refused and
     rejected ones too: an honest day shows its misses), then D14's running
-    numbers. *in_pr* marks the proposals a daily PR carries."""
+    numbers and the credits. *in_pr* marks the proposals a daily PR carries."""
     every = led.proposals()
     chosen = [p for p in every if day is None or p["day"] == day]
     by = Counter(p["status"] for p in every)
     reviewed = [led.reviews(p["proposal_id"]) for p in every]
     both = [r for r in reviewed if all(x in r for x in REVIEWERS)]
     disagree = [r for r in both if r["codex"]["verdict"] != r["claude"]["verdict"]]
+    blocked = [d for d in led.days() if d["status"] == "blocked"]
     out = [f"## GAGOS daily work{f' — {day}' if day else ''}", ""]
     out += [
         "**D14 so far** (every proposal in the ledger; descriptive, not a test):",
@@ -667,6 +796,7 @@ def report(
         f"{sum(1 for r in both if all(r[x]['verdict'] == 'accept' for x in REVIEWERS))}; "
         f"reviewers disagreed: {len(disagree)}",
         f"- delivered: {by['delivered']}; stale: {by['stale']}; failed delivery checks: {by['failed']}",
+        f"- days blocked: {len(blocked)}",
         "- merged and reverted are not tracked automatically yet; read them from master.",
         "",
     ]
@@ -675,19 +805,29 @@ def report(
         carried = " (in this PR)" if in_pr and p["proposal_id"] in in_pr else ""
         out += [
             f"### {p['rule']} in `{p['rel']}` — {p['status']}{carried}",
-            f"proposal `{p['proposal_id']}`, model `{p['model']}`, base `{p['base_commit'][:12]}`",
+            f"proposal `{p['proposal_id']}`, written by {model_name(p['model'])}, "
+            f"base `{p['base_commit'][:12]}`",
         ]
         if p["refusal"]:
             out.append(f"- refused: {p['refusal']}")
-        for r in REVIEWERS:
+        for r in REVIEW_ORDER:
             if r in reviews:
                 rv = reviews[r]
                 out.append(
-                    f"- {REVIEWER_LABELS[r]} (`{rv['model']}`): "
+                    f"- {REVIEWER_LABELS[r]} ({model_name(rv['model'])}): "
                     f"**{rv['verdict']}**: {rv['reason']}"
                 )
-            elif p["status"] == "proposed":
+            elif p["status"] in ("proposed", "rejected"):
                 out.append(f"- {REVIEWER_LABELS[r]}: not yet reviewed")
+        job = led.clerk_job(p["proposal_id"])
+        if job:
+            if job["status"] == "completed":
+                out.append(
+                    f"- GAGOS's clerk ({job['model']}) on the disagreement: "
+                    f"{job['summary']} Crux: {job['crux']}"
+                )
+            else:
+                out.append(f"- GAGOS's clerk could not summarise: {job['reason']}")
         if p["diff"]:
             out += [
                 "",
@@ -698,6 +838,8 @@ def report(
                 "</details>",
             ]
         out.append("")
+    if in_pr:
+        out += [*credits(led, in_pr), ""]
     if footer:
         out += ["", footer]
     return "\n".join(out)
@@ -710,6 +852,179 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(f"wrote {args.out}")
     else:
         print(text)
+    return 0
+
+
+# --------------------------------------------------------------------- the clerk
+
+#: What the clerk returns for a disagreement.
+CLERK_SCHEMA = {
+    "type": "object",
+    "properties": {"summary": {"type": "string"}, "crux": {"type": "string"}},
+    "required": ["summary", "crux"],
+}
+
+
+def clerk_summarise(p: dict, reviews: dict, *, service=None) -> dict:
+    """GAGOS's clerk -- a local model, nothing leaves the machine -- summarises
+    for the operator why the two reviewers disagreed. Advisory only: it decides
+    nothing (a disagreement never ships). With no model the operator admitted,
+    the clerk's service refuses, and that refusal is recorded as honestly."""
+    from datetime import timedelta
+
+    from aios.domain.local_workforce.contracts import LocalJobProfile, LocalJobRequest
+
+    if service is None:
+        from aios.operations.clerk_admin import default_service
+
+        service = default_service()
+    payload = "\n".join(
+        [
+            f"A proposed change to {p['rel']} (ESLint rule {p['rule']}).",
+            "Two independent reviewers disagreed about it:",
+            *(
+                f"- {REVIEWER_LABELS[r]}: {reviews[r]['verdict']}: {reviews[r]['reason']}"
+                for r in REVIEW_ORDER
+            ),
+            "",
+            "The change:",
+            p["diff"] or "",
+            "",
+            "In two sentences, summarise the disagreement for the operator, and "
+            "name its crux: the one fact that would settle it.",
+        ]
+    )
+    request = LocalJobRequest(
+        job_id=f"gagos-daily-{p['proposal_id']}",
+        job_profile=LocalJobProfile.SUMMARISE_DISAGREEMENT,
+        input_schema_version="1.0",
+        evidence_references=frozenset({p["proposal_id"]}),
+        redacted_payload=payload,
+        token_budget=400,
+        deadline=datetime.now(timezone.utc) + timedelta(seconds=180),
+        required_output_schema=CLERK_SCHEMA,
+    )
+    result = service.run_advisory_job(request)
+    output = dict(result.structured_output or {})
+    return {
+        "status": result.status,
+        "model": result.model_id,
+        "summary": output.get("summary"),
+        "crux": output.get("crux"),
+        "reason": result.failure_reason,
+    }
+
+
+def cmd_clerk(args: argparse.Namespace) -> int:
+    led = ledger()
+    for p in led.disagreements_without_clerk():
+        try:
+            job = clerk_summarise(p, led.reviews(p["proposal_id"]))
+        except Exception as exc:  # recorded, never hidden
+            job = {
+                "status": "failed",
+                "model": None,
+                "reason": f"{type(exc).__name__}: {exc}"[:300],
+            }
+        led.record_clerk(
+            p["proposal_id"],
+            model=job.get("model"),
+            status=job["status"],
+            summary=job.get("summary"),
+            crux=job.get("crux"),
+            reason=job.get("reason"),
+        )
+        print(
+            f"  {p['proposal_id']}: clerk {job['status']}"
+            + (f" ({job.get('reason')})" if job["status"] != "completed" else "")
+        )
+    return 0
+
+
+# --------------------------------------------------------------------- the day
+
+#: At most this many proposals per UTC day, rejections included (agreed with
+#: Codex, 2026-10-30: "two proposals is a ceiling, not a delivery target").
+DAILY_PROPOSALS = 2
+
+
+def _pr_state(url: str) -> str:
+    """OPEN, MERGED or CLOSED; UNKNOWN when GitHub cannot be asked (which
+    blocks the day: fail closed)."""
+    try:
+        return (
+            subprocess.run(
+                ["gh", "pr", "view", url, "--json", "state", "-q", ".state"],
+                capture_output=True,
+                text=True,
+                check=True,
+                timeout=60,
+            ).stdout.strip()
+            or "UNKNOWN"
+        )
+    except Exception:
+        return "UNKNOWN"
+
+
+def cmd_daily(args: argparse.Namespace) -> int:
+    """GAGOS's day, run by its own scheduler, needing no one to start it:
+    the rules agreed with Codex (2026-10-30) decide whether there is work."""
+    root = Path(args.project).resolve()
+    led = ledger()
+    today = _today()
+    open_prs = [u for u in led.pr_urls() if _pr_state(u) not in ("MERGED", "CLOSED")]
+    blocked = (
+        f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
+        if open_prs
+        else None
+    )
+    proposed_today = len(led.proposals(day=today))
+    if blocked:
+        led.record_day(today, "blocked", blocked)
+        print(f"{today}: blocked -- {blocked}")
+    elif proposed_today:
+        print(f"{today}: today's batch already ran ({proposed_today} proposal(s))")
+    else:
+        if _git(root, "status", "--porcelain"):
+            led.record_day(today, "blocked", f"{root} has uncommitted changes")
+            print(f"refused: {root} has uncommitted changes")
+            return 2
+        _git(root, "fetch", "-q", "origin", "master")
+        _git(root, "checkout", "-q", "--detach", "origin/master")
+        rc = cmd_propose(
+            argparse.Namespace(
+                project=str(root),
+                budget=DAILY_PROPOSALS,
+                model=args.model,
+                region=args.region,
+                rules=None,
+                dry_run=False,
+            )
+        )
+        led.record_day(
+            today,
+            "ran" if rc == 0 else "blocked",
+            None if rc == 0 else f"propose exited {rc}",
+        )
+    # Finishing today's reviews is not a new batch.
+    for reviewer in REVIEW_ORDER:
+        cmd_review(
+            argparse.Namespace(reviewer=reviewer, limit=10, model=None, timeout=900)
+        )
+    cmd_clerk(argparse.Namespace())
+    if not blocked:
+        cmd_deliver(
+            argparse.Namespace(
+                worktree=str(root),
+                branch=None,
+                check_timeout=600,
+                open_pr=True,
+                pr_footer="",
+            )
+        )
+    reports = config.DATA_DIR / "gagos_daily" / "reports"
+    reports.mkdir(parents=True, exist_ok=True)
+    (reports / f"{today}.md").write_text(report(led, day=today), encoding="utf-8")
     return 0
 
 
@@ -756,6 +1071,20 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("--open-pr", action="store_true")
     d.add_argument("--pr-footer", default="")
     d.set_defaults(func=cmd_deliver)
+
+    c = sub.add_parser("clerk", help="the clerk summarises today's disagreements")
+    c.set_defaults(func=cmd_clerk)
+
+    y = sub.add_parser(
+        "daily", help="GAGOS's whole day, by the rules agreed with Codex"
+    )
+    y.add_argument("--project", required=True, help="GAGOS's own dedicated worktree")
+    y.add_argument("--model", default=DEFAULT_MODEL)
+    y.add_argument(
+        "--region",
+        default=os.environ.get("AIOS_BEDROCK_REGION") or config.BEDROCK_REGION,
+    )
+    y.set_defaults(func=cmd_daily)
 
     o = sub.add_parser("report")
     o.add_argument("--day", default=None)
