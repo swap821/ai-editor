@@ -978,6 +978,18 @@ _METHOD_ROUTE_AUTHORITY: dict[tuple[str, str], RouteAuthority] = {
         audit_event="maintenance_finding_list",
         action_type=ActionType.PLAN,
     ),
+    # What a repair would change, as a diff, before anyone approves it
+    # (2026-10-30, the daily frontend worker). Read-only, like the list above.
+    (
+        "GET",
+        "/api/v1/maintenance/findings/{fingerprint}/preview",
+    ): RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="maintenance_repair_preview",
+        action_type=ActionType.PLAN,
+    ),
 }
 
 

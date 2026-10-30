@@ -217,11 +217,121 @@ def vulture_dead_import_scanner(context: Any) -> Sequence[MaintenanceFinding]:
 vulture_dead_import_scanner.project_rooted = True  # type: ignore[attr-defined]
 
 
+FRONTEND_UNUSED_IMPORT_SCANNER_ID = "frontend_unused_imports"
+FRONTEND_UNUSED_IMPORT_SCANNER_VERSION = "1"
+#: The lab-to-product port's manifest: the product files it owns.
+SUPERBRAIN_PORT_MANIFEST = "frontend/superbrain-source.json"
+
+
+def frontend_unused_import_scanner(context: Any) -> Sequence[MaintenanceFinding]:
+    """Unused imports in GAGOS's own frontend: one finding per file.
+
+    Added 2026-10-30 for GAGOS's daily frontend worker. The rule is
+    ``aios/maintenance/frontend_imports.py``, the one the repair operation
+    REMOVE_UNUSED_FRONTEND_IMPORTS_V1 removes by, and only names that operation
+    CAN remove are reported -- so every finding is repairable and a repair can
+    never remove what was not reported.
+
+    Files the lab-to-product port owns (``frontend/superbrain-source.json``)
+    are never reported: an edit there is overwritten by the next port, and the
+    port refuses a product it did not write ("Product drift"). Their fixes
+    belong in the lab.
+
+    PROJECT-ROOTED like the dead-import scanner, so a finding's ``target_id``
+    is relative to the project (the staged workspace a repair runs in); every
+    read goes through the bounded context. ``target_id`` narrows what is
+    reported (a rescan of the repaired file), never what is read.
+    """
+    import json
+
+    from aios.domain.maintenance.service import BoundedScanContext
+    from aios.maintenance.frontend_imports import (
+        FrontendImportError,
+        frontend_files,
+        remove_unused_frontend_imports,
+    )
+
+    if not isinstance(context, BoundedScanContext):
+        raise ValueError("the frontend scanner reads only through a bounded context")
+    root = context.root
+    if not (root / "frontend" / "src").is_dir():
+        raise ValueError(
+            "the frontend scanner must be rooted at a project root with frontend/src"
+        )
+    managed: set[str] = set()
+    if (root / SUPERBRAIN_PORT_MANIFEST).is_file():
+        manifest = json.loads(context.read_text(SUPERBRAIN_PORT_MANIFEST))
+        managed = {
+            f"frontend/src/superbrain/{path}" for path in manifest.get("files", {})
+        }
+    target = (context.target_id or "").replace("\\", "/").strip("/")
+    texts: dict[str, str] = {}
+    for path in frontend_files(root):
+        rel = path.relative_to(root).as_posix()
+        if rel in managed:
+            continue
+        if (
+            target not in ("", ".")
+            and rel != target
+            and not rel.startswith(target.rstrip("/") + "/")
+        ):
+            continue
+        texts[rel] = context.read_text(rel)
+    source_digest = hashlib.sha256(
+        "".join(
+            f"{rel}:{hashlib.sha256(text.encode('utf-8')).hexdigest()}\n"
+            for rel, text in sorted(texts.items())
+        ).encode("utf-8")
+    ).hexdigest()
+    now = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+    findings: list[MaintenanceFinding] = []
+    for rel, text in sorted(texts.items()):
+        try:
+            removable = remove_unused_frontend_imports(
+                text, suffix=Path(rel).suffix
+            ).removed
+        except FrontendImportError:
+            continue  # a file the rule cannot follow is not this scanner's finding
+        if not removable:
+            continue
+        fingerprint = hashlib.sha256(
+            f"{FRONTEND_UNUSED_IMPORT_SCANNER_ID}:{rel}:unused_imports".encode("utf-8")
+        ).hexdigest()
+        findings.append(
+            MaintenanceFinding(
+                finding_id=f"finding-{fingerprint[:12]}",
+                fingerprint=fingerprint,
+                scanner_id=FRONTEND_UNUSED_IMPORT_SCANNER_ID,
+                scanner_version=FRONTEND_UNUSED_IMPORT_SCANNER_VERSION,
+                kind="unused_import",
+                severity="LOW",
+                confidence=1.0,
+                evidence_quality="DETERMINISTIC",
+                target_id=rel,
+                target_digest=hashlib.sha256(text.encode("utf-8")).hexdigest(),
+                source_digest=source_digest,
+                first_seen=now,
+                last_seen=now,
+                occurrence_count=1,
+                status="OPEN",
+                deterministic_evidence=(
+                    f"{len(removable)} unused import(s) in {rel}: "
+                    f"{', '.join(removable)}"
+                ),
+            )
+        )
+    return tuple(findings)
+
+
+frontend_unused_import_scanner.project_rooted = True  # type: ignore[attr-defined]
+
+
 def get_admitted_scanners() -> dict[str, Callable[[Any], Sequence[MaintenanceFinding]]]:
     """Return dictionary of admitted scanner adapters."""
     return {
         ADMITTED_SCANNER_ID: deterministic_config_scanner,
         VULTURE_DEAD_IMPORT_SCANNER_ID: vulture_dead_import_scanner,
+        FRONTEND_UNUSED_IMPORT_SCANNER_ID: frontend_unused_import_scanner,
     }
 
 

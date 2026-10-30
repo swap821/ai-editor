@@ -25,8 +25,10 @@ from aios.infrastructure.executor import workspace as workspace_policy
 from aios.maintenance.repair_operations import (
     REGISTERED_REPAIR_OPERATIONS,
     REMOVE_DEAD_IMPORTS_V1,
+    REMOVE_UNUSED_FRONTEND_IMPORTS_V1,
     RepairRefused,
     remove_dead_imports,
+    remove_unused_frontend_imports_in,
 )
 from aios.operations.tracing import bind_trace_context, new_trace_context
 
@@ -260,6 +262,20 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
                 ended_at=utc_now(),
                 reason=f"repair refused: {exc}",
             )
+    elif op_id == REMOVE_UNUSED_FRONTEND_IMPORTS_V1:
+        # File-local: the rule reads only the target, so no project index and
+        # no staging-root guard are needed beyond the containment above.
+        try:
+            new_content = remove_unused_frontend_imports_in(content, path=target_path)
+        except RepairRefused as exc:
+            return ExecutorResult(
+                job_id=job.job_id,
+                status="failed",
+                isolation_verified=False,
+                started_at=started,
+                ended_at=utc_now(),
+                reason=f"repair refused: {exc}",
+            )
     else:
         markers = [
             "# DEFECT_MARKER: fix_required\n",
@@ -282,7 +298,7 @@ def execute_registered_operation_in_service(job: ExecutorJob) -> ExecutorResult:
             ended_at=utc_now(),
             reason=(
                 "target file had no dead import the repair could remove"
-                if op_id == REMOVE_DEAD_IMPORTS_V1
+                if op_id in (REMOVE_DEAD_IMPORTS_V1, REMOVE_UNUSED_FRONTEND_IMPORTS_V1)
                 else "target file contained no allowed maintenance marker"
             ),
         )

@@ -21,6 +21,12 @@ what it can rewrite safely and refuses the rest:
 
 The result must parse, and exactly the removed names -- no others -- must be
 gone, or the operation refuses and writes nothing.
+
+``REMOVE_UNUSED_FRONTEND_IMPORTS_V1`` (added 2026-10-30 for GAGOS's daily
+frontend worker) is its frontend twin: the rule and the rewrite are
+``aios/maintenance/frontend_imports.py``. An imported binding goes only when its
+name appears nowhere else in the file; an import emptied in ``.js``/``.jsx``
+becomes a side-effect import, so its module still loads.
 """
 
 from __future__ import annotations
@@ -34,15 +40,37 @@ from aios.maintenance.dead_imports import bound_name, dead_imports_in
 
 REMOVE_MAINTENANCE_MARKER_V1 = "REMOVE_MAINTENANCE_MARKER_V1"
 REMOVE_DEAD_IMPORTS_V1 = "REMOVE_DEAD_IMPORTS_V1"
+REMOVE_UNUSED_FRONTEND_IMPORTS_V1 = "REMOVE_UNUSED_FRONTEND_IMPORTS_V1"
 
 #: The operations an executor may run. Anything else is refused.
 REGISTERED_REPAIR_OPERATIONS = frozenset(
-    {REMOVE_MAINTENANCE_MARKER_V1, REMOVE_DEAD_IMPORTS_V1}
+    {
+        REMOVE_MAINTENANCE_MARKER_V1,
+        REMOVE_DEAD_IMPORTS_V1,
+        REMOVE_UNUSED_FRONTEND_IMPORTS_V1,
+    }
 )
 
 
 class RepairRefused(ValueError):
     """The operation would not be safe or did not verify; nothing was written."""
+
+
+def remove_unused_frontend_imports_in(content: str, *, path: Path) -> str:
+    """REMOVE_UNUSED_FRONTEND_IMPORTS_V1 on one file's text: the new text, or
+    :class:`RepairRefused` when there is nothing it may remove."""
+    from aios.maintenance.frontend_imports import (
+        FrontendImportError,
+        remove_unused_frontend_imports,
+    )
+
+    try:
+        result = remove_unused_frontend_imports(content, suffix=path.suffix)
+    except FrontendImportError as exc:
+        raise RepairRefused(str(exc)) from exc
+    if not result.changed:
+        raise RepairRefused("no unused frontend import the rule may remove")
+    return result.content
 
 
 @dataclass(frozen=True)
