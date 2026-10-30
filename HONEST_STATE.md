@@ -1,9 +1,31 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-10-29 ("State on 2026-10-29" below; earlier sections keep
+**Last updated:** 2026-10-30 ("State on 2026-10-30" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-10-30 (the operator's daily backend, master `f6206755`)
+
+- **Three reflexes now serve his daily turns, from three real modules** (`docs/learning/daily_reflexes_2026-10-30/`).
+  - The backend was started by `tools/daily_backend.py up`, with turns bound to `work/ai-editor` and routing local only.
+  - **The gateway reflex survives a restart.** Playbook 17 served after the restart: 8 of 8 checks, zero model calls. `check` had predicted it ready.
+  - **Two new reflexes**, each earned, activated by him, compiled and serving with zero model calls (12 of 12 checks each): playbook 18 for `tests/test_failover.py` and playbook 19 for `tests/test_privacy_filter.py`.
+  - `check` now reports 3 of 11 reflexes ready.
+- **The local model derails on simple turns.** In 5 of 14 model-answered turns, `qwen2.5-coder:7b` repeated a verify that had already passed, and the loop guard stopped the turn.
+- **A defect: those stopped turns were still learned.** The library recorded each one as a successful two-step arc ("verify; verify").
+  - One of these, `arc-c46f6a5f…`, reached review-ready from stopped turns alone.
+  - It was never activated, and nothing becomes a reflex without his activation, so no harm was done. The fix is a separate PR.
+- **The agent's proof script had a bug that cost him three approvals.** It followed the wrong arc. It is fixed, and the evidence README records it.
+- **An inspection of the memory and learning system, measured on his store, read-only.** He asked what is stopping usefulness.
+  - **No real use.** User turns: June 743, July 347, August 0, September 0, October 21, and all 21 in October were proof scripts. The last ordinary turn was on 2026-07-10. His real work happens in other tools.
+  - **What it holds came from its own harnesses.**
+    - 228 lessons, every one from practice or prover tasks. Only 5 have a recorded outcome.
+    - 95 facts, all prover debris. 94 were never approved, and none is about him.
+    - 232 of 240 semantic memories predate signing, so recall refuses them.
+  - **A reflex fires only on the exact command string.** It matched `run pytest ai-editor/tests/test_gateway_enforcement.py -q`, but not "run the gateway enforcement tests".
+  - **Measured payoff:** D12 was not met (12 better against 18 worse, p = 0.21). D13 has no verdict.
+  - **The conclusion:** the machinery works, but usefulness can only come from real, recurring use. Proving more of the mechanism will not supply that.
 
 ## Later on 2026-10-29: the daily backend made dependable (branch `feat/daily-boring`, off master `062a328a`)
 
