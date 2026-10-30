@@ -1,0 +1,742 @@
+#!/usr/bin/env python3
+"""GAGOS's daily work on its own frontend (D14): propose, review, report, deliver.
+
+docs/learning/PAYOFF_PREREGISTRATION.md D14. Each step is its own command, so a
+day can stop anywhere and resume, and every outcome is in the ledger
+(``<AIOS_DATA_DIR>/gagos_daily/ledger.db``):
+
+  propose   lint the frontend of --project (a clean checkout of master); for up
+            to --budget findings (one file, one rule), ask the frontier model
+            through the one gateway for the whole corrected file, and run the
+            unattended static checks. Nothing the model wrote is executed.
+  review    --reviewer codex|claude: each open proposal is reviewed by a fresh,
+            read-only, tool-less session that sees the rule, the warnings, the
+            whole original file and the diff, and returns a schema-checked
+            verdict. A proposal is accepted only when BOTH reviewers accept.
+  deliver   apply the accepted proposals to a daily branch in --worktree (reset
+            to origin/master), each checked there (parse, no ESLint error, the
+            tests that import it) and committed on its own; --open-pr pushes
+            and opens one PR. The operator merges; CI gates.
+  report    the day's work and D14's running numbers, as Markdown.
+
+The model call needs, by GAGOS's own law, the "coding" task allowed to the cloud
+(constitution intersected with the runtime profile: AIOS_ROUTER_CLOUD_TASKS) and
+Bedrock credentials; without either it refuses and says which. Run it with
+AIOS_DATA_DIR set to the operator's data, so the call is bound to his enrolled
+identity and constitution, and is recorded in his model-call ledger.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import time
+from collections import Counter
+from datetime import datetime, timezone
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from aios import config  # noqa: E402
+from aios.maintenance.daily_work import (  # noqa: E402
+    FIRST_RULES,
+    PROPOSER_SYSTEM,
+    REVIEW_SCHEMA,
+    REVIEWERS,
+    DailyLedger,
+    Finding,
+    ProposalRefused,
+    digest,
+    findings,
+    mask_lines,
+    parse_proposal,
+    parse_review,
+    project_facts,
+    proposal_prompt,
+    review_prompt,
+    static_verdict,
+    unmask,
+)
+from aios.maintenance.frontend_static import (  # noqa: E402
+    StaticCheckUnavailable,
+    check_texts,
+    editable_frontend_files,
+)
+
+DEFAULT_MODEL = "mistral.mistral-large-3-675b-instruct"
+#: A whole-file proposal for a longer file would not fit one answer reliably.
+MAX_FILE_CHARS = 40_000
+TASK = "coding"
+
+
+def ledger() -> DailyLedger:
+    return DailyLedger(config.DATA_DIR / "gagos_daily" / "ledger.db")
+
+
+def _git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(root), *args],
+        capture_output=True,
+        text=True,
+        check=True,
+        encoding="utf-8",
+    ).stdout.strip()
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+# --------------------------------------------------------------------- the model
+
+
+def cloud_coding_allowed() -> tuple[bool, str]:
+    """GAGOS's egress law for the "coding" task: the same derivation the router
+    uses (constitution intersected with the active runtime profile)."""
+    from aios.api.deps import get_policy_kernel
+    from aios.core import router
+
+    policy = get_policy_kernel().router_policy()
+    probe = router.Provider(
+        name="gagos-daily-probe",
+        privacy=router.PRIVACY_CLOUD,
+        cost=router.COST_HIGH,  # Bedrock's class (aios/core/router_wiring.py)
+        available=True,
+        models=("bedrock",),
+    )
+    allowed = router.policy_allows(policy, TASK, probe)
+    return allowed, (
+        f"cloud tasks in force {sorted(policy.cloud_tasks)}, max cost {policy.max_cost}"
+    )
+
+
+def egress_redact(text: str) -> str:
+    """What GAGOS's egress scrubbers would send in place of *text*: the
+    gateway's secret policy, then Bedrock's privacy filter. The oracle for
+    :func:`mask_lines`, never a copy of their patterns."""
+    from aios.core.privacy_filter import PrivacyFilter
+    from aios.runtime.secret_policy import SecretPolicy
+
+    scrubbed = SecretPolicy().inspect_text(text).scrubbed
+    safe, _audit = PrivacyFilter().filter([{"role": "user", "content": scrubbed}])
+    return str(safe[0]["content"]) if safe else ""
+
+
+def would_be_altered(prompt: str, system: str) -> str | None:
+    """Why the prompt would not reach the model as written, if it would not.
+    A file the secret policy or the privacy filter would change is not sent:
+    the model would be proposing against a different file."""
+    from aios.core.privacy_filter import PrivacyFilter
+    from aios.runtime.secret_policy import SecretPolicy
+
+    if SecretPolicy().inspect_text(prompt).scrubbed != prompt:
+        return "the secret policy would scrub this file, so it is not sent"
+    messages = [
+        {"role": "system", "content": system},
+        {"role": "user", "content": prompt},
+    ]
+    safe, _audit = PrivacyFilter().filter(messages)
+    if safe != messages:
+        return "the privacy filter would redact this file, so it is not sent"
+    return None
+
+
+def governed_completer(model: str, region: str):
+    """``complete(prompt, system, request_id) -> str`` through organ 32's
+    gateway, bound to the enrolled operator and the active constitution."""
+    from aios.api.deps import get_constitution_authority, get_emergency_stop
+    from aios.application.intelligence.gateway import (
+        AdvisoryChatCompletionAdapter,
+        GovernedAdvisoryCompletionClient,
+    )
+    from aios.core.bedrock import BedrockClient, credentials_available
+    from aios.infrastructure.identity.sqlite_store import credential_digest
+
+    if not credentials_available(region):
+        raise SystemExit(
+            f"no Bedrock credentials for {region}: set AWS_BEARER_TOKEN_BEDROCK "
+            "(the operator's keystore) before proposing"
+        )
+    snapshot = get_constitution_authority().get_active_snapshot()
+    provider = AdvisoryChatCompletionAdapter(
+        BedrockClient(model=model, region=region, max_tokens=12_000, temperature=0.0),
+        model=model,
+    )
+    emergency_stop = get_emergency_stop()
+
+    def complete(prompt: str, system: str, request_id: str) -> str:
+        client = GovernedAdvisoryCompletionClient(
+            provider,
+            request_id=request_id,
+            operator_identity_digest=credential_digest(
+                snapshot.ratified_by_operator_id
+            ),
+            constitution_digest=snapshot.snapshot_digest,
+            target="cloud",
+            desired_outcome=(
+                "one proposed fix of ESLint warnings in one frontend file, for "
+                "independent review by two reviewers"
+            ),
+            emergency_stop=emergency_stop,
+        )
+        return client.complete(prompt, system=system)
+
+    return complete
+
+
+# --------------------------------------------------------------------- propose
+
+
+def cmd_propose(args: argparse.Namespace) -> int:
+    root = Path(args.project).resolve()
+    led = ledger()
+    head = _git(root, "rev-parse", "HEAD")
+    facts = project_facts(root)
+    if _git(root, "status", "--porcelain", "--", "frontend/src"):
+        print(f"refused: frontend/src has uncommitted changes in {root}")
+        return 2
+    rules = tuple(args.rules or FIRST_RULES)
+    texts = {
+        rel: (root / rel).read_bytes().decode("utf-8")
+        for rel in editable_frontend_files(root)
+    }
+    try:
+        results = check_texts(root, texts)
+    except StaticCheckUnavailable as exc:
+        print(f"refused: {exc}")
+        return 2
+    every = Counter(m.rule for r in results.values() for m in r.warnings())
+    work = [
+        f
+        for f in findings(results, rules=rules)
+        if not led.attempted(f.rel, f.rule, digest(texts[f.rel]))
+    ]
+    print(
+        f"{root} @ {head[:12]}: {len(texts)} editable files, "
+        f"{sum(every.values())} warnings; {len(work)} findings not yet attempted "
+        f"for {', '.join(rules)}"
+    )
+    waiting = {rule: n for rule, n in every.items() if rule not in rules}
+    if waiting:
+        print(
+            "not attempted (their fix can change behaviour or spans files): "
+            + ", ".join(f"{rule} {n}" for rule, n in sorted(waiting.items(), key=str))
+        )
+    if args.dry_run:
+        for f in work[: args.budget]:
+            print(f"  would propose: {f.rule} in {f.rel} ({len(f.warnings)})")
+        return 0
+    allowed, why = cloud_coding_allowed()
+    if not allowed:
+        print(
+            f"refused by GAGOS's egress law: the '{TASK}' task may not go to the "
+            f"cloud ({why}). Run with AIOS_ROUTER_CLOUD_TASKS including {TASK}."
+        )
+        return 2
+    complete = governed_completer(args.model, args.region)
+    asked = 0
+    for f in work:
+        if asked >= args.budget:
+            break
+        text = texts[f.rel]
+        common = dict(base_text=text, base_commit=head, model=args.model, facts=facts)
+        if len(text) > MAX_FILE_CHARS:
+            led.record_proposal(
+                f,
+                **common,
+                new_text=None,
+                verdict=None,
+                refusal=f"file is {len(text)} characters; the bound for a "
+                f"whole-file proposal is {MAX_FILE_CHARS}",
+            )
+            continue
+        # What the scrubbers would redact stays here, behind placeholders.
+        masked, mapping = mask_lines(text, egress_redact)
+        prompt = proposal_prompt(
+            f,
+            masked,
+            prior_refusals=[egress_redact(r) for r in led.refusal_reasons(f.rule)],
+            masked=bool(mapping),
+            facts=facts,
+        )
+        altered = would_be_altered(prompt, PROPOSER_SYSTEM)
+        if altered:
+            led.record_proposal(
+                f, **common, new_text=None, verdict=None, refusal=altered
+            )
+            print(f"  skipped {f.rel}: {altered}")
+            continue
+        asked += 1
+        started = time.monotonic()
+        try:
+            raw = complete(prompt, PROPOSER_SYSTEM, f"gagos-daily:{_today()}:{asked}")
+        except (
+            Exception
+        ) as exc:  # the model or the gateway refused; recorded, never hidden
+            pid = led.record_proposal(
+                f,
+                **common,
+                new_text=None,
+                verdict=None,
+                refusal=f"model call failed: {type(exc).__name__}: {exc}"[:600],
+            )
+            print(f"  {pid} {f.rel}: model call failed: {exc}")
+            continue
+        try:
+            new_text = unmask(
+                parse_proposal(raw, original=text), mapping, masked=masked
+            )
+        except ProposalRefused as exc:
+            pid = led.record_proposal(
+                f, **common, new_text=None, verdict=None, refusal=str(exc)
+            )
+            print(f"  {pid} {f.rel}: refused: {exc}")
+            continue
+        try:
+            after = check_texts(root, {f.rel: new_text})[f.rel]
+        except StaticCheckUnavailable as exc:
+            pid = led.record_proposal(
+                f,
+                **common,
+                new_text=new_text,
+                verdict=None,
+                refusal=f"static checks unavailable: {exc}",
+            )
+            print(f"  {pid} {f.rel}: {exc}")
+            continue
+        verdict = static_verdict(f, text, new_text, results[f.rel], after)
+        pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
+        state = (
+            "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
+        )
+        print(
+            f"  {pid} {f.rule} in {f.rel}: {state} "
+            f"({verdict.changed_lines} lines, {time.monotonic() - started:.0f}s)"
+        )
+    return 0
+
+
+# --------------------------------------------------------------------- review
+
+
+class ReviewUnavailable(RuntimeError):
+    """The reviewer did not return a verdict; the proposal stays open."""
+
+
+def _schema_file(tmp: str) -> Path:
+    path = Path(tmp, "verdict.schema.json")
+    path.write_text(json.dumps(REVIEW_SCHEMA), encoding="utf-8")
+    return path
+
+
+def run_codex(
+    prompt: str, *, model: str | None, timeout_s: float
+) -> tuple[str, str, str]:
+    codex = shutil.which("codex")
+    if codex is None:
+        raise ReviewUnavailable("the Codex CLI is not installed")
+    with tempfile.TemporaryDirectory(prefix="gagos-review-") as tmp:
+        out = Path(tmp, "verdict.json")
+        argv = [
+            codex,
+            "exec",
+            "-s",
+            "read-only",
+            "--skip-git-repo-check",
+            "--ephemeral",
+            "--output-schema",
+            str(_schema_file(tmp)),
+            "-o",
+            str(out),
+        ]
+        if model:
+            argv += ["-m", model]
+        try:
+            proc = subprocess.run(
+                [*argv, "-"],
+                input=prompt,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=tmp,
+                timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ReviewUnavailable(f"Codex timed out after {timeout_s}s") from exc
+        log = (proc.stdout or "") + (proc.stderr or "")
+        used = re.search(r"^model: (\S+)", log, re.MULTILINE)
+        if (
+            proc.returncode != 0
+            or not out.is_file()
+            or not out.read_text(encoding="utf-8").strip()
+        ):
+            errors = [
+                line
+                for line in log.splitlines()
+                if "ERROR" in line and "rmcp::transport" not in line
+            ]
+            raise ReviewUnavailable(
+                (errors[-1] if errors else f"Codex exited {proc.returncode}")[:400]
+            )
+        verdict, reason = parse_review(out.read_text(encoding="utf-8"))
+        return (
+            verdict,
+            reason,
+            used.group(1) if used else (model or "codex (configured)"),
+        )
+
+
+def _claude_executable() -> str | None:
+    """The real binary, never an npm .cmd shim: cmd.exe would mangle the JSON
+    schema argument."""
+    found = shutil.which("claude")
+    if found and found.lower().endswith((".cmd", ".bat")):
+        native = (
+            Path(found).parent
+            / "node_modules"
+            / "@anthropic-ai"
+            / "claude-code"
+            / "bin"
+            / "claude.exe"
+        )
+        return str(native) if native.is_file() else None
+    return found
+
+
+def run_claude(
+    prompt: str, *, model: str | None, timeout_s: float
+) -> tuple[str, str, str]:
+    claude = _claude_executable()
+    if claude is None:
+        raise ReviewUnavailable("the Claude Code CLI is not installed")
+    argv = [
+        claude,
+        "-p",
+        "--output-format",
+        "json",
+        "--json-schema",
+        json.dumps(REVIEW_SCHEMA),
+        "--tools",
+        "",
+        "--no-session-persistence",
+        "--strict-mcp-config",
+    ]
+    if model:
+        argv += ["--model", model]
+    with tempfile.TemporaryDirectory(prefix="gagos-review-") as tmp:
+        try:
+            proc = subprocess.run(
+                argv,
+                input=prompt,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=tmp,
+                timeout=timeout_s,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ReviewUnavailable(
+                f"Claude Code timed out after {timeout_s}s"
+            ) from exc
+    try:
+        data = json.loads(proc.stdout or "")
+    except ValueError as exc:
+        raise ReviewUnavailable(
+            f"Claude Code exited {proc.returncode}: {(proc.stderr or '')[-300:]}"
+        ) from exc
+    if data.get("is_error") or data.get("structured_output") is None:
+        raise ReviewUnavailable(
+            f"Claude Code returned no verdict: {str(data.get('result'))[:300]}"
+        )
+    verdict, reason = parse_review(data["structured_output"])
+    used = ",".join(data.get("modelUsage") or {}) or model or "claude (configured)"
+    return verdict, reason, used
+
+
+REVIEWER_RUNNERS = {"codex": run_codex, "claude": run_claude}
+
+
+def cmd_review(args: argparse.Namespace) -> int:
+    led = ledger()
+    pending = led.awaiting(args.reviewer)[: args.limit]
+    if not pending:
+        print(f"nothing awaits {args.reviewer}")
+        return 0
+    unavailable = 0
+    for p in pending:
+        finding = Finding(
+            rel=p["rel"],
+            rule=p["rule"],
+            warnings=tuple(tuple(w) for w in json.loads(p["warnings"])),
+        )
+        prompt = review_prompt(
+            finding, p["base_text"], p["diff"], facts=json.loads(p.get("facts") or "[]")
+        )
+        try:
+            verdict, reason, model = REVIEWER_RUNNERS[args.reviewer](
+                prompt, model=args.model, timeout_s=args.timeout
+            )
+        except (ReviewUnavailable, ValueError) as exc:
+            unavailable += 1
+            print(f"  {p['proposal_id']}: {args.reviewer} gave no verdict: {exc}")
+            continue
+        status = led.record_review(
+            p["proposal_id"], args.reviewer, model=model, verdict=verdict, reason=reason
+        )
+        print(
+            f"  {p['proposal_id']} {p['rel']}: {args.reviewer} ({model}) {verdict.upper()}: {reason} -> {status}"
+        )
+    return 1 if unavailable else 0
+
+
+# --------------------------------------------------------------------- deliver
+
+
+def cmd_deliver(args: argparse.Namespace) -> int:
+    from aios.application.promotion.smoke import SmokeStep, frontend_smoke
+
+    root = Path(args.worktree).resolve()
+    led = ledger()
+    accepted = led.proposals(status="accepted")
+    if not accepted:
+        print("nothing accepted by both reviewers awaits delivery")
+        return 0
+    if _git(root, "status", "--porcelain"):
+        print(f"refused: {root} has uncommitted changes")
+        return 2
+    branch = args.branch or f"gagos/daily-{_today()}"
+    _git(root, "fetch", "-q", "origin", "master")
+    _git(root, "checkout", "-q", "-B", branch, "origin/master")
+    trailers = (
+        Path(args.trailers_file).read_text(encoding="utf-8").strip()
+        if args.trailers_file
+        else ""
+    )
+    delivered: list[str] = []
+    for p in accepted:
+        pid, path = p["proposal_id"], root / p["rel"]
+        current = path.read_bytes().decode("utf-8") if path.is_file() else None
+        if current is None or digest(current) != p["base_digest"]:
+            led.record_delivery(pid, branch=branch, outcome="stale")
+            print(
+                f"  {pid} {p['rel']}: STALE, the file changed on master since the proposal"
+            )
+            continue
+        path.write_bytes(p["new_text"].encode("utf-8"))
+        steps: list[SmokeStep] = []
+        failure = frontend_smoke(
+            root, [path], deadline=time.monotonic() + args.check_timeout, steps=steps
+        )
+        if failure is not None:
+            path.write_bytes(current.encode("utf-8"))
+            led.record_delivery(pid, branch=branch, outcome=f"failed checks: {failure}")
+            print(f"  {pid} {p['rel']}: FAILED delivery checks: {failure}")
+            continue
+        reviews = led.reviews(pid)
+        message = "\n".join(
+            [
+                f"GAGOS daily: fix {p['rule']} in {p['rel']}",
+                "",
+                f"Proposed by GAGOS ({p['model']}), proposal {pid}; unattended checks "
+                "passed (parses, the warnings are gone, nothing new).",
+                *(
+                    f"{'Codex' if r == 'codex' else 'Claude Code'} ({reviews[r]['model']}) "
+                    f"accepted: {reviews[r]['reason']}"
+                    for r in REVIEWERS
+                ),
+                "Checked on master: parses, no ESLint error, the tests that import it pass.",
+                *(["", trailers] if trailers else []),
+            ]
+        )
+        _git(root, "add", "--", p["rel"])
+        _git(root, "commit", "-q", "-m", message)
+        sha = _git(root, "rev-parse", "HEAD")
+        led.record_delivery(pid, branch=branch, outcome="delivered", commit_sha=sha)
+        delivered.append(pid)
+        print(f"  {pid} {p['rel']}: DELIVERED {sha[:12]}")
+    if delivered and args.open_pr:
+        _git(root, "push", "-q", "-u", "origin", branch)
+        body = report(led, day=_today(), in_pr=delivered, footer=args.pr_footer)
+        with tempfile.NamedTemporaryFile(
+            "w", suffix=".md", delete=False, encoding="utf-8"
+        ) as fh:
+            fh.write(body)
+        try:
+            url = (
+                subprocess.run(
+                    [
+                        "gh",
+                        "pr",
+                        "create",
+                        "--base",
+                        "master",
+                        "--head",
+                        branch,
+                        "--title",
+                        f"GAGOS daily improvements {_today()}: {len(delivered)} change(s), "
+                        "each accepted by Codex and Claude Code",
+                        "--body-file",
+                        fh.name,
+                    ],
+                    cwd=str(root),
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                    encoding="utf-8",
+                )
+                .stdout.strip()
+                .splitlines()[-1]
+            )
+        finally:
+            os.unlink(fh.name)
+        led.set_pr(delivered, url)
+        print(f"PR: {url}")
+    return 0
+
+
+# --------------------------------------------------------------------- report
+
+
+def _fence(text: str, lang: str = "") -> str:
+    return f"```{lang}\n{text.rstrip()}\n```"
+
+
+def report(
+    led: DailyLedger,
+    *,
+    day: str | None = None,
+    in_pr: list[str] | None = None,
+    footer: str = "",
+) -> str:
+    """The day's work, every proposal and what happened to it (refused and
+    rejected ones too: an honest day shows its misses), then D14's running
+    numbers. *in_pr* marks the proposals a daily PR carries."""
+    every = led.proposals()
+    chosen = [p for p in every if day is None or p["day"] == day]
+    by = Counter(p["status"] for p in every)
+    reviewed = [led.reviews(p["proposal_id"]) for p in every]
+    both = [r for r in reviewed if all(x in r for x in REVIEWERS)]
+    disagree = [r for r in both if r["codex"]["verdict"] != r["claude"]["verdict"]]
+    out = [f"## GAGOS daily work{f' — {day}' if day else ''}", ""]
+    out += [
+        "**D14 so far** (every proposal in the ledger; descriptive, not a test):",
+        f"- proposals: {len(every)}; refused by the unattended checks or the model: "
+        f"{by['refused']}; awaiting review: {by['proposed']}",
+        f"- reviewed by both: {len(both)}; accepted by both: "
+        f"{sum(1 for r in both if all(r[x]['verdict'] == 'accept' for x in REVIEWERS))}; "
+        f"reviewers disagreed: {len(disagree)}",
+        f"- delivered: {by['delivered']}; stale: {by['stale']}; failed delivery checks: {by['failed']}",
+        "- merged and reverted are not tracked automatically yet; read them from master.",
+        "",
+    ]
+    for p in chosen:
+        reviews = led.reviews(p["proposal_id"])
+        carried = " (in this PR)" if in_pr and p["proposal_id"] in in_pr else ""
+        out += [
+            f"### {p['rule']} in `{p['rel']}` — {p['status']}{carried}",
+            f"proposal `{p['proposal_id']}`, model `{p['model']}`, base `{p['base_commit'][:12]}`",
+        ]
+        if p["refusal"]:
+            out.append(f"- refused: {p['refusal']}")
+        for r in REVIEWERS:
+            if r in reviews:
+                rv = reviews[r]
+                out.append(
+                    f"- {'Codex' if r == 'codex' else 'Claude Code'} (`{rv['model']}`): "
+                    f"**{rv['verdict']}**: {rv['reason']}"
+                )
+            elif p["status"] == "proposed":
+                out.append(
+                    f"- {'Codex' if r == 'codex' else 'Claude Code'}: not yet reviewed"
+                )
+        if p["diff"]:
+            out += [
+                "",
+                "<details><summary>diff</summary>",
+                "",
+                _fence(p["diff"], "diff"),
+                "",
+                "</details>",
+            ]
+        out.append("")
+    if footer:
+        out += ["", footer]
+    return "\n".join(out)
+
+
+def cmd_report(args: argparse.Namespace) -> int:
+    text = report(ledger(), day=args.day)
+    if args.out:
+        Path(args.out).write_text(text, encoding="utf-8")
+        print(f"wrote {args.out}")
+    else:
+        print(text)
+    return 0
+
+
+# --------------------------------------------------------------------- main
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p = sub.add_parser("propose")
+    p.add_argument("--project", required=True, help="a clean checkout of master")
+    p.add_argument(
+        "--budget", type=int, default=2, help="model calls today (default 2)"
+    )
+    p.add_argument("--model", default=DEFAULT_MODEL)
+    p.add_argument(
+        "--region",
+        default=os.environ.get("AIOS_BEDROCK_REGION") or config.BEDROCK_REGION,
+    )
+    p.add_argument("--rules", nargs="*", help=f"default: {' '.join(FIRST_RULES)}")
+    p.add_argument("--dry-run", action="store_true", help="list the work; ask no model")
+    p.set_defaults(func=cmd_propose)
+
+    r = sub.add_parser("review")
+    r.add_argument("--reviewer", required=True, choices=REVIEWERS)
+    r.add_argument(
+        "--model", default=None, help="default: the reviewer's own configured model"
+    )
+    r.add_argument("--limit", type=int, default=10)
+    r.add_argument("--timeout", type=float, default=900)
+    r.set_defaults(func=cmd_review)
+
+    d = sub.add_parser("deliver")
+    d.add_argument(
+        "--worktree",
+        required=True,
+        help="a dedicated, clean worktree; reset to origin/master",
+    )
+    d.add_argument("--branch", default=None)
+    d.add_argument("--check-timeout", type=float, default=600)
+    d.add_argument("--trailers-file", default=None)
+    d.add_argument("--open-pr", action="store_true")
+    d.add_argument("--pr-footer", default="")
+    d.set_defaults(func=cmd_deliver)
+
+    o = sub.add_parser("report")
+    o.add_argument("--day", default=None)
+    o.add_argument("--out", default=None)
+    o.set_defaults(func=cmd_report)
+
+    args = parser.parse_args(argv)
+    return int(args.func(args))
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
