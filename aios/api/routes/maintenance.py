@@ -130,6 +130,78 @@ def list_maintenance_findings(
     }
 
 
+@router.get("/api/v1/maintenance/findings/{fingerprint}/preview")
+def preview_maintenance_repair(
+    fingerprint: str,
+    service: MaintenanceConvergenceService = Depends(
+        get_maintenance_convergence_service
+    ),
+) -> dict[str, Any]:
+    """What repairing this finding would change, as a unified diff. Read-only.
+
+    Added 2026-10-30 for the daily frontend worker, so the operator reads the
+    actual change BEFORE approving it (his guard). The diff is the registered
+    operation's own rewrite, run on the enrolled project's current file -- the
+    same rule the executor runs in the staged copy. ``current`` is False when
+    the file changed since the scan: the finding is stale and wants a rescan.
+    """
+    import difflib
+    import hashlib
+
+    from aios.domain.maintenance.scanners import (
+        FRONTEND_UNUSED_IMPORT_SCANNER_ID,
+        VULTURE_DEAD_IMPORT_SCANNER_ID,
+    )
+    from aios.maintenance.repair_operations import (
+        REMOVE_DEAD_IMPORTS_V1,
+        REMOVE_UNUSED_FRONTEND_IMPORTS_V1,
+        RepairRefused,
+        remove_dead_imports,
+        remove_unused_frontend_imports_in,
+    )
+
+    finding = service.finding_repository.get(fingerprint)
+    if finding is None:
+        raise HTTPException(status_code=404, detail="finding not found")
+    enrolled_roots = getattr(service.workspace_manager, "enrolled_roots", ())
+    root = Path(enrolled_roots[0] if enrolled_roots else config.PROJECT_ROOT).resolve()
+    path = _validate_target_bounded(finding.target_id, root)
+    if not path.is_file():
+        raise HTTPException(
+            status_code=409, detail="the finding's file no longer exists"
+        )
+    text = path.read_bytes().decode("utf-8", errors="replace")
+    try:
+        if finding.scanner_id == FRONTEND_UNUSED_IMPORT_SCANNER_ID:
+            operation = REMOVE_UNUSED_FRONTEND_IMPORTS_V1
+            after = remove_unused_frontend_imports_in(text, path=path)
+        elif finding.scanner_id == VULTURE_DEAD_IMPORT_SCANNER_ID:
+            operation = REMOVE_DEAD_IMPORTS_V1
+            after = remove_dead_imports(text, path=path, project_root=root).content
+        else:
+            raise HTTPException(
+                status_code=404, detail="no preview for this finding's scanner"
+            )
+    except RepairRefused as exc:
+        raise HTTPException(status_code=409, detail=f"repair refused: {exc}") from exc
+    diff = "".join(
+        difflib.unified_diff(
+            text.splitlines(keepends=True),
+            after.splitlines(keepends=True),
+            fromfile=f"a/{finding.target_id}",
+            tofile=f"b/{finding.target_id}",
+        )
+    )
+    return {
+        "fingerprint": finding.fingerprint,
+        "target_id": finding.target_id,
+        "operation_id": operation,
+        "diff": diff,
+        "current": hashlib.sha256(text.encode("utf-8")).hexdigest()
+        == finding.target_digest,
+    }
+
+
 @router.get("/api/v1/maintenance/scans")
 def list_maintenance_scans(
     repository: MaintenanceScanRepository = Depends(get_maintenance_scan_repository),

@@ -304,3 +304,48 @@ def test_the_real_parse_check_runs_with_the_repositorys_own_typescript(
     argv = ["node", "-e", smoke_module._PARSE_SCRIPT, str(typescript)]
     assert subprocess.run([*argv, str(good)], capture_output=True).returncode == 0
     assert subprocess.run([*argv, str(bad)], capture_output=True).returncode == 1
+
+
+# --------------------------------------------------------------------- preview
+
+
+def test_the_preview_shows_the_operations_own_diff_before_approval(tmp_path) -> None:
+    """The operator's guard: read the actual change before approving it."""
+    from fastapi.testclient import TestClient
+
+    from aios.api.deps import get_maintenance_convergence_service
+    from aios.api.main import app
+    from aios.domain.maintenance.repository import MaintenanceFindingRepository
+
+    root = _frontend(tmp_path / "project")
+    _result = _scan(root)
+    [finding] = list(getattr(_result, "findings", _result))
+    repository = MaintenanceFindingRepository(tmp_path / "operational.db")
+    repository.save(finding)
+    service = SimpleNamespace(
+        finding_repository=repository,
+        workspace_manager=SimpleNamespace(enrolled_roots=(root,)),
+    )
+    app.dependency_overrides[get_maintenance_convergence_service] = lambda: service
+    try:
+        with TestClient(app, client=("127.0.0.1", 12345)) as client:
+            missing = client.get("/api/v1/maintenance/findings/nope/preview")
+            assert missing.status_code == 404
+            ok = client.get(
+                f"/api/v1/maintenance/findings/{finding.fingerprint}/preview"
+            )
+            assert ok.status_code == 200, ok.text
+            body = ok.json()
+            assert body["operation_id"] == REMOVE_UNUSED_FRONTEND_IMPORTS_V1
+            assert body["current"] is True
+            assert "-import { useState, useMemo } from 'react';" in body["diff"]
+            assert "+import { useMemo } from 'react';" in body["diff"]
+            # Changed since the scan: the preview says so.
+            panel = root / "frontend/src/workbench/Panel.jsx"
+            panel.write_text(PANEL + "// edited\n", encoding="utf-8")
+            stale = client.get(
+                f"/api/v1/maintenance/findings/{finding.fingerprint}/preview"
+            )
+            assert stale.json()["current"] is False
+    finally:
+        app.dependency_overrides.clear()
