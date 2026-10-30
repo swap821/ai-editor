@@ -502,6 +502,49 @@ def cmd_review(args: argparse.Namespace) -> int:
 # --------------------------------------------------------------------- deliver
 
 
+#: GAGOS's own work is committed as GAGOS: it proposed it. Its reviewers are
+#: named in the message, never as authors (operator, 2026-10-30: "GAGOS only
+#: make its own PR for its own work, u and codex are reviewer and u r chief").
+GAGOS_IDENTITY = ("-c", "user.name=GAGOS", "-c", "user.email=gagos@localhost")
+REVIEWER_LABELS = {"claude": "Claude Code, chief reviewer", "codex": "Codex"}
+#: Said in every GAGOS PR until GAGOS has a GitHub identity of its own.
+PR_FOOTER = (
+    "Opened by GAGOS's delivery step. GAGOS has no GitHub identity of its own "
+    "yet, so GitHub shows the operator's account as the opener; every commit "
+    "here is authored by GAGOS. Reviewers: Claude Code (chief) and Codex, "
+    "independently; a change ships only if both accept. The operator merges."
+)
+
+
+def commit_message(p: dict, reviews: dict) -> str:
+    """GAGOS's commit for one delivered change: what it did, how it was
+    checked, and who reviewed it, as trailers."""
+    warnings = json.loads(p["warnings"])
+    return "\n".join(
+        [
+            f"GAGOS: fix {p['rule']} in {p['rel']}",
+            "",
+            f"GAGOS found {len(warnings)} {p['rule']} warning(s) in this file and "
+            f"proposed this change (proposal {p['proposal_id']}). Unattended checks "
+            "passed: it parses, the warnings are gone, nothing new. Checked again "
+            "on master: it parses, has no ESLint error, and the tests that import "
+            "it pass.",
+            "",
+            *(
+                f"{REVIEWER_LABELS[r]} ({reviews[r]['model']}) accepted: "
+                f"{reviews[r]['reason']}"
+                for r in REVIEWERS
+            ),
+            "",
+            f"Proposed-by: GAGOS ({p['model']})",
+            *(
+                f"Reviewed-by: {REVIEWER_LABELS[r]} ({reviews[r]['model']})"
+                for r in REVIEWERS
+            ),
+        ]
+    )
+
+
 def cmd_deliver(args: argparse.Namespace) -> int:
     from aios.application.promotion.smoke import SmokeStep, frontend_smoke
 
@@ -517,11 +560,6 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     branch = args.branch or f"gagos/daily-{_today()}"
     _git(root, "fetch", "-q", "origin", "master")
     _git(root, "checkout", "-q", "-B", branch, "origin/master")
-    trailers = (
-        Path(args.trailers_file).read_text(encoding="utf-8").strip()
-        if args.trailers_file
-        else ""
-    )
     delivered: list[str] = []
     for p in accepted:
         pid, path = p["proposal_id"], root / p["rel"]
@@ -542,31 +580,24 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             led.record_delivery(pid, branch=branch, outcome=f"failed checks: {failure}")
             print(f"  {pid} {p['rel']}: FAILED delivery checks: {failure}")
             continue
-        reviews = led.reviews(pid)
-        message = "\n".join(
-            [
-                f"GAGOS daily: fix {p['rule']} in {p['rel']}",
-                "",
-                f"Proposed by GAGOS ({p['model']}), proposal {pid}; unattended checks "
-                "passed (parses, the warnings are gone, nothing new).",
-                *(
-                    f"{'Codex' if r == 'codex' else 'Claude Code'} ({reviews[r]['model']}) "
-                    f"accepted: {reviews[r]['reason']}"
-                    for r in REVIEWERS
-                ),
-                "Checked on master: parses, no ESLint error, the tests that import it pass.",
-                *(["", trailers] if trailers else []),
-            ]
-        )
         _git(root, "add", "--", p["rel"])
-        _git(root, "commit", "-q", "-m", message)
+        _git(
+            root,
+            *GAGOS_IDENTITY,
+            "commit",
+            "-q",
+            "-m",
+            commit_message(p, led.reviews(pid)),
+        )
         sha = _git(root, "rev-parse", "HEAD")
         led.record_delivery(pid, branch=branch, outcome="delivered", commit_sha=sha)
         delivered.append(pid)
         print(f"  {pid} {p['rel']}: DELIVERED {sha[:12]}")
     if delivered and args.open_pr:
         _git(root, "push", "-q", "-u", "origin", branch)
-        body = report(led, day=_today(), in_pr=delivered, footer=args.pr_footer)
+        body = report(
+            led, day=_today(), in_pr=delivered, footer=args.pr_footer or PR_FOOTER
+        )
         with tempfile.NamedTemporaryFile(
             "w", suffix=".md", delete=False, encoding="utf-8"
         ) as fh:
@@ -583,8 +614,8 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                         "--head",
                         branch,
                         "--title",
-                        f"GAGOS daily improvements {_today()}: {len(delivered)} change(s), "
-                        "each accepted by Codex and Claude Code",
+                        f"GAGOS: daily improvements {_today()} ({len(delivered)} "
+                        "change(s), each accepted by both of its reviewers)",
                         "--body-file",
                         fh.name,
                     ],
@@ -652,13 +683,11 @@ def report(
             if r in reviews:
                 rv = reviews[r]
                 out.append(
-                    f"- {'Codex' if r == 'codex' else 'Claude Code'} (`{rv['model']}`): "
+                    f"- {REVIEWER_LABELS[r]} (`{rv['model']}`): "
                     f"**{rv['verdict']}**: {rv['reason']}"
                 )
             elif p["status"] == "proposed":
-                out.append(
-                    f"- {'Codex' if r == 'codex' else 'Claude Code'}: not yet reviewed"
-                )
+                out.append(f"- {REVIEWER_LABELS[r]}: not yet reviewed")
         if p["diff"]:
             out += [
                 "",
@@ -724,7 +753,6 @@ def main(argv: list[str] | None = None) -> int:
     )
     d.add_argument("--branch", default=None)
     d.add_argument("--check-timeout", type=float, default=600)
-    d.add_argument("--trailers-file", default=None)
     d.add_argument("--open-pr", action="store_true")
     d.add_argument("--pr-footer", default="")
     d.set_defaults(func=cmd_deliver)

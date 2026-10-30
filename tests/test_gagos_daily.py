@@ -512,7 +512,6 @@ def _deliver_args(work, **kw):
         worktree=str(work),
         branch="gagos/daily-test",
         check_timeout=60,
-        trailers_file=None,
         open_pr=False,
         pr_footer="",
         **kw,
@@ -541,6 +540,21 @@ def test_deliver_commits_each_accepted_change_with_both_reviews(
     assert led.proposals()[0]["status"] == "delivered" and checked
     assert _git(work, "rev-parse", "--abbrev-ref", "HEAD") == "gagos/daily-test"
     assert pid in message
+    # GAGOS's own work: authored and committed by GAGOS; its reviewers are
+    # named as reviewers, the chief first, and never as authors.
+    assert (
+        _git(work, "log", "-1", "--format=%an <%ae>|%cn")
+        == "GAGOS <gagos@localhost>|GAGOS"
+    )
+    assert "Proposed-by: GAGOS (m)" in message
+    assert "Reviewed-by: Claude Code, chief reviewer (opus)" in message
+    assert "Reviewed-by: Codex (gpt)" in message
+    assert "Co-Authored-By" not in message
+
+
+def test_a_gagos_pr_says_who_opened_it() -> None:
+    assert "no GitHub identity of its own" in tool.PR_FOOTER
+    assert "chief" in tool.PR_FOOTER and "both accept" in tool.PR_FOOTER
 
 
 def test_deliver_never_applies_to_a_file_that_changed(
