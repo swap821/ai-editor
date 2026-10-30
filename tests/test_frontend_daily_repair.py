@@ -38,6 +38,8 @@ from aios.domain.maintenance.scanners import (
 from aios.domain.maintenance.service import AutonomousMaintenanceForce
 from aios.executor_service import execute_registered_operation_in_service
 from aios.maintenance.repair_operations import REMOVE_UNUSED_FRONTEND_IMPORTS_V1
+from tests import test_maintenance_dead_import_mission as dead_import_mission
+from tests.helpers import consume_real_capability_proof
 from tests.test_maintenance_dead_import_mission import _contract, _job
 
 PANEL = (
@@ -353,8 +355,8 @@ def test_the_preview_shows_the_operations_own_diff_before_approval(tmp_path) -> 
 
 # --------------------------------------------------------------------- end to end
 
-from tests.helpers import consume_real_capability_proof  # noqa: E402
-from tests.test_maintenance_dead_import_mission import mission_env  # noqa: E402,F401
+#: The dead-import mission's fixture: the real worker, executor service and promotion.
+mission_env = dead_import_mission.mission_env
 
 
 async def _run_frontend_mission(service, project: Path, proof_db: Path, smoke_run):
