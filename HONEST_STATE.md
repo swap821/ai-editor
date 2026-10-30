@@ -41,10 +41,18 @@ the commit they were measured on). The whole story, from the first commit, is
   - a step-by-step repair flow in the Maintenance panel.
 - **A gap closed: the promotion check used to wave frontend files through.** A target set with no `.py` file passed with "no Python targets", so nothing was checked. A frontend target must now parse, have no ESLint error and pass the tests that import it. A missing toolchain fails the check.
 - **The deterministic supply is small.** Unused imports are in 11 of 504 files. 9 of those are owned by the lab-to-product port and excluded, so 2 are repairable. The daily supply is ESLint's ~124 warnings, which needs the frontier proposer (next PR).
-- **Codex reviews with his configured model, GPT-6.1 sol (his choice).** Non-interactively it was refused for a ChatGPT-account login, and Codex CLI 0.153.4 has no metadata for it. He is setting this up.
-  - A probe with `gpt-6-astra` did work: a read-only sandbox, with a schema-checked verdict.
+- **Codex reviews with his configured model, GPT-6.1 sol (his choice).** In the morning it was refused non-interactively for a ChatGPT-account login. By the afternoon, after his setup, it reviewed non-interactively with GPT-6.1 sol.
   - The loop records the model behind every Codex verdict.
   - When Codex cannot review, the proposal waits. It never ships on one review.
+- **The first real day of D14, the same afternoon.**
+  - The loop's code is on branch `feat/gagos-daily-review`; its PR follows this one.
+  - **The proposals.** GAGOS made 2 proposals, using Mistral Large 3 on Bedrock through the one gateway, bound to his identity and constitution. Both passed the unattended checks.
+  - **One change delivered.** In `BudgetMicroBar.jsx` it removes the unused default `React` import. Codex (GPT-6.1 sol) and Claude Code (Opus 5.5) both accepted it. It was re-checked on master and delivered as #565, the first daily PR.
+  - **One change rejected.** Removing `React` from the same file's test was rejected by Codex: nothing it was shown established the automatic JSX runtime. Claude Code accepted it.
+    - That is the first recorded disagreement. A change ships only if both accept, so it did not ship.
+    - The reviewers are now shown that fact, read from `tsconfig.json`.
+  - **The privacy filter would have changed most files.** Bedrock's filter would alter 264 of the 298 editable files, false positives included, so the proposer would have been working from a different file.
+    - Instead, what GAGOS's egress scrubbers would redact is masked locally and restored exactly. With masking, 276 files can be sent unaltered. The other 22 are refused, not sent.
 - **Tests still read his user-wide `AIOS_ROUTER_CLOUD_TASKS`.** Two tests fail on this laptop because of it, and pass without it. This finding is already recorded, and is still open.
 
 ## Later on 2026-10-29: the daily backend made dependable (branch `feat/daily-boring`, off master `062a328a`)
