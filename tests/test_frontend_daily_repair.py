@@ -349,3 +349,94 @@ def test_the_preview_shows_the_operations_own_diff_before_approval(tmp_path) -> 
             assert stale.json()["current"] is False
     finally:
         app.dependency_overrides.clear()
+
+
+# --------------------------------------------------------------------- end to end
+
+from tests.helpers import consume_real_capability_proof  # noqa: E402
+from tests.test_maintenance_dead_import_mission import mission_env  # noqa: E402,F401
+
+
+async def _run_frontend_mission(service, project: Path, proof_db: Path, smoke_run):
+    scan = service.run_scan(
+        _contract(project),
+        frontend_unused_import_scanner,
+        scanner_id=FRONTEND_UNUSED_IMPORT_SCANNER_ID,
+        scanner_version="1",
+        target_id=".",
+        source_digest="initial",
+    )
+    assert scan.scan.status == "completed"
+    [finding] = scan.findings
+    record = service.create_repair_mission(
+        finding.fingerprint, operator_id="op-1", workspace_root=str(project)
+    )
+    mission_id = record.mission_id
+    service.mission_service.start_deliberation(mission_id)
+    service.mission_service.request_approval(mission_id)
+    service.mission_service.approve(
+        mission_id,
+        operator_id="op-1",
+        capability_digest="cap-1",
+        contract_digest=record.contract_digest,
+        authentication_event_id="auth-1",
+        session_id="session-1",
+    )
+    snapshot = {
+        p: p.read_bytes()
+        for p in project.rglob("*")
+        if p.is_file() and "node_modules" not in p.parts
+    }
+
+    def restore(_checkpoint, _request) -> bool:
+        for path, data in snapshot.items():
+            path.write_bytes(data)
+        return True
+
+    return await service.run_approved_repair(
+        mission_id,
+        scanner=frontend_unused_import_scanner,
+        rescan_contract=_contract(project),
+        capability_consumer=lambda _r: True,
+        consumed_capability_proof=consume_real_capability_proof(
+            proof_db, mission_id=mission_id
+        ),
+        create_checkpoint=lambda _r: "cp-1",
+        restore_checkpoint=restore,
+        smoke_test=lambda r: (
+            python_smoke(
+                Path(r.project_root), r.required_targets, timeout_s=300, run=smoke_run
+            ).passed
+        ),
+    )
+
+
+@pytest.mark.anyio
+async def test_a_frontend_finding_is_repaired_end_to_end(
+    tmp_path, mission_env, node
+) -> None:
+    project = _frontend(tmp_path / "project")
+    _toolchain(project)
+    result = await _run_frontend_mission(
+        mission_env(project), project, tmp_path / "caps.db", _runner()
+    )
+    assert result.status == "VERIFIED_RESOLVED", result.reason
+    rel = "frontend/src/workbench/Panel.jsx"
+    assert (project / rel).read_text(encoding="utf-8") == EXPECTED
+    # The port-owned file is never touched, though it has an unused import.
+    owned = project / "frontend/src/superbrain/lib/Owned.ts"
+    assert "unused" in owned.read_text(encoding="utf-8")
+
+
+@pytest.mark.anyio
+async def test_a_frontend_repair_its_tests_reject_is_rolled_back(
+    tmp_path, mission_env, node
+) -> None:
+    project = _frontend(tmp_path / "project")
+    _toolchain(project)
+    result = await _run_frontend_mission(
+        mission_env(project), project, tmp_path / "caps.db", _runner(vitest_ok=False)
+    )
+    assert result.status == "PROMOTION_FAILED", result.reason
+    rel = "frontend/src/workbench/Panel.jsx"
+    assert (project / rel).read_text(encoding="utf-8") == PANEL

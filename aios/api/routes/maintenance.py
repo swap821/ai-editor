@@ -139,7 +139,7 @@ def preview_maintenance_repair(
     """What repairing this finding would change, as a unified diff. Read-only.
 
     Added 2026-10-30 for the daily frontend worker, so the operator reads the
-    actual change BEFORE approving it (his guard). The diff is the registered
+    actual change BEFORE approving it (the operator's guard). The diff is the
     operation's own rewrite, run on the enrolled project's current file -- the
     same rule the executor runs in the staged copy. ``current`` is False when
     the file changed since the scan: the finding is stale and wants a rescan.
