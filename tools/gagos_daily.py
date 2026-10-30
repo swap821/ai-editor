@@ -52,6 +52,9 @@ from aios.maintenance.daily_work import (  # noqa: E402
     REVIEW_SCHEMA,
     REVIEWERS,
     DailyLedger,
+    Direction,
+    load_direction,
+    set_direction,
     Finding,
     ProposalRefused,
     digest,
@@ -75,6 +78,30 @@ DEFAULT_MODEL = "mistral.mistral-large-3-675b-instruct"
 #: A whole-file proposal for a longer file would not fit one answer reliably.
 MAX_FILE_CHARS = 40_000
 TASK = "coding"
+
+
+def _direction_path() -> Path:
+    return config.DATA_DIR / "gagos_daily" / "direction.json"
+
+
+def cmd_direct(args: argparse.Namespace) -> int:
+    """Record the operator's direction, relayed by his chief architect. Shows
+    the direction in force when given nothing to change."""
+    path = _direction_path()
+    current = load_direction(path)
+    if not any([args.note, args.rules, args.focus, args.avoid, args.clear]):
+        print(json.dumps(current.as_dict(), indent=2))
+        return 0
+    base = Direction() if args.clear else current
+    updated = Direction(
+        notes=base.notes + tuple(args.note or ()),
+        rules=tuple(args.rules) if args.rules else base.rules,
+        focus=tuple(args.focus) if args.focus else base.focus,
+        avoid=tuple(args.avoid) if args.avoid else base.avoid,
+    )
+    stamped = set_direction(path, updated, said=args.said or "")
+    print(json.dumps(stamped.as_dict(), indent=2))
+    return 0
 
 
 def ledger() -> DailyLedger:
@@ -199,11 +226,16 @@ def cmd_propose(args: argparse.Namespace) -> int:
     root = Path(args.project).resolve()
     led = ledger()
     head = _git(root, "rev-parse", "HEAD")
-    facts = project_facts(root)
+    direction = load_direction(_direction_path())
+    # The operator's taste reaches the proposer and both reviewers, scrubbed
+    # like everything else that leaves the machine.
+    facts = project_facts(root) + tuple(
+        f"The operator's direction: {egress_redact(note)}" for note in direction.notes
+    )
     if _git(root, "status", "--porcelain", "--", "frontend/src"):
         print(f"refused: frontend/src has uncommitted changes in {root}")
         return 2
-    rules = tuple(args.rules or FIRST_RULES)
+    rules = tuple(args.rules or direction.rules or FIRST_RULES)
     texts = {
         rel: (root / rel).read_bytes().decode("utf-8")
         for rel in editable_frontend_files(root)
@@ -214,11 +246,13 @@ def cmd_propose(args: argparse.Namespace) -> int:
         print(f"refused: {exc}")
         return 2
     every = Counter(m.rule for r in results.values() for m in r.warnings())
-    work = [
-        f
-        for f in findings(results, rules=rules)
-        if not led.attempted(f.rel, f.rule, digest(texts[f.rel]))
-    ]
+    work = direction.steer(
+        [
+            f
+            for f in findings(results, rules=rules)
+            if not led.attempted(f.rel, f.rule, digest(texts[f.rel]))
+        ]
+    )
     print(
         f"{root} @ {head[:12]}: {len(texts)} editable files, "
         f"{sum(every.values())} warnings; {len(work)} findings not yet attempted "
@@ -788,6 +822,20 @@ def report(
     disagree = [r for r in both if r["codex"]["verdict"] != r["claude"]["verdict"]]
     blocked = [d for d in led.days() if d["status"] == "blocked"]
     out = [f"## GAGOS daily work{f' — {day}' if day else ''}", ""]
+    direction = load_direction(_direction_path())
+    if direction.notes or direction.rules or direction.focus or direction.avoid:
+        out += [
+            f"**The operator's direction in force** (updated {direction.updated}):",
+            *(f"- {note}" for note in direction.notes),
+            *([f"- rules: {', '.join(direction.rules)}"] if direction.rules else []),
+            *(
+                [f"- focus first: {', '.join(direction.focus)}"]
+                if direction.focus
+                else []
+            ),
+            *([f"- never: {', '.join(direction.avoid)}"] if direction.avoid else []),
+            "",
+        ]
     out += [
         "**D14 so far** (every proposal in the ledger; descriptive, not a test):",
         f"- proposals: {len(every)}; refused by the unattended checks or the model: "
@@ -1085,6 +1133,19 @@ def main(argv: list[str] | None = None) -> int:
         default=os.environ.get("AIOS_BEDROCK_REGION") or config.BEDROCK_REGION,
     )
     y.set_defaults(func=cmd_daily)
+
+    g = sub.add_parser(
+        "direct", help="record the operator's direction (taste, priorities)"
+    )
+    g.add_argument(
+        "--note", action="append", help="a direction in his words; repeatable"
+    )
+    g.add_argument("--rules", nargs="+")
+    g.add_argument("--focus", nargs="+", help="path prefixes to work first")
+    g.add_argument("--avoid", nargs="+", help="path prefixes never to touch")
+    g.add_argument("--clear", action="store_true", help="start from no direction")
+    g.add_argument("--said", default="", help="what he said, verbatim, for the history")
+    g.set_defaults(func=cmd_direct)
 
     o = sub.add_parser("report")
     o.add_argument("--day", default=None)

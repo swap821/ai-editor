@@ -319,3 +319,79 @@ def test_the_day_writes_its_report(day, monkeypatch, tmp_path) -> None:
     monkeypatch.setattr(tool, "_pr_state", lambda url: "MERGED")
     tool.cmd_daily(args)
     assert list((tmp_path / "gagos_daily" / "reports").glob("*.md"))
+
+
+# --------------------------------------------------------------------- direction
+
+
+def _finding(rel, rule="no-unused-vars"):
+    return dw.Finding(rel=rel, rule=rule, warnings=((1, 1, "x"),))
+
+
+def test_the_operators_direction_steers_the_work(tmp_path) -> None:
+    path = tmp_path / "direction.json"
+    assert dw.load_direction(path) == dw.Direction(), "none on file is no direction"
+    direction = dw.set_direction(
+        path,
+        dw.Direction(
+            notes=("Calm, quiet surfaces; never touch the palette.",),
+            focus=("frontend/src/workbench/",),
+            avoid=("frontend/src/livingMirror/being/",),
+        ),
+        said="calm surfaces, workbench first, leave the being alone",
+    )
+    assert direction.updated and dw.load_direction(path) == direction
+    work = direction.steer(
+        [
+            _finding("frontend/src/a.jsx"),
+            _finding("frontend/src/livingMirror/being/B.tsx"),
+            _finding("frontend/src/workbench/W.jsx"),
+        ]
+    )
+    assert [f.rel for f in work] == [
+        "frontend/src/workbench/W.jsx",
+        "frontend/src/a.jsx",
+    ]
+    history = (tmp_path / "direction_history.jsonl").read_text(encoding="utf-8")
+    assert "leave the being alone" in history
+
+
+def test_the_direct_command_records_and_reports_it(tmp_path, monkeypatch) -> None:
+    monkeypatch.setattr(tool.config, "DATA_DIR", tmp_path)
+    args = SimpleNamespace(
+        note=["Polish before features."],
+        rules=None,
+        focus=None,
+        avoid=None,
+        clear=False,
+        said="polish first",
+    )
+    assert tool.cmd_direct(args) == 0
+    led = dw.DailyLedger(tmp_path / "l.db")
+    assert "Polish before features." in tool.report(led)
+
+
+# --------------------------------------------------------------------- the eye
+
+
+def test_the_eye_uses_gagos_own_profiles(tmp_path, monkeypatch) -> None:
+    from tools import gagos_eye as eye
+
+    monkeypatch.setattr(eye.config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(eye, "chrome", lambda: "chrome.exe")
+    argv = eye.shot_argv("http://x", tmp_path / "o.png", size="800x450", wait_ms=1000)
+    assert "--headless=new" in argv and "--window-size=800,450" in argv
+    assert f"--user-data-dir={tmp_path / 'gagos_eye' / 'shot-profile'}" in argv
+    assert (
+        f"--user-data-dir={tmp_path / 'gagos_eye' / 'window-profile'}"
+        in eye.window_argv("http://x")
+    )
+
+
+def test_an_eye_that_saw_nothing_says_so(tmp_path, monkeypatch) -> None:
+    from tools import gagos_eye as eye
+
+    monkeypatch.setattr(eye.config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(eye, "chrome", lambda: "chrome.exe")
+    with pytest.raises(eye.EyeUnavailable):
+        eye.shot("http://x", tmp_path / "o.png", run=lambda *a, **k: None)

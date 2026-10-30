@@ -36,6 +36,7 @@ import sqlite3
 import uuid
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping, Sequence
+import dataclasses
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -208,6 +209,66 @@ def project_facts(project_root: Path) -> tuple[str, ...]:
     return tuple(facts)
 
 
+@dataclass(frozen=True)
+class Direction:
+    """The operator's taste and priorities for GAGOS's work, relayed daily by
+    his chief architect (operator, 2026-10-30: "about taste and direction I
+    will communicate that with u everyday and u communicate with GAGOS").
+
+    * ``notes`` reach the proposer and both reviewers, as his direction;
+    * ``rules``, when given, replace the default rules;
+    * ``focus`` path prefixes are worked first; ``avoid`` prefixes never.
+    """
+
+    notes: tuple[str, ...] = ()
+    rules: tuple[str, ...] = ()
+    focus: tuple[str, ...] = ()
+    avoid: tuple[str, ...] = ()
+    updated: str | None = None
+
+    def steer(self, work: Sequence[Finding]) -> list[Finding]:
+        kept = [f for f in work if not any(f.rel.startswith(a) for a in self.avoid)]
+        return sorted(
+            kept, key=lambda f: 0 if any(f.rel.startswith(p) for p in self.focus) else 1
+        )
+
+    def as_dict(self) -> dict:
+        return {
+            "notes": list(self.notes),
+            "rules": list(self.rules),
+            "focus": list(self.focus),
+            "avoid": list(self.avoid),
+            "updated": self.updated,
+        }
+
+
+def load_direction(path: Path) -> Direction:
+    """The direction in force; none on file is no direction, never a guess."""
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return Direction()
+    return Direction(
+        notes=tuple(str(n) for n in raw.get("notes") or ()),
+        rules=tuple(str(r) for r in raw.get("rules") or ()),
+        focus=tuple(str(p) for p in raw.get("focus") or ()),
+        avoid=tuple(str(p) for p in raw.get("avoid") or ()),
+        updated=raw.get("updated"),
+    )
+
+
+def set_direction(path: Path, direction: Direction, *, said: str) -> Direction:
+    """Write the direction and append the change to its history, so every
+    day's work can be traced to the direction it was given."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    stamped = dataclasses.replace(direction, updated=_now())
+    path.write_text(json.dumps(stamped.as_dict(), indent=2) + "\n", encoding="utf-8")
+    with open(path.with_name("direction_history.jsonl"), "a", encoding="utf-8") as fh:
+        fh.write(json.dumps({**stamped.as_dict(), "said": said}) + "\n")
+    return stamped
+
+
 def proposal_prompt(
     finding: Finding,
     text: str,
@@ -225,7 +286,11 @@ def proposal_prompt(
         *(f"  {line}:{col} {msg}" for line, col, msg in finding.warnings),
     ]
     if facts:
-        lines += ["", "Facts about this project:", *(f"  - {fact}" for fact in facts)]
+        lines += [
+            "",
+            "Facts about this project, and the operator's direction:",
+            *(f"  - {fact}" for fact in facts),
+        ]
     if masked:
         lines += [
             "",
@@ -368,7 +433,10 @@ def review_prompt(
     same evidence independently."""
     warnings = "\n".join(f"  {line}:{col} {msg}" for line, col, msg in finding.warnings)
     known = (
-        ["", "Facts about this project, read from its configuration:"]
+        [
+            "",
+            "Facts about this project (from its configuration) and the operator's direction:",
+        ]
         + [f"  - {fact}" for fact in facts]
         if facts
         else []
@@ -775,6 +843,7 @@ class DailyLedger:
 __all__ = [
     "DailyLedger",
     "FIRST_RULES",
+    "Direction",
     "Finding",
     "MASK_TOKEN",
     "PROPOSER_SYSTEM",
@@ -784,12 +853,14 @@ __all__ = [
     "StaticVerdict",
     "digest",
     "findings",
+    "load_direction",
     "mask_lines",
     "parse_proposal",
     "parse_review",
     "project_facts",
     "proposal_prompt",
     "review_prompt",
+    "set_direction",
     "static_verdict",
     "unified_diff",
     "unmask",
