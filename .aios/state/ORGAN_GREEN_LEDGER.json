@@ -2391,11 +2391,6 @@
     ],
     "live_evidence": [
       {
-        "description": "Phase 4 absolute live run on tip 5c7bec6e6d33f21adc48db9c7b768ab7d166df29: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip 5c7bec6e6d33f21adc48db9c7b768ab7d166df29 exit=0; artifact=release/phase4/live-evidence-5c7bec6e6d33.json; UniversalIntelligenceGatewayAuthority.route local model_call; an ungated production call refused => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026; an ungated production call was refused before it was sent",
-        "commit_sha": "5c7bec6e6d33f21adc48db9c7b768ab7d166df29",
-        "proof_level": "live"
-      },
-      {
         "description": "Phase 4 absolute live run on tip d7abe1cea94775be79fbf22c37431f814c890f14: command=C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe scripts/phase4_live_evidence.py --tip d7abe1cea94775be79fbf22c37431f814c890f14 exit=0; artifact=release/phase4/live-evidence-d7abe1cea947.json; UniversalIntelligenceGatewayAuthority.route local model_call; an ungated production call refused => route output='phase4-local-output-no-secrets' secrets_redacted=False context_digest=53e3a48a7eb641d3\u2026; an ungated production call was refused before it was sent",
         "commit_sha": "d7abe1cea94775be79fbf22c37431f814c890f14",
         "proof_level": "live"
