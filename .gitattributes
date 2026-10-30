@@ -52,3 +52,4 @@ release/**/*.md text eol=lf
 # edited to suppress it -- resisting exactly that edit is what the log is for.
 aios/security/*.py text eol=lf
 docs/learning/organic_reflex_proof_2026-10-29_daily/*.py.txt -text
+docs/learning/daily_reflexes_2026-10-30/*.py.txt -text
