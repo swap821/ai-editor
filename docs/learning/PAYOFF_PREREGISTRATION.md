@@ -998,3 +998,70 @@ offline: no model was asked and no outcome was read.
    about **1.5 days** of the laptop. The operator is asked before it starts.
 5. **The live product changes too:** a turn that names code is shown fewer
    lessons, or none. Plain conversation is unchanged.
+
+### D14 — 2026-10-30 — real use: the payoff is GAGOS's daily work on its own frontend; the harness family ends
+
+**Applies to** GAGOS's daily frontend work, from its first daily run after this
+entry. **Operator decision**, 2026-10-30: usefulness "is starved of real use —
+not of more harnesses. So stop D13". He also decided that he will not approve
+every diff: reviewing them is the agents' daily job, Claude Code and Codex
+together.
+
+**D13 has no verdict and will not be re-run.** Stopped at the operator's word on
+2026-10-30 06:54 UTC: 5 of 85 targets, 41 graded attempts, 5 model errors (420 s
+timeouts). No trail was written, so nothing can be judged. Its output is kept as
+`C:\d13out\stopped-by-operator-20261030`, beside the two earlier attempts.
+Phase 8 and D12 stand: not met, no harm.
+
+**Why.** Three judged families have measured whether prompted lessons help a
+model on practised-looking tasks. None found an effect, and the inspection of
+2026-10-30 found why usefulness is starved: no ordinary turn since 2026-07-10,
+and everything the store holds came from its own harnesses. A fourth harness
+would measure the same machinery again. D14 measures the one thing missing:
+GAGOS doing real work that lands in the product.
+
+**The work, each day.**
+1. GAGOS lints its own frontend with the project's ESLint. Files the
+   lab-to-product port owns (`frontend/superbrain-source.json`) are excluded
+   until that drift is reconciled.
+2. Up to N findings are taken, one file and one rule each.
+3. A frontier model proposes the whole corrected file: Bedrock, Mistral Large 3
+   by default, through the one gateway, as the `coding` task.
+4. **Static checks, unattended.** The file must still parse, the rule's warnings
+   in it must be gone, and no new warning or error may appear. The proposal must
+   not add a disable comment, and its change is bounded. Nothing the model wrote
+   is executed before review.
+5. **Two independent reviewers**, neither of them the proposer: Codex
+   (`codex exec`, read-only sandbox) and Claude Code (a fresh non-interactive
+   session, read-only tools). Each reads the file, the warnings and the diff,
+   and accepts or rejects with a reason. **A proposal ships only if both
+   accept.** Every disagreement is listed for the operator.
+6. Accepted proposals are applied to one daily branch off master, the tests that
+   import each file run, and one PR is opened. CI gates it, and the operator
+   merges it. His merge is the only human act.
+
+**Recorded per proposal,** in a durable ledger: refused by the static checks,
+and why; each reviewer's verdict and reason; delivered; merged; reverted later.
+
+**Reported, every day, descriptively.** Real use is not randomised, so no
+significance test is claimed.
+- **Harm, first.** A merged improvement that is reverted, or that breaks CI or a
+  test.
+- **Improvements merged** per day.
+- **Master's ESLint warnings** (CI's warning budget, `.aios/state/FRONTEND_WARNING_BUDGET.json`),
+  which should fall by the warnings fixed.
+- **Honesty of the pipeline:** the static-check pass rate, each reviewer's
+  accept rate, and how often the reviewers disagree.
+- **Learning from real use.** The reasons a rule's earlier proposals were
+  refused, by a check or a reviewer, are shown to the proposer for that rule.
+  Reported: the share accepted by both reviewers, over the first 30 proposals
+  against the next 30. A rise is a direction, not a finding.
+
+**Stopping:** none. This is daily operation, not a run. The first summary comes
+after 7 days or 30 proposals, whichever is first.
+
+**What this does not claim.** Lint warnings are a narrow slice of "better"; types,
+accessibility and design come later, each with its own checks. Two reviewers can
+be wrong together; CI and the operator's merge remain. A rising acceptance rate
+can come from easier rules being left, not from learning; the report names the
+rules.

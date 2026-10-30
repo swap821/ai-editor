@@ -27,6 +27,26 @@ the commit they were measured on). The whole story, from the first commit, is
   - **Measured payoff:** D12 was not met (12 better against 18 worse, p = 0.21). D13 has no verdict.
   - **The conclusion:** the machinery works, but usefulness can only come from real, recurring use. Proving more of the mechanism will not supply that.
 
+## Later on 2026-10-30: D13 stopped; GAGOS starts real daily work on its own frontend (branch `feat/frontend-daily-repair`, off master `2103fdae`)
+
+- **D13 was stopped at the operator's word, with no verdict.** 06:54 UTC, 5 of 85 targets, 41 graded attempts, 5 model errors (420 s timeouts), no trail written. Kept as `C:\d13out\stopped-by-operator-20261030`. It will not be re-run.
+- **D14 is registered** (`docs/learning/PAYOFF_PREREGISTRATION.md`): the payoff is now measured on real use, GAGOS's daily work on its own frontend, not on a harness.
+  - A frontier model proposes, and static checks run unattended.
+  - Two independent reviewers decide: Codex and Claude Code. A change ships only if both accept, in one daily PR that CI gates and he merges.
+  - He decided not to approve every diff himself. Reviewing them is the agents' daily job.
+- **Built on this branch, tested, not yet live:**
+  - the unused-import scanner and its registered repair, run by both executors;
+  - staged copies that skip `node_modules`;
+  - a repair preview showing the exact diff;
+  - a step-by-step repair flow in the Maintenance panel.
+- **A gap closed: the promotion check used to wave frontend files through.** A target set with no `.py` file passed with "no Python targets", so nothing was checked. A frontend target must now parse, have no ESLint error and pass the tests that import it. A missing toolchain fails the check.
+- **The deterministic supply is small.** Unused imports are in 11 of 504 files. 9 of those are owned by the lab-to-product port and excluded, so 2 are repairable. The daily supply is ESLint's ~124 warnings, which needs the frontier proposer (next PR).
+- **Codex reviews with his configured model, GPT-6.1 sol (his choice).** Non-interactively it was refused for a ChatGPT-account login, and Codex CLI 0.153.4 has no metadata for it. He is setting this up.
+  - A probe with `gpt-6-astra` did work: a read-only sandbox, with a schema-checked verdict.
+  - The loop records the model behind every Codex verdict.
+  - When Codex cannot review, the proposal waits. It never ships on one review.
+- **Tests still read his user-wide `AIOS_ROUTER_CLOUD_TASKS`.** Two tests fail on this laptop because of it, and pass without it. This finding is already recorded, and is still open.
+
 ## Later on 2026-10-29: the daily backend made dependable (branch `feat/daily-boring`, off master `062a328a`)
 
 The operator's ask: "make the daily animal boring". Four things are built here; the fifth needs his own runs.
