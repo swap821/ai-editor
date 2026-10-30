@@ -21,8 +21,10 @@ from aios.infrastructure.executor.workspace import resolve_staged_workspace
 from aios.maintenance.repair_operations import (
     REGISTERED_REPAIR_OPERATIONS,
     REMOVE_DEAD_IMPORTS_V1,
+    REMOVE_UNUSED_FRONTEND_IMPORTS_V1,
     RepairRefused,
     remove_dead_imports,
+    remove_unused_frontend_imports_in,
 )
 from aios.operations.tracing import get_trace_context
 
@@ -483,6 +485,11 @@ def execute_registered_repair_operation(job: ExecutorJob) -> ExecutorResult:
             new_content = remove_dead_imports(
                 content, path=target_path, project_root=workspace_root
             ).content
+        except RepairRefused as exc:
+            raise IsolationUnavailable(f"repair refused: {exc}") from exc
+    elif op_id == REMOVE_UNUSED_FRONTEND_IMPORTS_V1:
+        try:
+            new_content = remove_unused_frontend_imports_in(content, path=target_path)
         except RepairRefused as exc:
             raise IsolationUnavailable(f"repair refused: {exc}") from exc
     else:

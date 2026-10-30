@@ -9,12 +9,23 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict
 
 from aios import config
-from aios.domain.maintenance.scanners import VULTURE_DEAD_IMPORT_SCANNER_ID
+from aios.domain.maintenance.scanners import (
+    FRONTEND_UNUSED_IMPORT_SCANNER_ID,
+    VULTURE_DEAD_IMPORT_SCANNER_ID,
+)
 from aios.domain.workers.worker_contract import WorkerStrategyName
 from aios.maintenance.repair_operations import (
     REMOVE_DEAD_IMPORTS_V1,
     REMOVE_MAINTENANCE_MARKER_V1,
+    REMOVE_UNUSED_FRONTEND_IMPORTS_V1,
 )
+
+#: The operation each admitted scanner's findings are repaired by; any other
+#: scanner's finding gets the marker removal, as before.
+_OPERATION_FOR_SCANNER = {
+    VULTURE_DEAD_IMPORT_SCANNER_ID: REMOVE_DEAD_IMPORTS_V1,
+    FRONTEND_UNUSED_IMPORT_SCANNER_ID: REMOVE_UNUSED_FRONTEND_IMPORTS_V1,
+}
 
 
 class WorkerExecutionResult(BaseModel):
@@ -97,10 +108,8 @@ class ProductionCodeWorkerStrategy:
         # The operation follows from which admitted scanner raised the finding;
         # the executor then decides what to change from the workspace itself,
         # so this choice cannot widen a repair beyond its operation.
-        operation_id = (
-            REMOVE_DEAD_IMPORTS_V1
-            if metadata.get("scanner_id") == VULTURE_DEAD_IMPORT_SCANNER_ID
-            else REMOVE_MAINTENANCE_MARKER_V1
+        operation_id = _OPERATION_FOR_SCANNER.get(
+            str(metadata.get("scanner_id") or ""), REMOVE_MAINTENANCE_MARKER_V1
         )
         proposal = {
             "operation_id": operation_id,
