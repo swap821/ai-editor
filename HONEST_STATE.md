@@ -53,6 +53,25 @@ the commit they were measured on). The whole story, from the first commit, is
     - The reviewers are now shown that fact, read from `tsconfig.json`.
   - **The privacy filter would have changed most files.** Bedrock's filter would alter 264 of the 298 editable files, false positives included, so the proposer would have been working from a different file.
     - Instead, what GAGOS's egress scrubbers would redact is masked locally and restored exactly. With masking, 276 files can be sent unaltered. The other 22 are refused, not sent.
+- **Roles (his words): GAGOS is the workforce.**
+  - It makes its own PRs for its own work. Claude Code is chief reviewer and Codex is a reviewer; both must accept.
+  - He comes in as CEO, on his own time.
+  - #565's commit was re-authored as GAGOS. The frontier model that wrote a change is credited as its co-author, and the reviewers are named with their models.
+- **The loop interval was agreed with Codex,** after asking it (GPT-6.1 sol):
+  - events wake the loop, with a 60-minute fallback;
+  - at most one batch of at most 2 proposals per UTC day, rejections included;
+  - no batch while GAGOS's previous PR is open; blocked days are recorded and never caught up.
+- **Built on branch `feat/gagos-daily-review`, not live:**
+  - `tools/gagos_daily.py daily`, GAGOS's whole day under those rules;
+  - its own GitHub App support;
+  - the clerk's first real job: summarising, locally, each disagreement between the reviewers;
+  - an hourly starter that runs only code merged on master, in GAGOS's own worktree.
+- **What GAGOS cannot do yet, honestly.** It isn't 24/7: it's a laptop with no supervisor. It doesn't improve itself beyond what a checker can prove: today, 3 lint rules. And it can't judge a UI: there is no visual check.
+- **Waiting on him, each his own act:**
+  - creating and installing GAGOS's GitHub App (`tools/gagos_github_app.py create`);
+  - registering the hourly task. Claude Code's request to create it was blocked as unauthorized persistence, which is right: it is his to set up;
+  - admitting a clerk model (`python -m aios clerk approve <model>`). Until then, the clerk's refusals are recorded;
+  - storing the Bedrock key (`gagos keys set AWS_BEARER_TOKEN_BEDROCK`).
 - **Tests still read his user-wide `AIOS_ROUTER_CLOUD_TASKS`.** Two tests fail on this laptop because of it, and pass without it. This finding is already recorded, and is still open.
 
 ## Later on 2026-10-29: the daily backend made dependable (branch `feat/daily-boring`, off master `062a328a`)
