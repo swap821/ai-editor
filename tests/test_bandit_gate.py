@@ -146,18 +146,21 @@ def test_an_overstated_budget_fails(tmp_path: Path) -> None:
     a standing permission slip for re-introducing them. Exercised by adding an
     entry that cannot correspond to any real finding.
     """
-    original = BUDGET.read_text(encoding="utf-8")
+    # Bytes, not text: on Windows write_text writes CRLF, so restoring the text
+    # left the tracked file changed in every checkout it ran in (2026-10-29).
+    original = BUDGET.read_bytes()
     payload = json.loads(original)
     payload["budget"]["B999:aios/definitely_not_a_real_file.py"] = 3
     try:
-        BUDGET.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        BUDGET.write_bytes((json.dumps(payload, indent=2) + "\n").encode("utf-8"))
         result = _run_gate(REPO_ROOT)
         assert result.returncode == 1
         assert "STALE" in result.stderr, result.stderr[-600:]
     finally:
-        BUDGET.write_text(original, encoding="utf-8")
+        BUDGET.write_bytes(original)
 
     # And the tree is left exactly as found.
+    assert BUDGET.read_bytes() == original
     assert _run_gate(REPO_ROOT).returncode == 0
 
 
