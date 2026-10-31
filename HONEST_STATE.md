@@ -28,7 +28,9 @@ the commit they were measured on). The whole story, from the first commit, is
     - It launched once 7.0 GB was available, with no heavy job running.
     - Harness `e6e8d668`, store `90c009d9` / `f95c7d7d` verified, argv identical to all three earlier attempts, 85 targets.
     - Log: `C:\d13out\judged-local`. GAGOS's tasks stand aside until it ends.
-- **Keys: GAGOS's jobs read only its keystore, never a file.** The Bedrock key is not in it yet.
+- **Keys: GAGOS's jobs read only its keystore, never a file.**
+  - The operator stored the Bedrock key there on 10-31. GAGOS's first call with it went through the gateway (entrance `route`), and Mistral Large 3 answered.
+  - Nothing reads the old key file any more.
 - **Three actions were refused by Claude Code's own permission check, each correctly the operator's:**
   - writing the key into the keystore ("Secret-Store Writes");
   - stopping Docker and WSL ("Interfere With Workloads");
