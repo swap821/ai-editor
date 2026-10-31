@@ -1,9 +1,34 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-10-30 ("State on 2026-10-30" below; earlier sections keep
+**Last updated:** 2026-10-31 ("State on 2026-10-31" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-10-31 (branch `feat/gagos-daily-review`, off master `af233f66`)
+
+- **#564 was merged by squash** (`af233f66`). Its branch-tip organ evidence was orphaned; it is re-gathered at this branch's tip.
+- **GAGOS starts with Windows, by his request (10-30).** Windows Update is never paused, because Defender needs it. GAGOS survives the restarts instead.
+  - Two tasks run under his user:
+    - `\GAGOS\backend`, at logon and every 15 minutes, runs `daily_backend.py up`, which is idempotent;
+    - `\GAGOS\daily`, at logon and every hour, runs GAGOS's day on merged master code only.
+  - Its first run, 2026-10-30 09:50 UTC, started the backend by itself (exit 0).
+  - After an update restart they start at sign-in. For Windows to sign him in by itself, he turns on "Use my sign-in info to automatically finish setting up after an update" (his setting).
+- **A judged run can keep the machine to itself.** While a quiet marker names a live process, both tasks stand aside. When that process ends, or a restart ends it, GAGOS resumes by itself.
+- **D13: the operator asked for it again, honestly (10-30), after D14 had said it would not be re-run.** A dated correction is under D14.
+  - Its fourth launch waits for at least 6 GB of available memory, because a starved 9B is what spoiled the second attempt.
+  - At 16:14 UTC 3.0 GB of 15.4 was available: Windows services 2.3 GB, Edge 1.0 GB, the WSL VM 1.0 GB.
+- **Keys: GAGOS's jobs read only its keystore, never a file.** The Bedrock key is not in it yet.
+- **Three actions were refused by Claude Code's own permission check, each correctly the operator's:**
+  - writing the key into the keystore ("Secret-Store Writes");
+  - stopping Docker and WSL ("Interfere With Workloads");
+  - registering the tasks the first time ("Unauthorized Persistence"). They were registered on his explicit request.
+- **This branch also adds:**
+  - GAGOS's daily direction from him (`gagos_daily.py direct`);
+  - its own eye, its own Chrome (`tools/gagos_eye.py`). It sees, but does not judge yet;
+  - GitHub App support. Creating the App is his act;
+  - credits for the models and the clerk;
+  - `daily`, under the rules agreed with Codex.
 
 ## State on 2026-10-30 (the operator's daily backend, master `f6206755`)
 
