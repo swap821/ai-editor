@@ -1189,6 +1189,10 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     #: alignment notice. A turn that emits only that notice looks like it spoke
     #: and did not: the notice is ours, not the model's.
     model_produced_output = False
+    #: The codes of errors the tool loop ended this turn with (an agent loop,
+    #: a model failure). Such a turn did not complete, so nothing is learned
+    #: from it, whatever its verifier said along the way (see the outcome).
+    loop_errors: list[str] = []
     verification_evidence: list[str] = []
     verify_verdicts: dict[str, str] = {}
     #: Per-target verification strength (parallel to the verdict dicts), so the
@@ -1870,6 +1874,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         elif kind == "code":
             yield sse("code", {"code": ev["code"], "language": ev["language"]})
         elif kind == "error":
+            loop_errors.append(str(ev.get("code") or "error"))
             _record_incomplete_if_revoked()
             # The code, when the loop gave one, says WHO failed the turn
             # (aios/core/turn_failures.py); dropping it here is what made a
@@ -2132,7 +2137,19 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             # 2026-06-11, refined the same day from global last-evidence-
             # wins) — but a final PASS on one target can no longer mask an
             # unresolved FAIL on another.
-            if not verification_evidence:
+            if loop_errors:
+                # A turn the tool loop ended in an error did not complete.
+                # Found 2026-10-30 on the operator's daily backend: in 5 of 14
+                # turns the local model repeated a verify that had already
+                # passed, the agent-loop guard stopped the turn, and the turn
+                # was still recorded as a verified success -- so the library
+                # learned the stopped turn's tool sequence ("verify; verify")
+                # as a procedure, and one such arc reached review-ready. The
+                # verifier's verdict is still observed; nothing is learned.
+                _emit_verification_verdict()
+                record_outcome("unverified")
+                _record_telemetry(telemetry.OUTCOME_ABORTED)
+            elif not verification_evidence:
                 record_outcome("unverified")
                 _record_telemetry(telemetry.OUTCOME_UNVERIFIED)
             else:

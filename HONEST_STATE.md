@@ -27,6 +27,53 @@ the commit they were measured on). The whole story, from the first commit, is
   - **Measured payoff:** D12 was not met (12 better against 18 worse, p = 0.21). D13 has no verdict.
   - **The conclusion:** the machinery works, but usefulness can only come from real, recurring use. Proving more of the mechanism will not supply that.
 
+## Later on 2026-10-30: D13 stopped; GAGOS starts real daily work on its own frontend (branch `feat/frontend-daily-repair`, off master `2103fdae`)
+
+- **D13 was stopped at the operator's word, with no verdict.** 06:54 UTC, 5 of 85 targets, 41 graded attempts, 5 model errors (420 s timeouts), no trail written. Kept as `C:\d13out\stopped-by-operator-20261030`. It will not be re-run.
+- **D14 is registered** (`docs/learning/PAYOFF_PREREGISTRATION.md`): the payoff is now measured on real use, GAGOS's daily work on its own frontend, not on a harness.
+  - A frontier model proposes, and static checks run unattended.
+  - Two independent reviewers decide: Codex and Claude Code. A change ships only if both accept, in one daily PR that CI gates and he merges.
+  - He decided not to approve every diff himself. Reviewing them is the agents' daily job.
+- **Built on this branch, tested, not yet live:**
+  - the unused-import scanner and its registered repair, run by both executors;
+  - staged copies that skip `node_modules`;
+  - a repair preview showing the exact diff;
+  - a step-by-step repair flow in the Maintenance panel.
+- **A gap closed: the promotion check used to wave frontend files through.** A target set with no `.py` file passed with "no Python targets", so nothing was checked. A frontend target must now parse, have no ESLint error and pass the tests that import it. A missing toolchain fails the check.
+- **The deterministic supply is small.** Unused imports are in 11 of 504 files. 9 of those are owned by the lab-to-product port and excluded, so 2 are repairable. The daily supply is ESLint's ~124 warnings, which needs the frontier proposer (next PR).
+- **Codex reviews with his configured model, GPT-6.1 sol (his choice).** In the morning it was refused non-interactively for a ChatGPT-account login. By the afternoon, after his setup, it reviewed non-interactively with GPT-6.1 sol.
+  - The loop records the model behind every Codex verdict.
+  - When Codex cannot review, the proposal waits. It never ships on one review.
+- **The first real day of D14, the same afternoon.**
+  - The loop's code is on branch `feat/gagos-daily-review`; its PR follows this one.
+  - **The proposals.** GAGOS made 2 proposals, using Mistral Large 3 on Bedrock through the one gateway, bound to his identity and constitution. Both passed the unattended checks.
+  - **One change delivered.** In `BudgetMicroBar.jsx` it removes the unused default `React` import. Codex (GPT-6.1 sol) and Claude Code (Opus 5.5) both accepted it. It was re-checked on master and delivered as #565, the first daily PR.
+  - **One change rejected.** Removing `React` from the same file's test was rejected by Codex: nothing it was shown established the automatic JSX runtime. Claude Code accepted it.
+    - That is the first recorded disagreement. A change ships only if both accept, so it did not ship.
+    - The reviewers are now shown that fact, read from `tsconfig.json`.
+  - **The privacy filter would have changed most files.** Bedrock's filter would alter 264 of the 298 editable files, false positives included, so the proposer would have been working from a different file.
+    - Instead, what GAGOS's egress scrubbers would redact is masked locally and restored exactly. With masking, 276 files can be sent unaltered. The other 22 are refused, not sent.
+- **Roles (his words): GAGOS is the workforce.**
+  - It makes its own PRs for its own work. Claude Code is chief reviewer and Codex is a reviewer; both must accept.
+  - He comes in as CEO, on his own time.
+  - #565's commit was re-authored as GAGOS. The frontier model that wrote a change is credited as its co-author, and the reviewers are named with their models.
+- **The loop interval was agreed with Codex,** after asking it (GPT-6.1 sol):
+  - events wake the loop, with a 60-minute fallback;
+  - at most one batch of at most 2 proposals per UTC day, rejections included;
+  - no batch while GAGOS's previous PR is open; blocked days are recorded and never caught up.
+- **Built on branch `feat/gagos-daily-review`, not live:**
+  - `tools/gagos_daily.py daily`, GAGOS's whole day under those rules;
+  - its own GitHub App support;
+  - the clerk's first real job: summarising, locally, each disagreement between the reviewers;
+  - an hourly starter that runs only code merged on master, in GAGOS's own worktree.
+- **What GAGOS cannot do yet, honestly.** It isn't 24/7: it's a laptop with no supervisor. It doesn't improve itself beyond what a checker can prove: today, 3 lint rules. And it can't judge a UI: there is no visual check.
+- **Waiting on him, each his own act:**
+  - creating and installing GAGOS's GitHub App (`tools/gagos_github_app.py create`);
+  - registering the hourly task. Claude Code's request to create it was blocked as unauthorized persistence, which is right: it is his to set up;
+  - admitting a clerk model (`python -m aios clerk approve <model>`). Until then, the clerk's refusals are recorded;
+  - storing the Bedrock key (`gagos keys set AWS_BEARER_TOKEN_BEDROCK`).
+- **Tests still read his user-wide `AIOS_ROUTER_CLOUD_TASKS`.** Two tests fail on this laptop because of it, and pass without it. This finding is already recorded, and is still open.
+
 ## Later on 2026-10-29: the daily backend made dependable (branch `feat/daily-boring`, off master `062a328a`)
 
 The operator's ask: "make the daily animal boring". Four things are built here; the fifth needs his own runs.

@@ -20,6 +20,18 @@ shared deadline:
 The children get a private AIOS_DATA_DIR and PYTHONDONTWRITEBYTECODE, so the
 check writes no databases or bytecode into the project it is judging. Every
 step is recorded in a JSON report beside the operational data.
+
+FRONTEND TARGETS (added 2026-10-30, GAGOS's daily frontend worker). Until then a
+promotion whose targets were all ``.ts``/``.tsx``/``.js``/``.jsx`` passed with
+"no Python targets": nothing was checked. Now each such target must, with the
+project's own frontend toolchain (``frontend/node_modules``), in order:
+
+1. parse (TypeScript, syntax only);
+2. lint with no ESLint error (warnings are the codebase's own and recorded);
+3. pass ``vitest related`` -- the tests that import it.
+
+No toolchain in the project is a FAILED check, never a skipped one: the
+maintenance project must have run ``npm ci`` in ``frontend/``.
 """
 
 from __future__ import annotations
@@ -27,6 +39,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -116,6 +129,7 @@ def python_smoke(
         return SmokeReport(False, reason, list(targets), steps)
 
     paths: list[Path] = []
+    frontend: list[Path] = []
     for target in targets:
         path = (project_root / target.replace("\\", "/")).resolve()
         try:
@@ -126,8 +140,23 @@ def python_smoke(
             return fail(f"target is missing after promotion: {target}")
         if path.suffix == ".py":
             paths.append(path)
+        elif path.suffix in FRONTEND_SMOKE_SUFFIXES:
+            frontend.append(path)
+    if frontend:
+        reason = frontend_smoke(
+            project_root, frontend, deadline=deadline, run=run, steps=steps
+        )
+        if reason is not None:
+            return fail(reason)
     if not paths:
-        return SmokeReport(True, "no Python targets", list(targets), steps)
+        return SmokeReport(
+            True,
+            "frontend targets parse, lint without errors and pass their related tests"
+            if frontend
+            else "no Python targets",
+            list(targets),
+            steps,
+        )
 
     for path in paths:
         started = time.monotonic()
@@ -209,4 +238,128 @@ def python_smoke(
     )
 
 
-__all__ = ["SmokeReport", "SmokeStep", "python_smoke", "find_exercising_tests"]
+FRONTEND_SMOKE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mjs")
+#: What the frontend smoke needs from ``frontend/node_modules``.
+_FRONTEND_TOOLS = {
+    "typescript": "typescript/package.json",
+    "eslint": "eslint/bin/eslint.js",
+    "vitest": "vitest/vitest.mjs",
+}
+#: Syntax only: TypeScript's transpile reports parse diagnostics, not types.
+_PARSE_SCRIPT = (
+    "const ts=require(process.argv[1]);const fs=require('fs');let bad=0;"
+    "for(const f of process.argv.slice(2)){"
+    "const out=ts.transpileModule(fs.readFileSync(f,'utf8'),{fileName:f,"
+    "reportDiagnostics:true,compilerOptions:{jsx:ts.JsxEmit.ReactJSX,allowJs:true}});"
+    "for(const d of out.diagnostics||[]){bad++;"
+    "console.log(f+': '+ts.flattenDiagnosticMessageText(d.messageText,' '))}}"
+    "process.exit(bad?1:0)"
+)
+
+
+def frontend_smoke(
+    project_root: Path,
+    targets: Sequence[Path],
+    *,
+    deadline: float,
+    run: Callable[..., Any] = subprocess.run,
+    steps: list[SmokeStep],
+) -> str | None:
+    """The frontend targets' smoke (module docstring): ``None`` when they pass,
+    else the reason they do not. Each step is appended to *steps*."""
+    frontend = project_root / "frontend"
+    modules = frontend / "node_modules"
+    node = shutil.which("node")
+    missing = [
+        name for name, rel in _FRONTEND_TOOLS.items() if not (modules / rel).is_file()
+    ]
+    if node is None or missing:
+        detail = "node not found" if node is None else f"missing: {', '.join(missing)}"
+        steps.append(SmokeStep("frontend toolchain", False, detail))
+        return (
+            "the frontend toolchain is unavailable in the project "
+            f"({detail}); run `npm ci` in {frontend}"
+        )
+    steps.append(SmokeStep("frontend toolchain", True))
+    rel = [t.relative_to(frontend).as_posix() for t in targets]
+
+    def step(name: str, argv: list[str]) -> tuple[bool, str]:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            steps.append(SmokeStep(name, False, "deadline reached before the step"))
+            return False, ""
+        started = time.monotonic()
+        try:
+            proc = run(
+                argv,
+                cwd=str(frontend),
+                capture_output=True,
+                text=True,
+                timeout=remaining,
+            )
+        except subprocess.TimeoutExpired:
+            steps.append(
+                SmokeStep(name, False, "timed out", time.monotonic() - started, argv)
+            )
+            return False, ""
+        out = (proc.stdout or "") + (proc.stderr or "")
+        ok = proc.returncode == 0
+        steps.append(
+            SmokeStep(
+                name,
+                ok,
+                f"exit {proc.returncode}\n{out[-_TAIL:]}",
+                time.monotonic() - started,
+                argv,
+            )
+        )
+        return ok, proc.stdout or ""
+
+    ok, _ = step(
+        "parse (TypeScript)",
+        [node, "-e", _PARSE_SCRIPT, str(modules / "typescript"), *rel],
+    )
+    if not ok:
+        return "a frontend target does not parse"
+    _ok, report = step(
+        "eslint",
+        [node, str(modules / _FRONTEND_TOOLS["eslint"]), "--format", "json", *rel],
+    )
+    try:
+        errors = sum(
+            1
+            for result in json.loads(report or "[]")
+            for message in result.get("messages", [])
+            if message.get("severity") == 2 or message.get("fatal")
+        )
+    except ValueError:
+        steps[-1].passed = False
+        return "ESLint did not report a result"
+    # ESLint exits non-zero on errors only; warnings are the codebase's own.
+    steps[-1].passed = errors == 0
+    if errors:
+        return f"ESLint reports {errors} error(s) in the frontend targets"
+    ok, _ = step(
+        "vitest related",
+        [
+            node,
+            str(modules / _FRONTEND_TOOLS["vitest"]),
+            "related",
+            *rel,
+            "--run",
+            "--passWithNoTests",
+        ],
+    )
+    if not ok:
+        return "the tests related to the frontend targets did not pass"
+    return None
+
+
+__all__ = [
+    "FRONTEND_SMOKE_SUFFIXES",
+    "SmokeReport",
+    "SmokeStep",
+    "find_exercising_tests",
+    "frontend_smoke",
+    "python_smoke",
+]

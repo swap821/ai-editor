@@ -14,6 +14,14 @@ from aios.domain.workspaces import StagedWorkspace
 from aios.security import scope_lock
 
 
+#: Directories a staged workspace never copies, hashes, diffs or applies:
+#: version-control state, and dependency installs. A maintenance project keeps
+#: its own ``frontend/node_modules`` so the frontend smoke check can run there
+#: (2026-10-30); copying and hashing tens of thousands of dependency files on
+#: every repair would be slow, and no repair may change them anyway.
+EXCLUDED_DIRECTORIES = frozenset({".git", "node_modules"})
+
+
 class WorkspacePathViolation(ValueError):
     """Raised for an unenrolled, escaping, or symlinked project path."""
 
@@ -268,7 +276,9 @@ class StagedWorkspaceAuthority:
             relative = current_path.relative_to(source)
             target = destination / relative
             target.mkdir(parents=True, exist_ok=True)
-            directories[:] = sorted(name for name in directories if name != ".git")
+            directories[:] = sorted(
+                name for name in directories if name not in EXCLUDED_DIRECTORIES
+            )
             for name in sorted(files):
                 source_file = current_path / name
                 if source_file.is_symlink():
@@ -279,6 +289,8 @@ class StagedWorkspaceAuthority:
 
     def _reject_symlinks(self, root: Path) -> None:
         for current, directories, files in os.walk(root, followlinks=False):
+            # Not copied, so not judged: a dependency install may link.
+            directories[:] = [d for d in directories if d != "node_modules"]
             current_path = Path(current)
             if current_path.is_symlink():
                 raise WorkspacePathViolation(
@@ -307,7 +319,9 @@ def _file_map(root: Path) -> dict[str, str]:
     if not root.is_dir():
         raise WorkspacePathViolation(f"workspace is not a directory: {root}")
     for current, directories, files in os.walk(root, followlinks=False):
-        directories[:] = sorted(name for name in directories if name != ".git")
+        directories[:] = sorted(
+            name for name in directories if name not in EXCLUDED_DIRECTORIES
+        )
         current_path = Path(current)
         for name in sorted(files):
             if name in {".gagos-workspace.json", ".git"}:
