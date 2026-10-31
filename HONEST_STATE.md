@@ -19,7 +19,12 @@ the commit they were measured on). The whole story, from the first commit, is
     - `\GAGOS\backend`, at logon and every 15 minutes, runs `daily_backend.py up`, which is idempotent;
     - `\GAGOS\daily`, at logon and every hour, runs GAGOS's day on merged master code only.
   - Its first run, 2026-10-30 09:50 UTC, started the backend by itself (exit 0).
-  - After an update restart they start at sign-in. For Windows to sign him in by itself, he turns on "Use my sign-in info to automatically finish setting up after an update" (his setting).
+  - After an update restart they start at sign-in. He turned on "Use my sign-in info to automatically finish setting up after an update" (10-31), so Windows signs him in by itself after an update, and GAGOS comes back with no one at the keyboard.
+- **His steps are all done (10-31):**
+  - GAGOS's GitHub App `gagos-swap821` is created and installed on `swap821/ai-editor`, with its key in his keystore. GAGOS's next PR opens under its own name.
+  - The clerk's `qwen3.5:9b` is granted `summarise_disagreement`, its first real role.
+  - The Bedrock key is in GAGOS's keystore.
+  - Automatic sign-in after updates is on.
 - **A judged run can keep the machine to itself.** While a quiet marker names a live process, both tasks stand aside. When that process ends, or a restart ends it, GAGOS resumes by itself.
 - **D13: the operator asked for it again, honestly (10-30), after D14 had said it would not be re-run.** A dated correction is under D14.
   - Its fourth launch waits for at least 6 GB of available memory, because a starved 9B is what spoiled the second attempt.
