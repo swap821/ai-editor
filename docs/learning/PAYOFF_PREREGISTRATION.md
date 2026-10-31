@@ -1065,3 +1065,11 @@ accessibility and design come later, each with its own checks. Two reviewers can
 be wrong together; CI and the operator's merge remain. A rising acceptance rate
 can come from easier rules being left, not from learning; the report names the
 rules.
+
+**Correction, 2026-10-31.** This entry says D13 "will not be re-run". Later on
+2026-10-30 the operator asked for D13 to be run honestly after all. Its fourth
+launch is D13's own run, under D13's registration, harness and store, all
+unchanged. It does not change D14, and D14 does not depend on it. The launch
+waits until the laptop can give the local model its memory (at least 6 GB
+available): the second attempt's two timeouts came from memory starvation.
+GAGOS's own work stands aside while D13 holds the machine.

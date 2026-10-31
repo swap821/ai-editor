@@ -305,6 +305,10 @@ NOT_A_MODEL = {
     ),
     "aios/bootstrap.py": "Ollama's /api/tags health probe (GET, no model)",
     "aios/core/websearch.py": "the CRAG web-search provider",
+    "aios/operations/github_app.py": (
+        "GAGOS's own GitHub App: GitHub's REST API (an installation token, a "
+        "pull request); no model"
+    ),
     "aios/probe_session.py": "this backend's own API, for the probe drivers",
 }
 

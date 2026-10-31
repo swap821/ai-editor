@@ -60,6 +60,16 @@ OPTIONAL = (
     "AIOS_AUDIT_PRIVATE_KEY",
 )
 NAMES = REQUIRED + OPTIONAL
+#: Keys a local GAGOS job reads for itself and production is never handed
+#: (not in NAMES, so ``production_environment`` never sees them): GAGOS's own
+#: GitHub App, with which its daily work opens its own PRs (operator,
+#: 2026-10-30). Stored by the operator's own act, through
+#: ``tools/gagos_github_app.py create``; no command prints them.
+LOCAL_ONLY = (
+    "GAGOS_GITHUB_APP_ID",
+    "GAGOS_GITHUB_APP_SLUG",
+    "GAGOS_GITHUB_APP_PRIVATE_KEY",
+)
 
 
 def _learning_seed() -> str:
@@ -106,8 +116,10 @@ class Keystore(Protocol):
 
 
 def _check_name(name: str) -> None:
-    if name not in NAMES:
-        raise ValueError(f"{name!r} is not a GAGOS production key: {', '.join(NAMES)}")
+    if name not in NAMES and name not in LOCAL_ONLY:
+        raise ValueError(
+            f"{name!r} is not a GAGOS key: {', '.join(NAMES + LOCAL_ONLY)}"
+        )
 
 
 class MemoryKeystore:
@@ -287,6 +299,7 @@ __all__ = [
     "GENERATORS",
     "Keystore",
     "KeystoreUnavailable",
+    "LOCAL_ONLY",
     "MemoryKeystore",
     "NAMES",
     "OPTIONAL",
