@@ -24,6 +24,10 @@ the commit they were measured on). The whole story, from the first commit, is
 - **D13: the operator asked for it again, honestly (10-30), after D14 had said it would not be re-run.** A dated correction is under D14.
   - Its fourth launch waits for at least 6 GB of available memory, because a starved 9B is what spoiled the second attempt.
   - At 16:14 UTC 3.0 GB of 15.4 was available: Windows services 2.3 GB, Edge 1.0 GB, the WSL VM 1.0 GB.
+  - **D13 is running since 17:52 UTC.**
+    - It launched once 7.0 GB was available, with no heavy job running.
+    - Harness `e6e8d668`, store `90c009d9` / `f95c7d7d` verified, argv identical to all three earlier attempts, 85 targets.
+    - Log: `C:\d13out\judged-local`. GAGOS's tasks stand aside until it ends.
 - **Keys: GAGOS's jobs read only its keystore, never a file.** The Bedrock key is not in it yet.
 - **Three actions were refused by Claude Code's own permission check, each correctly the operator's:**
   - writing the key into the keystore ("Secret-Store Writes");
