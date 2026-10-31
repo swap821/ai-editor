@@ -111,8 +111,15 @@ PROPOSER_SYSTEM = (
 )
 
 
-#: A placeholder for a span that may not leave the machine (see :func:`mask_lines`).
-MASK_TOKEN = re.compile(r"GAGOSMASK\d{4}")
+#: The shape of a placeholder for a span that may not leave the machine (see
+#: :func:`mask_lines`): a prefix with a random part chosen per file so it never
+#: occurs in that file (Codex's review of #566: a fixed ``GAGOSMASK0000``
+#: already in a source file was restored as the private span), then a number.
+MASK_TOKEN = re.compile(r"GAGOSMASK[0-9A-F]{6}_\d{4}")
+
+
+class MaskingFailed(ValueError):
+    """The text could not be masked so that it restores exactly."""
 
 
 def _middle(line: str, redacted: str) -> tuple[int, int]:
@@ -146,6 +153,11 @@ def mask_lines(
     changes, so warning line numbers hold. The caller re-checks the whole
     prompt before sending anything.
     """
+    import secrets
+
+    prefix = f"GAGOSMASK{secrets.token_hex(3).upper()}_"
+    while prefix in text:
+        prefix = f"GAGOSMASK{secrets.token_hex(3).upper()}_"
     mapping: dict[str, str] = {}
     current = text
     for _ in range(rounds):
@@ -168,23 +180,41 @@ def mask_lines(
             start, stop = _middle(body, other)
             if start == stop:  # pure insertion: hide the whole line
                 start, stop = 0, len(body)
-            token = f"GAGOSMASK{len(mapping):04d}"
+            token = f"{prefix}{len(mapping):04d}"
             mapping[token] = body[start:stop]
             out.append(body[:start] + token + body[stop:] + ending)
         current = "".join(out)
+    if mapping and unmask(current, mapping, masked=current) != text:
+        raise MaskingFailed("masking does not restore the file exactly")
     return current, mapping
 
 
 def unmask(text: str, mapping: Mapping[str, str], *, masked: str) -> str:
     """Restore the placeholders in the model's answer. The answer may drop a
-    placeholder (its line was removed) but never invent or duplicate one."""
-    for token in set(MASK_TOKEN.findall(text)):
+    placeholder (its line was removed) but never invent or duplicate one.
+    Only this mask's placeholders count: text that merely looks like one, in
+    the file itself, is left alone."""
+    if not mapping:
+        return text
+    prefix = next(iter(mapping))[:-4]
+    for token in set(re.findall(re.escape(prefix) + r"\d{4}", text)):
         if token not in mapping:
             raise ProposalRefused(f"the answer invents the placeholder {token}")
         if text.count(token) > masked.count(token):
             raise ProposalRefused(f"the answer duplicates the placeholder {token}")
     for token in reversed(list(mapping)):  # later ones may wrap earlier ones
         text = text.replace(token, mapping[token])
+    return text
+
+
+def mask_like(text: str, mapping: Mapping[str, str]) -> str:
+    """*text* with every span *mapping* hides replaced by its placeholder: how
+    a reviewer is shown the proposed file under the same mask as the original."""
+    # A later placeholder may wrap earlier ones: match what each finally stands for.
+    full = {token: unmask(token, mapping, masked=token) for token in mapping}
+    for token, original in sorted(full.items(), key=lambda kv: -len(kv[1])):
+        if original:
+            text = text.replace(original, token)
     return text
 
 
@@ -294,7 +324,7 @@ def proposal_prompt(
     if masked:
         lines += [
             "",
-            "Some spans are replaced by placeholders such as GAGOSMASK0000: they "
+            "Some spans are replaced by placeholders (GAGOSMASK followed by letters, digits and an underscore): they "
             "hide paths or values that may not leave this machine. Keep every "
             "placeholder you keep exactly as written; never invent one.",
         ]
@@ -458,7 +488,7 @@ def review_prompt(
             "Automated checks already passed: it parses, the listed warnings "
             "are gone, and no other ESLint warning or error was added.",
             "",
-            f"File: {finding.rel}",
+            f"File: {Path(finding.rel).name}",
             f"Rule: {finding.rule}",
             "Warnings it should fix (line:column message):",
             warnings,
@@ -549,14 +579,16 @@ CREATE TABLE IF NOT EXISTS days (
 
 #: Proposal statuses. ``refused`` = failed the unattended checks or the model
 #: gave no usable answer; ``proposed`` = awaiting reviews; ``accepted`` = both
-#: reviewers accepted; ``rejected`` = a reviewer rejected; ``delivered`` = on a
-#: daily branch; ``stale`` = the file changed before delivery; ``failed`` = the
+#: reviewers accepted; ``rejected`` = a reviewer rejected; ``committed`` = on a
+#: daily branch, its push or PR not yet confirmed; ``delivered`` = in a PR that
+#: exists; ``stale`` = the file changed before delivery; ``failed`` = the
 #: delivery checks (parse, ESLint, the tests that import it) failed on master.
 STATUSES = (
     "refused",
     "proposed",
     "accepted",
     "rejected",
+    "committed",
     "delivered",
     "stale",
     "failed",
@@ -692,17 +724,68 @@ class DailyLedger:
             db.execute(
                 "UPDATE proposals SET status = ? WHERE proposal_id = ?",
                 (
-                    outcome if outcome in ("delivered", "stale") else "failed",
+                    outcome
+                    if outcome in ("committed", "delivered", "stale")
+                    else "failed",
                     proposal_id,
                 ),
             )
 
     def set_pr(self, proposal_ids: Iterable[str], pr_url: str) -> None:
+        """The PR exists: only now are its changes delivered (Codex's review
+        of #566: a failed push must not leave work marked delivered)."""
+        ids = list(proposal_ids)
         with self._db() as db:
             db.executemany(
-                "UPDATE deliveries SET pr_url = ? WHERE proposal_id = ?",
-                [(pr_url, pid) for pid in proposal_ids],
+                "UPDATE deliveries SET pr_url = ?, outcome = 'delivered' WHERE proposal_id = ?",
+                [(pr_url, pid) for pid in ids],
             )
+            db.executemany(
+                "UPDATE proposals SET status = 'delivered' WHERE proposal_id = ?",
+                [(pid,) for pid in ids],
+            )
+
+    def pending_publication(self) -> dict[str, list[str]]:
+        """Committed work whose push or PR is not confirmed, by branch."""
+        out: dict[str, list[str]] = {}
+        with self._db() as db:
+            for row in db.execute(
+                "SELECT d.branch, d.proposal_id FROM deliveries d JOIN proposals p "
+                "ON p.proposal_id = d.proposal_id WHERE p.status = 'committed' "
+                "ORDER BY d.created_at"
+            ):
+                out.setdefault(row["branch"], []).append(row["proposal_id"])
+        return out
+
+    def refuse(self, proposal_id: str, reason: str) -> None:
+        """Refuse a proposal after the fact (it cannot be shown to the
+        reviewers without exposing what may not leave the machine)."""
+        with self._db() as db:
+            db.execute(
+                "UPDATE proposals SET status = 'refused', refusal = ? WHERE proposal_id = ?",
+                (reason, proposal_id),
+            )
+
+    def reserve_day(self, day: str) -> bool:
+        """Claim *day* for GAGOS's one batch, atomically across processes
+        (Codex's review of #566: two overlapping runs each proposed two).
+        True for exactly one caller per day; a day only blocked can still be
+        claimed later the same day, never twice, and never caught up."""
+        db = self._db()
+        db.isolation_level = None  # this transaction is managed by hand
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            row = db.execute("SELECT status FROM days WHERE day = ?", (day,)).fetchone()
+            if row is not None and row["status"] == "ran":
+                db.execute("ROLLBACK")
+                return False
+            db.execute(
+                "INSERT OR REPLACE INTO days VALUES (?, 'ran', NULL, ?)", (day, _now())
+            )
+            db.execute("COMMIT")
+            return True
+        finally:
+            db.close()
 
     # reads
     def proposals(
@@ -846,6 +929,7 @@ __all__ = [
     "Direction",
     "Finding",
     "MASK_TOKEN",
+    "MaskingFailed",
     "PROPOSER_SYSTEM",
     "ProposalRefused",
     "REVIEWERS",
@@ -854,6 +938,7 @@ __all__ = [
     "digest",
     "findings",
     "load_direction",
+    "mask_like",
     "mask_lines",
     "parse_proposal",
     "parse_review",

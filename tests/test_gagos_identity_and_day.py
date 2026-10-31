@@ -395,3 +395,105 @@ def test_an_eye_that_saw_nothing_says_so(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(eye, "chrome", lambda: "chrome.exe")
     with pytest.raises(eye.EyeUnavailable):
         eye.shot("http://x", tmp_path / "o.png", run=lambda *a, **k: None)
+
+
+# --------------------------------------------------------------------- Codex's review of #566
+
+
+def _committed(led, branch="gagos/daily-x"):
+    pid = _proposal(led)
+    _both(led, pid)
+    led.record_delivery(pid, branch=branch, outcome="committed", commit_sha="c")
+    return pid
+
+
+def test_work_is_delivered_only_when_its_pr_exists(tmp_path, monkeypatch) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    pid = _committed(led)
+    assert led.proposals()[0]["status"] == "committed"
+    monkeypatch.setattr(tool, "_find_pr", lambda root, branch, app: None)
+
+    def push_fails(root, *args):
+        raise tool.subprocess.CalledProcessError(1, "git push")
+
+    monkeypatch.setattr(tool, "_git", push_fails)
+    with pytest.raises(tool.PublishFailed):
+        tool.publish(led, tmp_path, "gagos/daily-x", [pid], None)
+    assert led.proposals()[0]["status"] == "committed", "a failed push is not delivered"
+    assert led.pending_publication() == {"gagos/daily-x": [pid]}
+
+
+def test_a_pr_whose_response_was_lost_is_found_not_opened_twice(
+    tmp_path, monkeypatch
+) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _committed(led)
+    monkeypatch.setattr(tool, "_github_app", lambda root: None)
+    monkeypatch.setattr(
+        tool, "_find_pr", lambda root, branch, app: "https://github.com/o/r/pull/7"
+    )
+    monkeypatch.setattr(tool, "_git", lambda *a: pytest.fail("nothing is pushed again"))
+    assert tool.publish_pending(led, tmp_path) is None
+    assert led.proposals()[0]["status"] == "delivered"
+    assert led.pr_urls() == ["https://github.com/o/r/pull/7"]
+
+
+def test_unpublished_work_blocks_the_next_day(tmp_path, monkeypatch) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _committed(led)
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(tool.config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(tool, "_github_app", lambda root: None)
+
+    def cannot(root, branch, app):
+        raise tool.PublishFailed("offline")
+
+    monkeypatch.setattr(tool, "_find_pr", cannot)
+    calls: list = []
+    monkeypatch.setattr(tool, "cmd_propose", lambda a: calls.append("propose") or 0)
+    monkeypatch.setattr(tool, "cmd_review", lambda a: 0)
+    monkeypatch.setattr(tool, "cmd_clerk", lambda a: 0)
+    monkeypatch.setattr(tool, "cmd_deliver", lambda a: calls.append("deliver") or 0)
+    tool.cmd_daily(SimpleNamespace(project=str(tmp_path), model="m", region="r"))
+    assert calls == [] and led.days()[0]["status"] == "blocked"
+
+
+def test_the_day_is_claimed_atomically(tmp_path) -> None:
+    """Codex's review of #566: two overlapping runs each proposed two."""
+    import threading
+
+    led = dw.DailyLedger(tmp_path / "l.db")
+    wins: list = []
+    barrier = threading.Barrier(8)
+
+    def claim():
+        barrier.wait()
+        wins.append(dw.DailyLedger(tmp_path / "l.db").reserve_day("2026-10-31"))
+
+    threads = [threading.Thread(target=claim) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert wins.count(True) == 1
+    led.record_day("2026-11-01", "blocked", "previous PR open")
+    assert led.reserve_day("2026-11-01"), "a day only blocked can still run later"
+    assert not led.reserve_day("2026-11-01")
+
+
+def test_a_pr_body_carries_no_raw_direction(tmp_path, monkeypatch) -> None:
+    """Codex's review of #566: his raw direction notes reached GitHub."""
+    monkeypatch.setattr(tool.config, "DATA_DIR", tmp_path)
+    dw.set_direction(
+        tmp_path / "gagos_daily" / "direction.json",
+        dw.Direction(notes=("keep C:/Users/kumar/private/plan.md in mind",)),
+        said="x",
+    )
+    led = dw.DailyLedger(tmp_path / "l.db")
+    pid = _proposal(led)
+    body = tool.report(
+        led,
+        in_pr=[pid],
+        scrub=lambda t: t.replace("C:/Users/kumar/private/plan.md", "[PATH REDACTED]"),
+    )
+    assert "private/plan.md" not in body and "[PATH REDACTED]" in body

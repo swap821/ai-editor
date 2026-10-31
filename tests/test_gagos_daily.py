@@ -285,10 +285,23 @@ def test_what_may_not_leave_is_masked_and_restored_exactly() -> None:
 def test_an_answer_may_not_invent_or_duplicate_a_placeholder() -> None:
     masked, mapping = dw.mask_lines("const k = 's3cr3t-value';\n", _redact)
     [token] = mapping
+    assert dw.MASK_TOKEN.fullmatch(token)
     with pytest.raises(dw.ProposalRefused, match="invents"):
-        dw.unmask(masked + "GAGOSMASK0099\n", mapping, masked=masked)
+        dw.unmask(masked + token[:-4] + "0099\n", mapping, masked=masked)
     with pytest.raises(dw.ProposalRefused, match="duplicates"):
         dw.unmask(masked + token + "\n", mapping, masked=masked)
+
+
+def test_a_placeholder_never_collides_with_text_already_in_the_file() -> None:
+    """Codex's review of #566: a file already holding a placeholder-shaped
+    literal had it restored as the private span."""
+    text = "const tag = 'GAGOSMASK0000';\nconst k = 's3cr3t-value';\n"
+    masked, mapping = dw.mask_lines(text, _redact)
+    [token] = mapping
+    assert token not in text and "GAGOSMASK0000" in masked
+    assert dw.unmask(masked, mapping, masked=masked) == text
+    # An unchanged answer restores exactly, the literal untouched.
+    assert dw.unmask(masked, mapping, masked=masked).count("s3cr3t-value") == 1
 
 
 def test_both_reviewers_read_the_same_whole_evidence() -> None:
@@ -321,6 +334,11 @@ def test_codex_reviews_read_only_and_its_model_is_recorded(monkeypatch) -> None:
     seen: list = []
     monkeypatch.setattr(tool.shutil, "which", lambda name: "codex")
     monkeypatch.setattr(
+        tool,
+        "codex_settings",
+        lambda: {"model": "gpt-6.1-sol", "model_reasoning_effort": "xhigh"},
+    )
+    monkeypatch.setattr(
         tool.subprocess,
         "run",
         _fake_run(
@@ -335,8 +353,13 @@ def test_codex_reviews_read_only_and_its_model_is_recorded(monkeypatch) -> None:
         "gpt-6.1-sol",
     )
     argv, kwargs = seen[0]
-    assert argv[:4] == ["codex", "exec", "-s", "read-only"] and "-m" not in argv
+    assert argv[:4] == ["codex", "exec", "-s", "read-only"]
     assert kwargs["input"] == "p"
+    # His model, and nothing that lets the reviewer act (Codex's review of #566).
+    assert argv[argv.index("-m") + 1] == "gpt-6.1-sol"
+    assert "--ignore-user-config" in argv and "--ignore-rules" in argv
+    disabled = {argv[i + 1] for i, a in enumerate(argv) if a == "--disable"}
+    assert {"shell_tool", "unified_exec", "apps", "plugins", "browser_use"} <= disabled
 
 
 def test_a_codex_failure_is_no_verdict(monkeypatch) -> None:
@@ -383,9 +406,56 @@ def test_a_reviewer_without_a_verdict_leaves_the_proposal_open(
         raise tool.ReviewUnavailable("model refused")
 
     monkeypatch.setitem(tool.REVIEWER_RUNNERS, "codex", down)
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (True, ""))
     args = SimpleNamespace(reviewer="codex", limit=10, model=None, timeout=5)
     assert tool.cmd_review(args) == 1
     assert led.proposals()[0]["status"] == "proposed" and led.reviews(pid) == {}
+
+
+def test_reviews_obey_the_egress_law(tmp_path, monkeypatch) -> None:
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    _proposal(led)
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (False, "none"))
+    monkeypatch.setitem(
+        tool.REVIEWER_RUNNERS,
+        "codex",
+        lambda *a, **k: pytest.fail("nothing may be sent"),
+    )
+    args = SimpleNamespace(reviewer="codex", limit=10, model=None, timeout=5)
+    assert tool.cmd_review(args) == 2
+
+
+def test_a_reviewer_sees_the_file_under_the_same_mask(tmp_path, monkeypatch) -> None:
+    """Codex's review of #566: reviews sent the unmasked file to two clouds."""
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (True, ""))
+    monkeypatch.setattr(tool, "egress_redact", _redact)
+    monkeypatch.setattr(tool, "would_be_altered", lambda prompt, system: None)
+    secret_before = "const k = 's3cr3t-value';\nconst unused = 1;\nexport default k;\n"
+    secret_after = "const k = 's3cr3t-value';\nexport default k;\n"
+    verdict = dw.StaticVerdict(True, "ok", 1)
+    pid = led.record_proposal(
+        FINDING,
+        base_text=secret_before,
+        base_commit="c" * 40,
+        model="m",
+        new_text=secret_after,
+        verdict=verdict,
+    )
+    seen: list = []
+
+    def runner(prompt, *, model, timeout_s):
+        seen.append(prompt)
+        return "accept", "fine", "m"
+
+    monkeypatch.setitem(tool.REVIEWER_RUNNERS, "codex", runner)
+    tool.cmd_review(SimpleNamespace(reviewer="codex", limit=10, model=None, timeout=5))
+    [prompt] = seen
+    assert "s3cr3t-value" not in prompt and "GAGOSMASK" in prompt
+    assert "-const unused = 1;" in prompt
+    assert led.reviews(pid)["codex"]["verdict"] == "accept"
 
 
 # --------------------------------------------------------------------- propose
@@ -537,7 +607,9 @@ def test_deliver_commits_each_accepted_change_with_both_reviews(
     assert (
         "removes only the unused const" in message and "behaviour unchanged" in message
     )
-    assert led.proposals()[0]["status"] == "delivered" and checked
+    # Committed, not delivered: no PR was opened (Codex's review of #566).
+    assert led.proposals()[0]["status"] == "committed" and checked
+    assert led.pending_publication() == {"gagos/daily-test": [pid]}
     assert _git(work, "rev-parse", "--abbrev-ref", "HEAD") == "gagos/daily-test"
     assert pid in message
     # GAGOS's own work: authored and committed by GAGOS; its reviewers are
@@ -630,3 +702,20 @@ def test_the_real_toolchain_lints_and_parses_text_without_running_it(tmp_path) -
     assert results["frontend/src/workbench/Boom.jsx"].errors == [], (
         "linted, never executed"
     )
+
+
+def test_an_ordinary_change_can_be_shown_to_the_reviewers() -> None:
+    """With the REAL scrubbers: the evidence names the file, never its path,
+    so an ordinary change passes GAGOS's own egress check unaltered (the first
+    version put the path in the prompt and the diff, and the privacy filter
+    would have refused every review)."""
+    verdict = dw.StaticVerdict(True, "ok", 1)
+    p = {
+        "base_text": BEFORE,
+        "new_text": AFTER,
+        "facts": "[]",
+    }
+    prompt = tool.review_evidence(p, FINDING)
+    assert "Panel.jsx" in prompt and "frontend/src/workbench" not in prompt
+    assert tool.would_be_altered(prompt, "") is None
+    assert verdict.passed

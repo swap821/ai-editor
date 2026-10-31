@@ -56,9 +56,11 @@ from aios.maintenance.daily_work import (  # noqa: E402
     load_direction,
     set_direction,
     Finding,
+    MaskingFailed,
     ProposalRefused,
     digest,
     findings,
+    mask_like,
     mask_lines,
     parse_proposal,
     parse_review,
@@ -66,6 +68,7 @@ from aios.maintenance.daily_work import (  # noqa: E402
     proposal_prompt,
     review_prompt,
     static_verdict,
+    unified_diff,
     unmask,
 )
 from aios.maintenance.frontend_static import (  # noqa: E402
@@ -166,8 +169,10 @@ def would_be_altered(prompt: str, system: str) -> str | None:
 
     if SecretPolicy().inspect_text(prompt).scrubbed != prompt:
         return "the secret policy would scrub this file, so it is not sent"
+    # An empty system message is not sent (the filter drops it), so it is not
+    # checked either: dropping it is not altering the prompt.
     messages = [
-        {"role": "system", "content": system},
+        *([{"role": "system", "content": system}] if system else []),
         {"role": "user", "content": prompt},
     ]
     safe, _audit = PrivacyFilter().filter(messages)
@@ -293,7 +298,14 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             continue
         # What the scrubbers would redact stays here, behind placeholders.
-        masked, mapping = mask_lines(text, egress_redact)
+        try:
+            masked, mapping = mask_lines(text, egress_redact)
+        except MaskingFailed as exc:
+            led.record_proposal(
+                f, **common, new_text=None, verdict=None, refusal=str(exc)
+            )
+            print(f"  skipped {f.rel}: {exc}")
+            continue
         prompt = proposal_prompt(
             f,
             masked,
@@ -371,12 +383,51 @@ def _schema_file(tmp: str) -> Path:
     return path
 
 
+#: Codex features that let a session act, all switched off for a reviewer
+#: (Codex's review of #566: a read-only sandbox still ran shell commands and
+#: the operator's MCP servers, so it could execute a proposal before both had
+#: accepted). The review is a judgement of the text it is given, nothing more.
+CODEX_ACTING_FEATURES = (
+    "shell_tool",
+    "unified_exec",
+    "unified_exec_tty",
+    "apps",
+    "plugins",
+    "remote_plugin",
+    "browser_use",
+    "browser_use_external",
+    "in_app_browser",
+    "skill_search",
+    "tool_suggest",
+)
+
+
+def codex_settings() -> dict[str, str]:
+    """The operator's chosen Codex model and effort, read from his config, so a
+    reviewer that ignores the rest of that config (its MCP servers) still runs
+    on his model."""
+    import tomllib
+
+    path = Path.home() / ".codex" / "config.toml"
+    try:
+        raw = tomllib.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    return {
+        key: str(raw[key])
+        for key in ("model", "model_reasoning_effort")
+        if isinstance(raw.get(key), str)
+    }
+
+
 def run_codex(
     prompt: str, *, model: str | None, timeout_s: float
 ) -> tuple[str, str, str]:
     codex = shutil.which("codex")
     if codex is None:
         raise ReviewUnavailable("the Codex CLI is not installed")
+    settings = codex_settings()
+    model = model or settings.get("model")
     with tempfile.TemporaryDirectory(prefix="gagos-review-") as tmp:
         out = Path(tmp, "verdict.json")
         argv = [
@@ -386,6 +437,13 @@ def run_codex(
             "read-only",
             "--skip-git-repo-check",
             "--ephemeral",
+            "--ignore-user-config",
+            "--ignore-rules",
+            *(
+                arg
+                for feature in CODEX_ACTING_FEATURES
+                for arg in ("--disable", feature)
+            ),
             "--output-schema",
             str(_schema_file(tmp)),
             "-o",
@@ -393,6 +451,11 @@ def run_codex(
         ]
         if model:
             argv += ["-m", model]
+        if settings.get("model_reasoning_effort"):
+            argv += [
+                "-c",
+                f"model_reasoning_effort={settings['model_reasoning_effort']}",
+            ]
         try:
             proc = subprocess.run(
                 [*argv, "-"],
@@ -500,12 +563,42 @@ def run_claude(
 REVIEWER_RUNNERS = {"codex": run_codex, "claude": run_claude}
 
 
+def review_evidence(p: dict, finding: Finding) -> str:
+    """The review prompt, under the same mask as the proposer's (Codex's review
+    of #566: reviews sent the unmasked file and diff to two cloud models).
+    Raises ``MaskingFailed`` when the change cannot be shown without exposing
+    what may not leave the machine."""
+    masked_base, mapping = mask_lines(p["base_text"], egress_redact)
+    masked_new = mask_like(p["new_text"], mapping)
+    # The file's name, never its path: paths do not leave the machine.
+    diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
+    prompt = review_prompt(
+        finding, masked_base, diff, facts=json.loads(p.get("facts") or "[]")
+    )
+    if mapping:
+        prompt += (
+            "\n\nSome spans are shown as placeholders (GAGOSMASK...): they hide "
+            "paths or values that may not leave this machine. Judge the change "
+            "around them; a placeholder is the same text before and after."
+        )
+    altered = would_be_altered(prompt, "")
+    if altered:
+        raise MaskingFailed(f"the change cannot be shown to a reviewer: {altered}")
+    return prompt
+
+
 def cmd_review(args: argparse.Namespace) -> int:
     led = ledger()
     pending = led.awaiting(args.reviewer)[: args.limit]
     if not pending:
         print(f"nothing awaits {args.reviewer}")
         return 0
+    # Both reviewers are cloud models: GAGOS's egress law decides, as for the
+    # proposer. Revoked, the reviews wait.
+    allowed, why = cloud_coding_allowed()
+    if not allowed:
+        print(f"reviews wait: the '{TASK}' task may not go to the cloud ({why})")
+        return 2
     unavailable = 0
     for p in pending:
         finding = Finding(
@@ -513,9 +606,12 @@ def cmd_review(args: argparse.Namespace) -> int:
             rule=p["rule"],
             warnings=tuple(tuple(w) for w in json.loads(p["warnings"])),
         )
-        prompt = review_prompt(
-            finding, p["base_text"], p["diff"], facts=json.loads(p.get("facts") or "[]")
-        )
+        try:
+            prompt = review_evidence(p, finding)
+        except MaskingFailed as exc:
+            led.refuse(p["proposal_id"], str(exc))
+            print(f"  {p['proposal_id']}: refused: {exc}")
+            continue
         try:
             verdict, reason, model = REVIEWER_RUNNERS[args.reviewer](
                 prompt, model=args.model, timeout_s=args.timeout
@@ -641,6 +737,158 @@ def _github_app(root: Path):
     return token, identity, owner, repo
 
 
+class PublishFailed(RuntimeError):
+    """The branch could not be pushed or its PR not opened; the work stays
+    committed and the next day retries before anything new is proposed."""
+
+
+def _find_pr(root: Path, branch: str, app) -> str | None:
+    """An existing PR for *branch*, in any state: a PR created before its
+    response was lost is found, never opened twice."""
+    if app:
+        import httpx
+
+        token, _identity, owner, repo = app
+        response = httpx.get(
+            f"https://api.github.com/repos/{owner}/{repo}/pulls",
+            params={"head": f"{owner}:{branch}", "state": "all"},
+            headers={
+                "Authorization": f"token {token}",
+                "Accept": "application/vnd.github+json",
+            },
+            timeout=30,
+        )
+        if response.status_code >= 300:
+            raise PublishFailed(f"cannot list PRs: {response.status_code}")
+        found = response.json()
+        return str(found[0]["html_url"]) if found else None
+    proc = subprocess.run(
+        [
+            "gh",
+            "pr",
+            "list",
+            "--head",
+            branch,
+            "--state",
+            "all",
+            "--json",
+            "url",
+            "-q",
+            ".[0].url",
+        ],
+        cwd=str(root),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    if proc.returncode != 0:
+        raise PublishFailed(f"cannot list PRs: {(proc.stderr or '').strip()[:200]}")
+    return proc.stdout.strip() or None
+
+
+def publish(
+    led: DailyLedger,
+    root: Path,
+    branch: str,
+    ids: list[str],
+    app,
+    *,
+    pr_footer: str = "",
+) -> str:
+    """Push *branch* and open its PR, or find the PR that already exists. Only
+    then are its changes delivered (Codex's review of #566)."""
+    url = _find_pr(root, branch, app)
+    if url is None:
+        title = (
+            f"GAGOS: daily improvements {_today()} ({len(ids)} change(s), "
+            "each accepted by both of its reviewers)"
+        )
+        footer = pr_footer or (PR_FOOTER_APP if app else PR_FOOTER_NO_APP)
+        body = report(led, day=_today(), in_pr=ids, footer=footer, scrub=egress_redact)
+        try:
+            if app:
+                from aios.operations import github_app as gha
+
+                token, _identity, owner, repo = app
+                subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(root),
+                        "push",
+                        "-q",
+                        f"https://github.com/{owner}/{repo}.git",
+                        f"{branch}:{branch}",
+                    ],
+                    env={**os.environ, **gha.git_auth_env(token)},
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                url = gha.open_pull_request(
+                    token,
+                    owner=owner,
+                    repo=repo,
+                    head=branch,
+                    base="master",
+                    title=title,
+                    body=body,
+                )
+            else:
+                _git(root, "push", "-q", "-u", "origin", branch)
+                with tempfile.NamedTemporaryFile(
+                    "w", suffix=".md", delete=False, encoding="utf-8"
+                ) as fh:
+                    fh.write(body)
+                try:
+                    url = (
+                        subprocess.run(
+                            [
+                                "gh",
+                                "pr",
+                                "create",
+                                "--base",
+                                "master",
+                                "--head",
+                                branch,
+                                "--title",
+                                title,
+                                "--body-file",
+                                fh.name,
+                            ],
+                            cwd=str(root),
+                            capture_output=True,
+                            text=True,
+                            check=True,
+                            encoding="utf-8",
+                        )
+                        .stdout.strip()
+                        .splitlines()[-1]
+                    )
+                finally:
+                    os.unlink(fh.name)
+        except (subprocess.CalledProcessError, OSError, RuntimeError) as exc:
+            raise PublishFailed(f"{type(exc).__name__}: {exc}"[:300]) from exc
+    led.set_pr(ids, url)
+    return url
+
+
+def publish_pending(led: DailyLedger, root: Path) -> str | None:
+    """Publish what an earlier day committed but could not publish. Returns
+    why the day must wait, or None when nothing is left unpublished."""
+    pending = led.pending_publication()
+    if not pending:
+        return None
+    app = _github_app(root)
+    for branch, ids in pending.items():
+        try:
+            url = publish(led, root, branch, ids, app)
+            print(f"published {branch}: {url}")
+        except PublishFailed as exc:
+            return f"GAGOS's committed work on {branch} is not published yet: {exc}"
+    return None
+
+
 def cmd_deliver(args: argparse.Namespace) -> int:
     from aios.application.promotion.smoke import SmokeStep, frontend_smoke
 
@@ -658,7 +906,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     branch = args.branch or f"gagos/daily-{_today()}"
     _git(root, "fetch", "-q", "origin", "master")
     _git(root, "checkout", "-q", "-B", branch, "origin/master")
-    delivered: list[str] = []
+    committed: list[str] = []
     for p in accepted:
         pid, path = p["proposal_id"], root / p["rel"]
         current = path.read_bytes().decode("utf-8") if path.is_file() else None
@@ -691,79 +939,16 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             commit_message(p, led.reviews(pid)),
         )
         sha = _git(root, "rev-parse", "HEAD")
-        led.record_delivery(pid, branch=branch, outcome="delivered", commit_sha=sha)
-        delivered.append(pid)
-        print(f"  {pid} {p['rel']}: DELIVERED {sha[:12]}")
-    if not (delivered and args.open_pr):
+        led.record_delivery(pid, branch=branch, outcome="committed", commit_sha=sha)
+        committed.append(pid)
+        print(f"  {pid} {p['rel']}: COMMITTED {sha[:12]}")
+    if not (committed and args.open_pr):
         return 0
-    title = (
-        f"GAGOS: daily improvements {_today()} ({len(delivered)} change(s), "
-        "each accepted by both of its reviewers)"
-    )
-    footer = args.pr_footer or (PR_FOOTER_APP if app else PR_FOOTER_NO_APP)
-    body = report(led, day=_today(), in_pr=delivered, footer=footer)
-    if app:
-        from aios.operations import github_app as gha
-
-        token, _identity, owner, repo = app
-        subprocess.run(
-            [
-                "git",
-                "-C",
-                str(root),
-                "push",
-                "-q",
-                f"https://github.com/{owner}/{repo}.git",
-                f"{branch}:{branch}",
-            ],
-            env={**os.environ, **gha.git_auth_env(token)},
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        url = gha.open_pull_request(
-            token,
-            owner=owner,
-            repo=repo,
-            head=branch,
-            base="master",
-            title=title,
-            body=body,
-        )
-    else:
-        _git(root, "push", "-q", "-u", "origin", branch)
-        with tempfile.NamedTemporaryFile(
-            "w", suffix=".md", delete=False, encoding="utf-8"
-        ) as fh:
-            fh.write(body)
-        try:
-            url = (
-                subprocess.run(
-                    [
-                        "gh",
-                        "pr",
-                        "create",
-                        "--base",
-                        "master",
-                        "--head",
-                        branch,
-                        "--title",
-                        title,
-                        "--body-file",
-                        fh.name,
-                    ],
-                    cwd=str(root),
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    encoding="utf-8",
-                )
-                .stdout.strip()
-                .splitlines()[-1]
-            )
-        finally:
-            os.unlink(fh.name)
-    led.set_pr(delivered, url)
+    try:
+        url = publish(led, root, branch, committed, app, pr_footer=args.pr_footer)
+    except PublishFailed as exc:
+        print(f"not published, kept committed for the next day: {exc}")
+        return 1
     print(f"PR: {url}")
     return 0
 
@@ -810,10 +995,15 @@ def report(
     day: str | None = None,
     in_pr: list[str] | None = None,
     footer: str = "",
+    scrub=None,
 ) -> str:
     """The day's work, every proposal and what happened to it (refused and
     rejected ones too: an honest day shows its misses), then D14's running
-    numbers and the credits. *in_pr* marks the proposals a daily PR carries."""
+    numbers and the credits. *in_pr* marks the proposals a daily PR carries.
+    *scrub* is applied to every free text -- the operator's direction, refusals,
+    reasons, the clerk's words -- before a report leaves the machine (Codex's
+    review of #566: a PR body carried his raw direction notes to GitHub)."""
+    s = scrub or (lambda text: text)
     every = led.proposals()
     chosen = [p for p in every if day is None or p["day"] == day]
     by = Counter(p["status"] for p in every)
@@ -826,7 +1016,7 @@ def report(
     if direction.notes or direction.rules or direction.focus or direction.avoid:
         out += [
             f"**The operator's direction in force** (updated {direction.updated}):",
-            *(f"- {note}" for note in direction.notes),
+            *(f"- {s(note)}" for note in direction.notes),
             *([f"- rules: {', '.join(direction.rules)}"] if direction.rules else []),
             *(
                 [f"- focus first: {', '.join(direction.focus)}"]
@@ -857,13 +1047,13 @@ def report(
             f"base `{p['base_commit'][:12]}`",
         ]
         if p["refusal"]:
-            out.append(f"- refused: {p['refusal']}")
+            out.append(f"- refused: {s(p['refusal'])}")
         for r in REVIEW_ORDER:
             if r in reviews:
                 rv = reviews[r]
                 out.append(
                     f"- {REVIEWER_LABELS[r]} ({model_name(rv['model'])}): "
-                    f"**{rv['verdict']}**: {rv['reason']}"
+                    f"**{rv['verdict']}**: {s(rv['reason'])}"
                 )
             elif p["status"] in ("proposed", "rejected"):
                 out.append(f"- {REVIEWER_LABELS[r]}: not yet reviewed")
@@ -872,10 +1062,12 @@ def report(
             if job["status"] == "completed":
                 out.append(
                     f"- GAGOS's clerk ({job['model']}) on the disagreement: "
-                    f"{job['summary']} Crux: {job['crux']}"
+                    f"{s(job['summary'] or '')} Crux: {s(job['crux'] or '')}"
                 )
             else:
-                out.append(f"- GAGOS's clerk could not summarise: {job['reason']}")
+                out.append(
+                    f"- GAGOS's clerk could not summarise: {s(job['reason'] or '')}"
+                )
         if p["diff"]:
             out += [
                 "",
@@ -1020,18 +1212,25 @@ def cmd_daily(args: argparse.Namespace) -> int:
     root = Path(args.project).resolve()
     led = ledger()
     today = _today()
-    open_prs = [u for u in led.pr_urls() if _pr_state(u) not in ("MERGED", "CLOSED")]
-    blocked = (
-        f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
-        if open_prs
-        else None
-    )
+    # Work an earlier day committed but could not publish comes first: it is
+    # published (or its PR found) before anything new, and blocks until then.
+    blocked = publish_pending(led, root)
+    if blocked is None:
+        open_prs = [
+            u for u in led.pr_urls() if _pr_state(u) not in ("MERGED", "CLOSED")
+        ]
+        if open_prs:
+            blocked = (
+                f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
+            )
     proposed_today = len(led.proposals(day=today))
     if blocked:
         led.record_day(today, "blocked", blocked)
         print(f"{today}: blocked -- {blocked}")
-    elif proposed_today:
-        print(f"{today}: today's batch already ran ({proposed_today} proposal(s))")
+    elif proposed_today or not led.reserve_day(today):
+        # The day is claimed atomically before any proposal: two overlapping
+        # runs can never both propose (Codex's review of #566).
+        print(f"{today}: today's batch already ran or is running")
     else:
         if _git(root, "status", "--porcelain"):
             led.record_day(today, "blocked", f"{root} has uncommitted changes")
@@ -1049,11 +1248,9 @@ def cmd_daily(args: argparse.Namespace) -> int:
                 dry_run=False,
             )
         )
-        led.record_day(
-            today,
-            "ran" if rc == 0 else "blocked",
-            None if rc == 0 else f"propose exited {rc}",
-        )
+        # The claim stands whatever propose did: a failed batch is not a
+        # reason to run a second one today.
+        led.record_day(today, "ran", None if rc == 0 else f"propose exited {rc}")
     # Finishing today's reviews is not a new batch.
     for reviewer in REVIEW_ORDER:
         cmd_review(
