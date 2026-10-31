@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Battery, Cloud, Cpu, MemoryStick, Users } from 'lucide-react';
 import { API_BASE, API_HEADERS } from '../config';
