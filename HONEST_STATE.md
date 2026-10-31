@@ -1,9 +1,21 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-10-31 ("State on 2026-10-31" below; earlier sections keep
+**Last updated:** 2026-11-01 ("State on 2026-11-01" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-11-01 (branch `chore/organs-after-566`, off master `ad46f211`)
+
+- **#566, GAGOS's own day, is merged** (squash, `ad46f211`). The loop's code is on master.
+  - GAGOS's hourly task will run it, but only after D13 ends: until then it stands aside.
+  - The operator merged #566 before Codex's second round, which its ChatGPT usage limit had cut off. That round runs after the reset as a post-merge review. Anything it finds is fixed before GAGOS's first day of its own.
+- **Master's CI is red on three organ-evidence tests**, from 31 Oct (`75605cec`, #565's merge) onward.
+  - Green organs cite commits that squash merges discarded: #564's, and now #566's.
+  - Nothing else failed.
+  - The fix is a re-gather on master. It waits until D13 ends, because an evidence run is CPU-heavy and D13's registration keeps the machine quiet.
+- **D13's fourth launch is running** (since 2026-10-31 17:52 UTC), slowly. The first hour reached 2 of 85 targets, with 4 of 14 attempts timing out at 420 s.
+  - At the operator's word, Chrome, Edge and WSL were shut at about 18:55 UTC, raising available memory from 1.5 to 2.7 GB. This is recorded for D13's result.
 
 ## State on 2026-10-31 (branch `feat/gagos-daily-review`, off master `af233f66`)
 
