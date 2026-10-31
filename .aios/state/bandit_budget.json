@@ -51,6 +51,7 @@
     "B404:aios/core/executor.py": 1,
     "B404:aios/infrastructure/executor/docker_runner.py": 1,
     "B404:aios/launcher.py": 1,
+    "B404:aios/maintenance/frontend_static.py": 1,
     "B404:aios/runtime/worker_api.py": 1,
     "B404:aios/runtime/worktree_backend.py": 1,
     "B603:aios/application/governance/organ_ledger.py": 2,
