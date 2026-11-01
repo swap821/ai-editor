@@ -28,14 +28,20 @@ the commit they were measured on). The whole story, from the first commit, is
   - 93 tests pass, plus 1 skipped; ruff, format and the bandit budget are clean.
 - **Codex accepted the corrections at `0faf61f1`** (scoped acceptance, not merge authority). Its reproductions pass for all three, and its earlier ones still pass.
   - **Still open (P3, tracked):** the bounded disable/enable region case. A warning can be moved into an existing `/* eslint-disable rule */ … /* eslint-enable rule */` region; the static check passes it, and only the two reviewers would catch it. My earlier claim that a region could not hide a finding's rule was wrong for bounded regions.
-  - The planned fix: lint once more with inline configuration off, and require the finding's rule count to fall by exactly the warnings fixed.
+  - ~~The planned fix: lint once more with inline configuration off, and require the finding's rule count to fall by exactly the warnings fixed.~~ Codex showed that counts cannot work: move a warning into the region and delete another, and the count still falls.
+  - Codex's second advisory (06:42 UTC) showed that matching suppressed warnings by rule and message cannot work either. Function A's `x` inside a region can be deleted while function B's `x` moves in; the message is the same, but the binding is not.
+  - **The revised plan (after D13):** align the lines of before and after.
+    - Every line a disable comment covers, and every disable or enable line itself, must be an unchanged line in both versions. It must pair with a line the same comment covers on the other side.
+    - So a proposal cannot edit, add, delete or move code into or out of anything silenced. It is refused instead.
+    - A second lint with inline configuration off must then show no suppressed warning that the aligned before-line did not already have.
+    - Codex's cases become real-ESLint tests.
 - **CI on #567:** the backend jobs (macOS, Ubuntu, Windows) fail on exactly the three organ-evidence tests that fail on master, citing the orphaned `8e4b5069be65`; nothing else fails. Codex read the same logs. The re-gather after D13 makes them current.
 - **Codex now checks its inbox hourly by itself:** a Windows task `\Codex\GAGOS hourly review`, at his authorisation. It sends every review straight to Claude Code's inbox, so he no longer relays messages.
 - **Master's CI is red on three organ-evidence tests**, from 31 Oct (`75605cec`, #565's merge) onward.
   - Green organs cite commits that squash merges discarded: #564's, and now #566's.
   - Nothing else failed.
-  - The fix is a re-gather on master. It waits until D13 ends, because an evidence run is CPU-heavy and D13's registration keeps the machine quiet.
-- **D13's fourth launch is running** (since 2026-10-31 17:52 UTC), slowly. The first hour reached 2 of 85 targets, with 4 of 14 attempts timing out at 420 s. By 2026-11-01 03:08 UTC it had reached 30 of 85 targets: 261 attempts, 30 timed out, and 9 targets not comparable (an arm never reached the model; these are counted, never scored).
+  - The fix is a re-gather, as #567's last commit, which the operator merges with a merge commit (a squash would orphan it again). It waits until D13 ends, because an evidence run is CPU-heavy and D13's registration keeps the machine quiet.
+- **D13's fourth launch is running** (since 2026-10-31 17:52 UTC), slowly. The first hour reached 2 of 85 targets, with 4 of 14 attempts timing out at 420 s. By 2026-11-01 03:08 UTC it had reached 30 of 85 targets: 261 attempts, 30 timed out, and 9 targets not comparable (an arm never reached the model; these are counted, never scored). By 06:51 UTC: 39 of 85 targets, 343 attempts, 40 timed out, 14 not comparable. At this pace it ends early on 2 November.
   - At the operator's word, Chrome, Edge and WSL were shut at about 18:55 UTC, raising available memory from 1.5 to 2.7 GB. This is recorded for D13's result.
 
 ## State on 2026-10-31 (branch `feat/gagos-daily-review`, off master `af233f66`)
