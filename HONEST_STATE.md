@@ -7,12 +7,30 @@ the commit they were measured on). The whole story, from the first commit, is
 
 ## Later on 2026-11-01 (branch `chore/organs-after-567`, off master `bead0108`)
 
-- **#567 is merged** (squash, `bead0108`, 09:04 UTC), with both reviewers' acceptance: Codex's at `0faf61f1`, and its check of each doc-only head after it.
+- **#567 is merged** (squash, `bead0108`; GitHub records 09:04 UTC). The operator merged it.
+  - Codex's acceptance was scoped: the implementation fixes at `0faf61f1` and the doc follow-ups after it. It did not accept green CI, the evidence, or full merge qualification. CI and the evidence remained red.
+  - Codex checked that the merged tree is identical to the reviewed head `fc38dfce`.
   - GAGOS's hourly task fetches origin/master into its own worktree (`C:\gdw`) on every run. So its first day, after D13, runs #567's code: publication bound to the exact commit, the day's claim kept, an App that fails closed.
 - **Still open on master (P3, tracked):** a bounded disable/enable region can hide a warning that a proposal moved into it.
   - Until the fix lands, the two reviewers are the only check for it.
   - The fix is planned (above) with no objection from Codex. It is built after D13, with real-ESLint tests.
 - **Master's CI stays red on the three organ-evidence tests**, as expected. The re-gather was never on #567's branch, so its squash orphaned nothing new.
+- **The monthly "Learning guards" mutation probe is newly red on master** (run 41303837576, 11:52 UTC; found by Codex's hourly check, then confirmed by me in the CI log and the source).
+  - It classified 704 mutations: 675 killed, 22 inert, 6 with no verdict, and 1 that survived.
+  - **The survivor, `4c2:S17`, is a real coverage gap. It is not a demonstrated leak:** today's code passes the caller's identity at both sites.
+    - The mutation makes the turn's fallback reflex check match as no one.
+    - Since reflexes are matched before routing (10-25), a fresh turn is matched earlier (`generate_pipeline.py` line 264). The fallback at line 791 runs only on an approval resume, so its test never reaches it.
+    - The earlier site, the one every fresh turn uses, has no mutation in the catalogue at all.
+    - The fix: a mutation for the earlier site, and a test that drives an approval resume through the fallback.
+  - **No verdict ×6:** each shard has one, all `self_model_handler`, all judged by the same three test files.
+    - Their tests failed on the unmutated code at the closing control, so none counts as a kill.
+    - The probe discards pytest's output, so the cause is not recorded.
+    - My hypothesis, not yet tested: those three files fail when run on their own. The baseline runs them in batches of 40 with other tests, which would explain why it passed.
+  - The plan, after D13 (no test runs while it runs):
+    - reproduce the three-file set at `bead0108`;
+    - keep the tail of pytest's output for a failed control;
+    - fix the cause;
+    - add the S17 test and the new mutation.
 - **A correction to my own advice:** I asked the operator for a merge commit, but master requires linear history. This was already recorded on 2026-09-25, and I repeated the mistake.
   - The working remedy is #559's: gather the evidence on a checkout exactly at master's tip, so it cites a commit on master, then squash as usual.
   - That is the plan after D13, on this branch.
