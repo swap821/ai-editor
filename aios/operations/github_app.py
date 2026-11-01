@@ -12,8 +12,14 @@ this App exists GAGOS's PRs open with the operator's ``gh`` login and say so.
 * For each delivery GAGOS signs a short-lived App JWT (RS256, 9 minutes) and
   exchanges it for an installation token scoped to ONE repository and two
   permissions (contents: write, pull_requests: write), valid one hour. It can
-  push a branch and open a PR. It cannot merge to a protected master, change
-  settings or administer anything: the operator merges.
+  push a branch and open a PR. It cannot change settings or administer
+  anything.
+* Merging, honestly (Codex's post-merge review of #566): contents: write lets
+  GitHub's merge endpoint accept this token, and master's protection requires
+  checks, not reviews, and does not restrict who may push. So GitHub WOULD let
+  the App merge a PR whose checks pass. That GAGOS never merges is a rule of
+  its code (nothing here or in its delivery calls a merge) and the operator
+  merges; making it a GitHub lock is his repository setting to choose.
 """
 
 from __future__ import annotations
@@ -123,15 +129,26 @@ class AppCredentials:
     private_key_pem: str
 
 
+#: The keystore names that together are GAGOS's App.
+APP_KEYS = (
+    "GAGOS_GITHUB_APP_ID",
+    "GAGOS_GITHUB_APP_SLUG",
+    "GAGOS_GITHUB_APP_PRIVATE_KEY",
+)
+
+
 def stored_credentials(store: Any) -> AppCredentials | None:
-    """GAGOS's App from the keystore, or None when the operator has not
-    created it yet."""
-    app_id = store.get("GAGOS_GITHUB_APP_ID")
-    slug = store.get("GAGOS_GITHUB_APP_SLUG")
-    pem = store.get("GAGOS_GITHUB_APP_PRIVATE_KEY")
+    """GAGOS's App from the keystore, or None when it is not (wholly) there:
+    ``stored_any`` tells a partly stored App, which is broken, from none."""
+    app_id, slug, pem = (store.get(name) for name in APP_KEYS)
     if not (app_id and slug and pem):
         return None
     return AppCredentials(app_id=app_id, slug=slug, private_key_pem=pem)
+
+
+def stored_any(store: Any) -> bool:
+    """Whether any part of GAGOS's App is in the keystore."""
+    return any(store.get(name) for name in APP_KEYS)
 
 
 def installation_token(
@@ -215,5 +232,6 @@ __all__ = [
     "installation_token",
     "manifest",
     "open_pull_request",
+    "stored_any",
     "stored_credentials",
 ]

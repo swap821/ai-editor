@@ -162,20 +162,28 @@ def check_texts(
 
 
 def port_managed(project_root: Path) -> frozenset[str]:
-    """Project-relative paths the lab-to-product port owns. An unreadable
-    manifest owns everything under the port root: never guess it is empty."""
+    """Project-relative paths the lab-to-product port owns. A manifest that is
+    missing, unreadable or not the expected shape owns everything under the
+    port root: never guess it is empty (Codex's post-merge review of #566: a
+    missing one made every port-owned file editable). An explicit empty
+    ``files`` owns nothing."""
     root = Path(project_root)
-    manifest = root / PORT_MANIFEST
-    if not manifest.is_file():
-        return frozenset()
-    try:
-        files = json.loads(manifest.read_text(encoding="utf-8")).get("files", {})
-    except (OSError, ValueError, AttributeError):
+
+    def everything() -> frozenset[str]:
         return frozenset(
             p.relative_to(root).as_posix()
             for p in (root / PORT_ROOT).rglob("*")
             if p.is_file()
         )
+
+    try:
+        files = json.loads((root / PORT_MANIFEST).read_text(encoding="utf-8"))["files"]
+    except (OSError, ValueError, KeyError, TypeError):
+        return everything()
+    if not isinstance(files, dict) or not all(
+        isinstance(path, str) and path for path in files
+    ):
+        return everything()
     return frozenset(f"{PORT_ROOT}/{path}" for path in files)
 
 

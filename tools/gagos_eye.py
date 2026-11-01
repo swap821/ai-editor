@@ -64,8 +64,24 @@ def profile(kind: str) -> Path:
     return path
 
 
+def page_url(url: str) -> str:
+    """An http(s) page, nothing else: text that Chrome would read as one of
+    its own switches (``--user-data-dir=...``) is refused before any process
+    starts (Codex's post-merge review of #566)."""
+    from urllib.parse import urlsplit
+
+    parts = urlsplit(url)
+    if url.startswith("-") or parts.scheme not in ("http", "https") or not parts.netloc:
+        raise EyeUnavailable(f"not a page GAGOS may open: {url!r}")
+    return url
+
+
 def shot_argv(url: str, out: Path, *, size: str, wait_ms: int) -> list[str]:
-    width, height = (int(x) for x in size.lower().split("x"))
+    url = page_url(url)
+    try:
+        width, height = (int(x) for x in size.lower().split("x"))
+    except ValueError as exc:
+        raise EyeUnavailable(f"not a window size: {size!r}") from exc
     return [
         chrome(),
         "--headless=new",
@@ -88,22 +104,38 @@ def shot(
     wait_ms: int = 6000,
     run=subprocess.run,
 ) -> Path:
+    """Capture *url* to *out*. The capture goes to its own file first and
+    replaces *out* only when Chrome exited 0 and left something in it: a
+    failed look never destroys the last one (Codex's reviews of #566 and
+    #567)."""
     out = Path(out).resolve()
+    capture = out.with_name(f"{out.stem}.capturing{out.suffix}")
+    argv = shot_argv(url, capture, size=size, wait_ms=wait_ms)  # validates first
     out.parent.mkdir(parents=True, exist_ok=True)
-    if out.exists():
-        out.unlink()
-    run(
-        shot_argv(url, out, size=size, wait_ms=wait_ms),
-        capture_output=True,
-        timeout=120,
-        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-    )
-    if not out.is_file() or out.stat().st_size == 0:
-        raise EyeUnavailable(f"Chrome produced no screenshot of {url}")
+    capture.unlink(missing_ok=True)
+    try:
+        try:
+            proc = run(
+                argv,
+                capture_output=True,
+                timeout=120,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise EyeUnavailable(f"Chrome did not finish: {exc}") from exc
+        code = getattr(proc, "returncode", None)
+        if code != 0:
+            raise EyeUnavailable(f"Chrome exited {code} on {url}")
+        if not capture.is_file() or capture.stat().st_size == 0:
+            raise EyeUnavailable(f"Chrome produced no screenshot of {url}")
+        os.replace(capture, out)
+    finally:
+        capture.unlink(missing_ok=True)
     return out
 
 
 def window_argv(url: str) -> list[str]:
+    url = page_url(url)
     return [
         chrome(),
         f"--user-data-dir={profile('window')}",
@@ -115,7 +147,12 @@ def window_argv(url: str) -> list[str]:
 
 
 def cmd_window(args: argparse.Namespace) -> int:
-    subprocess.Popen(window_argv(args.url))  # noqa: S603 - fixed argv
+    try:
+        argv = window_argv(args.url)
+    except EyeUnavailable as exc:
+        print(f"GAGOS cannot see: {exc}")
+        return 2
+    subprocess.Popen(argv)  # noqa: S603 - fixed argv, a checked URL
     print(f"GAGOS's own Chrome window: {args.url} (profile {profile('window')})")
     return 0
 
