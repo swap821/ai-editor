@@ -21,6 +21,11 @@ the commit they were measured on). The whole story, from the first commit, is
   - **P3, disable comments:** a changed comment got past the check, because it counted them. Every disable line must now be unchanged.
   - **Hardening:** a stored App that cannot act, or a key store that cannot be read, now stops publication. It no longer falls back to the operator's login.
   - **Checks:** 85 tests pass in the GAGOS test files, plus `test_gateway_enforcement`. Ruff, format and the bandit budget are clean. The full backend suite was not run locally, because D13 keeps the machine quiet; CI runs it.
+- **Codex reviewed these fixes (PR #567 at `1bb3b93f`): changes needed, three more. All three are fixed.** Codex confirmed the publication and day-claim fixes against its own reproductions.
+  - **A partly stored App still fell back to the operator's login** (for example, an id and slug but no private key). Now a partly stored App, or any failure of a stored one, stops publication. Only a wholly absent App uses his login.
+  - **Chrome's exit code was ignored.** A failing Chrome that wrote partial bytes replaced the previous screenshot. Now it must exit 0 too.
+  - **An unchanged disable comment could be retargeted** by deleting the line under it. Each disable comment is now bound to the line it protects.
+  - 93 tests pass, plus 1 skipped; ruff, format and the bandit budget are clean.
 - **Master's CI is red on three organ-evidence tests**, from 31 Oct (`75605cec`, #565's merge) onward.
   - Green organs cite commits that squash merges discarded: #564's, and now #566's.
   - Nothing else failed.

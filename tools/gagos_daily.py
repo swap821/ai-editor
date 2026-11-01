@@ -734,24 +734,34 @@ def _github_app(root: Path):
     """``(token, (name, email), owner, repo)`` when GAGOS's App is stored and
     installed here; None when no App is stored: then GAGOS uses the
     operator's ``gh`` login (authorised before the App existed) and its PR
-    says so. A stored App that cannot act, or a store that cannot be read,
-    raises ``PublishFailed``: a broken identity never quietly becomes the
-    operator's (Codex's post-merge review of #566)."""
+    says so. A stored App that cannot act, a partly stored one, or a store
+    that cannot be read raises ``PublishFailed``: a broken identity never
+    quietly becomes the operator's (Codex's reviews of #566 and #567)."""
     from aios.operations import github_app as gha
-    from aios.operations.keystore import KeystoreUnavailable, default_keystore
+    from aios.operations.keystore import default_keystore
 
     try:
-        creds = gha.stored_credentials(default_keystore())
-    except KeystoreUnavailable as exc:
-        raise PublishFailed(f"GAGOS's key store cannot be read: {exc}") from exc
+        store = default_keystore()
+        creds = gha.stored_credentials(store)
+        partly = creds is None and gha.stored_any(store)
+    except Exception as exc:  # noqa: BLE001 - an unreadable store is not "no App"
+        raise PublishFailed(
+            f"GAGOS's key store cannot be read: {type(exc).__name__}: {exc}"[:300]
+        ) from exc
+    if partly:
+        raise PublishFailed(
+            "GAGOS's App is only partly stored (its id, slug and key must all be there)"
+        )
     if creds is None:
         return None
     owner, repo = _owner_repo(root)
     try:
         token = gha.installation_token(creds, owner=owner, repo=repo)
         identity = gha.bot_identity(creds)
-    except gha.GitHubAppError as exc:
-        raise PublishFailed(f"GAGOS's App cannot act here: {exc}") from exc
+    except Exception as exc:  # noqa: BLE001 - any failure is a broken identity
+        raise PublishFailed(
+            f"GAGOS's App cannot act here: {type(exc).__name__}: {exc}"[:300]
+        ) from exc
     return token, identity, owner, repo
 
 

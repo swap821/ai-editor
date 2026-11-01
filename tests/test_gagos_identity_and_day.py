@@ -640,6 +640,44 @@ def test_a_broken_app_never_becomes_the_operators_login(monkeypatch, tmp_path) -
         tool._github_app(tmp_path)
 
 
+@pytest.mark.parametrize(
+    "present",
+    [
+        ("GAGOS_GITHUB_APP_ID",),
+        ("GAGOS_GITHUB_APP_SLUG",),
+        ("GAGOS_GITHUB_APP_PRIVATE_KEY",),
+        ("GAGOS_GITHUB_APP_ID", "GAGOS_GITHUB_APP_SLUG"),
+        ("GAGOS_GITHUB_APP_ID", "GAGOS_GITHUB_APP_PRIVATE_KEY"),
+        ("GAGOS_GITHUB_APP_SLUG", "GAGOS_GITHUB_APP_PRIVATE_KEY"),
+    ],
+)
+def test_a_partly_stored_app_never_becomes_the_operators_login(
+    present, monkeypatch, tmp_path
+) -> None:
+    """Codex's review of #567: a missing private key read as "no App"."""
+    store = ks.MemoryKeystore()
+    for name in present:
+        store.set(name, "value")
+    monkeypatch.setattr(ks, "default_keystore", lambda: store)
+    with pytest.raises(tool.PublishFailed, match="partly stored"):
+        tool._github_app(tmp_path)
+
+
+def test_any_failure_of_a_stored_app_stops_publication(monkeypatch, tmp_path) -> None:
+    store = ks.MemoryKeystore()
+    for name in ks.LOCAL_ONLY:
+        store.set(name, "value")
+    monkeypatch.setattr(ks, "default_keystore", lambda: store)
+    monkeypatch.setattr(tool, "_owner_repo", lambda root: ("o", "r"))
+
+    def offline(*a, **k):
+        raise OSError("network unreachable")
+
+    monkeypatch.setattr(gha, "installation_token", offline)
+    with pytest.raises(tool.PublishFailed, match="network unreachable"):
+        tool._github_app(tmp_path)
+
+
 def test_nothing_gagos_runs_calls_a_merge() -> None:
     """That GAGOS never merges is a rule of its code: pinned here."""
     import re
@@ -695,11 +733,20 @@ def test_a_failed_look_keeps_the_last_one(tmp_path, monkeypatch) -> None:
     assert out.read_bytes() == b"previous"
     assert list(tmp_path.glob("*.capturing*")) == []
 
-    def captures(argv, **kwargs):
-        target = next(a for a in argv if a.startswith("--screenshot="))
-        Path(target.split("=", 1)[1]).write_bytes(b"new")
+    def chrome_writing(code):
+        def run(argv, **kwargs):
+            target = next(a for a in argv if a.startswith("--screenshot="))
+            Path(target.split("=", 1)[1]).write_bytes(b"new")
+            return SimpleNamespace(returncode=code)
 
-    eye.shot("http://x", out, run=captures)
+        return run
+
+    # Codex's review of #567: a failing Chrome that wrote partial bytes.
+    with pytest.raises(eye.EyeUnavailable, match="exited 1"):
+        eye.shot("http://x", out, run=chrome_writing(1))
+    assert out.read_bytes() == b"previous"
+    assert list(tmp_path.glob("*.capturing*")) == []
+    eye.shot("http://x", out, run=chrome_writing(0))
     assert out.read_bytes() == b"new"
 
 
@@ -730,3 +777,22 @@ def test_a_changed_silencer_is_refused() -> None:
     after = "// eslint-disable-next-line no-unused-vars\nconsole.log(1);\nconst unused = 1;\n"
     verdict = dw.static_verdict(FINDING, before, after, _result(), _result())
     assert not verdict.passed and "disable comment" in verdict.reason
+
+
+def test_an_unchanged_silencer_cannot_be_retargeted() -> None:
+    """Codex's review of #567: deleting the line under an unchanged
+    disable-next-line moves it onto the next warning."""
+    from tests.test_gagos_daily import FINDING, _result
+
+    before = (
+        "// eslint-disable-next-line no-unused-vars\n"
+        "const hidden = 1;\n"
+        "const visible = 2;\n"
+    )
+    after = "// eslint-disable-next-line no-unused-vars\nconst visible = 2;\n"
+    verdict = dw.static_verdict(FINDING, before, after, _result(), _result())
+    assert not verdict.passed and "disable comment" in verdict.reason
+    kept = before.replace("const visible = 2;\n", "")
+    assert dw.static_verdict(FINDING, before, kept, _result(), _result()).passed, (
+        "a silencer left over the same line is not a change"
+    )

@@ -387,6 +387,18 @@ class StaticVerdict:
     changed_lines: int = 0
 
 
+def _silenced(text: str) -> Counter:
+    """Each silencing comment with the line it protects: the comment's own
+    line and the next one (``disable-next-line``, ``@ts-ignore`` and
+    ``@ts-expect-error`` act on the next line; ``disable-line`` on its own)."""
+    lines = [line.strip() for line in text.splitlines()]
+    return Counter(
+        (line, lines[i + 1] if i + 1 < len(lines) else "")
+        for i, line in enumerate(lines)
+        if _SILENCERS.search(line)
+    )
+
+
 def static_verdict(
     finding: Finding,
     before_text: str,
@@ -428,16 +440,15 @@ def static_verdict(
             + ", ".join(f"{rule} +{n}" for rule, n in sorted(new.items(), key=str)),
             changed,
         )
-    # Every silencing line must already be there, unchanged: counting them let
-    # a changed one through (Codex's post-merge review of #566).
-    silencers = Counter(
-        line.strip() for line in after_text.splitlines() if _SILENCERS.search(line)
-    ) - Counter(
-        line.strip() for line in before_text.splitlines() if _SILENCERS.search(line)
-    )
-    if silencers:
+    # Every silencing line must already be there, unchanged, over the same
+    # line it silenced: counting them let a changed one through (Codex's
+    # post-merge review of #566), and an unchanged one could be retargeted
+    # by deleting the line under it (Codex's review of #567).
+    if _silenced(after_text) - _silenced(before_text):
         return StaticVerdict(
-            False, "the proposal adds or changes a disable comment", changed
+            False,
+            "the proposal adds a disable comment or changes what one silences",
+            changed,
         )
     limit = MAX_CHANGED_LINES_BASE + MAX_CHANGED_LINES_PER_WARNING * len(
         finding.warnings

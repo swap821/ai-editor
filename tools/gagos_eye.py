@@ -105,20 +105,27 @@ def shot(
     run=subprocess.run,
 ) -> Path:
     """Capture *url* to *out*. The capture goes to its own file first and
-    replaces *out* only when it has something in it: a failed look never
-    destroys the last one (Codex's post-merge review of #566)."""
+    replaces *out* only when Chrome exited 0 and left something in it: a
+    failed look never destroys the last one (Codex's reviews of #566 and
+    #567)."""
     out = Path(out).resolve()
     capture = out.with_name(f"{out.stem}.capturing{out.suffix}")
     argv = shot_argv(url, capture, size=size, wait_ms=wait_ms)  # validates first
     out.parent.mkdir(parents=True, exist_ok=True)
     capture.unlink(missing_ok=True)
     try:
-        run(
-            argv,
-            capture_output=True,
-            timeout=120,
-            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
-        )
+        try:
+            proc = run(
+                argv,
+                capture_output=True,
+                timeout=120,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            raise EyeUnavailable(f"Chrome did not finish: {exc}") from exc
+        code = getattr(proc, "returncode", None)
+        if code != 0:
+            raise EyeUnavailable(f"Chrome exited {code} on {url}")
         if not capture.is_file() or capture.stat().st_size == 0:
             raise EyeUnavailable(f"Chrome produced no screenshot of {url}")
         os.replace(capture, out)

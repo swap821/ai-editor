@@ -129,15 +129,26 @@ class AppCredentials:
     private_key_pem: str
 
 
+#: The keystore names that together are GAGOS's App.
+APP_KEYS = (
+    "GAGOS_GITHUB_APP_ID",
+    "GAGOS_GITHUB_APP_SLUG",
+    "GAGOS_GITHUB_APP_PRIVATE_KEY",
+)
+
+
 def stored_credentials(store: Any) -> AppCredentials | None:
-    """GAGOS's App from the keystore, or None when the operator has not
-    created it yet."""
-    app_id = store.get("GAGOS_GITHUB_APP_ID")
-    slug = store.get("GAGOS_GITHUB_APP_SLUG")
-    pem = store.get("GAGOS_GITHUB_APP_PRIVATE_KEY")
+    """GAGOS's App from the keystore, or None when it is not (wholly) there:
+    ``stored_any`` tells a partly stored App, which is broken, from none."""
+    app_id, slug, pem = (store.get(name) for name in APP_KEYS)
     if not (app_id and slug and pem):
         return None
     return AppCredentials(app_id=app_id, slug=slug, private_key_pem=pem)
+
+
+def stored_any(store: Any) -> bool:
+    """Whether any part of GAGOS's App is in the keystore."""
+    return any(store.get(name) for name in APP_KEYS)
 
 
 def installation_token(
@@ -221,5 +232,6 @@ __all__ = [
     "installation_token",
     "manifest",
     "open_pull_request",
+    "stored_any",
     "stored_credentials",
 ]
