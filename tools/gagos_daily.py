@@ -545,6 +545,12 @@ def run_claude(
             raise ReviewUnavailable(
                 f"Claude Code timed out after {timeout_s}s"
             ) from exc
+    # A failed process gives no verdict, whatever it printed (Codex's
+    # post-merge review of #566); the proposal keeps waiting for Claude.
+    if proc.returncode != 0:
+        raise ReviewUnavailable(
+            f"Claude Code exited {proc.returncode}: {(proc.stderr or '')[-300:]}"
+        )
     try:
         data = json.loads(proc.stdout or "")
     except ValueError as exc:
@@ -668,10 +674,15 @@ PR_FOOTER_NO_APP = (
     "here is authored by GAGOS. Reviewers: Claude Code (chief) and Codex, "
     "independently; a change ships only if both accept. The operator merges."
 )
+#: Accurate about merging (Codex's post-merge review of #566): GitHub would let
+#: the App's token merge a PR whose checks pass; that GAGOS never merges is a
+#: rule of its code, not a GitHub restriction.
 PR_FOOTER_APP = (
-    "Opened by GAGOS itself, through its own GitHub App (it can push a branch "
-    "and open a PR; it cannot merge). Reviewers: Claude Code (chief) and "
-    "Codex, independently; a change ships only if both accept. The operator merges."
+    "Opened by GAGOS itself, through its own GitHub App. GAGOS pushes its "
+    "branch and opens the PR; it has no code that merges, and only the "
+    "operator merges (GitHub itself would allow the App to merge once the "
+    "checks pass: that is a rule GAGOS keeps, not a lock). Reviewers: Claude "
+    "Code (chief) and Codex, independently; a change ships only if both accept."
 )
 #: Kept for callers of the first version.
 PR_FOOTER = PR_FOOTER_NO_APP
@@ -714,17 +725,25 @@ def _owner_repo(root: Path) -> tuple[str, str]:
     return owner, repo
 
 
+class PublishFailed(RuntimeError):
+    """The branch could not be pushed or its PR not opened; the work stays
+    committed and the next day retries before anything new is proposed."""
+
+
 def _github_app(root: Path):
     """``(token, (name, email), owner, repo)`` when GAGOS's App is stored and
-    installed here, else None: then GAGOS falls back to the operator's ``gh``
-    login and its PR says so."""
+    installed here; None when no App is stored: then GAGOS uses the
+    operator's ``gh`` login (authorised before the App existed) and its PR
+    says so. A stored App that cannot act, or a store that cannot be read,
+    raises ``PublishFailed``: a broken identity never quietly becomes the
+    operator's (Codex's post-merge review of #566)."""
     from aios.operations import github_app as gha
     from aios.operations.keystore import KeystoreUnavailable, default_keystore
 
     try:
         creds = gha.stored_credentials(default_keystore())
-    except KeystoreUnavailable:
-        return None
+    except KeystoreUnavailable as exc:
+        raise PublishFailed(f"GAGOS's key store cannot be read: {exc}") from exc
     if creds is None:
         return None
     owner, repo = _owner_repo(root)
@@ -732,19 +751,13 @@ def _github_app(root: Path):
         token = gha.installation_token(creds, owner=owner, repo=repo)
         identity = gha.bot_identity(creds)
     except gha.GitHubAppError as exc:
-        print(f"GAGOS's App cannot act here ({exc}); using the operator's login")
-        return None
+        raise PublishFailed(f"GAGOS's App cannot act here: {exc}") from exc
     return token, identity, owner, repo
 
 
-class PublishFailed(RuntimeError):
-    """The branch could not be pushed or its PR not opened; the work stays
-    committed and the next day retries before anything new is proposed."""
-
-
-def _find_pr(root: Path, branch: str, app) -> str | None:
-    """An existing PR for *branch*, in any state: a PR created before its
-    response was lost is found, never opened twice."""
+def _branch_prs(root: Path, branch: str, app) -> list[dict]:
+    """Every PR GitHub has for *branch*, in any state, each as ``{url, state,
+    head}`` (state OPEN, CLOSED or MERGED; head the commit it holds)."""
     if app:
         import httpx
 
@@ -760,8 +773,16 @@ def _find_pr(root: Path, branch: str, app) -> str | None:
         )
         if response.status_code >= 300:
             raise PublishFailed(f"cannot list PRs: {response.status_code}")
-        found = response.json()
-        return str(found[0]["html_url"]) if found else None
+        return [
+            {
+                "url": str(pr["html_url"]),
+                "state": "MERGED"
+                if pr.get("merged_at")
+                else str(pr.get("state", "")).upper(),
+                "head": str(pr["head"]["sha"]),
+            }
+            for pr in response.json()
+        ]
     proc = subprocess.run(
         [
             "gh",
@@ -772,9 +793,7 @@ def _find_pr(root: Path, branch: str, app) -> str | None:
             "--state",
             "all",
             "--json",
-            "url",
-            "-q",
-            ".[0].url",
+            "url,state,headRefOid",
         ],
         cwd=str(root),
         capture_output=True,
@@ -783,7 +802,18 @@ def _find_pr(root: Path, branch: str, app) -> str | None:
     )
     if proc.returncode != 0:
         raise PublishFailed(f"cannot list PRs: {(proc.stderr or '').strip()[:200]}")
-    return proc.stdout.strip() or None
+    try:
+        found = json.loads(proc.stdout or "[]")
+        return [
+            {
+                "url": str(pr["url"]),
+                "state": str(pr["state"]),
+                "head": str(pr["headRefOid"]),
+            }
+            for pr in found
+        ]
+    except (ValueError, KeyError, TypeError) as exc:
+        raise PublishFailed(f"cannot read the PR list: {exc}") from exc
 
 
 def publish(
@@ -795,82 +825,119 @@ def publish(
     *,
     pr_footer: str = "",
 ) -> str:
-    """Push *branch* and open its PR, or find the PR that already exists. Only
-    then are its changes delivered (Codex's review of #566)."""
-    url = _find_pr(root, branch, app)
-    if url is None:
-        title = (
-            f"GAGOS: daily improvements {_today()} ({len(ids)} change(s), "
-            "each accepted by both of its reviewers)"
-        )
-        footer = pr_footer or (PR_FOOTER_APP if app else PR_FOOTER_NO_APP)
-        body = report(led, day=_today(), in_pr=ids, footer=footer, scrub=egress_redact)
-        try:
-            if app:
-                from aios.operations import github_app as gha
+    """Push the exact commit that holds *ids* and open its PR, or find the PR
+    that already holds that commit. Only then are they delivered (Codex's
+    review of #566).
 
-                token, _identity, owner, repo = app
-                subprocess.run(
-                    [
-                        "git",
-                        "-C",
-                        str(root),
-                        "push",
-                        "-q",
-                        f"https://github.com/{owner}/{repo}.git",
-                        f"{branch}:{branch}",
-                    ],
-                    env={**os.environ, **gha.git_auth_env(token)},
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                )
-                url = gha.open_pull_request(
-                    token,
-                    owner=owner,
-                    repo=repo,
-                    head=branch,
-                    base="master",
-                    title=title,
-                    body=body,
-                )
-            else:
-                _git(root, "push", "-q", "-u", "origin", branch)
-                with tempfile.NamedTemporaryFile(
-                    "w", suffix=".md", delete=False, encoding="utf-8"
-                ) as fh:
-                    fh.write(body)
-                try:
-                    url = (
-                        subprocess.run(
-                            [
-                                "gh",
-                                "pr",
-                                "create",
-                                "--base",
-                                "master",
-                                "--head",
-                                branch,
-                                "--title",
-                                title,
-                                "--body-file",
-                                fh.name,
-                            ],
-                            cwd=str(root),
-                            capture_output=True,
-                            text=True,
-                            check=True,
-                            encoding="utf-8",
-                        )
-                        .stdout.strip()
-                        .splitlines()[-1]
+    Bound to the commit, not the branch (Codex's post-merge review of #566):
+    a PR on the branch at another commit, such as an earlier delivery's that
+    was merged or closed, never absorbs new work; the work stays committed
+    and the day waits."""
+    head = led.commit_of(ids[-1])
+    if not head:
+        raise PublishFailed(f"no commit is recorded for {ids[-1]}")
+    prs = _branch_prs(root, branch, app)
+    holding = [pr for pr in prs if pr["head"] == head]
+    if holding:
+        # Created before its response was lost (or merged since): found,
+        # never opened twice.
+        led.set_pr(ids, holding[0]["url"])
+        return holding[0]["url"]
+    if prs:
+        raise PublishFailed(
+            f"{branch} already has a PR at another commit ({prs[0]['url']}, "
+            f"{prs[0]['state']}); {head[:12]} is not in it"
+        )
+    # The exact commit is pushed: a push that succeeds means GitHub's branch
+    # now holds it, and a branch that moved elsewhere refuses (no force).
+    refspec = f"{head}:refs/heads/{branch}"
+    title = (
+        f"GAGOS: daily improvements {_today()} ({len(ids)} change(s), "
+        "each accepted by both of its reviewers)"
+    )
+    footer = pr_footer or (PR_FOOTER_APP if app else PR_FOOTER_NO_APP)
+    body = report(led, day=_today(), in_pr=ids, footer=footer, scrub=egress_redact)
+    try:
+        if app:
+            from aios.operations import github_app as gha
+
+            token, _identity, owner, repo = app
+            subprocess.run(
+                [
+                    "git",
+                    "-C",
+                    str(root),
+                    "push",
+                    "-q",
+                    f"https://github.com/{owner}/{repo}.git",
+                    refspec,
+                ],
+                env={**os.environ, **gha.git_auth_env(token)},
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            url = gha.open_pull_request(
+                token,
+                owner=owner,
+                repo=repo,
+                head=branch,
+                base="master",
+                title=title,
+                body=body,
+            )
+        else:
+            _git(root, "push", "-q", "origin", refspec)
+            with tempfile.NamedTemporaryFile(
+                "w", suffix=".md", delete=False, encoding="utf-8"
+            ) as fh:
+                fh.write(body)
+            try:
+                url = (
+                    subprocess.run(
+                        [
+                            "gh",
+                            "pr",
+                            "create",
+                            "--base",
+                            "master",
+                            "--head",
+                            branch,
+                            "--title",
+                            title,
+                            "--body-file",
+                            fh.name,
+                        ],
+                        cwd=str(root),
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                        encoding="utf-8",
                     )
-                finally:
-                    os.unlink(fh.name)
-        except (subprocess.CalledProcessError, OSError, RuntimeError) as exc:
-            raise PublishFailed(f"{type(exc).__name__}: {exc}"[:300]) from exc
+                    .stdout.strip()
+                    .splitlines()[-1]
+                )
+            finally:
+                os.unlink(fh.name)
+    except (subprocess.CalledProcessError, OSError, RuntimeError) as exc:
+        raise PublishFailed(f"{type(exc).__name__}: {exc}"[:300]) from exc
     led.set_pr(ids, url)
     return url
+
+
+def delivery_branch(led: DailyLedger) -> str:
+    """Today's branch, or a fresh one when a delivery already committed to it
+    today: a branch whose PR may be merged or closed never takes later work
+    (Codex's post-merge review of #566). Only one PR is open at a time; the
+    day blocks while one is."""
+    base = f"gagos/daily-{_today()}"
+    used = led.delivery_branches()
+    if base not in used:
+        return base
+    n = 2
+    while f"{base}-{n}" in used:
+        n += 1
+    return f"{base}-{n}"
 
 
 def publish_pending(led: DailyLedger, root: Path) -> str | None:
@@ -879,7 +946,10 @@ def publish_pending(led: DailyLedger, root: Path) -> str | None:
     pending = led.pending_publication()
     if not pending:
         return None
-    app = _github_app(root)
+    try:
+        app = _github_app(root)
+    except PublishFailed as exc:
+        return f"GAGOS's committed work is not published yet: {exc}"
     for branch, ids in pending.items():
         try:
             url = publish(led, root, branch, ids, app)
@@ -901,9 +971,13 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     if _git(root, "status", "--porcelain"):
         print(f"refused: {root} has uncommitted changes")
         return 2
-    app = _github_app(root) if args.open_pr else None
+    try:
+        app = _github_app(root) if args.open_pr else None
+    except PublishFailed as exc:
+        print(f"not delivered, still accepted: {exc}")
+        return 1
     name, email = app[1] if app else GAGOS_IDENTITY
-    branch = args.branch or f"gagos/daily-{_today()}"
+    branch = args.branch or delivery_branch(led)
     _git(root, "fetch", "-q", "origin", "master")
     _git(root, "checkout", "-q", "-B", branch, "origin/master")
     committed: list[str] = []

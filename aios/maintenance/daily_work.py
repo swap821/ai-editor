@@ -428,8 +428,17 @@ def static_verdict(
             + ", ".join(f"{rule} +{n}" for rule, n in sorted(new.items(), key=str)),
             changed,
         )
-    if len(_SILENCERS.findall(after_text)) > len(_SILENCERS.findall(before_text)):
-        return StaticVerdict(False, "the proposal adds a disable comment", changed)
+    # Every silencing line must already be there, unchanged: counting them let
+    # a changed one through (Codex's post-merge review of #566).
+    silencers = Counter(
+        line.strip() for line in after_text.splitlines() if _SILENCERS.search(line)
+    ) - Counter(
+        line.strip() for line in before_text.splitlines() if _SILENCERS.search(line)
+    )
+    if silencers:
+        return StaticVerdict(
+            False, "the proposal adds or changes a disable comment", changed
+        )
     limit = MAX_CHANGED_LINES_BASE + MAX_CHANGED_LINES_PER_WARNING * len(
         finding.warnings
     )
@@ -575,6 +584,10 @@ CREATE TABLE IF NOT EXISTS days (
     reason TEXT,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS day_claims (
+    day TEXT PRIMARY KEY,
+    claimed_at TEXT NOT NULL
+);
 """
 
 #: Proposal statuses. ``refused`` = failed the unattended checks or the model
@@ -612,6 +625,11 @@ class DailyLedger:
             have = {r["name"] for r in db.execute("PRAGMA table_info(proposals)")}
             if "facts" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN facts TEXT")
+            # A day an earlier version recorded as run keeps its claim.
+            db.execute(
+                "INSERT OR IGNORE INTO day_claims SELECT day, updated_at FROM days "
+                "WHERE status = 'ran'"
+            )
 
     def _db(self) -> sqlite3.Connection:
         db = sqlite3.connect(self.path)
@@ -757,6 +775,26 @@ class DailyLedger:
                 out.setdefault(row["branch"], []).append(row["proposal_id"])
         return out
 
+    def commit_of(self, proposal_id: str) -> str | None:
+        """The commit a delivery made for *proposal_id*, if any."""
+        with self._db() as db:
+            row = db.execute(
+                "SELECT commit_sha FROM deliveries WHERE proposal_id = ?",
+                (proposal_id,),
+            ).fetchone()
+        return row["commit_sha"] if row else None
+
+    def delivery_branches(self) -> set[str]:
+        """Every branch a delivery committed to: such a branch never takes
+        later work (its PR may already be merged or closed)."""
+        with self._db() as db:
+            return {
+                r["branch"]
+                for r in db.execute(
+                    "SELECT DISTINCT branch FROM deliveries WHERE commit_sha IS NOT NULL"
+                )
+            }
+
     def refuse(self, proposal_id: str, reason: str) -> None:
         """Refuse a proposal after the fact (it cannot be shown to the
         reviewers without exposing what may not leave the machine)."""
@@ -770,17 +808,25 @@ class DailyLedger:
         """Claim *day* for GAGOS's one batch, atomically across processes
         (Codex's review of #566: two overlapping runs each proposed two).
         True for exactly one caller per day; a day only blocked can still be
-        claimed later the same day, never twice, and never caught up."""
+        claimed later the same day, never twice, and never caught up.
+
+        The claim is its own row, written once and never replaced: a later
+        report of how the day went cannot clear it (Codex's post-merge review
+        of #566: a ``blocked`` record over ``ran`` let a second batch run)."""
         db = self._db()
         db.isolation_level = None  # this transaction is managed by hand
         try:
             db.execute("BEGIN IMMEDIATE")
-            row = db.execute("SELECT status FROM days WHERE day = ?", (day,)).fetchone()
-            if row is not None and row["status"] == "ran":
+            claimed = db.execute(
+                "INSERT OR IGNORE INTO day_claims VALUES (?, ?)", (day, _now())
+            ).rowcount
+            if claimed != 1:
                 db.execute("ROLLBACK")
                 return False
             db.execute(
-                "INSERT OR REPLACE INTO days VALUES (?, 'ran', NULL, ?)", (day, _now())
+                "INSERT INTO days VALUES (?, 'ran', NULL, ?) ON CONFLICT(day) DO "
+                "UPDATE SET status = 'ran', reason = NULL, updated_at = excluded.updated_at",
+                (day, _now()),
             )
             db.execute("COMMIT")
             return True
@@ -899,10 +945,15 @@ class DailyLedger:
 
     def record_day(self, day: str, status: str, reason: str | None = None) -> None:
         """How a day went: ``ran``, ``blocked`` (and why) or ``idle``. Blocked
-        days are recorded and never caught up (agreed with Codex, 2026-10-30)."""
+        days are recorded and never caught up (agreed with Codex, 2026-10-30).
+        A day whose batch ran stays ``ran``: a later blocked hour does not
+        unsay it (the claim itself lives in ``day_claims``)."""
         with self._db() as db:
             db.execute(
-                "INSERT OR REPLACE INTO days VALUES (?,?,?,?)",
+                "INSERT INTO days VALUES (?,?,?,?) ON CONFLICT(day) DO UPDATE SET "
+                "status = excluded.status, reason = excluded.reason, "
+                "updated_at = excluded.updated_at "
+                "WHERE days.status != 'ran' OR excluded.status = 'ran'",
                 (day, status, reason, _now()),
             )
 

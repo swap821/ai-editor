@@ -12,8 +12,14 @@ this App exists GAGOS's PRs open with the operator's ``gh`` login and say so.
 * For each delivery GAGOS signs a short-lived App JWT (RS256, 9 minutes) and
   exchanges it for an installation token scoped to ONE repository and two
   permissions (contents: write, pull_requests: write), valid one hour. It can
-  push a branch and open a PR. It cannot merge to a protected master, change
-  settings or administer anything: the operator merges.
+  push a branch and open a PR. It cannot change settings or administer
+  anything.
+* Merging, honestly (Codex's post-merge review of #566): contents: write lets
+  GitHub's merge endpoint accept this token, and master's protection requires
+  checks, not reviews, and does not restrict who may push. So GitHub WOULD let
+  the App merge a PR whose checks pass. That GAGOS never merges is a rule of
+  its code (nothing here or in its delivery calls a merge) and the operator
+  merges; making it a GitHub lock is his repository setting to choose.
 """
 
 from __future__ import annotations
