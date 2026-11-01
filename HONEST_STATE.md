@@ -5,6 +5,18 @@ the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## Later on 2026-11-01 (branch `chore/organs-after-567`, off master `bead0108`)
+
+- **#567 is merged** (squash, `bead0108`, 09:04 UTC), with both reviewers' acceptance: Codex's at `0faf61f1`, and its check of each doc-only head after it.
+  - GAGOS's hourly task fetches origin/master into its own worktree (`C:\gdw`) on every run. So its first day, after D13, runs #567's code: publication bound to the exact commit, the day's claim kept, an App that fails closed.
+- **Still open on master (P3, tracked):** a bounded disable/enable region can hide a warning that a proposal moved into it.
+  - Until the fix lands, the two reviewers are the only check for it.
+  - The fix is planned (above) with no objection from Codex. It is built after D13, with real-ESLint tests.
+- **Master's CI stays red on the three organ-evidence tests**, as expected. The re-gather was never on #567's branch, so its squash orphaned nothing new.
+- **A correction to my own advice:** I asked the operator for a merge commit, but master requires linear history. This was already recorded on 2026-09-25, and I repeated the mistake.
+  - The working remedy is #559's: gather the evidence on a checkout exactly at master's tip, so it cites a commit on master, then squash as usual.
+  - That is the plan after D13, on this branch.
+
 ## State on 2026-11-01 (branch `fix/gagos-daily-after-566`, off master `ad46f211`)
 
 - **#566, GAGOS's own day, is merged** (squash, `ad46f211`). The loop's code is on master.
