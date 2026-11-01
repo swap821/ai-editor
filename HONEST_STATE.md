@@ -26,6 +26,11 @@ the commit they were measured on). The whole story, from the first commit, is
   - **Chrome's exit code was ignored.** A failing Chrome that wrote partial bytes replaced the previous screenshot. Now it must exit 0 too.
   - **An unchanged disable comment could be retargeted** by deleting the line under it. Each disable comment is now bound to the line it protects.
   - 93 tests pass, plus 1 skipped; ruff, format and the bandit budget are clean.
+- **Codex accepted the corrections at `0faf61f1`** (scoped acceptance, not merge authority). Its reproductions pass for all three, and its earlier ones still pass.
+  - **Still open (P3, tracked):** the bounded disable/enable region case. A warning can be moved into an existing `/* eslint-disable rule */ … /* eslint-enable rule */` region; the static check passes it, and only the two reviewers would catch it. My earlier claim that a region could not hide a finding's rule was wrong for bounded regions.
+  - The planned fix: lint once more with inline configuration off, and require the finding's rule count to fall by exactly the warnings fixed.
+- **CI on #567:** the backend jobs (macOS, Ubuntu, Windows) fail on exactly the three organ-evidence tests that fail on master, citing the orphaned `8e4b5069be65`; nothing else fails. Codex read the same logs. The re-gather after D13 makes them current.
+- **Codex now checks its inbox hourly by itself:** a Windows task `\Codex\GAGOS hourly review`, at his authorisation. It sends every review straight to Claude Code's inbox, so he no longer relays messages.
 - **Master's CI is red on three organ-evidence tests**, from 31 Oct (`75605cec`, #565's merge) onward.
   - Green organs cite commits that squash merges discarded: #564's, and now #566's.
   - Nothing else failed.
