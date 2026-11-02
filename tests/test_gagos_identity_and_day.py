@@ -237,6 +237,62 @@ def test_the_clerk_summarises_a_disagreement_locally(tmp_path) -> None:
     assert "Codex: reject: c" in request.redacted_payload
 
 
+def test_the_real_service_accepts_the_clerks_right_answer(tmp_path) -> None:
+    """GAGOS's first day (2026-11-02): the clerk answered with exactly a
+    summary and a crux, and the local workforce service refused it as "Extra
+    fields rejected: ['crux', 'summary']", because it was handed a JSON-Schema
+    object where it reads field names. The fake clerk above cannot see that;
+    this runs the real service, with only the model faked."""
+    from unittest.mock import MagicMock
+
+    from aios.application.local_workforce.service import LocalWorkforceService
+    from aios.core.autonomy import UNGOVERNED_FIXTURE
+    from aios.domain.local_workforce.contracts import (
+        LocalJobProfile,
+        LocalWorkerModel,
+    )
+    from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+
+    led = dw.DailyLedger(tmp_path / "l.db")
+    pid = _proposal(led)
+    _both(led, pid, codex="reject")
+    [p] = led.disagreements_without_clerk()
+    model = LocalWorkerModel(
+        model_id="qwen3.5:9b",
+        provider="ollama",
+        family="qwen",
+        parameter_size="9B",
+        quantization="q4_K_M",
+        installed=True,
+        operator_approved=True,
+        health="healthy",
+        admission_status="approved",
+        admission_reason="Passed",
+        max_context=32768,
+        max_output=4096,
+        max_parallelism=1,
+        allowed_job_profiles=frozenset({LocalJobProfile.SUMMARISE_DISAGREEMENT}),
+        metadata_confidence="verified",
+    )
+    registry = MagicMock(spec=LocalWorkforceRegistry)
+    registry.list_models.return_value = [model]
+    registry.get_model.return_value = model
+    llm = MagicMock()
+    llm.complete.return_value = json.dumps(
+        {"summary": "Codex doubts the JSX runtime.", "crux": "the JSX transform"}
+    )
+    service = LocalWorkforceService(
+        registry=registry,
+        ollama=llm,
+        model_client_factory=lambda model_id: llm,
+        provenance_store=None,
+        emergency_stop=UNGOVERNED_FIXTURE,
+    )
+    job = tool.clerk_summarise(p, led.reviews(pid), service=service)
+    assert job["status"] == "completed", job["reason"]
+    assert job["crux"] == "the JSX transform"
+
+
 def test_a_clerk_with_no_admitted_model_is_recorded_not_hidden(
     tmp_path, monkeypatch
 ) -> None:
