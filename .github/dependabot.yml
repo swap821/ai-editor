@@ -52,6 +52,14 @@ updates:
       # as the entries above. Lift when botocore accepts python-dateutil 3.x.
       - dependency-name: "python-dateutil"
         versions: [">=3.0.0"]
+      # torch 2.15.0 (#568) segfaults the macOS backend suite inside a BERT
+      # forward pass, in every run on #570-#572. On 2.14.1 it completes without a crash
+      # (3 of 3, failing only master's three evidence tests), as Linux and
+      # Windows do on both. Not an install failure like the entries above: a
+      # crash at run time, on one OS. Lift when a later torch completes the
+      # macOS suite without a crash.
+      - dependency-name: "torch"
+        versions: [">=2.15.0"]
     groups:
       python-minor-patch:
         patterns:
