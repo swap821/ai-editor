@@ -1,0 +1,60 @@
+{
+  "judged": "D13 family, docs/learning/PAYOFF_PREREGISTRATION.md D13",
+  "result_doc": "docs/learning/PAYOFF_D13_RESULT.md",
+  "runs": {
+    "local": {
+      "run_id": "20261031T175215-bbaba5ab",
+      "corpus_sha": "501c25369c320684fb5ce33bbca71c958a0464ac",
+      "harness_sha": "e6e8d668ea1d18e0f6f4e8346d70461ad123f502",
+      "models": "ollama.qwen3.5:9b@nothink",
+      "samples": 3,
+      "placebo": true
+    }
+  },
+  "family_alpha": 0.05,
+  "family": {
+    "H1-local-D13": {
+      "arms": [
+        "on",
+        "off"
+      ],
+      "pairs": 47,
+      "samples": 3,
+      "on_earned": 33,
+      "off_earned": 40,
+      "on_only": 5,
+      "off_only": 9,
+      "direction": "negative or zero",
+      "raw_p": 0.2398681640625,
+      "holm_p": 0.479736328125,
+      "met": false
+    },
+    "H1c-local-D13": {
+      "arms": [
+        "on",
+        "placebo"
+      ],
+      "pairs": 37,
+      "samples": 3,
+      "on_earned": 32,
+      "off_earned": 34,
+      "on_only": 4,
+      "off_only": 6,
+      "direction": "negative or zero",
+      "raw_p": 0.84765625,
+      "holm_p": 0.84765625,
+      "met": false
+    }
+  },
+  "h2_harm": {
+    "local": {
+      "pairs": 47,
+      "on_only": 5,
+      "off_only": 9,
+      "p_value": 0.2398681640625,
+      "violated": false
+    }
+  },
+  "h1_met": false,
+  "summary": "D13 family not met: H1-local-D13 5 vs 9 (Holm p=0.48), H1c-local-D13 4 vs 6 (Holm p=0.85); harm (H2) not seen"
+}
