@@ -1080,6 +1080,17 @@
    "old": "            _cb_match = cerebellum.match(user_text, principal=principal_id)\n",
    "new": "            _cb_match = cerebellum.match(user_text, principal=None)\n",
    "tests": [
+    "tests/test_api.py::test_a_generate_turn_matches_reflexes_as_the_caller",
+    "tests/test_api.py::test_an_approval_resume_matches_reflexes_as_the_caller"
+   ],
+   "also": []
+  },
+  {
+   "id": "4c2:S26 the turn's pre-route reflex check matches as no one",
+   "file": "aios/application/turns/generate_pipeline.py",
+   "old": "                user_text, principal=str(principal.principal_id)\n",
+   "new": "                user_text, principal=None\n",
+   "tests": [
     "tests/test_api.py::test_a_generate_turn_matches_reflexes_as_the_caller"
    ],
    "also": []
