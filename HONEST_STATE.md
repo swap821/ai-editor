@@ -1,9 +1,25 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-01 ("State on 2026-11-01" below; earlier sections keep
+**Last updated:** 2026-11-02 ("State on 2026-11-02" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-11-02 (branch `docs/d13-judged`, off master `a48d0afe`)
+
+- **D13 is judged: not met, and no harm** (`docs/learning/PAYOFF_D13_RESULT.md`). Its fourth launch ran to the end (2026-10-31 17:52 UTC to 11-02 02:10 UTC, run `20261031T175215-bbaba5ab`).
+  - With only lessons about the named code, the local student earned 33 of 141 with lessons and 40 of 141 without. That is 5 targets better and 9 worse (Holm p = 0.48).
+  - Against a placebo of the same size: 4 better and 6 worse (p = 0.85). Both members point the wrong way.
+  - 38 of 85 targets are not comparable because of 420 s timeouts. The lesson-carrying arms timed out more (ON 39 and PLACEBO 39 of 255 samples, OFF 29); their prompts are about 1.8 times longer. Only 14 targets were discordant, against about 30 planned.
+  - Three judged families (Phase 8, D12, D13) have now found no benefit from lessons prepended to a prompt. The usefulness gate reads D13 and stays FAIL. D14 (real use) continues.
+  - The trail, the verdict and a test that recomputes the verdict from the trail are committed on this branch.
+- **The operator merged both #568 and #569** (02:21 UTC). The merged trees are the reviewed ones: #568's equals its reviewed head, and #569 differs from its reviewed head only by #568's rebase.
+  - **#568 went in unfixed, so master cannot install:** pydantic 2.14.2 needs pydantic-core 2.50.2, and master pins 2.50.1. Every backend CI job on master dies at `pip install` until **#570** merges.
+  - #570 moves the core to 2.50.2 and the Dependabot ignore to `>2.50.2`. I wrote it, at the operator's word ("start post D13 processes right now"), to unblock master. Codex reviews it.
+  - #570's backend jobs are also the first test of #568's other bumps (torch 2.15.0, transformers 5.22.0, starlette 1.10.0, among others). Until it passes, they are unverified.
+  - The local `.venv` still has the versions from before #568.
+- **GAGOS's first real day starts by itself.** D13's process has ended, so the quiet marker no longer holds. The next hourly run (~02:50 UTC) works on master `a48d0afe`.
+- **Still open, in order:** the P3 fix, the mutation-probe fix, then the organ re-gather at master's tip (last, which turns master's CI green once #570 lets it install).
 
 ## Later on 2026-11-01 (branch `chore/organs-after-567`, off master `bead0108`)
 
@@ -19,9 +35,9 @@ the commit they were measured on). The whole story, from the first commit, is
   - It classified 704 mutations: 675 killed, 22 inert, 6 with no verdict, and 1 that survived.
   - **The survivor, `4c2:S17`, is a real coverage gap. It is not a demonstrated leak:** today's code passes the caller's identity at both sites.
     - The mutation makes the turn's fallback reflex check match as no one.
-    - Since reflexes are matched before routing (10-25), a fresh turn is matched earlier (`generate_pipeline.py` line 264). The fallback at line 791 runs only on an approval resume, so its test never reaches it.
+    - Since reflexes are matched before routing (10-25), a fresh turn is matched earlier (`generate_pipeline.py` line 264). The fallback at line 791 runs only when that earlier check was not performed (an approval resume, or no cerebellum at that stage), so its test never reaches it.
     - The earlier site, the one every fresh turn uses, has no mutation in the catalogue at all.
-    - The fix: a mutation for the earlier site, and a test that drives an approval resume through the fallback.
+    - The fix: a mutation for the earlier site, and a test that drives an approval resume through the fallback. The test must show that it reaches the fallback and that it kills S17 (Codex).
   - **No verdict ×6:** each shard has one, all `self_model_handler`, all judged by the same three test files.
     - Their tests failed on the unmutated code at the closing control, so none counts as a kill.
     - The probe discards pytest's output, so the cause is not recorded.
@@ -31,6 +47,14 @@ the commit they were measured on). The whole story, from the first commit, is
     - keep the tail of pytest's output for a failed control;
     - fix the cause;
     - add the S17 test and the new mutation.
+- **Dependabot opened #568 (Python) and #569 (frontend) late on 11-01. #568 cannot install** (found by Codex's hourly review, then confirmed by me).
+  - It bumps pydantic to 2.14.2 but leaves `pydantic_core` at 2.50.1. PyPI says 2.14.2 requires `pydantic-core==2.50.2`, and every backend job died at `pip install` with ResolutionImpossible (Ubuntu job 124987617897).
+  - This is the #471 case that the comments in `requirements.txt` and `.github/dependabot.yml` already describe. The fix is to move the core to 2.50.2, update both comments, and raise the ignore bound to `>2.50.2`.
+  - Its other bumps (torch 2.15.0, transformers 5.22.0, starlette 1.10.0 among them) are unverified until a fixed head installs. It must not merge as it stands.
+  - Neither reviewer writes the fix; it waits until after D13.
+  - #569 changes only `package.json` and its lockfile. Both reviewers accept it, scoped to that change. Its frontend jobs pass. Its backend jobs fail
+    only on master's three evidence tests (Codex compared all six jobs; I checked Ubuntu). It is the operator's to merge, and merging it does not touch D13.
+- **D13's timeouts are rising** (as of 22:24 UTC: 77 of 85 targets, 33 not comparable). Not-comparable targets were 9 of the first 30, then 20 of the next 31. The 420 s model timeouts fall on every arm, not on one.
 - **A correction to my own advice:** I asked the operator for a merge commit, but master requires linear history. This was already recorded on 2026-09-25, and I repeated the mistake.
   - The working remedy is #559's: gather the evidence on a checkout exactly at master's tip, so it cites a commit on master, then squash as usual.
   - That is the plan after D13, on this branch.

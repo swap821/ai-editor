@@ -152,3 +152,10 @@ def test_no_d13_run_no_d13_verdict(tmp_path, monkeypatch, capsys) -> None:
     assert jf.main(["--family", "d13", "--write"]) == 1
     assert not (tmp_path / "result.json").exists()
     assert "nothing written" in capsys.readouterr().out
+
+
+def test_the_committed_d13_verdict_is_what_its_committed_trail_says() -> None:
+    committed = json.loads(jf.D13_RESULT.read_text(encoding="utf-8"))
+    recomputed = jf.judge_d13(jf._load(jf.D13_LOCAL))
+    assert committed == json.loads(json.dumps(recomputed))
+    assert committed["h1_met"] is False

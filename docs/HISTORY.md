@@ -164,6 +164,10 @@ model never reached the check" as a violation (fixed in #392).
 - **10-25 to 10-28: D12's local judged run: not met, no harm** (`docs/learning/PAYOFF_D12_RESULT.md`).
   - With lessons, the local student earned 91 of 249, against 103 without: 12 targets better, 18 worse, p = 0.21.
   - **The D12 family is not met.** Learning has now been judged by two pre-registered families, and neither found a benefit.
+- **10-31 to 11-02: D13's judged run (local only): not met, no harm** (`docs/learning/PAYOFF_D13_RESULT.md`).
+  - The student was shown only lessons about the code its task names. It earned 33 of 141 with them and 40 of 141 without: 5 targets better, 9 worse, Holm p = 0.48. Against a placebo: 4 better, 6 worse.
+  - 38 of 85 targets were lost to 420 s timeouts on a 16 GB laptop, so the test was weaker than planned.
+  - **Three pre-registered families have now judged learning, and none found a benefit.**
 
 ## Claims that were wrong, and their corrections
 
@@ -177,7 +181,7 @@ model never reached the check" as a violation (fixed in #392).
 | "The clean-box stranger test is blocked" | It was not, and it found 4 real install gaps | #314, #315 |
 | The endurance nightly was a signal | It was red for about 60 runs, gated on a 0.5b model's obedience | #346 |
 | The "universal" intelligence gateway | Measured, not enforced; organ 32 demoted | #467, #489 |
-| The learning loop helps | Not shown: Phase 8 not met; D12 not met, cloud or local | #480, `PAYOFF_D12_RESULT.md` |
+| The learning loop helps | Not shown: Phase 8 not met; D12 not met, cloud or local; D13 not met, with relevant lessons only | #480, `PAYOFF_D12_RESULT.md`, `PAYOFF_D13_RESULT.md` |
 | The One Law holds | Writes could not compile until 09-07, and no skill is active on the operator's machine today | #316, `HONEST_STATE.md` |
 
 ## Mistakes by the agents, recorded so they are not repeated
