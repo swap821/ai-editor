@@ -11,6 +11,10 @@ day can stop anywhere and resume, and every outcome is in the ledger
             their accepted record, within the operator's monthly AWS ceiling)
             through the one gateway for the whole corrected file, and run the
             unattended static checks. Nothing a model wrote is executed.
+  test      each proposal awaiting review has its tests run in the executor's
+            sandbox (no network, read-only, nothing from the host's
+            environment), judged against its base: one that breaks a test
+            passing without it is refused before review. Python only, so far.
   review    --reviewer codex|claude: each open proposal is reviewed by a fresh,
             read-only, tool-less session that sees the rule, the warnings, the
             whole original file and the diff, and returns a schema-checked
@@ -18,8 +22,10 @@ day can stop anywhere and resume, and every outcome is in the ledger
             longer, operator 2026-11-02); a reject from either rejects it.
   deliver   apply the accepted proposals to a daily branch in --worktree (reset
             to origin/master), each checked there (parse, no ESLint error, the
-            tests that import it) and committed on its own; --open-pr pushes
-            and opens one PR. The operator merges; CI gates.
+            tests that import it) and committed on its own; a check that fails
+            on master without the change too says nothing about it, and CI
+            judges it. --open-pr pushes and opens one PR. The operator merges;
+            CI gates.
   report    the day's work and D14's running numbers, as Markdown.
 
 The model call needs, by GAGOS's own law, the "coding" task allowed to the cloud
@@ -100,6 +106,14 @@ from aios.maintenance.python_static import (  # noqa: E402
     check_python_texts,
     editable_python_files,
     import_refusal,
+)
+from aios.maintenance.sandbox_tests import (  # noqa: E402
+    BROKE_PREFIX,
+    PASSED,
+    UNAVAILABLE,
+    BaseTrees,
+    SandboxVerdict,
+    run_proposal_tests,
 )
 
 DEFAULT_MODEL = "mistral.mistral-large-3-675b-instruct"
@@ -850,6 +864,8 @@ def review_evidence(p: dict, finding: Finding) -> str:
             "paths or values that may not leave this machine. Judge the change "
             "around them; a placeholder is the same text before and after."
         )
+    if p.get("sandbox"):
+        prompt += "\n\n" + SandboxVerdict.from_json(p["sandbox"]).for_reviewer()
     altered = would_be_altered(prompt, "")
     if altered:
         raise MaskingFailed(f"{UNSHOWABLE}: {altered}")
@@ -912,6 +928,52 @@ def cmd_review(args: argparse.Namespace) -> int:
     return 1 if unavailable else 0
 
 
+# --------------------------------------------------------------------- test
+
+
+#: Why a frontend proposal's tests do not run before review (yet).
+NO_FRONTEND_SANDBOX = (
+    "the sandbox has no frontend toolchain yet; the tests that import it run "
+    "at delivery, on the host"
+)
+
+
+def cmd_test(args: argparse.Namespace) -> int:
+    """Each proposal awaiting review has its tests run in the sandbox, judged
+    against its base, before any reviewer reads it (the operator, 2026-11-03:
+    "Yes honestly"). One at a time: each container takes two CPUs and 2 GiB."""
+    root = Path(args.project).resolve()
+    led = ledger()
+    again = set(getattr(args, "again", None) or ())
+    pending = (
+        [p for p in led.proposals(status="proposed") if p["proposal_id"] in again]
+        if again
+        else led.awaiting_tests()
+    )
+    if not pending:
+        print("no proposal awaits its tests")
+        return 0
+    with BaseTrees(root) as trees:
+        for p in pending:
+            if is_python(p["rel"]):
+                verdict = run_proposal_tests(
+                    trees,
+                    base_commit=p["base_commit"],
+                    rel=p["rel"],
+                    new_text=p["new_text"],
+                )
+            else:
+                verdict = SandboxVerdict(UNAVAILABLE, NO_FRONTEND_SANDBOX)
+            led.record_sandbox(
+                p["proposal_id"], verdict.to_json(), refusal=verdict.refusal
+            )
+            print(
+                f"  {p['proposal_id']} {p['rel']}: tests {verdict.outcome.upper()}: "
+                f"{verdict.summary} ({verdict.seconds:.0f}s)"
+            )
+    return 0
+
+
 # --------------------------------------------------------------------- deliver
 
 
@@ -967,10 +1029,27 @@ PR_FOOTER_APP = (
 PR_FOOTER = PR_FOOTER_NO_APP
 
 
-def commit_message(p: dict, reviews: dict) -> str:
+def commit_message(p: dict, reviews: dict, *, moot: str | None = None) -> str:
     """GAGOS's commit for one delivered change: what it did, how it was
-    checked, who reviewed it, and the frontier model credited as co-author."""
+    checked, who reviewed it, and the frontier model credited as co-author.
+    *moot*: the delivery check that fails on master without the change too."""
     warnings = json.loads(p["warnings"])
+    sandbox = SandboxVerdict.from_json(p["sandbox"]) if p.get("sandbox") else None
+    tested = (
+        [f"Before review, its tests ran in the sandbox: {sandbox.summary}."]
+        if sandbox is not None and sandbox.outcome == PASSED
+        else []
+    )
+    checked = (
+        "it compiles, and the tests that import it pass."
+        if is_python(p["rel"])
+        else "it parses, has no ESLint error, and the tests that import it pass."
+    )
+    if moot:
+        checked = (
+            f"this check fails on master without it too ({moot}), so it says "
+            "nothing about it; CI judges it."
+        )
     if p["rule"] == MISSING_TEST:
         head = [
             f"GAGOS: a first test for {subject_of(p['rel'])}",
@@ -989,16 +1068,12 @@ def commit_message(p: dict, reviews: dict) -> str:
             f"proposed this change (proposal {p['proposal_id']}); "
             f"{model_name(p['model'])} wrote it. Unattended checks passed: it "
             "parses, the warnings are gone, nothing new. Checked again on master: "
-            + (
-                "it compiles, and the tests that import it pass."
-                if is_python(p["rel"])
-                else "it parses, has no ESLint error, and the tests that import "
-                "it pass."
-            ),
+            + checked,
         ]
     return "\n".join(
         [
             *head,
+            *([""] + tested if tested else []),
             "",
             "",
             *(
@@ -1293,6 +1368,21 @@ def cmd_deliver(args: argparse.Namespace) -> int:
         return 1
     name, email = app[1] if app else GAGOS_IDENTITY
     branch = args.branch or delivery_branch(led)
+
+    def check(rel: str, path: Path) -> str | None:
+        """The delivery check of *rel* as it now stands: None when it passes."""
+        if is_python(rel):
+            # It compiles, and the tests that import it pass.
+            smoke = python_smoke(root, [rel], timeout_s=args.check_timeout)
+            return None if smoke.passed else smoke.reason
+        steps: list[SmokeStep] = []
+        return frontend_smoke(
+            root,
+            [path],
+            deadline=time.monotonic() + args.check_timeout,
+            steps=steps,
+        )
+
     _git(root, "fetch", "-q", "origin", "master")
     _git(root, "checkout", "-q", "-B", branch, "origin/master")
     committed: list[str] = []
@@ -1314,26 +1404,30 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             )
             continue
         path.write_bytes(p["new_text"].encode("utf-8"))
-        steps: list[SmokeStep] = []
-        if is_python(p["rel"]):
-            # It compiles, and the tests that import it pass.
-            smoke = python_smoke(root, [p["rel"]], timeout_s=args.check_timeout)
-            failure = None if smoke.passed else smoke.reason
-        else:
-            failure = frontend_smoke(
-                root,
-                [path],
-                deadline=time.monotonic() + args.check_timeout,
-                steps=steps,
-            )
+        failure = check(p["rel"], path)
+        moot = None
         if failure is not None:
             if current is None:
                 path.unlink()
             else:
                 path.write_bytes(current.encode("utf-8"))
-            led.record_delivery(pid, branch=branch, outcome=f"failed checks: {failure}")
-            print(f"  {pid} {p['rel']}: FAILED delivery checks: {failure}")
-            continue
+                # The same check on master without it (2026-11-02: an accepted
+                # change failed its delivery on a test that times out on this
+                # laptop with or without it). Failing there too, it says
+                # nothing about the change.
+                if check(p["rel"], path) == failure:
+                    moot = failure
+            if moot is None:
+                led.record_delivery(
+                    pid, branch=branch, outcome=f"failed checks: {failure}"
+                )
+                print(f"  {pid} {p['rel']}: FAILED delivery checks: {failure}")
+                continue
+            path.write_bytes(p["new_text"].encode("utf-8"))
+            print(
+                f"  {pid} {p['rel']}: the delivery check fails on master without "
+                f"it too ({failure}); not its doing, CI judges it"
+            )
         _git(root, "add", "--", p["rel"])
         _git(
             root,
@@ -1344,7 +1438,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             "commit",
             "-q",
             "-m",
-            commit_message(p, led.reviews(pid)),
+            commit_message(p, led.reviews(pid), moot=moot),
         )
         sha = _git(root, "rev-parse", "HEAD")
         led.record_delivery(pid, branch=branch, outcome="committed", commit_sha=sha)
@@ -1403,6 +1497,7 @@ LOSSES = (
     "the model call failed",
     "the answer's form",
     "the static checks",
+    "the sandbox tests",
     "the reviewer",
 )
 
@@ -1414,6 +1509,8 @@ def lost_at(p: dict) -> str | None:
     if p["status"] != "refused":
         return None
     why = p["refusal"] or ""
+    if why.startswith(BROKE_PREFIX):
+        return "the sandbox tests"
     if why.startswith("model call failed"):
         return "the model call failed"
     if p["model"] == NO_MODEL or "cannot be shown to a reviewer" in why:
@@ -1523,6 +1620,11 @@ def report(
         ]
         if p["refusal"]:
             out.append(f"- refused: {s(p['refusal'])}")
+        if p.get("sandbox"):
+            tests = SandboxVerdict.from_json(p["sandbox"])
+            out.append(
+                f"- tests in the sandbox: **{tests.outcome}**: {s(tests.summary)}"
+            )
         for r in REVIEW_ORDER:
             if r in reviews:
                 rv = reviews[r]
@@ -1751,6 +1853,8 @@ def cmd_daily(args: argparse.Namespace) -> int:
         # The claim stands whatever propose did: a failed batch is not a
         # reason to run a second one this hour.
         led.record_day(slot, "ran", None if rc == 0 else f"propose exited {rc}")
+    # Before any reviewer reads a proposal, its tests run in the sandbox.
+    cmd_test(argparse.Namespace(project=str(root), again=None))
     # Finishing earlier reviews is not a new batch.
     for reviewer in REQUIRED_REVIEWERS:
         cmd_review(
@@ -1816,6 +1920,18 @@ def main(argv: list[str] | None = None) -> int:
         help="review these proposals again (a verdict given on wrong evidence)",
     )
     r.set_defaults(func=cmd_review)
+
+    t = sub.add_parser("test", help="run proposals' tests in the sandbox")
+    t.add_argument(
+        "--project", required=True, help="a checkout holding the proposals' bases"
+    )
+    t.add_argument(
+        "--again",
+        nargs="+",
+        metavar="PROPOSAL",
+        help="run these proposals' tests again",
+    )
+    t.set_defaults(func=cmd_test)
 
     d = sub.add_parser("deliver")
     d.add_argument(

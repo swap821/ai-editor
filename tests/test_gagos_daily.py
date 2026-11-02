@@ -371,6 +371,28 @@ def test_placeholders_never_look_like_secrets_and_never_occur_in_the_file() -> N
     assert all(t.startswith("GAGOSMASKQQ_") for t in again)
 
 
+def test_a_call_the_provider_refused_does_not_use_up_its_finding(tmp_path) -> None:
+    """2026-11-02 20:50 UTC: Bedrock refused the account; ten findings were
+    recorded as proposals no model ever wrote."""
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    common = dict(base_text=BEFORE, base_commit="c" * 40, model="m", new_text=None)
+    led.record_proposal(
+        FINDING,
+        **common,
+        verdict=None,
+        refusal="model call failed: ValidationException: Access to Bedrock models "
+        "is not allowed for this account",
+    )
+    assert not led.attempted(FINDING.rel, FINDING.rule, dw.digest(BEFORE))
+    led.record_proposal(
+        FINDING,
+        **common,
+        verdict=None,
+        refusal="expected exactly one fenced code block",
+    )
+    assert led.attempted(FINDING.rel, FINDING.rule, dw.digest(BEFORE))
+
+
 def test_only_a_proposal_refused_for_how_it_was_shown_is_reopened(tmp_path) -> None:
     led = dw.DailyLedger(tmp_path / "ledger.db")
     shown = _proposal(led)
@@ -858,10 +880,15 @@ def test_a_change_that_fails_its_checks_on_master_is_not_delivered(
     monkeypatch.setattr(tool, "ledger", lambda: led)
     from aios.application.promotion import smoke
 
+    # The check fails with the change and passes without it: the change's doing.
     monkeypatch.setattr(
         smoke,
         "frontend_smoke",
-        lambda *a, **k: "the tests related to the frontend targets did not pass",
+        lambda root, paths, **k: (
+            "the tests related to the frontend targets did not pass"
+            if paths[0].read_text(encoding="utf-8") == AFTER
+            else None
+        ),
     )
     _accepted(led)
     head = _git(work, "rev-parse", "HEAD")
@@ -871,6 +898,33 @@ def test_a_change_that_fails_its_checks_on_master_is_not_delivered(
     assert _git(work, "rev-parse", "HEAD") == head and not _git(
         work, "status", "--porcelain"
     )
+
+
+def test_a_check_that_fails_on_master_without_the_change_too_is_not_its_doing(
+    tmp_path, monkeypatch, origin_and_worktree
+) -> None:
+    """2026-11-02: gd-8b79700958 (an unused React import) was failed at
+    delivery by a test that times out on this laptop with or without it."""
+    _seed, work = origin_and_worktree
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    from aios.application.promotion import smoke
+
+    seen: list[str] = []
+
+    def both(root, paths, **k):
+        seen.append(paths[0].read_text(encoding="utf-8"))
+        return "the tests related to the frontend targets did not pass"
+
+    monkeypatch.setattr(smoke, "frontend_smoke", both)
+    _accepted(led)
+    assert tool.cmd_deliver(_deliver_args(work)) == 0
+    assert seen == [AFTER, BEFORE], "checked with the change, then without it"
+    assert led.proposals()[0]["status"] == "committed"
+    assert (work / REL).read_text(encoding="utf-8") == AFTER
+    message = _git(work, "log", "-1", "--format=%B")
+    assert "fails on master without it too" in message and "CI judges it" in message
+    assert "the tests that import it pass" not in message
 
 
 # --------------------------------------------------------------------- the real toolchain

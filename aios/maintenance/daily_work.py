@@ -17,6 +17,9 @@ its own:
   model wrote: it parses; the rule's warnings in the file are gone; no other
   warning or error appears; no disable comment is added, and nothing a disable
   comment silences is touched or newly hidden; the change is bounded;
+* the sandbox step (:mod:`aios.maintenance.sandbox_tests`) -- after those checks
+  and before review, a Python proposal's tests run in the executor's sandbox and
+  are judged against the base (the operator, 2026-11-03: "Yes honestly");
 * :func:`review_prompt` -- what each reviewer reads: the rule, the warnings, the
   whole original file and the diff;
 * :class:`DailyLedger` -- every proposal, refusal, review and delivery, durable,
@@ -847,7 +850,8 @@ def first_test_verdict(
     finding: Finding, new_text: str, after: StaticResult
 ) -> StaticVerdict:
     """The unattended checks on a new test. Nothing the model wrote is
-    executed: it runs only at delivery, after review."""
+    executed here: before review it runs only in the sandbox
+    (:mod:`aios.maintenance.sandbox_tests`), and again at delivery."""
     lines = len(new_text.splitlines())
     if not new_text.strip():
         return StaticVerdict(False, "the test is empty", 0)
@@ -1070,7 +1074,8 @@ CREATE TABLE IF NOT EXISTS proposals (
     new_digest TEXT,
     diff TEXT,
     changed_lines INTEGER,
-    facts TEXT
+    facts TEXT,
+    sandbox TEXT
 );
 CREATE TABLE IF NOT EXISTS reviews (
     proposal_id TEXT NOT NULL,
@@ -1163,6 +1168,8 @@ class DailyLedger:
             have = {r["name"] for r in db.execute("PRAGMA table_info(proposals)")}
             if "facts" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN facts TEXT")
+            if "sandbox" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN sandbox TEXT")
             # A day an earlier version recorded as run keeps its claim.
             db.execute(
                 "INSERT OR IGNORE INTO day_claims SELECT day, updated_at FROM days "
@@ -1378,6 +1385,35 @@ class DailyLedger:
                 (reason, proposal_id),
             )
 
+    def record_sandbox(
+        self, proposal_id: str, verdict: str, *, refusal: str | None = None
+    ) -> None:
+        """What the proposal's tests did in the sandbox (a
+        :class:`~aios.maintenance.sandbox_tests.SandboxVerdict` as JSON); a
+        *refusal* when they show the proposal broke what passes without it."""
+        with self._db() as db:
+            db.execute(
+                "UPDATE proposals SET sandbox = ? WHERE proposal_id = ?",
+                (verdict, proposal_id),
+            )
+            if refusal is not None:
+                db.execute(
+                    "UPDATE proposals SET status = 'refused', refusal = ? "
+                    "WHERE proposal_id = ? AND status = 'proposed'",
+                    (refusal, proposal_id),
+                )
+
+    def awaiting_tests(self) -> list[dict]:
+        """Proposals awaiting review whose tests have not run in the sandbox."""
+        with self._db() as db:
+            return [
+                dict(r)
+                for r in db.execute(
+                    "SELECT * FROM proposals WHERE status = 'proposed' AND "
+                    "sandbox IS NULL ORDER BY created_at"
+                )
+            ]
+
     def reopen(self, proposal_id: str) -> bool:
         """Put back for review a proposal refused only because it could not be
         shown to a reviewer: it passed the unattended checks, and the cause
@@ -1462,12 +1498,16 @@ class DailyLedger:
 
     def attempted(self, rel: str, rule: str, base_digest: str) -> bool:
         """Whether this exact file content was already proposed for this rule:
-        the same work is never asked of the model twice."""
+        the same work is never asked of the model twice. A call the provider
+        refused asked nothing of a model, so it is not an attempt (2026-11-02,
+        20:50 UTC: Bedrock refused the account, and each failed hour would
+        otherwise have used up ten findings no model ever saw)."""
         with self._db() as db:
             return (
                 db.execute(
                     "SELECT 1 FROM proposals WHERE rel = ? AND rule = ? AND "
-                    "base_digest = ?",
+                    "base_digest = ? AND NOT (status = 'refused' AND "
+                    "refusal LIKE 'model call failed%')",
                     (rel, rule, base_digest),
                 ).fetchone()
                 is not None
