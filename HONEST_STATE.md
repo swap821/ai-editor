@@ -5,7 +5,7 @@ the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
-## State on 2026-11-02 (branch `docs/d13-judged`, off master `a48d0afe`)
+## State on 2026-11-02 (branch `docs/d13-judged`, off master `c6c54652`)
 
 - **D13 is judged: not met, and no harm** (`docs/learning/PAYOFF_D13_RESULT.md`). Its fourth launch ran to the end (2026-10-31 17:52 UTC to 11-02 02:10 UTC, run `20261031T175215-bbaba5ab`).
   - With only lessons about the named code, the local student earned 33 of 141 with lessons and 40 of 141 without. That is 5 targets better and 9 worse (Holm p = 0.48).
@@ -14,12 +14,16 @@ the commit they were measured on). The whole story, from the first commit, is
   - Three judged families (Phase 8, D12, D13) have now found no benefit from lessons prepended to a prompt. The usefulness gate reads D13 and stays FAIL. D14 (real use) continues.
   - The trail, the verdict and a test that recomputes the verdict from the trail are committed on this branch.
 - **The operator merged both #568 and #569** (02:21 UTC). The merged trees are the reviewed ones: #568's equals its reviewed head, and #569 differs from its reviewed head only by #568's rebase.
-  - **#568 went in unfixed, so master cannot install:** pydantic 2.14.2 needs pydantic-core 2.50.2, and master pins 2.50.1. Every backend CI job on master dies at `pip install` until **#570** merges.
-  - #570 moves the core to 2.50.2 and the Dependabot ignore to `>2.50.2`. I wrote it, at the operator's word ("start post D13 processes right now"), to unblock master. Codex reviews it.
-  - #570's backend jobs are also the first test of #568's other bumps (torch 2.15.0, transformers 5.22.0, starlette 1.10.0, among others). Until it passes, they are unverified.
+  - **#568 went in unfixed, so master could not install:** pydantic 2.14.2 needs pydantic-core 2.50.2, and master pinned 2.50.1. Every backend CI job died at `pip install`.
+  - **#570 fixed it.** It moves the core to 2.50.2 and the Dependabot ignore to `>2.50.2`.
+    - I wrote it, at the operator's word ("start post D13 processes right now"). The operator merged it at 02:44 UTC as a merge commit (`c6c54652`), before Codex's review and before Windows CI finished. Its tree is the head I wrote (`fe0b7e3c`).
+  - **#570's CI was the first real test of #568's other bumps** (torch 2.15.0, transformers 5.22.0, starlette 1.10.0, among others):
+    - Ubuntu ran the whole suite (89% coverage) and failed only master's three evidence tests;
+    - **macOS crashes**: a segmentation fault after 1,008 tests (about 11%), in both runs. The crashing test is not named, because the crash dump is cut off. It is new with #568: the macOS runs before it failed only the evidence tests. Suspected: torch 2.15.0 (unproven). A one-change experiment follows;
+    - Windows was still running.
   - The local `.venv` still has the versions from before #568.
-- **GAGOS's first real day starts by itself.** D13's process has ended, so the quiet marker no longer holds. The next hourly run (~02:50 UTC) works on master `a48d0afe`.
-- **Still open, in order:** the P3 fix, the mutation-probe fix, then the organ re-gather at master's tip (last, which turns master's CI green once #570 lets it install).
+- **GAGOS's first real day starts by itself.** D13's process has ended, so the quiet marker no longer holds. The next hourly run (~02:50 UTC) fetches master, now `c6c54652`.
+- **Still open, in order:** the P3 fix, the mutation-probe fix, then the organ re-gather at master's tip (last, which turns master's CI green, except the macOS crash if it is still open then).
 
 ## Later on 2026-11-01 (branch `chore/organs-after-567`, off master `bead0108`)
 
