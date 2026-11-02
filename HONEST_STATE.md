@@ -13,7 +13,7 @@ the commit they were measured on). The whole story, from the first commit, is
   - **#578** (10:34 UTC, merge commit `dd7aa102`): GAGOS's check now matches a region's end case-sensitively, as ESLint does. **This closes the residual Codex found in #574, on master.** Both reviewers accepted it.
 - **Codex's post-merge reviews are done.** `2f153fab` (#574) gave the residual above, now fixed. `47d5a97d` (#575) gave no new finding.
 - **The organ evidence is still current at `dd7aa102`.** Neither later PR touches an organ's entrypoint, and the evidence tests pass at the tip.
-- **GAGOS's next day (about 02:50 UTC on 11-03) is the first to run with the clerk fix and the full static check.** Its hourly runner moves to master's tip by itself.
+- **GAGOS's next day is the first to run with the clerk fix and the full static check.** Its batch runs at the first hourly tick of the UTC day (00:50 UTC on 11-03, 06:20 IST) if the laptop is awake and the operator is logged in, or at the first tick after that. Today's ran at 02:50 UTC only because GAGOS stood aside for D13 until 02:10. Its hourly runner moves to master's tip by itself.
 - **Still open:**
   - Master's CI on `dd7aa102`.
   - The monthly probe stays red until it runs on 1 December, or until the operator runs it by hand.
