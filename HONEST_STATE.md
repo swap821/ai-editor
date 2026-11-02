@@ -1,9 +1,22 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-02 ("Evening of 2026-11-02" below; earlier sections keep
+**Last updated:** 2026-11-02 ("Night of 2026-11-02" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Night of 2026-11-02 (branch `feat/gagos-efficiency`, off master `945d08b8`)
+
+- **The operator merged #581 at 18:57 UTC (squash `945d08b8`).** Its tree equals the head I tested (`636ba2e7`). Master now has GAGOS's Python work (its backend and itself), first frontend tests, and one reviewer.
+- **GAGOS's own placeholders made two correct proposals unshowable (found at 19:05 UTC).**
+  - The cause: each masking chose a random hex prefix (`GAGOSMASK1D44CF_0011`). The secret scanner's entropy test sometimes took such a placeholder for a secret, so the review prompt failed the egress check and the proposal was refused. For `gd-a9f57600cf`, 53 of 60 maskings were refused. The scanner did its job; the placeholders were the fault.
+  - This also hit me directly: re-reviewing `gd-a9f57600cf` with `review --again` (19:00 UTC) refused it for this reason, and today's other "cannot be shown" refusal, `gd-06ea4955fc`, had the same cause.
+  - The fix on this branch: the prefix is the first of `GAGOSMASKQ_`, `GAGOSMASKQQ_`, ... that the file does not contain, never random. Both proposals now pass the egress check 10 times in 10. `review --again` reopens a proposal refused only for how it was shown; any other refusal stays.
+- **Efficiency, measured first** (the operator: "cross-system efficiency").
+  - In November so far, 1 of 18 proposals is accepted by review, at about $0.15 of estimated AWS spend per accepted change. 3 more were accepted by me and released by #581.
+  - Where the rest were lost: 4 not sent (privacy filter or size, including the 2 placeholder cases above), 2 to the answer's form, 4 to the static checks, 4 to the reviewer.
+  - On this branch a fix that changes lines more than 3 away from the nearest warning is refused before review. Replayed on the day's ledger, it refuses both over-broad changes I rejected and passes every change I accepted. GAGOS's report gains these numbers.
+- **Who writes what.** GAGOS writes its own work (fixes and tests) and opens its own PRs as GAGOS. I write the workshop it runs on, because GAGOS's checks allow only bounded one-file changes and execute nothing before review. That boundary is why GAGOS cannot yet build its own workshop.
 
 ## Evening of 2026-11-02 (branch `feat/gagos-first-tests`, off master `012716a3`)
 
