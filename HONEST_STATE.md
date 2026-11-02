@@ -19,9 +19,10 @@ the commit they were measured on). The whole story, from the first commit, is
 - **GAGOS's daily backend (the API on :8000 and the executor) has been down all day (found at 15:30 UTC).** GAGOS's hourly work does not need it and is unaffected.
   - D13 kept the machine quiet until 02:10 UTC. Since then the 15-minute watchdog has refused to start the backend 52 times, because Docker's engine is not running and the sandbox needs it. Ollama is up.
   - The watchdog also stood aside once, at 15:20 UTC, for a D13 run that had already ended. D13's quiet marker was never removed, and another process briefly reused its process id. I moved the marker aside (`quiet.json.d13-ended-2026-11-02`). The check trusts a process id alone; a fix should also compare the process's start time.
+- **The backend is back (16:00 UTC).** At the operator's word I started Docker Desktop and ran `daily_backend.py up`. The API and the executor answer health checks (200), and 3 of 11 reflexes are ready, as before D13.
+- **Codex is out of the review chain, by the operator's decision** ("forget codex now we both r available so that's enough"). On this branch, a GAGOS change is accepted when Claude Code accepts it, and the operator merges. A reject from Codex, if one is ever recorded, still rejects. GAGOS's hourly runs no longer ask Codex. The record of how often the two disagreed while both reviewed is kept.
+  - My own code (tools, not GAGOS's work) now has no second machine reviewer. Its checks are its tests, CI, and the operator's merge.
 - **Still open:**
-  - Docker's engine, so the backend can come back.
-  - Codex's review of #580's fixes and of `653ecab5`, after 11-05 12:19 UTC.
   - Master's CI on `012716a3`.
   - Wake timers in the power plan (the operator's setting).
   - The monthly probe stays red until 1 December, or until the operator runs it by hand.

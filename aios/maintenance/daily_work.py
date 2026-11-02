@@ -2,8 +2,9 @@
 
 docs/learning/PAYOFF_PREREGISTRATION.md D14 (2026-10-30). The operator decided
 that usefulness is starved of real use, not of harnesses, and that he will not
-approve every diff: Codex and Claude Code review them, and a change ships only
-if both accept. This module is the part that needs no process or network of
+approve every diff: a reviewer does, and he merges. Codex and Claude Code both
+reviewed until 2026-11-02; since then Claude Code's acceptance is enough (the
+operator: "forget codex now we both r available so that's enough"). This module is the part that needs no process or network of
 its own:
 
 * :func:`findings` -- the day's work: one file and one ESLint rule each, from
@@ -21,8 +22,8 @@ its own:
 * :class:`DailyLedger` -- every proposal, refusal, review and delivery, durable,
   so the daily report and D14's numbers are read from records, not memory.
 
-A model may propose here; nothing it proposes is applied until both reviewers
-accept it, CI passes and the operator merges. That amends the maintenance
+A model may propose here; nothing it proposes is applied until its reviewer
+accepts it, CI passes and the operator merges. That amends the maintenance
 principle "a repair never lets a model write code" for this path only, by the
 operator's decision of 2026-10-30.
 """
@@ -575,7 +576,7 @@ _EXPORTS = re.compile(r"^\s*export\s", re.M)
 #: A new test longer than this is not a first test; it is a project.
 MAX_TEST_LINES = 200
 #: What a test GAGOS writes may not reach. It runs only at delivery, after
-#: both reviewers accept, but then it runs on the operator's machine.
+#: review, but then it runs on the operator's machine.
 _TEST_FORBIDDEN = re.compile(
     r"\brequire\s*\(|\bimport\s*\(|\bprocess\s*\.|\beval\s*\(|\bFunction\s*\("
     r"|\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|\bchild_process\b"
@@ -697,7 +698,7 @@ def first_test_verdict(
     finding: Finding, new_text: str, after: StaticResult
 ) -> StaticVerdict:
     """The unattended checks on a new test. Nothing the model wrote is
-    executed: it runs only at delivery, after both reviewers accept."""
+    executed: it runs only at delivery, after review."""
     lines = len(new_text.splitlines())
     if not new_text.strip():
         return StaticVerdict(False, "the test is empty", 0)
@@ -769,8 +770,9 @@ def review_prompt(
     return "\n".join(
         [
             "You are reviewing a change GAGOS (an AI system) proposed to its own "
-            "frontend. You are one of two independent reviewers; the change "
-            "ships only if both accept. Be strict and honest.",
+            "frontend. You are its reviewer: if you accept, it goes to the "
+            "operator to merge; if you reject, it does not ship. Be strict and "
+            "honest.",
             "",
             "ACCEPT only if ALL hold:",
             "- it fixes the listed ESLint warnings and nothing else;",
@@ -820,9 +822,9 @@ def first_test_review_prompt(
     return "\n".join(
         [
             "You are reviewing a NEW test file GAGOS (an AI system) wrote for a "
-            "module of its own frontend that had no test. You are one of two "
-            "independent reviewers; it ships only if both accept. Be strict and "
-            "honest.",
+            "module of its own frontend that had no test. You are its reviewer: "
+            "if you accept, it goes to the operator to merge; if you reject, it "
+            "does not ship. Be strict and honest.",
             "",
             "ACCEPT only if ALL hold:",
             "- it imports the module below and tests what its exports do; every "
@@ -840,8 +842,8 @@ def first_test_review_prompt(
             "Automated checks already passed: it parses, has no ESLint error or "
             "warning, imports its module, has an expectation, uses no Node "
             "built-in, network, eval, dynamic import or process, and silences "
-            "nothing. It has NOT been run: it runs only after both of you accept, "
-            "and must pass then.",
+            "nothing. It has NOT been run: it runs only after you accept, and "
+            "must pass then.",
             *known,
             "",
             f"The module {module}:",
@@ -871,7 +873,12 @@ def parse_review(raw: object) -> tuple[str, str]:
 
 # --------------------------------------------------------------------- the ledger
 
+#: Who may review. A reject from any of them rejects the proposal.
 REVIEWERS: tuple[str, ...] = ("codex", "claude")
+#: Whose acceptance a change needs. Both, until the operator's word of
+#: 2026-11-02 ("forget codex now we both r available so that's enough"):
+#: Claude Code reviews and the operator merges; Codex is no longer asked.
+REQUIRED_REVIEWERS: tuple[str, ...] = ("claude",)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS proposals (
@@ -1077,7 +1084,7 @@ class DailyLedger:
             }
             if "reject" in verdicts.values():
                 status = "rejected"
-            elif all(verdicts.get(r) == "accept" for r in REVIEWERS):
+            elif all(verdicts.get(r) == "accept" for r in REQUIRED_REVIEWERS):
                 status = "accepted"
             else:
                 status = "proposed"
@@ -1436,6 +1443,7 @@ __all__ = [
     "MaskingFailed",
     "PROPOSER_SYSTEM",
     "ProposalRefused",
+    "REQUIRED_REVIEWERS",
     "REVIEWERS",
     "REVIEW_SCHEMA",
     "StaticVerdict",

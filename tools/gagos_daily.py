@@ -14,7 +14,8 @@ day can stop anywhere and resume, and every outcome is in the ledger
   review    --reviewer codex|claude: each open proposal is reviewed by a fresh,
             read-only, tool-less session that sees the rule, the warnings, the
             whole original file and the diff, and returns a schema-checked
-            verdict. A proposal is accepted only when BOTH reviewers accept.
+            verdict. A proposal is accepted when Claude Code accepts (Codex no
+            longer, operator 2026-11-02); a reject from either rejects it.
   deliver   apply the accepted proposals to a daily branch in --worktree (reset
             to origin/master), each checked there (parse, no ESLint error, the
             tests that import it) and committed on its own; --open-pr pushes
@@ -56,6 +57,7 @@ from aios.maintenance.daily_work import (  # noqa: E402
     NO_MODEL,
     PROPOSER_SYSTEM,
     REVIEW_SCHEMA,
+    REQUIRED_REVIEWERS,
     REVIEWERS,
     TESTER_SYSTEM,
     DailyLedger,
@@ -314,7 +316,7 @@ def governed_completer(model: str, region: str):
             target="cloud",
             desired_outcome=(
                 "one proposed fix of ESLint warnings in one frontend file, for "
-                "independent review by two reviewers"
+                "review before the operator merges"
             ),
             emergency_stop=emergency_stop,
         )
@@ -900,8 +902,8 @@ def credit_email(model_id: str) -> str:
 PR_FOOTER_NO_APP = (
     "Opened by GAGOS's delivery step. GAGOS has no GitHub identity of its own "
     "yet, so GitHub shows the operator's account as the opener; every commit "
-    "here is authored by GAGOS. Reviewers: Claude Code (chief) and Codex, "
-    "independently; a change ships only if both accept. The operator merges."
+    "here is authored by GAGOS. Every change here was accepted by its "
+    "reviewer, Claude Code. The operator merges."
 )
 #: Accurate about merging (Codex's post-merge review of #566): GitHub would let
 #: the App's token merge a PR whose checks pass; that GAGOS never merges is a
@@ -910,8 +912,8 @@ PR_FOOTER_APP = (
     "Opened by GAGOS itself, through its own GitHub App. GAGOS pushes its "
     "branch and opens the PR; it has no code that merges, and only the "
     "operator merges (GitHub itself would allow the App to merge once the "
-    "checks pass: that is a rule GAGOS keeps, not a lock). Reviewers: Claude "
-    "Code (chief) and Codex, independently; a change ships only if both accept."
+    "checks pass: that is a rule GAGOS keeps, not a lock). Every change here "
+    "was accepted by its reviewer, Claude Code."
 )
 #: Kept for callers of the first version.
 PR_FOOTER = PR_FOOTER_NO_APP
@@ -950,6 +952,7 @@ def commit_message(p: dict, reviews: dict) -> str:
                 f"{REVIEWER_LABELS[r]}, {model_name(reviews[r]['model'])}, accepted: "
                 f"{reviews[r]['reason']}"
                 for r in REVIEW_ORDER
+                if r in reviews
             ),
             "",
             "Proposed-by: GAGOS",
@@ -957,6 +960,7 @@ def commit_message(p: dict, reviews: dict) -> str:
             *(
                 f"Reviewed-by: {REVIEWER_LABELS[r]}, {model_name(reviews[r]['model'])}"
                 for r in REVIEW_ORDER
+                if r in reviews
             ),
         ]
     )
@@ -1107,7 +1111,7 @@ def publish(
     refspec = f"{head}:refs/heads/{branch}"
     title = (
         f"GAGOS: daily improvements {_today()} ({len(ids)} change(s), "
-        "each accepted by both of its reviewers)"
+        "each accepted by its reviewer)"
     )
     footer = pr_footer or (PR_FOOTER_APP if app else PR_FOOTER_NO_APP)
     body = report(led, day=_today(), in_pr=ids, footer=footer, scrub=egress_redact)
@@ -1220,7 +1224,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     led = ledger()
     accepted = led.proposals(status="accepted")
     if not accepted:
-        print("nothing accepted by both reviewers awaits delivery")
+        print("nothing accepted by its reviewer awaits delivery")
         return 0
     if _git(root, "status", "--porcelain"):
         print(f"refused: {root} has uncommitted changes")
@@ -1347,6 +1351,8 @@ def report(
     chosen = [p for p in every if day is None or p["day"] == day]
     by = Counter(p["status"] for p in every)
     reviewed = [led.reviews(p["proposal_id"]) for p in every]
+    done = [r for r in reviewed if all(x in r for x in REQUIRED_REVIEWERS)]
+    # Codex reviewed too until 2026-11-02; how often the two disagreed stays.
     both = [r for r in reviewed if all(x in r for x in REVIEWERS)]
     disagree = [r for r in both if r["codex"]["verdict"] != r["claude"]["verdict"]]
     blocked = [d for d in led.days() if d["status"] == "blocked"]
@@ -1369,9 +1375,10 @@ def report(
         "**D14 so far** (every proposal in the ledger; descriptive, not a test):",
         f"- proposals: {len(every)}; refused by the unattended checks or the model: "
         f"{by['refused']}; awaiting review: {by['proposed']}",
-        f"- reviewed by both: {len(both)}; accepted by both: "
-        f"{sum(1 for r in both if all(r[x]['verdict'] == 'accept' for x in REVIEWERS))}; "
-        f"reviewers disagreed: {len(disagree)}",
+        f"- reviewed: {len(done)}; accepted: "
+        f"{sum(1 for r in done if all(r[x]['verdict'] == 'accept' for x in REQUIRED_REVIEWERS))}; "
+        f"Codex and Claude Code disagreed (while both reviewed, until 2026-11-02): "
+        f"{len(disagree)}",
         f"- delivered: {by['delivered']}; stale: {by['stale']}; failed delivery checks: {by['failed']}",
         f"- batches blocked (days until 2026-11-02, hours since): {len(blocked)}",
         "- merged and reverted are not tracked automatically yet; read them from master.",
@@ -1406,7 +1413,7 @@ def report(
                     f"- {REVIEWER_LABELS[r]} ({model_name(rv['model'])}): "
                     f"**{rv['verdict']}**: {s(rv['reason'])}"
                 )
-            elif p["status"] in ("proposed", "rejected"):
+            elif r in REQUIRED_REVIEWERS and p["status"] in ("proposed", "rejected"):
                 out.append(f"- {REVIEWER_LABELS[r]}: not yet reviewed")
         job = led.clerk_job(p["proposal_id"])
         if job:
@@ -1628,7 +1635,7 @@ def cmd_daily(args: argparse.Namespace) -> int:
         # reason to run a second one this hour.
         led.record_day(slot, "ran", None if rc == 0 else f"propose exited {rc}")
     # Finishing earlier reviews is not a new batch.
-    for reviewer in REVIEW_ORDER:
+    for reviewer in REQUIRED_REVIEWERS:
         cmd_review(
             argparse.Namespace(
                 reviewer=reviewer, limit=REVIEW_LIMIT, model=None, timeout=900

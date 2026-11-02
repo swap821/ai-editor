@@ -269,7 +269,28 @@ def test_the_daily_report_shows_the_days_misses_too(tmp_path) -> None:
     led.record_review(missed, "claude", model="opus", verdict="accept", reason="fine")
     text = tool.report(led, in_pr=[shipped])
     assert "(in this PR)" in text and "JSX runtime unproven" in text
-    assert "reviewers disagreed: 1" in text
+    assert "disagreed (while both reviewed, until 2026-11-02): 1" in text
+
+
+def test_claude_codes_acceptance_is_enough_and_any_reject_still_rejects(
+    tmp_path,
+) -> None:
+    """The operator, 2026-11-02: "forget codex now we both r available so
+    that's enough". Claude Code reviews, the operator merges."""
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    alone = _proposal(led)
+    assert (
+        led.record_review(alone, "claude", model="opus", verdict="accept", reason="ok")
+        == "accepted"
+    )
+    vetoed = _proposal(led)
+    led.record_review(vetoed, "codex", model="gpt", verdict="reject", reason="no")
+    assert (
+        led.record_review(vetoed, "claude", model="opus", verdict="accept", reason="ok")
+        == "rejected"
+    )
+    text = tool.report(led)
+    assert "Codex: not yet reviewed" not in text, "Codex is no longer awaited"
 
 
 def test_a_refused_proposal_is_never_reviewed_and_teaches_the_rule(tmp_path) -> None:
@@ -680,7 +701,8 @@ def test_deliver_commits_each_accepted_change_with_both_reviews(
 
 def test_a_gagos_pr_says_who_opened_it() -> None:
     assert "no GitHub identity of its own" in tool.PR_FOOTER
-    assert "chief" in tool.PR_FOOTER and "both accept" in tool.PR_FOOTER
+    assert "accepted by its reviewer, Claude Code" in tool.PR_FOOTER
+    assert "The operator merges" in tool.PR_FOOTER
 
 
 def test_deliver_never_applies_to_a_file_that_changed(
