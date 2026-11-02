@@ -1,0 +1,33 @@
+{
+ "ts": "2026-10-31T17:52:10+00:00",
+ "judged": "D13 local (H1-local-D13, H1c-local-D13)",
+ "harness": "C:\\d13run",
+ "harness_sha": "e6e8d668ea1d18e0f6f4e8346d70461ad123f502",
+ "store": "C:\\d12out\\local-store-pre-activation, byte-copied (D12 local's store, unchanged): census 117/140 lessons, 0/0 skills",
+ "store_sha256": {
+  "aios_memory.db": "90c009d9e5b5d52d082d082236ca43c79226d142ea4b352531eca7d0a9896b0d",
+  "aios_operational_state.db": "f95c7d7d83705fc6a67c5296a7cef493d32badc1b24bce2935ca55935e6edf83"
+ },
+ "route": "local only: Ollama on 127.0.0.1:11434; every cloud credential removed from the child environment",
+ "model_digest": "56671c2ab9385f9cfcb404638e32cd62d88e3501d44822208363c010179a3c90",
+ "python": "C:\\Users\\kumar\\ai-editor\\.venv\\Scripts\\python.exe",
+ "pip_freeze_sha256": "b8d64be2cdf921d5d3045891c12b1a9defec1fa46755f186bcde7be9ffaab848",
+ "principal": "operator:<redacted>",
+ "operator_note": "fourth launch, at the operator's word 2026-10-30 ('plz start honestly start D13'), after D14 had said D13 would not be re-run (dated correction under D14). Started by a waiter only once >= 6 GB was available for 3 minutes and no heavy job ran. Earlier attempts kept as they are, none wrote a trail, nothing tallied: killed-by-windows-update-20261029 (8/85), stopped-by-operator-20261029 (2/85), stopped-by-operator-20261030 (5/85). GAGOS's own tasks stand aside while it runs (quiet marker). Windows Update not paused (his decision: Defender needs it).",
+ "argv": [
+  "tools/learning_payoff.py",
+  "--models",
+  "ollama.qwen3.5:9b@nothink",
+  "--target-labels",
+  "docs/learning/payoff_targets_d13.txt",
+  "--novel-only",
+  "--samples",
+  "3",
+  "--placebo",
+  "--exclude-targets",
+  "docs/learning/payoff_targets_calibration.txt",
+  "--ref",
+  "501c25369c32"
+ ],
+ "pid": 36596
+}
