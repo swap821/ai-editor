@@ -399,3 +399,12 @@ def test_the_real_runner_keeps_the_failing_node_and_drops_warning_noise() -> Non
     detail = probe._detail(out)
     assert detail.startswith("FAILED tests/t.py::x - AssertionError")
     assert "noise" not in detail
+
+
+def test_a_long_assertion_never_pushes_the_failing_node_out() -> None:
+    """Codex's review of #575: a 1,200-character assertion, cut from the end,
+    kept neither "FAILED" nor the node."""
+    out = "FAILED tests/t.py::x - AssertionError: " + "y" * 1200 + "\n1 failed"
+    detail = probe._detail(out)
+    assert detail.startswith("FAILED tests/t.py::x")
+    assert len(detail) <= probe._NODES_SHOWN * (probe._NODE_CHARS + 2) + 4 + 600

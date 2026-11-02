@@ -420,8 +420,12 @@ class _Exit(int):
     detail: str = ""
 
 
-#: How much of a failed run's output a report keeps.
-_DETAIL_CHARS = 800
+#: How much of a failed run's output a report keeps: the failing nodes first,
+#: each bounded, then the tail of the output, bounded on its own -- so a long
+#: assertion can never push the node out (Codex's review of #575).
+_NODES_SHOWN = 3
+_NODE_CHARS = 200
+_TAIL_CHARS = 600
 
 
 def _detail(output: str) -> str:
@@ -433,10 +437,11 @@ def _detail(output: str) -> str:
             warnings = not line.startswith("-- Docs:")
         elif line.strip():
             lines.append(line.rstrip())
-    failing = [line for line in lines if line.startswith(("FAILED ", "ERROR "))]
-    tail = " | ".join(lines[-12:])
-    text = "; ".join(failing[:5]) + (" || " if failing else "") + tail
-    return text[-_DETAIL_CHARS:]
+    failing = [
+        line[:_NODE_CHARS] for line in lines if line.startswith(("FAILED ", "ERROR "))
+    ][:_NODES_SHOWN]
+    tail = " | ".join(lines[-12:])[-_TAIL_CHARS:]
+    return "; ".join(failing) + (" || " if failing else "") + tail
 
 
 def _pytest(nodes: Sequence[str], python: str) -> int:
