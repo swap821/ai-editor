@@ -570,7 +570,7 @@ def test_propose_records_a_checked_proposal_and_never_repeats_it(
 
     monkeypatch.setattr(tool, "governed_completer", completer)
     args = SimpleNamespace(
-        project=str(root), budget=2, model="m", region="r", rules=None, dry_run=False
+        project=str(root), budget=2, model="m", region="r", rules=[RULE], dry_run=False
     )
     assert tool.cmd_propose(args) == 0
     [p] = led.proposals()

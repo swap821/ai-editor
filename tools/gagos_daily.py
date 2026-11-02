@@ -52,10 +52,12 @@ if str(REPO) not in sys.path:
 from aios import config  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
     FIRST_RULES,
+    MISSING_TEST,
     NO_MODEL,
     PROPOSER_SYSTEM,
     REVIEW_SCHEMA,
     REVIEWERS,
+    TESTER_SYSTEM,
     DailyLedger,
     Direction,
     load_direction,
@@ -65,14 +67,19 @@ from aios.maintenance.daily_work import (  # noqa: E402
     ProposalRefused,
     digest,
     findings,
+    first_test_prompt,
+    first_test_review_prompt,
+    first_test_verdict,
     mask_like,
     mask_lines,
+    missing_tests,
     parse_proposal,
     parse_review,
     project_facts,
     proposal_prompt,
     review_prompt,
     static_verdict,
+    subject_of,
     unified_diff,
     unmask,
 )
@@ -103,6 +110,13 @@ WORKFORCE = (
     "mistral.mistral-large-3-675b-instruct",
     "moonshotai.kimi-k2.5",
 )
+#: GAGOS's work when the operator names none: the lint rules whose fix keeps
+#: behaviour, then a first test for each module that has none (2026-11-02).
+WORK_RULES = (*FIRST_RULES, MISSING_TEST)
+#: An existing test shown to the test writer for this codebase's conventions,
+#: when one this short sits beside the module and needs no masking.
+MAX_EXAMPLE_CHARS = 6_000
+
 #: Model calls in flight at once: Codex's starting point (2026-11-02), to be
 #: raised from measured capacity, not a quota. The ESLint checks run one at a
 #: time, so a batch never holds more than one lint's memory.
@@ -325,7 +339,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     if _git(root, "status", "--porcelain", "--", "frontend/src"):
         print(f"refused: frontend/src has uncommitted changes in {root}")
         return 2
-    rules = tuple(args.rules or direction.rules or FIRST_RULES)
+    rules = tuple(args.rules or direction.rules or WORK_RULES)
     texts = {
         rel: (root / rel).read_bytes().decode("utf-8")
         for rel in editable_frontend_files(root)
@@ -337,12 +351,20 @@ def cmd_propose(args: argparse.Namespace) -> int:
         return 2
     every = Counter(m.rule for r in results.values() for m in r.warnings())
     busy = set(getattr(args, "skip", None) or ())
+
+    def base_of(f: Finding) -> str:
+        # A first test's base is its module: a changed module is new work.
+        return texts[subject_of(f.rel)] if f.rule == MISSING_TEST else texts[f.rel]
+
+    candidates = findings(results, rules=[r for r in rules if r != MISSING_TEST])
+    if MISSING_TEST in rules:
+        candidates += missing_tests(texts, lambda rel: (root / rel).exists())
     work = direction.steer(
         [
             f
-            for f in findings(results, rules=rules)
+            for f in candidates
             if f.rel not in busy
-            and not led.attempted(f.rel, f.rule, digest(texts[f.rel]))
+            and not led.attempted(f.rel, f.rule, digest(base_of(f)))
         ]
     )
     if busy:
@@ -375,7 +397,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     for f in work:
         if len(jobs) >= args.budget:
             break
-        text = texts[f.rel]
+        text = base_of(f)
         common = dict(base_text=text, base_commit=head, facts=facts)
         if len(text) > MAX_FILE_CHARS:
             led.record_proposal(
@@ -402,14 +424,23 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  skipped {f.rel}: {exc}")
             continue
-        prompt = proposal_prompt(
-            f,
-            masked,
-            prior_refusals=[egress_redact(r) for r in led.refusal_reasons(f.rule)],
-            masked=bool(mapping),
-            facts=facts,
-        )
-        altered = would_be_altered(prompt, PROPOSER_SYSTEM)
+        refusals = [egress_redact(r) for r in led.refusal_reasons(f.rule)]
+        if f.rule == MISSING_TEST:
+            system = TESTER_SYSTEM
+            prompt = first_test_prompt(
+                f,
+                masked,
+                example=_example_test(texts, f.rel),
+                prior_refusals=refusals,
+                masked=bool(mapping),
+                facts=facts,
+            )
+        else:
+            system = PROPOSER_SYSTEM
+            prompt = proposal_prompt(
+                f, masked, prior_refusals=refusals, masked=bool(mapping), facts=facts
+            )
+        altered = would_be_altered(prompt, system)
         if altered:
             led.record_proposal(
                 f,
@@ -421,7 +452,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  skipped {f.rel}: {altered}")
             continue
-        jobs.append((f, text, masked, mapping, prompt, common))
+        jobs.append((f, text, masked, mapping, prompt, system, common))
     roster = (args.model,) if args.model else WORKFORCE
     # Writers are compared within one rule, never across rules of different
     # difficulty (Codex's review of #580).
@@ -436,9 +467,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
     month, slot, lint = _month(), _slot(), threading.Lock()
 
     def attempt(n: int, job: tuple, model: str) -> None:
-        f, text, masked, mapping, prompt, common = job
+        f, text, masked, mapping, prompt, system, common = job
         common = dict(common, model=model)
-        chars_in = len(prompt) + len(PROPOSER_SYSTEM)
+        chars_in = len(prompt) + len(system)
         hold = led.reserve_spend(
             month=month,
             model=model,
@@ -455,9 +486,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             return
         started = time.monotonic()
         try:
-            raw = completers[model](
-                prompt, PROPOSER_SYSTEM, f"gagos:{slot}:spend-{hold}"
-            )
+            raw = completers[model](prompt, system, f"gagos:{slot}:spend-{hold}")
         except (
             Exception
         ) as exc:  # the model or the gateway refused; recorded, never hidden
@@ -480,8 +509,15 @@ def cmd_propose(args: argparse.Namespace) -> int:
             chars_out=len(raw),
         )
         try:
+            # A new test takes its module's line endings, and ends with one.
+            shape = (
+                text if f.rule != MISSING_TEST else ("\r\n" if "\r\n" in text else "\n")
+            )
             new_text = unmask(
-                parse_proposal(raw, original=text), mapping, masked=masked
+                parse_proposal(raw, original=shape),
+                mapping,
+                masked=masked,
+                repeat=f.rule == MISSING_TEST,
             )
         except ProposalRefused as exc:
             pid = led.record_proposal(
@@ -493,7 +529,10 @@ def cmd_propose(args: argparse.Namespace) -> int:
             # Both texts once more, each also with inline configuration off,
             # so what disable comments hide can be compared (static_verdict).
             with lint:
-                before = check_texts(root, {f.rel: text}, inline_off=True)[f.rel]
+                if f.rule == MISSING_TEST:
+                    before = None
+                else:
+                    before = check_texts(root, {f.rel: text}, inline_off=True)[f.rel]
                 after = check_texts(root, {f.rel: new_text}, inline_off=True)[f.rel]
         except StaticCheckUnavailable as exc:
             pid = led.record_proposal(
@@ -505,7 +544,11 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  {pid} {f.rel} ({model}): {exc}")
             return
-        verdict = static_verdict(f, text, new_text, before, after)
+        verdict = (
+            first_test_verdict(f, new_text, after)
+            if before is None
+            else static_verdict(f, text, new_text, before, after)
+        )
         pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
         state = (
             "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
@@ -527,6 +570,28 @@ def cmd_propose(args: argparse.Namespace) -> int:
         ]:
             done.result()
     return 0
+
+
+def _example_test(texts: dict[str, str], test_rel: str) -> str | None:
+    """The shortest existing test beside *test_rel*, for the writer to follow
+    this codebase's conventions; only one with nothing to mask, so no other
+    file's placeholders reach the answer."""
+    folder = str(Path(test_rel).parent.as_posix())
+    near = sorted(
+        (len(text), rel)
+        for rel, text in texts.items()
+        if Path(rel).parent.as_posix() == folder
+        and (".test." in Path(rel).name or ".spec." in Path(rel).name)
+        and len(text) <= MAX_EXAMPLE_CHARS
+    )
+    for _size, rel in near:
+        try:
+            masked, mapping = mask_lines(texts[rel], egress_redact)
+        except MaskingFailed:
+            continue
+        if not mapping:
+            return masked
+    return None
 
 
 # --------------------------------------------------------------------- review
@@ -735,11 +800,14 @@ def review_evidence(p: dict, finding: Finding) -> str:
     what may not leave the machine."""
     masked_base, mapping = mask_lines(p["base_text"], egress_redact)
     masked_new = mask_like(p["new_text"], mapping)
-    # The file's name, never its path: paths do not leave the machine.
-    diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
-    prompt = review_prompt(
-        finding, masked_base, diff, facts=json.loads(p.get("facts") or "[]")
-    )
+    facts = json.loads(p.get("facts") or "[]")
+    if finding.rule == MISSING_TEST:
+        # The module and the whole new test, under the module's mask.
+        prompt = first_test_review_prompt(finding, masked_base, masked_new, facts=facts)
+    else:
+        # The file's name, never its path: paths do not leave the machine.
+        diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
+        prompt = review_prompt(finding, masked_base, diff, facts=facts)
     if mapping:
         prompt += (
             "\n\nSome spans are shown as placeholders (GAGOSMASK...): they hide "
@@ -811,6 +879,8 @@ MODEL_NAMES = {
     "mistral.mistral-large-3-675b-instruct": "Mistral Large 3 (Mistral AI, on Amazon Bedrock)",
     "mistral.devstral-2-123b": "Devstral 2 (Mistral AI, on Amazon Bedrock)",
     "deepseek.v3.2": "DeepSeek V3.2 (DeepSeek, on Amazon Bedrock)",
+    "qwen.qwen3-coder-next": "Qwen3 Coder Next (Qwen, on Amazon Bedrock)",
+    "moonshotai.kimi-k2.5": "Kimi K2.5 (Moonshot AI, on Amazon Bedrock)",
     "us.anthropic.claude-sonnet-4-6": "Claude Sonnet 4.6 (Anthropic, on Amazon Bedrock)",
     "gpt-6.1-sol": "GPT-6.1 sol (OpenAI, via Codex)",
     "claude-opus-5-5": "Claude Opus 5.5 (Anthropic, via Claude Code)",
@@ -851,8 +921,18 @@ def commit_message(p: dict, reviews: dict) -> str:
     """GAGOS's commit for one delivered change: what it did, how it was
     checked, who reviewed it, and the frontier model credited as co-author."""
     warnings = json.loads(p["warnings"])
-    return "\n".join(
-        [
+    if p["rule"] == MISSING_TEST:
+        head = [
+            f"GAGOS: a first test for {subject_of(p['rel'])}",
+            "",
+            f"GAGOS found that this module had no test and wrote one (proposal "
+            f"{p['proposal_id']}); {model_name(p['model'])} wrote it. Unattended "
+            "checks passed: it parses, has no ESLint message, imports its module "
+            "and reaches nothing outside itself. Checked on master: it parses, has "
+            "no ESLint error, and it passes.",
+        ]
+    else:
+        head = [
             f"GAGOS: fix {p['rule']} in {p['rel']}",
             "",
             f"GAGOS found {len(warnings)} {p['rule']} warning(s) in this file and "
@@ -860,6 +940,11 @@ def commit_message(p: dict, reviews: dict) -> str:
             f"{model_name(p['model'])} wrote it. Unattended checks passed: it "
             "parses, the warnings are gone, nothing new. Checked again on master: "
             "it parses, has no ESLint error, and the tests that import it pass.",
+        ]
+    return "\n".join(
+        [
+            *head,
+            "",
             "",
             *(
                 f"{REVIEWER_LABELS[r]}, {model_name(reviews[r]['model'])}, accepted: "
@@ -1153,7 +1238,15 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     for p in accepted:
         pid, path = p["proposal_id"], root / p["rel"]
         current = path.read_bytes().decode("utf-8") if path.is_file() else None
-        if current is None or digest(current) != p["base_digest"]:
+        if p["rule"] == MISSING_TEST:
+            # A first test: still no file of its name, and its module as it was.
+            module = root / subject_of(p["rel"])
+            base = module.read_bytes().decode("utf-8") if module.is_file() else None
+            fresh = current is None and base is not None
+            fresh = fresh and digest(base) == p["base_digest"]
+        else:
+            fresh = current is not None and digest(current) == p["base_digest"]
+        if not fresh:
             led.record_delivery(pid, branch=branch, outcome="stale")
             print(
                 f"  {pid} {p['rel']}: STALE, the file changed on master since the proposal"
@@ -1165,7 +1258,10 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             root, [path], deadline=time.monotonic() + args.check_timeout, steps=steps
         )
         if failure is not None:
-            path.write_bytes(current.encode("utf-8"))
+            if current is None:
+                path.unlink()
+            else:
+                path.write_bytes(current.encode("utf-8"))
             led.record_delivery(pid, branch=branch, outcome=f"failed checks: {failure}")
             print(f"  {pid} {p['rel']}: FAILED delivery checks: {failure}")
             continue

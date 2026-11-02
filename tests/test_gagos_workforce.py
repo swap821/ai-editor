@@ -133,7 +133,12 @@ def _batch(tmp_path, monkeypatch, *, ceiling=100.0):
 
     monkeypatch.setattr(tool, "governed_completer", completer)
     args = SimpleNamespace(
-        project=str(root), budget=10, model=None, region="r", rules=None, dry_run=False
+        project=str(root),
+        budget=10,
+        model=None,
+        region="r",
+        rules=[RULE],
+        dry_run=False,
     )
     return led, asked, args, ids
 

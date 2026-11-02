@@ -40,7 +40,7 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 import dataclasses
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from aios.maintenance.frontend_static import Comment, StaticResult
 
@@ -203,18 +203,25 @@ def mask_lines(
     return current, mapping
 
 
-def unmask(text: str, mapping: Mapping[str, str], *, masked: str) -> str:
+def unmask(
+    text: str, mapping: Mapping[str, str], *, masked: str, repeat: bool = False
+) -> str:
     """Restore the placeholders in the model's answer. The answer may drop a
     placeholder (its line was removed) but never invent or duplicate one.
     Only this mask's placeholders count: text that merely looks like one, in
-    the file itself, is left alone."""
+    the file itself, is left alone.
+
+    With *repeat*, a known placeholder may appear more often than in *masked*:
+    a module's first test reuses its values, each already in the repository,
+    and shown to the reviewers under the same mask again. Invented ones are
+    refused all the same."""
     if not mapping:
         return text
     prefix = next(iter(mapping))[:-4]
     for token in set(re.findall(re.escape(prefix) + r"\d{4}", text)):
         if token not in mapping:
             raise ProposalRefused(f"the answer invents the placeholder {token}")
-        if text.count(token) > masked.count(token):
+        if not repeat and text.count(token) > masked.count(token):
             raise ProposalRefused(f"the answer duplicates the placeholder {token}")
     for token in reversed(list(mapping)):  # later ones may wrap earlier ones
         text = text.replace(token, mapping[token])
@@ -556,6 +563,181 @@ def static_verdict(
     return StaticVerdict(True, "parses; the warnings are gone; nothing new", changed)
 
 
+# --------------------------------------------------------------------- tests
+
+#: GAGOS's second kind of work (2026-11-02): a first test for a module of its
+#: frontend that has none. The finding's file is the new test; its subject is
+#: the module beside it with the same name. Nothing in the module changes.
+MISSING_TEST = "gagos/missing-test"
+_TESTABLE = (".jsx", ".tsx", ".js", ".ts")
+_IS_TEST = re.compile(r"\.(test|spec)\.[jt]sx?$")
+_EXPORTS = re.compile(r"^\s*export\s", re.M)
+#: A new test longer than this is not a first test; it is a project.
+MAX_TEST_LINES = 200
+#: What a test GAGOS writes may not reach. It runs only at delivery, after
+#: both reviewers accept, but then it runs on the operator's machine.
+_TEST_FORBIDDEN = re.compile(
+    r"\brequire\s*\(|\bimport\s*\(|\bprocess\s*\.|\beval\s*\(|\bFunction\s*\("
+    r"|\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|\bchild_process\b"
+    r"|from\s+['\"](?:node:[^'\"]*|fs|fs/promises|net|http|https|os|vm|dgram"
+    r"|tls|cluster|worker_threads|child_process)['\"]"
+)
+_SILENCER = re.compile(r"eslint-disable|@ts-ignore|@ts-nocheck|@ts-expect-error", re.I)
+
+TESTER_SYSTEM = (
+    "You are GAGOS's frontend test writer. You write ONE new Vitest test file "
+    "for the module you are given, of a React + TypeScript codebase. Import the "
+    "module from './<its name>' and test only what its exports do, with "
+    "@testing-library/react for components. Assert real behaviour, never "
+    "something that would pass whatever the module did. Mock anything the "
+    "module would fetch or reach outside the test; never mock the module "
+    "itself. No network, no filesystem, no process, no Node built-ins, no "
+    "eval, no dynamic import, no real timers or randomness you do not control. "
+    "Never add eslint-disable or ts-ignore comments. Every import and variable "
+    "must be used. Keep it to a few focused tests, under "
+    f"{MAX_TEST_LINES} lines. A placeholder (GAGOSMASK...) stands for a hidden "
+    "span of the module: use it only where that span could appear, never as a "
+    "name of your own. Reply with the complete test file in ONE fenced code "
+    "block and nothing else."
+)
+
+
+def first_test_path(rel: str) -> str | None:
+    """Where a first test for the module *rel* goes, or None when *rel* is not
+    a module GAGOS writes tests for."""
+    path = PurePosixPath(rel)
+    if (
+        path.suffix not in _TESTABLE
+        or _IS_TEST.search(path.name)
+        or path.name.endswith(".d.ts")
+        or path.stem in ("index", "main", "setupTests")
+        or ".stories" in path.name
+    ):
+        return None
+    return str(path.with_name(f"{path.stem}.test{path.suffix}"))
+
+
+def subject_of(test_rel: str) -> str:
+    """The module a first test written by GAGOS is for."""
+    path = PurePosixPath(test_rel)
+    return str(path.with_name(path.name.replace(".test.", ".", 1)))
+
+
+def missing_tests(
+    texts: Mapping[str, str], exists: Callable[[str], bool]
+) -> list[Finding]:
+    """A finding for every module with exports and no test file of its name
+    beside it (``X.test.*`` or ``X.spec.*``, in any of the four extensions)."""
+    out = []
+    for rel in sorted(texts):
+        test = first_test_path(rel)
+        if test is None or not _EXPORTS.search(texts[rel]):
+            continue
+        path = PurePosixPath(rel)
+        siblings = [
+            str(path.with_name(f"{path.stem}.{kind}{ext}"))
+            for kind in ("test", "spec")
+            for ext in _TESTABLE
+        ]
+        if any(s in texts or exists(s) for s in siblings):
+            continue
+        out.append(Finding(rel=test, rule=MISSING_TEST, warnings=()))
+    return out
+
+
+def first_test_prompt(
+    finding: Finding,
+    subject: str,
+    *,
+    example: str | None = None,
+    prior_refusals: Sequence[str] = (),
+    masked: bool = False,
+    facts: Sequence[str] = (),
+) -> str:
+    """The test writer's prompt: the module, its test's name and, when one is
+    near, another test of this codebase for its conventions. Names, never
+    paths."""
+    module = PurePosixPath(subject_of(finding.rel)).name
+    lines = [
+        f"Module: {module}",
+        f"Write its first test file: {PurePosixPath(finding.rel).name}",
+    ]
+    if facts:
+        lines += [
+            "",
+            "Facts about this project, and the operator's direction:",
+            *(f"  - {fact}" for fact in facts),
+        ]
+    if masked:
+        lines += [
+            "",
+            "Some spans are replaced by placeholders (GAGOSMASK followed by "
+            "letters, digits and an underscore): they hide paths or values that "
+            "may not leave this machine. Never invent one.",
+        ]
+    if prior_refusals:
+        lines += [
+            "",
+            "Earlier tests were refused for these reasons. Do not repeat them:",
+            *(f"  - {reason}" for reason in prior_refusals),
+        ]
+    if example:
+        lines += [
+            "",
+            "Another test in this codebase, for its conventions:",
+            "```",
+            example,
+            "```",
+        ]
+    lines += ["", f"The module {module}:", "```", subject, "```"]
+    return "\n".join(lines)
+
+
+def first_test_verdict(
+    finding: Finding, new_text: str, after: StaticResult
+) -> StaticVerdict:
+    """The unattended checks on a new test. Nothing the model wrote is
+    executed: it runs only at delivery, after both reviewers accept."""
+    lines = len(new_text.splitlines())
+    if not new_text.strip():
+        return StaticVerdict(False, "the test is empty", 0)
+    if after.parse_errors:
+        return StaticVerdict(
+            False, f"the test does not parse: {after.parse_errors[0]}", lines
+        )
+    if after.errors:
+        first = after.errors[0]
+        return StaticVerdict(
+            False, f"the test has an ESLint error: {first.rule}: {first.message}", lines
+        )
+    if after.warnings():
+        first = after.warnings()[0]
+        return StaticVerdict(
+            False,
+            f"a new test must have no ESLint warning: {first.rule}: {first.message}",
+            lines,
+        )
+    if _SILENCER.search(new_text):
+        return StaticVerdict(False, "the test silences a check", lines)
+    reach = _TEST_FORBIDDEN.search(new_text)
+    if reach:
+        return StaticVerdict(
+            False, f"the test reaches outside itself: {reach.group(0)!r}", lines
+        )
+    stem = re.escape(PurePosixPath(subject_of(finding.rel)).stem)
+    if not re.search(rf"""from\s+['"]\./{stem}(?:\.[jt]sx?)?['"]""", new_text):
+        return StaticVerdict(False, "the test does not import its module", lines)
+    if not (re.search(r"\b(?:it|test)\s*\(", new_text) and "expect(" in new_text):
+        return StaticVerdict(False, "the test has no test with an expectation", lines)
+    if lines > MAX_TEST_LINES:
+        return StaticVerdict(
+            False, f"the test is {lines} lines; the bound is {MAX_TEST_LINES}", lines
+        )
+    return StaticVerdict(
+        True, "parses; no ESLint message; imports its module; reaches nothing", lines
+    )
+
+
 # --------------------------------------------------------------------- reviewing
 
 REVIEW_SCHEMA = {
@@ -615,6 +797,61 @@ def review_prompt(
             "The proposed change:",
             "```diff",
             diff,
+            "```",
+        ]
+    )
+
+
+def first_test_review_prompt(
+    finding: Finding, subject: str, test: str, *, facts: Sequence[str] = ()
+) -> str:
+    """What each reviewer reads for a new test: the module and the test, the
+    same text for both."""
+    known = (
+        [
+            "",
+            "Facts about this project (from its configuration) and the operator's direction:",
+        ]
+        + [f"  - {fact}" for fact in facts]
+        if facts
+        else []
+    )
+    module = PurePosixPath(subject_of(finding.rel)).name
+    return "\n".join(
+        [
+            "You are reviewing a NEW test file GAGOS (an AI system) wrote for a "
+            "module of its own frontend that had no test. You are one of two "
+            "independent reviewers; it ships only if both accept. Be strict and "
+            "honest.",
+            "",
+            "ACCEPT only if ALL hold:",
+            "- it imports the module below and tests what its exports do; every "
+            "assertion checks real behaviour, and none would pass whatever the "
+            "module did;",
+            "- judged assertion by assertion against the module exactly as shown, "
+            "it would pass;",
+            "- it is deterministic: no real timers, randomness, dates or ordering "
+            "it does not control;",
+            "- it reaches no network, filesystem, process or global state it does "
+            "not set up and restore; whatever the module would fetch is mocked, "
+            "and the module itself is not mocked;",
+            "- it adds a test and changes nothing else.",
+            "Otherwise REJECT, and say exactly why in one or two sentences.",
+            "Automated checks already passed: it parses, has no ESLint error or "
+            "warning, imports its module, has an expectation, uses no Node "
+            "built-in, network, eval, dynamic import or process, and silences "
+            "nothing. It has NOT been run: it runs only after both of you accept, "
+            "and must pass then.",
+            *known,
+            "",
+            f"The module {module}:",
+            "```",
+            subject,
+            "```",
+            "",
+            f"The new test {PurePosixPath(finding.rel).name}:",
+            "```",
+            test,
             "```",
         ]
     )
@@ -772,8 +1009,14 @@ class DailyLedger:
         proposal_id = f"gd-{uuid.uuid4().hex[:10]}"
         passed = verdict is not None and verdict.passed and refusal is None
         reason = refusal or (None if passed else (verdict.reason if verdict else None))
+        # A new test's base is its module, kept for the reviewers; its diff is
+        # the whole new file.
         diff = (
-            unified_diff(finding.rel, base_text, new_text)
+            unified_diff(
+                finding.rel,
+                "" if finding.rule == MISSING_TEST else base_text,
+                new_text,
+            )
             if new_text is not None
             else None
         )
@@ -1187,6 +1430,8 @@ __all__ = [
     "Direction",
     "Finding",
     "MASK_TOKEN",
+    "MAX_TEST_LINES",
+    "MISSING_TEST",
     "NO_MODEL",
     "MaskingFailed",
     "PROPOSER_SYSTEM",
@@ -1194,11 +1439,13 @@ __all__ = [
     "REVIEWERS",
     "REVIEW_SCHEMA",
     "StaticVerdict",
+    "TESTER_SYSTEM",
     "digest",
     "findings",
     "load_direction",
     "mask_like",
     "mask_lines",
+    "missing_tests",
     "parse_proposal",
     "parse_review",
     "project_facts",
@@ -1206,6 +1453,11 @@ __all__ = [
     "review_prompt",
     "set_direction",
     "static_verdict",
+    "subject_of",
+    "first_test_path",
+    "first_test_prompt",
+    "first_test_review_prompt",
+    "first_test_verdict",
     "unified_diff",
     "unmask",
 ]
