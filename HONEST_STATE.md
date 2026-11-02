@@ -18,7 +18,11 @@ the commit they were measured on). The whole story, from the first commit, is
   - We had applied it to GAGOS's work: one batch of 2 proposals a day, and the whole day blocked while GAGOS's PR was open. In its life so far GAGOS has made 4 proposals and delivered 1 merged two-line change (#565), on 2 days of work.
   - **#580** (open, for both reviews) runs a batch of up to 10 every hour. An open PR holds back only delivery, and files GAGOS's unmerged work touches are left alone.
   - The `\GAGOS\daily` task may now wake the laptop (WakeToRun). This has no effect until wake timers are allowed in the power plan, which is off on AC and battery; that system setting is the operator's.
-  - Not yet built: GAGOS's designed shape for this work, several AWS models in parallel on its own frontend from the operator's design docs (D14, decided 10-30). Today it uses one model, one file at a time, on three lint rules, with 16 eligible findings left.
+- **GAGOS's workforce, on #580 at the operator's word** ("$100 a month for AWS and codex s ready u start honestly"). Codex agreed the direction, with conditions; its first review of #580 found three P2s, all fixed on the PR.
+  - Five Bedrock writers (Devstral 2, Qwen3 Coder Next, DeepSeek V3.2, Mistral Large 3, Kimi K2.5), 2 calls at a time. Work follows each writer's accepted record within one rule.
+  - Every call first holds its worst case against $100 a month. The spend is an estimate pitched high, not AWS's bill, and it counts only GAGOS's work, not other Bedrock use through the gateway.
+  - A live batch on a throwaway ledger: 5 findings to 5 writers in 2.5 minutes. 3 passed GAGOS's static checks and 2 were refused by them, for about $0.07.
+  - Still limited: three lint rules. At GAGOS's 02:50 UTC scan, 16 findings under them had not been attempted; that day's 2 refusals stay attempted. 133 of 273 frontend modules have no test file of the same name. The superbrain's 212 port-managed files stay excluded until the lab/product port is decided.
 - **Still open:**
   - Master's CI on `dd7aa102`.
   - The monthly probe stays red until it runs on 1 December, or until the operator runs it by hand.
