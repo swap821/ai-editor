@@ -7,7 +7,7 @@ the commit they were measured on). The whole story, from the first commit, is
 
 ## State on 2026-11-02 (branch `docs/d13-judged`, off master `c6c54652`)
 
-- **D13 is judged: not met, and no harm** (`docs/learning/PAYOFF_D13_RESULT.md`). Its fourth launch ran to the end (2026-10-31 17:52 UTC to 11-02 02:10 UTC, run `20261031T175215-bbaba5ab`).
+- **D13 is judged: not met, and harm not detected** (`docs/learning/PAYOFF_D13_RESULT.md`). Its fourth launch ran to the end (2026-10-31 17:52 UTC to 11-02 02:10 UTC, run `20261031T175215-bbaba5ab`).
   - With only lessons about the named code, the local student earned 33 of 141 with lessons and 40 of 141 without. That is 5 targets better and 9 worse (Holm p = 0.48).
   - Against a placebo of the same size: 4 better and 6 worse (p = 0.85). Both members point the wrong way.
   - 38 of 85 targets are not comparable because of 420 s timeouts. The lesson-carrying arms timed out more (ON 39 and PLACEBO 39 of 255 samples, OFF 29); their prompts are about 1.8 times longer. Only 14 targets were discordant, against about 30 planned.
@@ -21,7 +21,7 @@ the commit they were measured on). The whole story, from the first commit, is
     - Ubuntu ran the whole suite (89% coverage) and failed only master's three evidence tests;
     - **macOS crashes**: a segmentation fault after 1,008 tests (about 11%), in both runs. It is new with #568: the macOS runs before it failed only the evidence tests;
     - Windows was still running.
-  - **The macOS crash is torch 2.15.0.**
+  - **The macOS crash tracks torch 2.15.0.** There is one clean run so far on 2.14.1, so this is strong evidence, not a proven cause.
     - It crashed in 4 of 4 macOS runs (#570 and #571), inside a BERT forward pass (transformers under `torch.nn`).
     - The same tree with only torch at 2.14.1 ran the whole macOS suite and failed only the three evidence tests (run 41379538054).
     - **#573** holds torch at 2.14.1 and makes Dependabot ignore torch from 2.15.0 on.

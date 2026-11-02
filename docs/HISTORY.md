@@ -164,7 +164,7 @@ model never reached the check" as a violation (fixed in #392).
 - **10-25 to 10-28: D12's local judged run: not met, no harm** (`docs/learning/PAYOFF_D12_RESULT.md`).
   - With lessons, the local student earned 91 of 249, against 103 without: 12 targets better, 18 worse, p = 0.21.
   - **The D12 family is not met.** Learning has now been judged by two pre-registered families, and neither found a benefit.
-- **10-31 to 11-02: D13's judged run (local only): not met, no harm** (`docs/learning/PAYOFF_D13_RESULT.md`).
+- **10-31 to 11-02: D13's judged run (local only): not met, harm not detected** (`docs/learning/PAYOFF_D13_RESULT.md`).
   - The student was shown only lessons about the code its task names. It earned 33 of 141 with them and 40 of 141 without: 5 targets better, 9 worse, Holm p = 0.48. Against a placebo: 4 better, 6 worse.
   - 38 of 85 targets were lost to 420 s timeouts on a 16 GB laptop, so the test was weaker than planned.
   - **Three pre-registered families have now judged learning, and none found a benefit.**
