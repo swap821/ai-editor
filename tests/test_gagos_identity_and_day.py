@@ -10,8 +10,11 @@ GAGOS runs the loop itself. Pinned here, without a network or a model:
 * the models are credited by name, with an address that is nobody's inbox;
 * the clerk summarises a disagreement, or its refusal is recorded;
 * the day follows the rules agreed with Codex: blocked while GAGOS's previous
-  PR is open (recorded, never caught up), one batch of at most two proposals
-  per UTC day, and finishing reviews is not a new batch.
+  PR is open (recorded, never caught up), one batch of at most two
+  proposals per UTC day, and finishing reviews is not a new batch;
+* since 2026-11-02 (the operator: "GAGOS will work 24/7 continously") a batch
+  of at most BATCH_PROPOSALS every hour, an open PR holding back only
+  delivery, and files GAGOS's unmerged work touches left alone.
 """
 
 from __future__ import annotations
@@ -26,7 +29,7 @@ from aios.maintenance import daily_work as dw
 from aios.operations import github_app as gha
 from aios.operations import keystore as ks
 from tools import gagos_daily as tool
-from tests.test_gagos_daily import _proposal
+from tests.test_gagos_daily import FINDING, _proposal
 
 
 # --------------------------------------------------------------------- the App
@@ -320,8 +323,13 @@ def day(tmp_path, monkeypatch):
     monkeypatch.setattr(tool, "ledger", lambda: led)
     monkeypatch.setattr(tool.config, "DATA_DIR", tmp_path)
     calls: list = []
+    monkeypatch.setattr(tool, "_slot", lambda: "2026-11-01T05")
     monkeypatch.setattr(
-        tool, "cmd_propose", lambda a: calls.append(("propose", a.budget)) or 0
+        tool,
+        "cmd_propose",
+        lambda a: (
+            calls.extend([("propose", a.budget), ("skip", frozenset(a.skip))]) or 0
+        ),
     )
     monkeypatch.setattr(
         tool, "cmd_review", lambda a: calls.append(("review", a.reviewer)) or 0
@@ -337,7 +345,9 @@ def day(tmp_path, monkeypatch):
     return led, calls, args
 
 
-def test_a_day_is_blocked_while_gagoss_previous_pr_is_open(day, monkeypatch) -> None:
+def test_an_open_pr_holds_back_delivery_not_work(day, monkeypatch) -> None:
+    """The operator, 2026-11-02: GAGOS works around the clock. Its open PR
+    waits for him; the hour's batch goes on and leaves that PR's files alone."""
     led, calls, args = day
     pid = _proposal(led)
     led.record_delivery(
@@ -345,33 +355,69 @@ def test_a_day_is_blocked_while_gagoss_previous_pr_is_open(day, monkeypatch) -> 
     )
     monkeypatch.setattr(tool, "_pr_state", lambda url: "OPEN")
     assert tool.cmd_daily(args) == 0
-    assert ("propose", 2) not in calls and not any(c[0] == "deliver" for c in calls)
-    [d] = led.days()
-    assert d["status"] == "blocked" and "pull/9" in d["reason"]
+    assert ("propose", tool.BATCH_PROPOSALS) in calls
+    assert ("skip", frozenset({FINDING.rel})) in calls
+    assert not any(c[0] == "deliver" for c in calls)
     assert ("review", "claude") in calls, "finishing reviews is not a new batch"
+    assert [d["status"] for d in led.days()] == ["ran"]
 
 
-def test_an_unknown_pr_state_blocks_the_day(day, monkeypatch) -> None:
+def test_an_unknown_pr_state_holds_back_delivery(day, monkeypatch) -> None:
     led, calls, args = day
     pid = _proposal(led)
     led.record_delivery(pid, branch="b", outcome="delivered", pr_url="u")
     monkeypatch.setattr(tool, "_pr_state", lambda url: "UNKNOWN")
     tool.cmd_daily(args)
-    assert led.days()[0]["status"] == "blocked"
+    assert ("propose", tool.BATCH_PROPOSALS) in calls
+    assert ("skip", frozenset({FINDING.rel})) in calls, "fail closed: it may be open"
+    assert not any(c[0] == "deliver" for c in calls)
 
 
-def test_one_batch_of_at_most_two_proposals_per_day(day, monkeypatch) -> None:
+def test_one_batch_an_hour_and_another_the_next(day, monkeypatch) -> None:
     led, calls, args = day
     monkeypatch.setattr(tool, "_pr_state", lambda url: "MERGED")
     assert tool.cmd_daily(args) == 0
-    assert ("propose", 2) in calls and ("deliver", True) in calls
+    assert ("propose", tool.BATCH_PROPOSALS) in calls and ("deliver", True) in calls
     assert calls.index(("review", "claude")) < calls.index(("review", "codex")), (
         "the chief first"
     )
     calls.clear()
-    _proposal(led)  # today's batch exists now
     tool.cmd_daily(args)
-    assert not any(c[0] == "propose" for c in calls)
+    assert not any(c[0] == "propose" for c in calls), "one batch an hour"
+    monkeypatch.setattr(tool, "_slot", lambda: "2026-11-01T06")
+    tool.cmd_daily(args)
+    assert ("propose", tool.BATCH_PROPOSALS) in calls, "the next hour, the next batch"
+
+
+def test_files_with_unmerged_gagos_work_are_left_alone(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+
+    def at(rel, **kw):
+        finding = dw.Finding(rel=rel, rule=FINDING.rule, warnings=FINDING.warnings)
+        return _proposal(led, finding, **kw)
+
+    at("frontend/src/Reviewing.jsx")
+    _both(led, at("frontend/src/Accepted.jsx"))
+    for rel, outcome, url in [
+        ("frontend/src/Committed.jsx", "committed", None),
+        ("frontend/src/InOpenPr.jsx", "delivered", "https://github.com/o/r/pull/1"),
+        ("frontend/src/Merged.jsx", "delivered", "https://github.com/o/r/pull/2"),
+    ]:
+        pid = at(rel)
+        _both(led, pid)
+        led.record_delivery(
+            pid, branch="b", outcome=outcome, commit_sha="c", pr_url=url
+        )
+    at("frontend/src/Refused.jsx", passed=False)
+    rejected = at("frontend/src/Rejected.jsx")
+    led.record_review(rejected, "codex", model="m", verdict="reject", reason="no")
+    led.record_review(rejected, "claude", model="m", verdict="reject", reason="no")
+    assert tool.in_flight(led, ["https://github.com/o/r/pull/1"]) == {
+        "frontend/src/Reviewing.jsx",
+        "frontend/src/Accepted.jsx",
+        "frontend/src/Committed.jsx",
+        "frontend/src/InOpenPr.jsx",
+    }
 
 
 def test_the_day_writes_its_report(day, monkeypatch, tmp_path) -> None:
@@ -502,7 +548,7 @@ def test_a_pr_whose_response_was_lost_is_found_not_opened_twice(
     assert led.pr_urls() == ["https://github.com/o/r/pull/7"]
 
 
-def test_unpublished_work_blocks_the_next_day(tmp_path, monkeypatch) -> None:
+def test_unpublished_work_holds_back_delivery(tmp_path, monkeypatch) -> None:
     led = dw.DailyLedger(tmp_path / "l.db")
     _committed(led)
     monkeypatch.setattr(tool, "ledger", lambda: led)
@@ -514,12 +560,54 @@ def test_unpublished_work_blocks_the_next_day(tmp_path, monkeypatch) -> None:
 
     monkeypatch.setattr(tool, "_branch_prs", cannot)
     calls: list = []
-    monkeypatch.setattr(tool, "cmd_propose", lambda a: calls.append("propose") or 0)
+    monkeypatch.setattr(tool, "_git", lambda root, *args: "")
+    monkeypatch.setattr(tool, "_slot", lambda: "2026-11-01T05")
+    monkeypatch.setattr(
+        tool, "cmd_propose", lambda a: calls.append(("propose", frozenset(a.skip))) or 0
+    )
     monkeypatch.setattr(tool, "cmd_review", lambda a: 0)
     monkeypatch.setattr(tool, "cmd_clerk", lambda a: 0)
     monkeypatch.setattr(tool, "cmd_deliver", lambda a: calls.append("deliver") or 0)
     tool.cmd_daily(SimpleNamespace(project=str(tmp_path), model="m", region="r"))
-    assert calls == [] and led.days()[0]["status"] == "blocked"
+    assert calls == [("propose", frozenset({FINDING.rel}))], (
+        "the hour's batch runs, leaving the unpublished work's file alone; "
+        "nothing is delivered"
+    )
+
+
+def test_a_failed_publication_still_guards_an_open_prs_files(
+    tmp_path, monkeypatch
+) -> None:
+    """Codex's review of #580: delivered A in an open PR, unpublished B; a
+    failed publication left A unguarded, and a new call was made on A."""
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _committed(led)
+    other = "frontend/src/workbench/Other.jsx"
+    pid = _proposal(led, dw.Finding(rel=other, rule=FINDING.rule, warnings=()))
+    _both(led, pid)
+    led.record_delivery(
+        pid, branch="b", outcome="delivered", commit_sha="c", pr_url="u/pull/3"
+    )
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(tool.config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(tool, "_github_app", lambda root: None)
+
+    def cannot(root, branch, app):
+        raise tool.PublishFailed("offline")
+
+    monkeypatch.setattr(tool, "_branch_prs", cannot)
+    monkeypatch.setattr(tool, "_pr_state", lambda url: "UNKNOWN")
+    calls: list = []
+    monkeypatch.setattr(tool, "_git", lambda root, *args: "")
+    monkeypatch.setattr(tool, "_slot", lambda: "2026-11-01T05")
+    monkeypatch.setattr(
+        tool, "cmd_propose", lambda a: calls.append(("propose", frozenset(a.skip))) or 0
+    )
+    monkeypatch.setattr(tool, "cmd_review", lambda a: 0)
+    monkeypatch.setattr(tool, "cmd_clerk", lambda a: 0)
+    monkeypatch.setattr(tool, "cmd_deliver", lambda a: calls.append("deliver") or 0)
+    tool.cmd_daily(SimpleNamespace(project=str(tmp_path), model="m", region="r"))
+    assert calls == [("propose", frozenset({FINDING.rel, other}))]
 
 
 def test_the_day_is_claimed_atomically(tmp_path) -> None:
@@ -619,6 +707,13 @@ def test_a_later_delivery_the_same_day_gets_its_own_branch(
     assert tool.delivery_branch(led) == "gagos/daily-2026-11-01-3"
 
 
+def test_one_review_pass_covers_a_whole_days_batch() -> None:
+    """The operator raised the cap on 2026-11-02. A day's proposals must not
+    outrun what one review pass takes, or a day's reviews would spill into the
+    next hours."""
+    assert 1 <= tool.BATCH_PROPOSALS <= tool.REVIEW_LIMIT
+
+
 def test_a_blocked_hour_never_clears_the_days_claim(day, monkeypatch) -> None:
     """Codex's reproduction: PR states MERGED, UNKNOWN, MERGED and a batch that
     failed without rows ran two batches on one UTC day."""
@@ -640,7 +735,7 @@ def test_a_blocked_hour_never_clears_the_days_claim(day, monkeypatch) -> None:
     )
     for _ in range(3):
         tool.cmd_daily(args)
-    assert calls.count(("propose", 2)) == 1, "one batch per UTC day"
+    assert calls.count(("propose", tool.BATCH_PROPOSALS)) == 1, "one batch per hour"
     assert [d["status"] for d in led.days()] == ["ran"]
 
 

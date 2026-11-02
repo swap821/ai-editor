@@ -692,6 +692,17 @@ CREATE TABLE IF NOT EXISTS day_claims (
     day TEXT PRIMARY KEY,
     claimed_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS spend (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    month TEXT NOT NULL,
+    model TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    usd REAL NOT NULL,
+    settled INTEGER NOT NULL DEFAULT 0,
+    chars_in INTEGER,
+    chars_out INTEGER,
+    created_at TEXT NOT NULL
+);
 """
 
 #: Proposal statuses. ``refused`` = failed the unattended checks or the model
@@ -700,6 +711,10 @@ CREATE TABLE IF NOT EXISTS day_claims (
 #: daily branch, its push or PR not yet confirmed; ``delivered`` = in a PR that
 #: exists; ``stale`` = the file changed before delivery; ``failed`` = the
 #: delivery checks (parse, ESLint, the tests that import it) failed on master.
+#: The model recorded on a proposal no model was asked for (a file too long to
+#: send, or one that cannot leave the machine).
+NO_MODEL = "none"
+
 STATUSES = (
     "refused",
     "proposed",
@@ -1077,6 +1092,94 @@ class DailyLedger:
                 )
             ]
 
+    def reserve_spend(
+        self, *, month: str, model: str, purpose: str, usd: float, ceiling: float
+    ) -> int | None:
+        """Hold *usd*, a call's worst case, against *month*'s ceiling,
+        atomically across threads and processes. Returns the hold's id, or
+        None when it would pass the ceiling; then no call may be made."""
+        db = self._db()
+        db.isolation_level = None  # this transaction is managed by hand
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            (spent,) = db.execute(
+                "SELECT COALESCE(SUM(usd), 0) FROM spend WHERE month = ?", (month,)
+            ).fetchone()
+            if spent + usd > ceiling:
+                db.execute("ROLLBACK")
+                return None
+            hold = db.execute(
+                "INSERT INTO spend (month, model, purpose, usd, settled, created_at) "
+                "VALUES (?, ?, ?, ?, 0, ?)",
+                (month, model, purpose, usd, _now()),
+            ).lastrowid
+            db.execute("COMMIT")
+            return hold
+        finally:
+            db.close()
+
+    def settle_spend(
+        self, hold: int, *, usd: float, chars_in: int, chars_out: int
+    ) -> None:
+        """Replace a hold's worst case with the call's estimated cost."""
+        with self._db() as db:
+            db.execute(
+                "UPDATE spend SET usd = ?, settled = 1, chars_in = ?, chars_out = ? "
+                "WHERE id = ?",
+                (usd, chars_in, chars_out, hold),
+            )
+
+    def month_spend(self, month: str) -> dict[str, float]:
+        """Estimated spend per model in *month*, holds included."""
+        with self._db() as db:
+            return {
+                r["model"]: r["usd"]
+                for r in db.execute(
+                    "SELECT model, SUM(usd) AS usd FROM spend WHERE month = ? "
+                    "GROUP BY model ORDER BY model",
+                    (month,),
+                )
+            }
+
+    def model_outcomes(self, *, rule: str | None = None) -> dict[str, tuple[int, int]]:
+        """Per writing model, for one *rule* or all: (proposals both reviewers
+        accepted, proposals decided). Decided: accepted, rejected by a
+        reviewer, failed the delivery checks, or refused for what the model
+        wrote. A failed call (the provider's refusal, not the model's work), or
+        a proposal no model was asked for, decides nothing."""
+        out: dict[str, list[int]] = {}
+        for p in self.proposals():
+            if p["model"] == NO_MODEL or (rule and p["rule"] != rule):
+                continue
+            status, refusal = p["status"], p["refusal"] or ""
+            if status in ("accepted", "committed", "delivered"):
+                won = 1
+            elif status in ("rejected", "failed") or (
+                status == "refused" and not refusal.startswith("model call failed")
+            ):
+                won = 0
+            else:
+                continue
+            tally = out.setdefault(p["model"], [0, 0])
+            tally[0] += won
+            tally[1] += 1
+        return {m: (w, d) for m, (w, d) in out.items()}
+
+    def rels_in_prs(self, pr_urls: Iterable[str]) -> set[str]:
+        """The files the proposals delivered in these PRs change."""
+        wanted = set(pr_urls)
+        if not wanted:
+            return set()
+        with self._db() as db:
+            return {
+                r["rel"]
+                for r in db.execute(
+                    "SELECT p.rel, d.pr_url FROM proposals p JOIN deliveries d ON "
+                    "p.proposal_id = d.proposal_id WHERE d.pr_url IS NOT NULL"
+                )
+                if r["pr_url"] in wanted
+            }
+
 
 __all__ = [
     "DailyLedger",
@@ -1084,6 +1187,7 @@ __all__ = [
     "Direction",
     "Finding",
     "MASK_TOKEN",
+    "NO_MODEL",
     "MaskingFailed",
     "PROPOSER_SYSTEM",
     "ProposalRefused",
