@@ -94,6 +94,12 @@ def linter_of(rel: str) -> str:
 
 MAX_CHANGED_LINES_BASE = 24
 MAX_CHANGED_LINES_PER_WARNING = 8
+#: How far, in lines of the original, a fix may reach from the nearest warning
+#: it fixes. Measured on GAGOS's first day of hourly work (2026-11-02): every
+#: change the reviewer accepted stayed on its warnings' lines; the two it
+#: rejected for touching what they were not asked to reached 17 and 24 lines
+#: away. Refused here, they cost no review and teach the writer why.
+MAX_REACH = 3
 
 
 def digest(text: str) -> str:
@@ -659,7 +665,49 @@ def static_verdict(
             f"{len(finding.warnings)} warning(s) is {limit}",
             changed,
         )
+    far = beyond_reach(diff, [line for line, _col, _msg in finding.warnings])
+    if far:
+        line, distance = far[0]
+        return StaticVerdict(
+            False,
+            f"the proposal changes line {line}, {distance} lines from the nearest "
+            f"warning; a fix stays within {MAX_REACH} lines of what it fixes",
+            changed,
+        )
     return StaticVerdict(True, "parses; the warnings are gone; nothing new", changed)
+
+
+def beyond_reach(
+    diff: str, warning_lines: Sequence[int], reach: int = MAX_REACH
+) -> list[tuple[int, int]]:
+    """Every line of the original a unified *diff* removes, or inserts at,
+    that is more than *reach* lines from the nearest warning line, with its
+    distance, once each, in order. Lines inserted in place of removed ones
+    are placed at the first line they replace."""
+    if not warning_lines:
+        return []
+    out: dict[int, int] = {}
+    old = None
+    replaced = None
+    for row in diff.splitlines():
+        hunk = re.match(r"@@ -(\d+)(?:,\d+)? \+\d+", row)
+        if hunk:
+            old, replaced = int(hunk.group(1)), None
+            continue
+        if old is None or row.startswith(("---", "+++")):
+            continue
+        if row.startswith("-"):
+            replaced = old if replaced is None else replaced
+            at, old = old, old + 1
+        elif row.startswith("+"):
+            at = old if replaced is None else replaced
+        else:
+            old, replaced = old + 1, None
+            continue
+        distance = min(abs(at - w) for w in warning_lines)
+        if distance > reach:
+            out.setdefault(at, distance)
+    return sorted(out.items())
 
 
 # --------------------------------------------------------------------- tests
@@ -1588,6 +1636,7 @@ __all__ = [
     "Direction",
     "Finding",
     "MASK_TOKEN",
+    "MAX_REACH",
     "MAX_TEST_LINES",
     "MISSING_TEST",
     "NO_MODEL",
@@ -1602,6 +1651,7 @@ __all__ = [
     "StaticVerdict",
     "TESTER_SYSTEM",
     "digest",
+    "beyond_reach",
     "findings",
     "is_python",
     "linter_of",

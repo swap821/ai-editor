@@ -1393,6 +1393,57 @@ def credits(led: DailyLedger, ids: list[str]) -> list[str]:
     return lines
 
 
+#: Where a proposal can be lost, in the order the work meets them.
+LOSSES = (
+    "not sent (privacy filter or size)",
+    "the model call failed",
+    "the answer's form",
+    "the static checks",
+    "the reviewer",
+)
+
+
+def lost_at(p: dict) -> str | None:
+    """Where *p* was lost, one of :data:`LOSSES`, or None while it lives."""
+    if p["status"] == "rejected":
+        return "the reviewer"
+    if p["status"] != "refused":
+        return None
+    why = p["refusal"] or ""
+    if why.startswith("model call failed"):
+        return "the model call failed"
+    if p["model"] == NO_MODEL or "cannot be shown to a reviewer" in why:
+        return "not sent (privacy filter or size)"
+    if any(
+        k in why
+        for k in ("fenced code block", "file is empty", "placeholder", "duplicates")
+    ):
+        return "the answer's form"
+    return "the static checks"
+
+
+def efficiency(every: list[dict], spent: float) -> list[str]:
+    """What GAGOS's work costs per change that survives review, and where the
+    rest is lost: the numbers its efficiency is judged by (the operator,
+    2026-11-02: "cross-system efficiency"). Descriptive, from the ledger."""
+    kept = [
+        p
+        for p in every
+        if p["status"] in ("accepted", "committed", "delivered", "stale", "failed")
+    ]
+    lost = Counter(lost_at(p) for p in every)
+    per = f"${spent / len(kept):.3f}" if kept else "none yet"
+    return [
+        "**Efficiency** (this month's estimated spend; every proposal in the ledger):",
+        f"- accepted by review: {len(kept)} of {len(every)} proposals; "
+        f"cost per accepted change: {per}",
+        "- lost at: "
+        + "; ".join(f"{where} {lost[where]}" for where in LOSSES)
+        + f"; awaiting review {lost[None] - len(kept)}",
+        "",
+    ]
+
+
 def report(
     led: DailyLedger,
     *,
@@ -1456,6 +1507,7 @@ def report(
             for m, (w, d) in sorted(led.model_outcomes().items())
         ),
         "",
+        *efficiency(every, sum(spent.values())),
     ]
     for p in chosen:
         reviews = led.reviews(p["proposal_id"])

@@ -326,6 +326,38 @@ def test_a_verdict_given_on_wrong_evidence_is_given_again(
     }
 
 
+def test_a_fix_that_reaches_beyond_its_warnings_is_refused_before_review() -> None:
+    base = "".join(f"line {n}\n" for n in range(1, 41))
+    near = base.replace("line 3\n", "line three\n")
+    far = near.replace("line 20\n", "line twenty\n")
+    f = dw.Finding(rel=REL, rule="no-unused-vars", warnings=((3, 9, "x"),))
+    assert dw.beyond_reach(dw.unified_diff("f", base, near), [3]) == []
+    assert dw.beyond_reach(dw.unified_diff("f", base, far), [3]) == [(20, 17)]
+    clean = _result()
+    verdict = dw.static_verdict(f, base, far, clean, clean)
+    assert not verdict.passed
+    assert "line 20, 17 lines from the nearest warning" in verdict.reason
+
+
+def test_the_report_says_what_an_accepted_change_costs_and_where_work_is_lost(
+    tmp_path,
+) -> None:
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    _accepted(led)
+    led.record_proposal(
+        FINDING,
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="m",
+        new_text=None,
+        verdict=None,
+        refusal="expected exactly one fenced code block, got 0",
+    )
+    text = tool.report(led)
+    assert "accepted by review: 1 of 2 proposals" in text
+    assert "the answer's form 1" in text and "the reviewer 0" in text
+
+
 def test_proposals_claude_code_accepted_while_codex_was_required_are_accepted(
     tmp_path, monkeypatch
 ) -> None:
