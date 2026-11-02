@@ -14,6 +14,11 @@ the commit they were measured on). The whole story, from the first commit, is
 - **Codex's post-merge reviews are done.** `2f153fab` (#574) gave the residual above, now fixed. `47d5a97d` (#575) gave no new finding.
 - **The organ evidence is still current at `dd7aa102`.** Neither later PR touches an organ's entrypoint, and the evidence tests pass at the tip.
 - **GAGOS's next day is the first to run with the clerk fix and the full static check.** Its batch runs at the first hourly tick of the UTC day (00:50 UTC on 11-03, 06:20 IST) if the laptop is awake and the operator is logged in, or at the first tick after that. Today's ran at 02:50 UTC only because GAGOS stood aside for D13 until 02:10. Its hourly runner moves to master's tip by itself.
+- **The operator corrected how GAGOS's work was scheduled.** "GAGOS will work 24/7 continously"; the interval he asked Codex and Claude Code to agree on was for their own review loop.
+  - We had applied it to GAGOS's work: one batch of 2 proposals a day, and the whole day blocked while GAGOS's PR was open. In its life so far GAGOS has made 4 proposals and delivered 1 merged two-line change (#565), on 2 days of work.
+  - **#580** (open, for both reviews) runs a batch of up to 10 every hour. An open PR holds back only delivery, and files GAGOS's unmerged work touches are left alone.
+  - The `\GAGOS\daily` task may now wake the laptop (WakeToRun). This has no effect until wake timers are allowed in the power plan, which is off on AC and battery; that system setting is the operator's.
+  - Not yet built: GAGOS's designed shape for this work, several AWS models in parallel on its own frontend from the operator's design docs (D14, decided 10-30). Today it uses one model, one file at a time, on three lint rules, with 16 eligible findings left.
 - **Still open:**
   - Master's CI on `dd7aa102`.
   - The monthly probe stays red until it runs on 1 December, or until the operator runs it by hand.
