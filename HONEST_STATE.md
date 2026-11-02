@@ -31,6 +31,11 @@ the commit they were measured on). The whole story, from the first commit, is
   - A removed import that another module takes from this one is refused. Delivery checks Python by compiling it and running the tests that import it.
   - GAGOS already learns from refusals: each prompt carries the last reasons that kind of work was refused, by the checks or by a reviewer.
 - **Master's CI on `012716a3` passed** (CI and CodeQL).
+- **One of my rejections was wrong, caused by a bug in what the reviewer is shown (found at 17:30 UTC).** `gd-a9f57600cf` fixed two `catch (err)` warnings in CouncilServicesPanel.jsx and changed nothing else. I rejected it for changing class names, which it never touched.
+  - The cause: a hidden value that appears on several lines gets one placeholder per line in the original, but the proposal was masked by value, giving every occurrence the same placeholder. The diff I was shown had 22 changed lines; the real change has 4. Nothing leaked: every review prompt is still checked by the privacy filter before it leaves the machine.
+  - The fix on this branch: lines the proposal keeps are shown exactly as in the masked original. Re-run on the ledger, the reviewer is shown 4 changed lines for `gd-a9f57600cf`; my other rejections today stand on real changes (26 and 17 lines).
+  - `review --again` lets a verdict given on wrong evidence be given again by a fresh session; the new verdict replaces the old one and its reason. I will run it for `gd-a9f57600cf` once this branch merges.
+- **The 22:20 IST batch (16:50 UTC) found only 2 frontend findings left on master.** It made 1 proposal, which I rejected: it also changed test behaviour beyond the 3 lines asked. Master's lint work is nearly used up; this branch adds the Python and first-test work.
 - **Still open:**
   - Wake timers in the power plan (the operator's setting).
   - The monthly probe stays red until 1 December, or until the operator runs it by hand.

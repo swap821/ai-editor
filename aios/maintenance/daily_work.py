@@ -37,7 +37,7 @@ import re
 import sqlite3
 import uuid
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 import dataclasses
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -261,15 +261,51 @@ def unmask(
     return text
 
 
-def mask_like(text: str, mapping: Mapping[str, str]) -> str:
+def mask_like(
+    text: str, mapping: Mapping[str, str], *, prefer: Collection[str] = ()
+) -> str:
     """*text* with every span *mapping* hides replaced by its placeholder: how
-    a reviewer is shown the proposed file under the same mask as the original."""
+    a reviewer is shown a new file under the same mask as its module. Where two
+    placeholders hide the same text, one in *prefer* is used."""
     # A later placeholder may wrap earlier ones: match what each finally stands for.
     full = {token: unmask(token, mapping, masked=token) for token in mapping}
-    for token, original in sorted(full.items(), key=lambda kv: -len(kv[1])):
+    order = sorted(full.items(), key=lambda kv: (-len(kv[1]), kv[0] not in prefer))
+    for token, original in order:
         if original:
             text = text.replace(original, token)
     return text
+
+
+def mask_aligned(
+    text: str, base: str, masked_base: str, mapping: Mapping[str, str]
+) -> str:
+    """*text*, a proposal for *base*, under *base*'s mask line by line: a line
+    the proposal keeps is shown exactly as in the masked original, and a
+    changed line takes the placeholders of the line it replaces first.
+
+    Masking the proposal by value alone gave a value the original holds twice
+    one placeholder where the original had two, so the reviewer saw changes
+    that were never made. On 2026-11-02 a correct two-line fix
+    (gd-a9f57600cf) was rejected for class names it never touched."""
+    old = base.splitlines(keepends=True)
+    new = text.splitlines(keepends=True)
+    shown = masked_base.splitlines(keepends=True)
+    if not mapping or len(shown) != len(old):
+        return mask_like(text, mapping)
+    prefix = re.escape(next(iter(mapping))[:-4]) + r"\d{4}"
+    out: list[str] = []
+    matcher = difflib.SequenceMatcher(None, old, new, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            out.extend(shown[i1:i2])
+        elif tag == "replace" and i2 - i1 == j2 - j1:
+            for k in range(i2 - i1):
+                near = set(re.findall(prefix, shown[i1 + k]))
+                out.append(mask_like(new[j1 + k], mapping, prefer=near))
+        else:
+            near = set(re.findall(prefix, "".join(shown[i1:i2])))
+            out.append(mask_like("".join(new[j1:j2]), mapping, prefer=near))
+    return "".join(out)
 
 
 def project_facts(project_root: Path) -> tuple[str, ...]:
@@ -1570,6 +1606,7 @@ __all__ = [
     "is_python",
     "linter_of",
     "load_direction",
+    "mask_aligned",
     "mask_like",
     "mask_lines",
     "missing_tests",

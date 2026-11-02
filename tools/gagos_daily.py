@@ -74,6 +74,7 @@ from aios.maintenance.daily_work import (  # noqa: E402
     first_test_review_prompt,
     first_test_verdict,
     is_python,
+    mask_aligned,
     mask_like,
     mask_lines,
     missing_tests,
@@ -830,12 +831,15 @@ def review_evidence(p: dict, finding: Finding) -> str:
     Raises ``MaskingFailed`` when the change cannot be shown without exposing
     what may not leave the machine."""
     masked_base, mapping = mask_lines(p["base_text"], egress_redact)
-    masked_new = mask_like(p["new_text"], mapping)
     facts = json.loads(p.get("facts") or "[]")
     if finding.rule == MISSING_TEST:
         # The module and the whole new test, under the module's mask.
+        masked_new = mask_like(p["new_text"], mapping)
         prompt = first_test_review_prompt(finding, masked_base, masked_new, facts=facts)
     else:
+        # Kept lines exactly as in the masked original, so the diff shows
+        # only what the proposal changed.
+        masked_new = mask_aligned(p["new_text"], p["base_text"], masked_base, mapping)
         # The file's name, never its path: paths do not leave the machine.
         diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
         prompt = review_prompt(finding, masked_base, diff, facts=facts)
@@ -853,7 +857,18 @@ def review_evidence(p: dict, finding: Finding) -> str:
 
 def cmd_review(args: argparse.Namespace) -> int:
     led = ledger()
-    pending = led.awaiting(args.reviewer)[: args.limit]
+    again = set(getattr(args, "again", None) or ())
+    if again:
+        # A verdict given on wrong evidence is given again, by a fresh session
+        # on the evidence as it is shown now; the new verdict replaces it.
+        pending = [
+            p
+            for p in led.proposals()
+            if p["proposal_id"] in again
+            and p["status"] in ("proposed", "accepted", "rejected")
+        ]
+    else:
+        pending = led.awaiting(args.reviewer)[: args.limit]
     if not pending:
         print(f"nothing awaits {args.reviewer}")
         return 0
@@ -1738,6 +1753,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     r.add_argument("--limit", type=int, default=10)
     r.add_argument("--timeout", type=float, default=900)
+    r.add_argument(
+        "--again",
+        nargs="+",
+        metavar="PROPOSAL",
+        help="review these proposals again (a verdict given on wrong evidence)",
+    )
     r.set_defaults(func=cmd_review)
 
     d = sub.add_parser("deliver")
