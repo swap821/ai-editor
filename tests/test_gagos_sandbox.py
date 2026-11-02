@@ -160,6 +160,18 @@ def test_a_new_test_runs_itself_and_its_failure_is_its_own(project) -> None:
     assert failing.outcome == st.BROKE and failing.broken == (f"{rel}::test_new",)
 
 
+def test_tests_are_found_however_the_copy_is_named(project) -> None:
+    """CI, 2026-11-02: a temporary directory named otherwise than its real
+    path (Windows' RUNNER~1, macOS's /var -> /private/var) found no test,
+    because the import index answers in real paths."""
+    root, commit = project
+    with st.BaseTrees(root) as trees:
+        tree = trees.get(commit)
+        assert tree == tree.resolve()
+        aside = tree / "pkg" / ".."
+        assert st.select_tests(aside, MODULE) == ([TESTS], 1)
+
+
 def test_a_file_no_test_exercises_is_untested(project) -> None:
     verdict, container = _run(project, "X = 2\n", "pkg/lonely.py")
     assert verdict.outcome == st.UNTESTED and not container.calls

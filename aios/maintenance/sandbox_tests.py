@@ -183,7 +183,10 @@ class BaseTrees:
         if done.returncode != 0:
             why = done.stderr.decode("utf-8", "replace").strip()[:200]
             raise SandboxUnavailable(f"git archive {commit[:12]} failed: {why}")
-        tree = Path(tempfile.mkdtemp(prefix="gagos-sbx-"))
+        # Resolved once, here: a temporary directory's name can differ from
+        # its real path (Windows short names, macOS's /var -> /private/var),
+        # and the import index answers in real paths.
+        tree = Path(tempfile.mkdtemp(prefix="gagos-sbx-")).resolve()
         try:
             with tarfile.open(fileobj=io.BytesIO(done.stdout)) as tar:
                 tar.extractall(tree, filter="data")
@@ -294,6 +297,7 @@ def parse_pytest(output: str) -> tuple[int, tuple[str, ...]]:
 def select_tests(tree: Path, rel: str) -> tuple[list[str], int]:
     """The test files to run for *rel* (posix, relative to *tree*), and how
     many exercise it in all."""
+    tree = tree.resolve()
     path = tree / rel
     found = [
         p.relative_to(tree).as_posix()
