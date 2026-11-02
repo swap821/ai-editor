@@ -3116,6 +3116,50 @@ def test_a_generate_turn_matches_reflexes_as_the_caller(client: TestClient) -> N
     assert set(cerebellum.principals) == {client_principal_id(client)}
 
 
+def test_an_approval_resume_matches_reflexes_as_the_caller(client: TestClient) -> None:
+    """Plan Phase 4c-2, at the stream's fallback. An approval resume is not a
+    fresh turn, so the pre-route reflex check is skipped and the stream asks
+    the cerebellum itself -- as the caller too. The fresh-turn test above
+    never reaches that fallback, so a mutation making it match as no one
+    (4c2:S17) survived the monthly probe (run 41303837576). This test records
+    WHERE each match came from, so it fails if the fallback is not reached."""
+    import sys
+
+    from aios.api.deps import get_cerebellum
+    from tests.helpers import client_principal_id
+
+    class RecordingCerebellum:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        def match(self, text: str, *, principal):
+            caller = Path(sys._getframe(1).f_code.co_filename).name
+            self.calls.append((caller, principal))
+            return None
+
+    cerebellum = RecordingCerebellum()
+    app.dependency_overrides[get_cerebellum] = lambda: cerebellum
+    app.dependency_overrides[get_ollama_client] = FakeOllamaYellowLocal
+    session_id = _cookie_session_id(client)
+    token = _issue_generate_capability(
+        client, "command", {"command": "mkdir training_ground/build"}
+    )
+    response = client.post(
+        "/api/generate",
+        json={
+            "messages": [{"role": "user", "content": [{"text": "install flask"}]}],
+            "modelId": "ollama.llama3.2:3b",
+            "sessionId": session_id,
+            "approvalTokens": [token],
+        },
+    )
+    assert response.status_code == 200
+    from_the_stream = [p for f, p in cerebellum.calls if f == "generate_pipeline.py"]
+    assert from_the_stream, f"the fallback was not reached: {cerebellum.calls}"
+    assert set(from_the_stream) == {client_principal_id(client)}
+    assert {p for _, p in cerebellum.calls} == {client_principal_id(client)}
+
+
 def test_a_generate_turn_indexes_as_the_caller(client: TestClient) -> None:
     """A completed turn is written into memory as the caller's, so it can only
     ever be recalled for them."""

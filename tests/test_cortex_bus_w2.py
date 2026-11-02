@@ -19,6 +19,9 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+import pytest
+
+from aios.runtime import self_model_handler
 from aios.runtime.cortex_bus import BusEvent, CortexBus
 from aios.runtime.cortex_bus_dispatcher import CortexBusDispatcher
 from tests.cortex_event_helpers import append_event
@@ -26,6 +29,18 @@ from tests.cortex_event_helpers import append_event
 #: Plan Phase 4c: the self-model cache is per principal.
 OWNER = "principal:owner"
 OTHER = "principal:other"
+
+
+@pytest.fixture(autouse=True)
+def _a_journal_with_no_withdrawals(monkeypatch):
+    """The handler serves a cached self-model only while the learning journal
+    can say nothing was withdrawn since (plan Phase 6e); a journal it cannot
+    read withholds it. These tests are about synthesis, so the journal is
+    stated: readable, no withdrawals. Without this they passed only when an
+    earlier test in the session had created the journal's table, and failed
+    on their own; that made six mutation-probe kills NO VERDICT (run
+    41303837576), whose closing control runs these files alone."""
+    monkeypatch.setattr(self_model_handler, "last_withdrawal_id", lambda: 0)
 
 
 # ── Slice A: CortexBusDispatcher lifecycle ────────────────────────────────────

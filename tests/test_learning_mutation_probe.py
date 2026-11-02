@@ -351,3 +351,51 @@ def test_a_do_nothing_mutation_survives_a_healthy_run(sandbox) -> None:
     entries = [probe.Entry("t:nothing", "guard.py", *_NOTHING, ["t"])]
     [result] = probe.run(entries, runner=runner)
     assert result.applied and result.survived and not result.killed
+
+
+def _said(code: int, detail: str) -> int:
+    exit_code = probe._Exit(code)
+    exit_code.detail = detail
+    return exit_code
+
+
+def test_a_failed_control_says_which_test_failed_and_why(sandbox) -> None:
+    """Run 41303837576 reported six NO VERDICTs as only "exit 1": nobody could
+    tell which test failed or why. The control's note now carries it."""
+    calls: list[int] = []
+
+    def runner(nodes):
+        calls.append(1)
+        if len(calls) == 1:
+            return 0  # the baseline
+        return _said(1, "FAILED t::x - assert None is not None")
+
+    [result] = probe.run(
+        [probe.Entry("t:real", "guard.py", *_REAL, ["t"])], runner=runner
+    )
+    assert result.note.startswith("NO VERDICT"), result.note
+    assert "FAILED t::x - assert None is not None" in result.note
+
+
+def test_a_failed_baseline_says_what_failed(sandbox) -> None:
+    with pytest.raises(probe.ProbeError, match="pytest said: ERROR: boom"):
+        probe.run(
+            [_entry(old="if row.signed:", new="if True:")],
+            runner=lambda n: _said(1, "ERROR: boom"),
+        )
+
+
+def test_the_real_runner_keeps_the_failing_node_and_drops_warning_noise() -> None:
+    out = "\n".join(
+        [
+            "F",
+            "=== warnings summary ===",
+            "some/dep.py:1: DeprecationWarning: noise",
+            "-- Docs: https://docs.pytest.org",
+            "FAILED tests/t.py::x - AssertionError",
+            "1 failed",
+        ]
+    )
+    detail = probe._detail(out)
+    assert detail.startswith("FAILED tests/t.py::x - AssertionError")
+    assert "noise" not in detail

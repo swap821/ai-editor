@@ -411,8 +411,36 @@ def coverage(
 # --------------------------------------------------------------------------- #
 
 
+class _Exit(int):
+    """pytest's exit code, carrying what a failed run said: the nodes it
+    named as failing and the tail of its output. A failed control used to
+    report only "exit 1", so six NO VERDICTs (run 41303837576) could not say
+    which test failed or why."""
+
+    detail: str = ""
+
+
+#: How much of a failed run's output a report keeps.
+_DETAIL_CHARS = 800
+
+
+def _detail(output: str) -> str:
+    lines, warnings = [], False
+    for line in output.splitlines():
+        if "warnings summary" in line:
+            warnings = True  # deprecation noise, through pytest's "-- Docs:" line
+        elif warnings:
+            warnings = not line.startswith("-- Docs:")
+        elif line.strip():
+            lines.append(line.rstrip())
+    failing = [line for line in lines if line.startswith(("FAILED ", "ERROR "))]
+    tail = " | ".join(lines[-12:])
+    text = "; ".join(failing[:5]) + (" || " if failing else "") + tail
+    return text[-_DETAIL_CHARS:]
+
+
 def _pytest(nodes: Sequence[str], python: str) -> int:
-    return subprocess.run(
+    proc = subprocess.run(
         [
             python,
             "-m",
@@ -426,7 +454,20 @@ def _pytest(nodes: Sequence[str], python: str) -> int:
         ],
         cwd=REPO_ROOT,
         capture_output=True,
-    ).returncode
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    code = _Exit(proc.returncode)
+    if proc.returncode != 0:
+        code.detail = _detail((proc.stdout or "") + "\n" + (proc.stderr or ""))
+    return code
+
+
+def _said(code: object) -> str:
+    """What a failed run said, if its runner kept it."""
+    detail = getattr(code, "detail", "")
+    return f" -- pytest said: {detail}" if detail else ""
 
 
 def _dirty(files: Iterable[str]) -> list[str]:
@@ -584,7 +625,7 @@ def _closing_control(
                 result.survived = True
                 result.note = (
                     f"NO VERDICT -- its tests also fail on the unmutated code at the "
-                    f"close (exit {code}): the environment, not the guard"
+                    f"close (exit {code}): the environment, not the guard{_said(code)}"
                 )
             if on_result:
                 on_result(result)
@@ -597,7 +638,7 @@ def _baseline(nodes: Sequence[str], run_tests: Callable[[Sequence[str]], int]) -
         if code != 0:
             raise ProbeError(
                 f"baseline failed (pytest exit {code}) for {batch[:3]}...: a test "
-                "that fails unmutated cannot score a kill"
+                f"that fails unmutated cannot score a kill{_said(code)}"
             )
 
 
