@@ -575,7 +575,9 @@ resists attacks nobody has written yet.
   measurable benefit from memory (H1 not met; no harm;
   `docs/learning/PAYOFF_PHASE8_RESULT.md`); D12, its successor with fact-checked
   lessons from a strong teacher, was not met either, cloud or local
-  (`docs/learning/PAYOFF_D12_RESULT.md`, 2026-10-28)
+  (`docs/learning/PAYOFF_D12_RESULT.md`, 2026-10-28); D13, which showed the local
+  student only lessons about the code its task names, was not met either
+  (`docs/learning/PAYOFF_D13_RESULT.md`, 2026-11-02)
 - Endurance evidence — the nightly fires, but its endurance job failed on each
   night 2026-10-07 to 2026-10-11: the tester aborts on 5 consecutive errors, so
   no usable endurance evidence has been recorded. It is also wired at
