@@ -8,7 +8,13 @@ for each text:
 * ESLint's messages, from the project's own ``eslint.config.js`` through
   ``ESLint.lintText`` (the text is linted as if it were at its path, so the
   path's config and ignores apply, but nothing is written to disk);
-* TypeScript's syntax diagnostics (``transpileModule``: parsing only, no types).
+* TypeScript's syntax diagnostics (``transpileModule``: parsing only, no types);
+* on request (``inline_off``), ESLint's messages once more with inline
+  configuration off (``allowInlineConfig: false``): every warning a disable
+  comment or an inline config comment hides then shows, so a proposal's hidden
+  warnings can be compared with the original's; and every comment, as ESLint's
+  own parser sees it, so a directive is read only from a real comment, never
+  from a string that looks like one (Codex's review of #574).
 
 Linting parses code and runs the configured rules over it; it never runs the
 code. The toolchain is ``frontend/node_modules`` of the project being judged;
@@ -24,6 +30,7 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+from collections import Counter
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -45,18 +52,32 @@ const ts = require(path.join(frontend, 'node_modules', 'typescript'));
 (async () => {
   const input = JSON.parse(fs.readFileSync(0, 'utf8'));
   const eslint = new ESLint({ cwd: frontend });
+  // A rule that reports every comment the parser found: run with inline
+  // configuration off, so no directive can switch it off.
+  const comments = { meta: { type: 'suggestion', schema: [] }, create(context) {
+    return { Program() { for (const c of context.sourceCode.getAllComments()) {
+      context.report({ loc: c.loc, message: JSON.stringify({ kind: c.type, value: c.value,
+        start: c.loc.start.line, end: c.loc.end.line }) });
+    } } };
+  } };
+  const bare = input.inline_off ? new ESLint({ cwd: frontend, allowInlineConfig: false,
+    overrideConfig: { plugins: { gagos: { rules: { comments } } },
+      rules: { 'gagos/comments': 'warn' } } }) : null;
+  const shape = (results) => (results[0] ? results[0].messages : []).map((m) => ({
+    rule: m.ruleId || null, severity: m.severity, line: m.line || 0,
+    column: m.column || 0, message: m.message, fatal: !!m.fatal,
+  }));
   const out = {};
   for (const [rel, text] of Object.entries(input.files)) {
     const filePath = path.join(input.root, rel);
-    const results = await eslint.lintText(text, { filePath });
-    const messages = (results[0] ? results[0].messages : []).map((m) => ({
-      rule: m.ruleId || null, severity: m.severity, line: m.line || 0,
-      column: m.column || 0, message: m.message, fatal: !!m.fatal,
-    }));
+    const messages = shape(await eslint.lintText(text, { filePath }));
+    const off = bare ? shape(await bare.lintText(text, { filePath })) : null;
+    const inlineOff = off ? off.filter((m) => m.rule !== 'gagos/comments') : null;
+    const found = off ? off.filter((m) => m.rule === 'gagos/comments').map((m) => JSON.parse(m.message)) : null;
     const parsed = ts.transpileModule(text, { fileName: filePath, reportDiagnostics: true,
       compilerOptions: { jsx: ts.JsxEmit.ReactJSX, allowJs: true } });
     const parse = (parsed.diagnostics || []).map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '));
-    out[rel] = { messages, parse };
+    out[rel] = { messages, parse, inline_off: inlineOff, comments: found };
   }
   process.stdout.write(JSON.stringify(out));
 })().catch((e) => { process.stderr.write(String((e && e.stack) || e)); process.exit(2); });
@@ -78,11 +99,26 @@ class LintMessage:
 
 
 @dataclass(frozen=True)
+class Comment:
+    """One comment as ESLint's parser saw it: ``Line`` or ``Block``, its text
+    without the delimiters, and its first and last lines (1-based)."""
+
+    kind: str
+    value: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
 class StaticResult:
-    """What the toolchain says about one text."""
+    """What the toolchain says about one text. ``inline_off`` is ESLint's
+    messages with inline configuration off and ``comments`` every comment in the
+    text; each is None when that lint was not asked for."""
 
     messages: tuple[LintMessage, ...]
     parse_errors: tuple[str, ...] = field(default=())
+    inline_off: tuple[LintMessage, ...] | None = None
+    comments: tuple[Comment, ...] | None = None
 
     def warnings(self, rule: str | None = None) -> list[LintMessage]:
         return [
@@ -95,6 +131,20 @@ class StaticResult:
     def errors(self) -> list[LintMessage]:
         return [m for m in self.messages if m.severity == 2 or m.fatal]
 
+    def hidden(self) -> list[LintMessage] | None:
+        """What inline comments hide: the messages ESLint reports with inline
+        configuration off and not with it on. None when that lint did not run."""
+        if self.inline_off is None:
+            return None
+        shown = Counter(self.messages)
+        out = []
+        for m in self.inline_off:
+            if shown[m]:
+                shown[m] -= 1
+            else:
+                out.append(m)
+        return out
+
 
 def check_texts(
     project_root: Path,
@@ -102,8 +152,10 @@ def check_texts(
     *,
     run: Callable[..., Any] = subprocess.run,
     timeout_s: float = 600,
+    inline_off: bool = False,
 ) -> dict[str, StaticResult]:
-    """Lint and parse each text as if it were at its project-relative path."""
+    """Lint and parse each text as if it were at its project-relative path;
+    with ``inline_off``, lint it a second time with inline configuration off."""
     if not texts:
         return {}
     root = Path(project_root).resolve()
@@ -116,7 +168,9 @@ def check_texts(
             )
     if node is None:
         raise StaticCheckUnavailable("node not found")
-    payload = json.dumps({"root": str(root), "files": dict(texts)})
+    payload = json.dumps(
+        {"root": str(root), "files": dict(texts), "inline_off": bool(inline_off)}
+    )
     try:
         proc = run(
             [node, "-e", _SCRIPT, str(frontend)],
@@ -144,21 +198,44 @@ def check_texts(
         entry = raw.get(rel)
         if not isinstance(entry, dict):
             raise StaticCheckUnavailable(f"static checks returned nothing for {rel}")
+        off, found = entry.get("inline_off"), entry.get("comments")
+        if inline_off and not (isinstance(off, list) and isinstance(found, list)):
+            raise StaticCheckUnavailable(
+                f"static checks returned no inline-off lint for {rel}"
+            )
         results[rel] = StaticResult(
-            messages=tuple(
-                LintMessage(
-                    rule=m.get("rule"),
-                    severity=int(m.get("severity", 0)),
-                    line=int(m.get("line", 0)),
-                    column=int(m.get("column", 0)),
-                    message=str(m.get("message", "")),
-                    fatal=bool(m.get("fatal", False)),
-                )
-                for m in entry.get("messages", [])
-            ),
+            messages=_messages(entry.get("messages", [])),
             parse_errors=tuple(str(e) for e in entry.get("parse", [])),
+            inline_off=_messages(off) if inline_off else None,
+            comments=(
+                tuple(
+                    Comment(
+                        kind=str(c.get("kind", "")),
+                        value=str(c.get("value", "")),
+                        start=int(c.get("start", 0)),
+                        end=int(c.get("end", 0)),
+                    )
+                    for c in found
+                )
+                if inline_off
+                else None
+            ),
         )
     return results
+
+
+def _messages(raw: list) -> tuple[LintMessage, ...]:
+    return tuple(
+        LintMessage(
+            rule=m.get("rule"),
+            severity=int(m.get("severity", 0)),
+            line=int(m.get("line", 0)),
+            column=int(m.get("column", 0)),
+            message=str(m.get("message", "")),
+            fatal=bool(m.get("fatal", False)),
+        )
+        for m in raw
+    )
 
 
 def port_managed(project_root: Path) -> frozenset[str]:
@@ -199,6 +276,7 @@ def editable_frontend_files(project_root: Path) -> list[str]:
 
 
 __all__ = [
+    "Comment",
     "LintMessage",
     "PORT_MANIFEST",
     "StaticCheckUnavailable",
