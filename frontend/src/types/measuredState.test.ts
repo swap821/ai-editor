@@ -61,7 +61,7 @@ describe('measuredState', () => {
 
     it('falls back to unavailable for unknown status', () => {
       const env = {
-        status: 'unknown_status' as any,
+        status: 'unknown_status' as MetricEnvelope<unknown>['status'],
         value: 'test',
         measured_at: '2024-01-01',
         source: 'test',
@@ -77,11 +77,11 @@ describe('measuredState', () => {
     });
 
     it('renders unavailable fallback', () => {
-      expect(displayValue({ _status: 'unavailable', envelope: {} as any }, 'fallback-value')).toBe('fallback-value');
+      expect(displayValue({ _status: 'unavailable', envelope: env('') }, 'fallback-value')).toBe('fallback-value');
     });
 
     it('renders actual value', () => {
-      expect(displayValue({ _status: 'measured', value: 123, envelope: {} as any })).toBe('123');
+      expect(displayValue({ _status: 'measured', value: 123, envelope: env(0) })).toBe('123');
     });
 
     it('uses custom formatter', () => {
