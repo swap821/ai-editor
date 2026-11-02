@@ -168,6 +168,38 @@ def test_only_a_block_comment_that_is_an_enable_ends_a_region() -> None:
     assert not ends("/* see eslint-enable no-console */"), "not an enable"
     assert not ends("// eslint-enable no-console"), "read strictly: a block comment"
     assert not ends("/* eslint-enabled no-console */")
+    assert not ends("/* ESLINT-ENABLE no-console */"), "ESLint is case-sensitive"
+    assert not ends("/* Eslint-enable no-console */")
+
+
+#: Codex's post-merge review of #574: an uppercase enable is no enable to
+#: ESLint, so the region runs on past it; read case-blind here, it ended the
+#: protection, and a later edit inside the real region passed.
+_UPPERCASE_END = (
+    "export function Panel() {\n"
+    "  const unused = 3;\n"
+    "  /* eslint-disable no-unused-vars */\n"
+    "  const hidden = 1;\n"
+    "  /* ESLINT-ENABLE no-unused-vars */\n"
+    "  const value = 1;\n"
+    "  /* eslint-enable no-unused-vars */\n"
+    "  return [value];\n"
+    "}\n"
+)
+
+
+def _uppercase_edits() -> tuple[str, str]:
+    edited = _UPPERCASE_END.replace("  const unused = 3;\n", "").replace(
+        "const value = 1;", "const value = 2;"
+    )
+    return edited, _UPPERCASE_END.replace("  const unused = 3;\n", "")
+
+
+def test_an_uppercase_enable_does_not_end_a_region() -> None:
+    edited, fixed = _uppercase_edits()
+    verdict = _verdict(_UPPERCASE_END, edited)
+    assert not verdict.passed and "disable comment silences" in verdict.reason
+    assert _verdict(_UPPERCASE_END, fixed).passed
 
 
 def test_a_whole_file_silencer_refuses_any_change_and_cannot_be_added() -> None:
@@ -282,6 +314,19 @@ def test_real_eslint_reads_no_comment_in_a_string_or_a_template() -> None:
     verdict = _real(_LOOKALIKE, edited)
     assert not verdict.passed and "disable comment silences" in verdict.reason
     assert _real(_LOOKALIKE, fixed).passed
+
+
+def test_real_eslint_ignores_an_uppercase_enable_and_so_does_the_check() -> None:
+    """Through the real ESLint: after the uppercase comment the region still
+    hides an unused declaration, so ESLint did not end it there; and the edit
+    after it is refused."""
+    probe = _UPPERCASE_END.replace("const value = 1;", "const value = 1, spare = 0;")
+    hidden = {m.message.split("'")[1] for m in _lint(probe).hidden() if m.rule == RULE}
+    assert "spare" in hidden, "ESLint's region ran past the uppercase comment"
+    edited, fixed = _uppercase_edits()
+    verdict = _real(_UPPERCASE_END, edited)
+    assert not verdict.passed and "disable comment silences" in verdict.reason
+    assert _real(_UPPERCASE_END, fixed).passed
 
 
 def test_real_the_same_name_hidden_somewhere_else_is_still_new() -> None:
