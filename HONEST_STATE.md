@@ -16,7 +16,11 @@ the commit they were measured on). The whole story, from the first commit, is
 - **This branch adds GAGOS's second kind of work: a first test for each frontend module that has none** (133 of 273). A test is executed only at delivery, after both reviews.
   - The live smoke cost about $0.13 over three runs. On the last, 1 of 4 tests passed the static checks, and I rejected it: its Retry test clicks while the child still throws.
   - Why the tests are weak: GAGOS's privacy filter masks long code identifiers, so the writers cannot see the names they test. That affects 35 of the 43 modules targeted, about 600 masked spans. Changing the egress filter is the operator's decision, with both reviews.
+- **GAGOS's daily backend (the API on :8000 and the executor) has been down all day (found at 15:30 UTC).** GAGOS's hourly work does not need it and is unaffected.
+  - D13 kept the machine quiet until 02:10 UTC. Since then the 15-minute watchdog has refused to start the backend 52 times, because Docker's engine is not running and the sandbox needs it. Ollama is up.
+  - The watchdog also stood aside once, at 15:20 UTC, for a D13 run that had already ended. D13's quiet marker was never removed, and another process briefly reused its process id. I moved the marker aside (`quiet.json.d13-ended-2026-11-02`). The check trusts a process id alone; a fix should also compare the process's start time.
 - **Still open:**
+  - Docker's engine, so the backend can come back.
   - Codex's review of #580's fixes and of `653ecab5`, after 11-05 12:19 UTC.
   - Master's CI on `012716a3`.
   - Wake timers in the power plan (the operator's setting).
