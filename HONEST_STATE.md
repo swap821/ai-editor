@@ -19,10 +19,20 @@ the commit they were measured on). The whole story, from the first commit, is
     - I wrote it, at the operator's word ("start post D13 processes right now"). The operator merged it at 02:44 UTC as a merge commit (`c6c54652`), before Codex's review and before Windows CI finished. Its tree is the head I wrote (`fe0b7e3c`).
   - **#570's CI was the first real test of #568's other bumps** (torch 2.15.0, transformers 5.22.0, starlette 1.10.0, among others):
     - Ubuntu ran the whole suite (89% coverage) and failed only master's three evidence tests;
-    - **macOS crashes**: a segmentation fault after 1,008 tests (about 11%), in both runs. The crashing test is not named, because the crash dump is cut off. It is new with #568: the macOS runs before it failed only the evidence tests. Suspected: torch 2.15.0 (unproven). A one-change experiment follows;
+    - **macOS crashes**: a segmentation fault after 1,008 tests (about 11%), in both runs. It is new with #568: the macOS runs before it failed only the evidence tests;
     - Windows was still running.
+  - **The macOS crash is torch 2.15.0.**
+    - It crashed in 4 of 4 macOS runs (#570 and #571), inside a BERT forward pass (transformers under `torch.nn`).
+    - The same tree with only torch at 2.14.1 ran the whole macOS suite and failed only the three evidence tests (run 41379538054).
+    - **#573** holds torch at 2.14.1 and makes Dependabot ignore torch from 2.15.0 on.
+  - #571's own CI adds nothing new. Ubuntu and Windows fail only the three evidence tests, and macOS crashes as above.
   - The local `.venv` still has the versions from before #568.
-- **GAGOS's first real day starts by itself.** D13's process has ended, so the quiet marker no longer holds. The next hourly run (~02:50 UTC) fetches master, now `c6c54652`.
+- **GAGOS's first real day ran** (02:50 UTC, master `c6c54652`). Nothing reached the reviewers.
+  - It found 62 warnings in 298 editable frontend files; 16 were in the rules it may fix.
+  - **Its own gates refused both of its proposals:** one did not parse, and one added an undefined `err` (ESLint no-undef). The gates did their job.
+  - **Its clerk failed on a real bug.** The local model summarised the open 10-30 disagreement correctly (a summary and a crux). The local workforce service refused the answer as "Extra fields rejected", because GAGOS handed it a JSON Schema where the service reads field names. Its tests had faked the whole service.
+    - **#572** fixes it, with a test that runs the real service. That test fails on the old code with the production error.
+    - The failed record stays in GAGOS's ledger as it happened.
 - **Still open, in order:** the P3 fix, the mutation-probe fix, then the organ re-gather at master's tip (last, which turns master's CI green, except the macOS crash if it is still open then).
 
 ## Later on 2026-11-01 (branch `chore/organs-after-567`, off master `bead0108`)
