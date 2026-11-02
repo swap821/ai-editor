@@ -269,7 +269,100 @@ def test_the_daily_report_shows_the_days_misses_too(tmp_path) -> None:
     led.record_review(missed, "claude", model="opus", verdict="accept", reason="fine")
     text = tool.report(led, in_pr=[shipped])
     assert "(in this PR)" in text and "JSX runtime unproven" in text
-    assert "reviewers disagreed: 1" in text
+    assert "disagreed (while both reviewed, until 2026-11-02): 1" in text
+
+
+def test_the_reviewer_sees_only_what_the_proposal_changed() -> None:
+    """2026-11-02, gd-a9f57600cf: a value the original held on several lines
+    had one placeholder per line there and one for all in the proposal, so a
+    correct two-line fix was rejected for class names it never touched."""
+    redact = lambda text: text.replace("hiddenclass", "[R]")  # noqa: E731
+    base = (
+        '<a className="hiddenclass" />\n'
+        "} catch (err) {\n"
+        '<b className="hiddenclass" />\n'
+        '<c className="hiddenclass" />\n'
+    )
+    new = base.replace("catch (err)", "catch")
+    masked, mapping = dw.mask_lines(base, redact)
+    assert len(mapping) == 3, "one placeholder per line"
+    shown = dw.mask_aligned(new, base, masked, mapping)
+    diff = dw.unified_diff("Panel.jsx", masked, shown)
+    changed = [
+        line
+        for line in diff.splitlines()
+        if line[:1] in "+-" and not line.startswith(("+++", "---"))
+    ]
+    assert changed == ["-} catch (err) {", "+} catch {"]
+    assert "hiddenclass" not in shown
+    assert dw.unmask(shown, mapping, masked=masked) == new
+
+
+def test_a_verdict_given_on_wrong_evidence_is_given_again(
+    tmp_path, monkeypatch
+) -> None:
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (True, ""))
+    wronged = _proposal(led)
+    led.record_review(wronged, "claude", model="opus", verdict="reject", reason="x")
+    other = _proposal(led)
+    led.record_review(other, "claude", model="opus", verdict="reject", reason="y")
+    seen: list = []
+
+    def runner(prompt, *, model, timeout_s):
+        seen.append(prompt)
+        return "accept", "only the warning is fixed", "opus"
+
+    monkeypatch.setitem(tool.REVIEWER_RUNNERS, "claude", runner)
+    args = SimpleNamespace(
+        reviewer="claude", limit=10, model=None, timeout=5, again=[wronged]
+    )
+    assert tool.cmd_review(args) == 0
+    assert len(seen) == 1
+    assert {p["proposal_id"]: p["status"] for p in led.proposals()} == {
+        wronged: "accepted",
+        other: "rejected",
+    }
+
+
+def test_proposals_claude_code_accepted_while_codex_was_required_are_accepted(
+    tmp_path, monkeypatch
+) -> None:
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    monkeypatch.setattr(dw, "REQUIRED_REVIEWERS", ("codex", "claude"))
+    waiting = _proposal(led)
+    led.record_review(waiting, "claude", model="opus", verdict="accept", reason="ok")
+    unreviewed = _proposal(led)
+    assert led.proposals(status="proposed") != []
+    monkeypatch.setattr(dw, "REQUIRED_REVIEWERS", ("claude",))
+    assert led.resettle() == [waiting]
+    assert {p["proposal_id"]: p["status"] for p in led.proposals()} == {
+        waiting: "accepted",
+        unreviewed: "proposed",
+    }
+    assert led.resettle() == [], "once"
+
+
+def test_claude_codes_acceptance_is_enough_and_any_reject_still_rejects(
+    tmp_path,
+) -> None:
+    """The operator, 2026-11-02: "forget codex now we both r available so
+    that's enough". Claude Code reviews, the operator merges."""
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    alone = _proposal(led)
+    assert (
+        led.record_review(alone, "claude", model="opus", verdict="accept", reason="ok")
+        == "accepted"
+    )
+    vetoed = _proposal(led)
+    led.record_review(vetoed, "codex", model="gpt", verdict="reject", reason="no")
+    assert (
+        led.record_review(vetoed, "claude", model="opus", verdict="accept", reason="ok")
+        == "rejected"
+    )
+    text = tool.report(led)
+    assert "Codex: not yet reviewed" not in text, "Codex is no longer awaited"
 
 
 def test_a_refused_proposal_is_never_reviewed_and_teaches_the_rule(tmp_path) -> None:
@@ -570,7 +663,7 @@ def test_propose_records_a_checked_proposal_and_never_repeats_it(
 
     monkeypatch.setattr(tool, "governed_completer", completer)
     args = SimpleNamespace(
-        project=str(root), budget=2, model="m", region="r", rules=None, dry_run=False
+        project=str(root), budget=2, model="m", region="r", rules=[RULE], dry_run=False
     )
     assert tool.cmd_propose(args) == 0
     [p] = led.proposals()
@@ -680,7 +773,8 @@ def test_deliver_commits_each_accepted_change_with_both_reviews(
 
 def test_a_gagos_pr_says_who_opened_it() -> None:
     assert "no GitHub identity of its own" in tool.PR_FOOTER
-    assert "chief" in tool.PR_FOOTER and "both accept" in tool.PR_FOOTER
+    assert "accepted by its reviewer, Claude Code" in tool.PR_FOOTER
+    assert "The operator merges" in tool.PR_FOOTER
 
 
 def test_deliver_never_applies_to_a_file_that_changed(

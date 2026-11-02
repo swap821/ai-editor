@@ -14,7 +14,8 @@ day can stop anywhere and resume, and every outcome is in the ledger
   review    --reviewer codex|claude: each open proposal is reviewed by a fresh,
             read-only, tool-less session that sees the rule, the warnings, the
             whole original file and the diff, and returns a schema-checked
-            verdict. A proposal is accepted only when BOTH reviewers accept.
+            verdict. A proposal is accepted when Claude Code accepts (Codex no
+            longer, operator 2026-11-02); a reject from either rejects it.
   deliver   apply the accepted proposals to a daily branch in --worktree (reset
             to origin/master), each checked there (parse, no ESLint error, the
             tests that import it) and committed on its own; --open-pr pushes
@@ -52,27 +53,39 @@ if str(REPO) not in sys.path:
 from aios import config  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
     FIRST_RULES,
+    MISSING_TEST,
     NO_MODEL,
-    PROPOSER_SYSTEM,
+    PYTHON_RULES,
     REVIEW_SCHEMA,
+    REQUIRED_REVIEWERS,
     REVIEWERS,
+    TESTER_SYSTEM,
     DailyLedger,
     Direction,
     load_direction,
     set_direction,
     Finding,
     MaskingFailed,
+    StaticVerdict,
     ProposalRefused,
     digest,
     findings,
+    first_test_prompt,
+    first_test_review_prompt,
+    first_test_verdict,
+    is_python,
+    mask_aligned,
     mask_like,
     mask_lines,
+    missing_tests,
     parse_proposal,
     parse_review,
     project_facts,
     proposal_prompt,
+    proposer_system,
     review_prompt,
     static_verdict,
+    subject_of,
     unified_diff,
     unmask,
 )
@@ -80,6 +93,12 @@ from aios.maintenance.frontend_static import (  # noqa: E402
     StaticCheckUnavailable,
     check_texts,
     editable_frontend_files,
+)
+from aios.maintenance.python_static import (  # noqa: E402
+    PYTHON_SCOPE,
+    check_python_texts,
+    editable_python_files,
+    import_refusal,
 )
 
 DEFAULT_MODEL = "mistral.mistral-large-3-675b-instruct"
@@ -103,6 +122,14 @@ WORKFORCE = (
     "mistral.mistral-large-3-675b-instruct",
     "moonshotai.kimi-k2.5",
 )
+#: GAGOS's work when the operator names none (2026-11-02): the lint rules
+#: whose fix keeps behaviour, in its frontend and in its Python (its backend and
+#: itself), then a first test for each frontend module that has none.
+WORK_RULES = (*FIRST_RULES, *PYTHON_RULES, MISSING_TEST)
+#: An existing test shown to the test writer for this codebase's conventions,
+#: when one this short sits beside the module and needs no masking.
+MAX_EXAMPLE_CHARS = 6_000
+
 #: Model calls in flight at once: Codex's starting point (2026-11-02), to be
 #: raised from measured capacity, not a quota. The ESLint checks run one at a
 #: time, so a batch never holds more than one lint's memory.
@@ -299,8 +326,8 @@ def governed_completer(model: str, region: str):
             constitution_digest=snapshot.snapshot_digest,
             target="cloud",
             desired_outcome=(
-                "one proposed fix of ESLint warnings in one frontend file, for "
-                "independent review by two reviewers"
+                "one proposed fix of lint warnings in one file of GAGOS's own code, for "
+                "review before the operator merges"
             ),
             emergency_stop=emergency_stop,
         )
@@ -319,13 +346,14 @@ def cmd_propose(args: argparse.Namespace) -> int:
     direction = load_direction(_direction_path())
     # The operator's taste reaches the proposer and both reviewers, scrubbed
     # like everything else that leaves the machine.
-    facts = project_facts(root) + tuple(
+    notes = tuple(
         f"The operator's direction: {egress_redact(note)}" for note in direction.notes
     )
-    if _git(root, "status", "--porcelain", "--", "frontend/src"):
-        print(f"refused: frontend/src has uncommitted changes in {root}")
+    facts = project_facts(root) + notes
+    if _git(root, "status", "--porcelain", "--", "frontend/src", *PYTHON_SCOPE):
+        print(f"refused: GAGOS's files have uncommitted changes in {root}")
         return 2
-    rules = tuple(args.rules or direction.rules or FIRST_RULES)
+    rules = tuple(args.rules or direction.rules or WORK_RULES)
     texts = {
         rel: (root / rel).read_bytes().decode("utf-8")
         for rel in editable_frontend_files(root)
@@ -335,14 +363,33 @@ def cmd_propose(args: argparse.Namespace) -> int:
     except StaticCheckUnavailable as exc:
         print(f"refused: {exc}")
         return 2
+    if any(r in PYTHON_RULES for r in rules):
+        # Its backend and itself; unavailable, the frontend's work goes on.
+        try:
+            py_texts = {
+                rel: (root / rel).read_bytes().decode("utf-8")
+                for rel in editable_python_files(root)
+            }
+            results.update(check_python_texts(root, py_texts))
+            texts.update(py_texts)
+        except (StaticCheckUnavailable, subprocess.CalledProcessError) as exc:
+            print(f"Python work skipped this batch: {exc}")
     every = Counter(m.rule for r in results.values() for m in r.warnings())
     busy = set(getattr(args, "skip", None) or ())
+
+    def base_of(f: Finding) -> str:
+        # A first test's base is its module: a changed module is new work.
+        return texts[subject_of(f.rel)] if f.rule == MISSING_TEST else texts[f.rel]
+
+    candidates = findings(results, rules=[r for r in rules if r != MISSING_TEST])
+    if MISSING_TEST in rules:
+        candidates += missing_tests(texts, lambda rel: (root / rel).exists())
     work = direction.steer(
         [
             f
-            for f in findings(results, rules=rules)
+            for f in candidates
             if f.rel not in busy
-            and not led.attempted(f.rel, f.rule, digest(texts[f.rel]))
+            and not led.attempted(f.rel, f.rule, digest(base_of(f)))
         ]
     )
     if busy:
@@ -375,8 +422,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
     for f in work:
         if len(jobs) >= args.budget:
             break
-        text = texts[f.rel]
-        common = dict(base_text=text, base_commit=head, facts=facts)
+        text = base_of(f)
+        known = notes if is_python(f.rel) else facts
+        common = dict(base_text=text, base_commit=head, facts=known)
         if len(text) > MAX_FILE_CHARS:
             led.record_proposal(
                 f,
@@ -402,14 +450,23 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  skipped {f.rel}: {exc}")
             continue
-        prompt = proposal_prompt(
-            f,
-            masked,
-            prior_refusals=[egress_redact(r) for r in led.refusal_reasons(f.rule)],
-            masked=bool(mapping),
-            facts=facts,
-        )
-        altered = would_be_altered(prompt, PROPOSER_SYSTEM)
+        refusals = [egress_redact(r) for r in led.refusal_reasons(f.rule)]
+        if f.rule == MISSING_TEST:
+            system = TESTER_SYSTEM
+            prompt = first_test_prompt(
+                f,
+                masked,
+                example=_example_test(texts, f.rel),
+                prior_refusals=refusals,
+                masked=bool(mapping),
+                facts=known,
+            )
+        else:
+            system = proposer_system(f.rel)
+            prompt = proposal_prompt(
+                f, masked, prior_refusals=refusals, masked=bool(mapping), facts=known
+            )
+        altered = would_be_altered(prompt, system)
         if altered:
             led.record_proposal(
                 f,
@@ -421,7 +478,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  skipped {f.rel}: {altered}")
             continue
-        jobs.append((f, text, masked, mapping, prompt, common))
+        jobs.append((f, text, masked, mapping, prompt, system, common))
     roster = (args.model,) if args.model else WORKFORCE
     # Writers are compared within one rule, never across rules of different
     # difficulty (Codex's review of #580).
@@ -436,9 +493,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
     month, slot, lint = _month(), _slot(), threading.Lock()
 
     def attempt(n: int, job: tuple, model: str) -> None:
-        f, text, masked, mapping, prompt, common = job
+        f, text, masked, mapping, prompt, system, common = job
         common = dict(common, model=model)
-        chars_in = len(prompt) + len(PROPOSER_SYSTEM)
+        chars_in = len(prompt) + len(system)
         hold = led.reserve_spend(
             month=month,
             model=model,
@@ -455,9 +512,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             return
         started = time.monotonic()
         try:
-            raw = completers[model](
-                prompt, PROPOSER_SYSTEM, f"gagos:{slot}:spend-{hold}"
-            )
+            raw = completers[model](prompt, system, f"gagos:{slot}:spend-{hold}")
         except (
             Exception
         ) as exc:  # the model or the gateway refused; recorded, never hidden
@@ -480,8 +535,15 @@ def cmd_propose(args: argparse.Namespace) -> int:
             chars_out=len(raw),
         )
         try:
+            # A new test takes its module's line endings, and ends with one.
+            shape = (
+                text if f.rule != MISSING_TEST else ("\r\n" if "\r\n" in text else "\n")
+            )
             new_text = unmask(
-                parse_proposal(raw, original=text), mapping, masked=masked
+                parse_proposal(raw, original=shape),
+                mapping,
+                masked=masked,
+                repeat=f.rule == MISSING_TEST,
             )
         except ProposalRefused as exc:
             pid = led.record_proposal(
@@ -492,9 +554,13 @@ def cmd_propose(args: argparse.Namespace) -> int:
         try:
             # Both texts once more, each also with inline configuration off,
             # so what disable comments hide can be compared (static_verdict).
+            check = check_python_texts if is_python(f.rel) else check_texts
             with lint:
-                before = check_texts(root, {f.rel: text}, inline_off=True)[f.rel]
-                after = check_texts(root, {f.rel: new_text}, inline_off=True)[f.rel]
+                if f.rule == MISSING_TEST:
+                    before = None
+                else:
+                    before = check(root, {f.rel: text}, inline_off=True)[f.rel]
+                after = check(root, {f.rel: new_text}, inline_off=True)[f.rel]
         except StaticCheckUnavailable as exc:
             pid = led.record_proposal(
                 f,
@@ -505,7 +571,16 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  {pid} {f.rel} ({model}): {exc}")
             return
-        verdict = static_verdict(f, text, new_text, before, after)
+        verdict = (
+            first_test_verdict(f, new_text, after)
+            if before is None
+            else static_verdict(f, text, new_text, before, after)
+        )
+        if verdict.passed and is_python(f.rel):
+            # Ruff sees one file; what other modules take from it is checked here.
+            taken = import_refusal(root, f.rel, text, new_text)
+            if taken:
+                verdict = StaticVerdict(False, taken, verdict.changed_lines)
         pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
         state = (
             "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
@@ -527,6 +602,28 @@ def cmd_propose(args: argparse.Namespace) -> int:
         ]:
             done.result()
     return 0
+
+
+def _example_test(texts: dict[str, str], test_rel: str) -> str | None:
+    """The shortest existing test beside *test_rel*, for the writer to follow
+    this codebase's conventions; only one with nothing to mask, so no other
+    file's placeholders reach the answer."""
+    folder = str(Path(test_rel).parent.as_posix())
+    near = sorted(
+        (len(text), rel)
+        for rel, text in texts.items()
+        if Path(rel).parent.as_posix() == folder
+        and (".test." in Path(rel).name or ".spec." in Path(rel).name)
+        and len(text) <= MAX_EXAMPLE_CHARS
+    )
+    for _size, rel in near:
+        try:
+            masked, mapping = mask_lines(texts[rel], egress_redact)
+        except MaskingFailed:
+            continue
+        if not mapping:
+            return masked
+    return None
 
 
 # --------------------------------------------------------------------- review
@@ -734,12 +831,18 @@ def review_evidence(p: dict, finding: Finding) -> str:
     Raises ``MaskingFailed`` when the change cannot be shown without exposing
     what may not leave the machine."""
     masked_base, mapping = mask_lines(p["base_text"], egress_redact)
-    masked_new = mask_like(p["new_text"], mapping)
-    # The file's name, never its path: paths do not leave the machine.
-    diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
-    prompt = review_prompt(
-        finding, masked_base, diff, facts=json.loads(p.get("facts") or "[]")
-    )
+    facts = json.loads(p.get("facts") or "[]")
+    if finding.rule == MISSING_TEST:
+        # The module and the whole new test, under the module's mask.
+        masked_new = mask_like(p["new_text"], mapping)
+        prompt = first_test_review_prompt(finding, masked_base, masked_new, facts=facts)
+    else:
+        # Kept lines exactly as in the masked original, so the diff shows
+        # only what the proposal changed.
+        masked_new = mask_aligned(p["new_text"], p["base_text"], masked_base, mapping)
+        # The file's name, never its path: paths do not leave the machine.
+        diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
+        prompt = review_prompt(finding, masked_base, diff, facts=facts)
     if mapping:
         prompt += (
             "\n\nSome spans are shown as placeholders (GAGOSMASK...): they hide "
@@ -754,7 +857,18 @@ def review_evidence(p: dict, finding: Finding) -> str:
 
 def cmd_review(args: argparse.Namespace) -> int:
     led = ledger()
-    pending = led.awaiting(args.reviewer)[: args.limit]
+    again = set(getattr(args, "again", None) or ())
+    if again:
+        # A verdict given on wrong evidence is given again, by a fresh session
+        # on the evidence as it is shown now; the new verdict replaces it.
+        pending = [
+            p
+            for p in led.proposals()
+            if p["proposal_id"] in again
+            and p["status"] in ("proposed", "accepted", "rejected")
+        ]
+    else:
+        pending = led.awaiting(args.reviewer)[: args.limit]
     if not pending:
         print(f"nothing awaits {args.reviewer}")
         return 0
@@ -811,6 +925,8 @@ MODEL_NAMES = {
     "mistral.mistral-large-3-675b-instruct": "Mistral Large 3 (Mistral AI, on Amazon Bedrock)",
     "mistral.devstral-2-123b": "Devstral 2 (Mistral AI, on Amazon Bedrock)",
     "deepseek.v3.2": "DeepSeek V3.2 (DeepSeek, on Amazon Bedrock)",
+    "qwen.qwen3-coder-next": "Qwen3 Coder Next (Qwen, on Amazon Bedrock)",
+    "moonshotai.kimi-k2.5": "Kimi K2.5 (Moonshot AI, on Amazon Bedrock)",
     "us.anthropic.claude-sonnet-4-6": "Claude Sonnet 4.6 (Anthropic, on Amazon Bedrock)",
     "gpt-6.1-sol": "GPT-6.1 sol (OpenAI, via Codex)",
     "claude-opus-5-5": "Claude Opus 5.5 (Anthropic, via Claude Code)",
@@ -830,8 +946,8 @@ def credit_email(model_id: str) -> str:
 PR_FOOTER_NO_APP = (
     "Opened by GAGOS's delivery step. GAGOS has no GitHub identity of its own "
     "yet, so GitHub shows the operator's account as the opener; every commit "
-    "here is authored by GAGOS. Reviewers: Claude Code (chief) and Codex, "
-    "independently; a change ships only if both accept. The operator merges."
+    "here is authored by GAGOS. Every change here was accepted by its "
+    "reviewer, Claude Code. The operator merges."
 )
 #: Accurate about merging (Codex's post-merge review of #566): GitHub would let
 #: the App's token merge a PR whose checks pass; that GAGOS never merges is a
@@ -840,8 +956,8 @@ PR_FOOTER_APP = (
     "Opened by GAGOS itself, through its own GitHub App. GAGOS pushes its "
     "branch and opens the PR; it has no code that merges, and only the "
     "operator merges (GitHub itself would allow the App to merge once the "
-    "checks pass: that is a rule GAGOS keeps, not a lock). Reviewers: Claude "
-    "Code (chief) and Codex, independently; a change ships only if both accept."
+    "checks pass: that is a rule GAGOS keeps, not a lock). Every change here "
+    "was accepted by its reviewer, Claude Code."
 )
 #: Kept for callers of the first version.
 PR_FOOTER = PR_FOOTER_NO_APP
@@ -851,20 +967,41 @@ def commit_message(p: dict, reviews: dict) -> str:
     """GAGOS's commit for one delivered change: what it did, how it was
     checked, who reviewed it, and the frontier model credited as co-author."""
     warnings = json.loads(p["warnings"])
-    return "\n".join(
-        [
+    if p["rule"] == MISSING_TEST:
+        head = [
+            f"GAGOS: a first test for {subject_of(p['rel'])}",
+            "",
+            f"GAGOS found that this module had no test and wrote one (proposal "
+            f"{p['proposal_id']}); {model_name(p['model'])} wrote it. Unattended "
+            "checks passed: it parses, has no ESLint message, imports its module "
+            "and reaches nothing outside itself. Checked on master: it parses, has "
+            "no ESLint error, and it passes.",
+        ]
+    else:
+        head = [
             f"GAGOS: fix {p['rule']} in {p['rel']}",
             "",
             f"GAGOS found {len(warnings)} {p['rule']} warning(s) in this file and "
             f"proposed this change (proposal {p['proposal_id']}); "
             f"{model_name(p['model'])} wrote it. Unattended checks passed: it "
             "parses, the warnings are gone, nothing new. Checked again on master: "
-            "it parses, has no ESLint error, and the tests that import it pass.",
+            + (
+                "it compiles, and the tests that import it pass."
+                if is_python(p["rel"])
+                else "it parses, has no ESLint error, and the tests that import "
+                "it pass."
+            ),
+        ]
+    return "\n".join(
+        [
+            *head,
+            "",
             "",
             *(
                 f"{REVIEWER_LABELS[r]}, {model_name(reviews[r]['model'])}, accepted: "
                 f"{reviews[r]['reason']}"
                 for r in REVIEW_ORDER
+                if r in reviews
             ),
             "",
             "Proposed-by: GAGOS",
@@ -872,6 +1009,7 @@ def commit_message(p: dict, reviews: dict) -> str:
             *(
                 f"Reviewed-by: {REVIEWER_LABELS[r]}, {model_name(reviews[r]['model'])}"
                 for r in REVIEW_ORDER
+                if r in reviews
             ),
         ]
     )
@@ -1022,7 +1160,7 @@ def publish(
     refspec = f"{head}:refs/heads/{branch}"
     title = (
         f"GAGOS: daily improvements {_today()} ({len(ids)} change(s), "
-        "each accepted by both of its reviewers)"
+        "each accepted by its reviewer)"
     )
     footer = pr_footer or (PR_FOOTER_APP if app else PR_FOOTER_NO_APP)
     body = report(led, day=_today(), in_pr=ids, footer=footer, scrub=egress_redact)
@@ -1129,13 +1267,17 @@ def publish_pending(led: DailyLedger, root: Path) -> str | None:
 
 
 def cmd_deliver(args: argparse.Namespace) -> int:
-    from aios.application.promotion.smoke import SmokeStep, frontend_smoke
+    from aios.application.promotion.smoke import (
+        SmokeStep,
+        frontend_smoke,
+        python_smoke,
+    )
 
     root = Path(args.worktree).resolve()
     led = ledger()
     accepted = led.proposals(status="accepted")
     if not accepted:
-        print("nothing accepted by both reviewers awaits delivery")
+        print("nothing accepted by its reviewer awaits delivery")
         return 0
     if _git(root, "status", "--porcelain"):
         print(f"refused: {root} has uncommitted changes")
@@ -1153,7 +1295,15 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     for p in accepted:
         pid, path = p["proposal_id"], root / p["rel"]
         current = path.read_bytes().decode("utf-8") if path.is_file() else None
-        if current is None or digest(current) != p["base_digest"]:
+        if p["rule"] == MISSING_TEST:
+            # A first test: still no file of its name, and its module as it was.
+            module = root / subject_of(p["rel"])
+            base = module.read_bytes().decode("utf-8") if module.is_file() else None
+            fresh = current is None and base is not None
+            fresh = fresh and digest(base) == p["base_digest"]
+        else:
+            fresh = current is not None and digest(current) == p["base_digest"]
+        if not fresh:
             led.record_delivery(pid, branch=branch, outcome="stale")
             print(
                 f"  {pid} {p['rel']}: STALE, the file changed on master since the proposal"
@@ -1161,11 +1311,22 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             continue
         path.write_bytes(p["new_text"].encode("utf-8"))
         steps: list[SmokeStep] = []
-        failure = frontend_smoke(
-            root, [path], deadline=time.monotonic() + args.check_timeout, steps=steps
-        )
+        if is_python(p["rel"]):
+            # It compiles, and the tests that import it pass.
+            smoke = python_smoke(root, [p["rel"]], timeout_s=args.check_timeout)
+            failure = None if smoke.passed else smoke.reason
+        else:
+            failure = frontend_smoke(
+                root,
+                [path],
+                deadline=time.monotonic() + args.check_timeout,
+                steps=steps,
+            )
         if failure is not None:
-            path.write_bytes(current.encode("utf-8"))
+            if current is None:
+                path.unlink()
+            else:
+                path.write_bytes(current.encode("utf-8"))
             led.record_delivery(pid, branch=branch, outcome=f"failed checks: {failure}")
             print(f"  {pid} {p['rel']}: FAILED delivery checks: {failure}")
             continue
@@ -1251,6 +1412,8 @@ def report(
     chosen = [p for p in every if day is None or p["day"] == day]
     by = Counter(p["status"] for p in every)
     reviewed = [led.reviews(p["proposal_id"]) for p in every]
+    done = [r for r in reviewed if all(x in r for x in REQUIRED_REVIEWERS)]
+    # Codex reviewed too until 2026-11-02; how often the two disagreed stays.
     both = [r for r in reviewed if all(x in r for x in REVIEWERS)]
     disagree = [r for r in both if r["codex"]["verdict"] != r["claude"]["verdict"]]
     blocked = [d for d in led.days() if d["status"] == "blocked"]
@@ -1273,9 +1436,10 @@ def report(
         "**D14 so far** (every proposal in the ledger; descriptive, not a test):",
         f"- proposals: {len(every)}; refused by the unattended checks or the model: "
         f"{by['refused']}; awaiting review: {by['proposed']}",
-        f"- reviewed by both: {len(both)}; accepted by both: "
-        f"{sum(1 for r in both if all(r[x]['verdict'] == 'accept' for x in REVIEWERS))}; "
-        f"reviewers disagreed: {len(disagree)}",
+        f"- reviewed: {len(done)}; accepted: "
+        f"{sum(1 for r in done if all(r[x]['verdict'] == 'accept' for x in REQUIRED_REVIEWERS))}; "
+        f"Codex and Claude Code disagreed (while both reviewed, until 2026-11-02): "
+        f"{len(disagree)}",
         f"- delivered: {by['delivered']}; stale: {by['stale']}; failed delivery checks: {by['failed']}",
         f"- batches blocked (days until 2026-11-02, hours since): {len(blocked)}",
         "- merged and reverted are not tracked automatically yet; read them from master.",
@@ -1310,7 +1474,7 @@ def report(
                     f"- {REVIEWER_LABELS[r]} ({model_name(rv['model'])}): "
                     f"**{rv['verdict']}**: {s(rv['reason'])}"
                 )
-            elif p["status"] in ("proposed", "rejected"):
+            elif r in REQUIRED_REVIEWERS and p["status"] in ("proposed", "rejected"):
                 out.append(f"- {REVIEWER_LABELS[r]}: not yet reviewed")
         job = led.clerk_job(p["proposal_id"])
         if job:
@@ -1532,12 +1696,14 @@ def cmd_daily(args: argparse.Namespace) -> int:
         # reason to run a second one this hour.
         led.record_day(slot, "ran", None if rc == 0 else f"propose exited {rc}")
     # Finishing earlier reviews is not a new batch.
-    for reviewer in REVIEW_ORDER:
+    for reviewer in REQUIRED_REVIEWERS:
         cmd_review(
             argparse.Namespace(
                 reviewer=reviewer, limit=REVIEW_LIMIT, model=None, timeout=900
             )
         )
+    for pid in led.resettle():
+        print(f"  {pid}: decided by the reviews already recorded")
     cmd_clerk(argparse.Namespace())
     if not held:
         cmd_deliver(
@@ -1587,6 +1753,12 @@ def main(argv: list[str] | None = None) -> int:
     )
     r.add_argument("--limit", type=int, default=10)
     r.add_argument("--timeout", type=float, default=900)
+    r.add_argument(
+        "--again",
+        nargs="+",
+        metavar="PROPOSAL",
+        help="review these proposals again (a verdict given on wrong evidence)",
+    )
     r.set_defaults(func=cmd_review)
 
     d = sub.add_parser("deliver")

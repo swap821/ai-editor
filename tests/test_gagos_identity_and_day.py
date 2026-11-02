@@ -378,9 +378,8 @@ def test_one_batch_an_hour_and_another_the_next(day, monkeypatch) -> None:
     monkeypatch.setattr(tool, "_pr_state", lambda url: "MERGED")
     assert tool.cmd_daily(args) == 0
     assert ("propose", tool.BATCH_PROPOSALS) in calls and ("deliver", True) in calls
-    assert calls.index(("review", "claude")) < calls.index(("review", "codex")), (
-        "the chief first"
-    )
+    assert ("review", "claude") in calls
+    assert ("review", "codex") not in calls, "Codex is no longer asked (2026-11-02)"
     calls.clear()
     tool.cmd_daily(args)
     assert not any(c[0] == "propose" for c in calls), "one batch an hour"

@@ -1,9 +1,44 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-02 ("Later still on 2026-11-02" below; earlier sections keep
+**Last updated:** 2026-11-02 ("Evening of 2026-11-02" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Evening of 2026-11-02 (branch `feat/gagos-first-tests`, off master `012716a3`)
+
+- **The operator merged #579 and #580 at 15:19 UTC (squash `c2477622`, then `012716a3`) with only the chief review. Codex could not review: its usage limit (below).**
+  - #580's merged code is the head I accepted, `4e0011b6`. GitHub's update merge `3da1711e` added only #579's HONEST_STATE. Codex reviewed #580's first head `93ff5bb2` and found three P2s. It has not reviewed the fixes; it reviews them on master after its reset, and anything it finds is fixed.
+  - Codex has not reviewed #579's last commit `653ecab5` (the line on its limit).
+- **GAGOS works every hour from 15:50 UTC (21:20 IST), on master's tip,** whenever the laptop is awake and the operator is logged in. Each batch makes up to 10 proposals from five Bedrock writers, 2 at a time, within $100 a month.
+  - Until Codex's reset, each proposal gets the chief's review and then waits for Codex's. None is delivered.
+  - Its work on master is still three lint rules. At the 02:50 UTC scan, 16 findings under them had not been attempted, so the first batch or two use them up.
+- **This branch adds GAGOS's second kind of work: a first test for each frontend module that has none** (133 of 273). A test is executed only at delivery, after both reviews.
+  - The live smoke cost about $0.13 over three runs. On the last, 1 of 4 tests passed the static checks, and I rejected it: its Retry test clicks while the child still throws.
+  - Why the tests are weak: GAGOS's privacy filter masks long code identifiers, so the writers cannot see the names they test. That affects 35 of the 43 modules targeted, about 600 masked spans. Changing the egress filter is the operator's decision, with both reviews.
+- **GAGOS's daily backend (the API on :8000 and the executor) has been down all day (found at 15:30 UTC).** GAGOS's hourly work does not need it and is unaffected.
+  - D13 kept the machine quiet until 02:10 UTC. Since then the 15-minute watchdog has refused to start the backend 52 times, because Docker's engine is not running and the sandbox needs it. Ollama is up.
+  - The watchdog also stood aside once, at 15:20 UTC, for a D13 run that had already ended. D13's quiet marker was never removed, and another process briefly reused its process id. I moved the marker aside (`quiet.json.d13-ended-2026-11-02`). The check trusts a process id alone; a fix should also compare the process's start time.
+- **The backend is back (16:00 UTC).** At the operator's word I started Docker Desktop and ran `daily_backend.py up`. The API and the executor answer health checks (200), and 3 of 11 reflexes are ready, as before D13.
+- **Codex is out of the review chain, by the operator's decision** ("forget codex now we both r available so that's enough"). On this branch, a GAGOS change is accepted when Claude Code accepts it, and the operator merges. A reject from Codex, if one is ever recorded, still rejects. GAGOS's hourly runs no longer ask Codex. The record of how often the two disagreed while both reviewed is kept.
+  - My own code (tools, not GAGOS's work) now has no second machine reviewer. Its checks are its tests, CI, and the operator's merge.
+- **GAGOS's first hourly batch ran at 15:50 UTC on master `012716a3`.** It made 10 proposals from 5 writers in 5 minutes, for about $0.11 (an estimate pitched high).
+  - 6 passed the static checks. 4 were refused: Kimi K2.5 twice gave no code block, one did not parse, and one left a warning.
+  - Of the 6, one could not be shown to a reviewer (the privacy filter would redact the file). I accepted 3 and rejected 2; both rejected ones also changed lines they were not asked to fix.
+  - Nothing was delivered: master's code still needs Codex's acceptance too, until this branch merges.
+- **This branch also lets GAGOS improve its backend and itself** ("capable of improving its both backend and frontend and itself"). Its work now includes ruff's F401 (unused import) and F841 (unused local) in tracked Python under `aios/` and `tools/`; at `7302fa9d` that is 24 findings.
+  - GAGOS never changes the frozen security core (`aios/security/`) or any organ's production entrypoint, which would make that organ's evidence stale. 6 files with findings are excluded for that. Without the organ ledger it changes no Python.
+  - A removed import that another module takes from this one is refused. Delivery checks Python by compiling it and running the tests that import it.
+  - GAGOS already learns from refusals: each prompt carries the last reasons that kind of work was refused, by the checks or by a reviewer.
+- **Master's CI on `012716a3` passed** (CI and CodeQL).
+- **One of my rejections was wrong, caused by a bug in what the reviewer is shown (found at 17:30 UTC).** `gd-a9f57600cf` fixed two `catch (err)` warnings in CouncilServicesPanel.jsx and changed nothing else. I rejected it for changing class names, which it never touched.
+  - The cause: a hidden value that appears on several lines gets one placeholder per line in the original, but the proposal was masked by value, giving every occurrence the same placeholder. The diff I was shown had 22 changed lines; the real change has 4. Nothing leaked: every review prompt is still checked by the privacy filter before it leaves the machine.
+  - The fix on this branch: lines the proposal keeps are shown exactly as in the masked original. Re-run on the ledger, the reviewer is shown 4 changed lines for `gd-a9f57600cf`; my other rejections today stand on real changes (26 and 17 lines).
+  - `review --again` lets a verdict given on wrong evidence be given again by a fresh session; the new verdict replaces the old one and its reason. I will run it for `gd-a9f57600cf` once this branch merges.
+- **The 22:20 IST batch (16:50 UTC) found only 2 frontend findings left on master.** It made 1 proposal, which I rejected: it also changed test behaviour beyond the 3 lines asked. Master's lint work is nearly used up; this branch adds the Python and first-test work.
+- **Still open:**
+  - Wake timers in the power plan (the operator's setting).
+  - The monthly probe stays red until 1 December, or until the operator runs it by hand.
 
 ## Later still on 2026-11-02 (branch `docs/honest-state-after-578`, off master `dd7aa102`)
 

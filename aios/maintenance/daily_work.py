@@ -2,8 +2,9 @@
 
 docs/learning/PAYOFF_PREREGISTRATION.md D14 (2026-10-30). The operator decided
 that usefulness is starved of real use, not of harnesses, and that he will not
-approve every diff: Codex and Claude Code review them, and a change ships only
-if both accept. This module is the part that needs no process or network of
+approve every diff: a reviewer does, and he merges. Codex and Claude Code both
+reviewed until 2026-11-02; since then Claude Code's acceptance is enough (the
+operator: "forget codex now we both r available so that's enough"). This module is the part that needs no process or network of
 its own:
 
 * :func:`findings` -- the day's work: one file and one ESLint rule each, from
@@ -21,8 +22,8 @@ its own:
 * :class:`DailyLedger` -- every proposal, refusal, review and delivery, durable,
   so the daily report and D14's numbers are read from records, not memory.
 
-A model may propose here; nothing it proposes is applied until both reviewers
-accept it, CI passes and the operator merges. That amends the maintenance
+A model may propose here; nothing it proposes is applied until its reviewer
+accepts it, CI passes and the operator merges. That amends the maintenance
 principle "a repair never lets a model write code" for this path only, by the
 operator's decision of 2026-10-30.
 """
@@ -36,11 +37,11 @@ import re
 import sqlite3
 import uuid
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 import dataclasses
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from aios.maintenance.frontend_static import Comment, StaticResult
 
@@ -74,6 +75,23 @@ _WHOLE_FILE = re.compile(
 _FENCE = re.compile(r"^```[^\n]*\n(.*?)^```[ \t]*$", re.DOTALL | re.MULTILINE)
 
 #: Bounds on one proposal's change, in changed (added + removed) lines.
+#: GAGOS's Python work (2026-11-02): its backend and itself, by ruff's codes:
+#: an unused import and an unused local. Each fix removes what the file does
+#: not use; what other modules take from it is checked apart
+#: (:func:`aios.maintenance.python_static.import_refusal`).
+PYTHON_RULES: tuple[str, ...] = ("F401", "F841")
+
+
+def is_python(rel: str) -> bool:
+    """A Python file is GAGOS's backend or GAGOS itself; anything else here is
+    its frontend."""
+    return rel.endswith(".py")
+
+
+def linter_of(rel: str) -> str:
+    return "ruff" if is_python(rel) else "ESLint"
+
+
 MAX_CHANGED_LINES_BASE = 24
 MAX_CHANGED_LINES_PER_WARNING = 8
 
@@ -123,6 +141,21 @@ PROPOSER_SYSTEM = (
     "asked to fix. Reply with the complete corrected file in ONE fenced code "
     "block and nothing else."
 )
+
+PYTHON_PROPOSER_SYSTEM = (
+    "You are GAGOS's backend maintainer. You fix exactly the ruff warnings you "
+    "are given in one Python file of GAGOS's own code, and nothing else. Your "
+    "change must not alter behaviour, return values, exceptions raised, public "
+    "names or anything other modules import from this file. When you remove an "
+    "unused variable, keep any call on its right-hand side whose effect "
+    "matters. Never add noqa, type: ignore, nosec or pragma comments. Do not "
+    "reformat, reorder or rename anything you were not asked to fix. Reply "
+    "with the complete corrected file in ONE fenced code block and nothing else."
+)
+
+
+def proposer_system(rel: str) -> str:
+    return PYTHON_PROPOSER_SYSTEM if is_python(rel) else PROPOSER_SYSTEM
 
 
 #: The shape of a placeholder for a span that may not leave the machine (see
@@ -203,33 +236,76 @@ def mask_lines(
     return current, mapping
 
 
-def unmask(text: str, mapping: Mapping[str, str], *, masked: str) -> str:
+def unmask(
+    text: str, mapping: Mapping[str, str], *, masked: str, repeat: bool = False
+) -> str:
     """Restore the placeholders in the model's answer. The answer may drop a
     placeholder (its line was removed) but never invent or duplicate one.
     Only this mask's placeholders count: text that merely looks like one, in
-    the file itself, is left alone."""
+    the file itself, is left alone.
+
+    With *repeat*, a known placeholder may appear more often than in *masked*:
+    a module's first test reuses its values, each already in the repository,
+    and shown to the reviewers under the same mask again. Invented ones are
+    refused all the same."""
     if not mapping:
         return text
     prefix = next(iter(mapping))[:-4]
     for token in set(re.findall(re.escape(prefix) + r"\d{4}", text)):
         if token not in mapping:
             raise ProposalRefused(f"the answer invents the placeholder {token}")
-        if text.count(token) > masked.count(token):
+        if not repeat and text.count(token) > masked.count(token):
             raise ProposalRefused(f"the answer duplicates the placeholder {token}")
     for token in reversed(list(mapping)):  # later ones may wrap earlier ones
         text = text.replace(token, mapping[token])
     return text
 
 
-def mask_like(text: str, mapping: Mapping[str, str]) -> str:
+def mask_like(
+    text: str, mapping: Mapping[str, str], *, prefer: Collection[str] = ()
+) -> str:
     """*text* with every span *mapping* hides replaced by its placeholder: how
-    a reviewer is shown the proposed file under the same mask as the original."""
+    a reviewer is shown a new file under the same mask as its module. Where two
+    placeholders hide the same text, one in *prefer* is used."""
     # A later placeholder may wrap earlier ones: match what each finally stands for.
     full = {token: unmask(token, mapping, masked=token) for token in mapping}
-    for token, original in sorted(full.items(), key=lambda kv: -len(kv[1])):
+    order = sorted(full.items(), key=lambda kv: (-len(kv[1]), kv[0] not in prefer))
+    for token, original in order:
         if original:
             text = text.replace(original, token)
     return text
+
+
+def mask_aligned(
+    text: str, base: str, masked_base: str, mapping: Mapping[str, str]
+) -> str:
+    """*text*, a proposal for *base*, under *base*'s mask line by line: a line
+    the proposal keeps is shown exactly as in the masked original, and a
+    changed line takes the placeholders of the line it replaces first.
+
+    Masking the proposal by value alone gave a value the original holds twice
+    one placeholder where the original had two, so the reviewer saw changes
+    that were never made. On 2026-11-02 a correct two-line fix
+    (gd-a9f57600cf) was rejected for class names it never touched."""
+    old = base.splitlines(keepends=True)
+    new = text.splitlines(keepends=True)
+    shown = masked_base.splitlines(keepends=True)
+    if not mapping or len(shown) != len(old):
+        return mask_like(text, mapping)
+    prefix = re.escape(next(iter(mapping))[:-4]) + r"\d{4}"
+    out: list[str] = []
+    matcher = difflib.SequenceMatcher(None, old, new, autojunk=False)
+    for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+        if tag == "equal":
+            out.extend(shown[i1:i2])
+        elif tag == "replace" and i2 - i1 == j2 - j1:
+            for k in range(i2 - i1):
+                near = set(re.findall(prefix, shown[i1 + k]))
+                out.append(mask_like(new[j1 + k], mapping, prefer=near))
+        else:
+            near = set(re.findall(prefix, "".join(shown[i1:i2])))
+            out.append(mask_like("".join(new[j1:j2]), mapping, prefer=near))
+    return "".join(out)
 
 
 def project_facts(project_root: Path) -> tuple[str, ...]:
@@ -435,11 +511,35 @@ def _silenced_regions(lines: int, comments: Sequence[Comment]) -> list[tuple[int
     return sorted(out)
 
 
+_PY_FILE_SILENCER = re.compile(r"^\s*(ruff|flake8)\s*:\s*noqa", re.I)
+_PY_SILENCER = re.compile(
+    r"noqa|type:\s*ignore|nosec|pragma\b|fmt:\s*(off|skip)|pylint:\s*disable"
+    r"|pyright:\s*ignore",
+    re.I,
+)
+
+
+def _python_silenced_regions(
+    lines: int, comments: Sequence[Comment]
+) -> list[tuple[int, int]]:
+    """What Python's silencers cover: a ``# ruff: noqa`` the whole file, any
+    other its own line (0-based, inclusive), in order."""
+    out = set()
+    for c in comments:
+        if _PY_FILE_SILENCER.match(c.value):
+            out.add((0, max(lines - 1, 0)))
+        elif _PY_SILENCER.search(c.value):
+            out.add((c.start - 1, c.end - 1))
+    return sorted(out)
+
+
 def silencing_refusal(
     before_text: str,
     after_text: str,
     before: StaticResult,
     after: StaticResult,
+    *,
+    python: bool = False,
 ) -> str | None:
     """Why a proposal may not pass for what disable comments silence, or None.
 
@@ -459,13 +559,16 @@ def silencing_refusal(
     for tag, i1, i2, j1, _j2 in matcher.get_opcodes():
         if tag == "equal":
             to_old.update({j1 + k: i1 + k for k in range(i2 - i1)})
+    linter, regions = (
+        ("ruff", _python_silenced_regions) if python else ("ESLint", _silenced_regions)
+    )
     if before.comments is None or after.comments is None:
         return (
-            "what the disable comments silence is unknown: ESLint did not run "
+            f"what the disable comments silence is unknown: {linter} did not run "
             "with inline configuration off"
         )
-    was = _silenced_regions(len(old), before.comments)
-    now = _silenced_regions(len(new), after.comments)
+    was = regions(len(old), before.comments)
+    now = regions(len(new), after.comments)
     if len(was) != len(now):
         return "the proposal adds or removes a disable comment, or changes what one silences"
     for (s0, e0), (s1, e1) in zip(was, now):
@@ -479,7 +582,7 @@ def silencing_refusal(
     hidden_before, hidden_after = before.hidden(), after.hidden()
     if hidden_before is None or hidden_after is None:
         return (
-            "what the disable comments hide is unknown: ESLint did not run "
+            f"what the disable comments hide is unknown: {linter} did not run "
             "with inline configuration off"
         )
     already = Counter((m.rule, m.message, m.line) for m in hidden_before)
@@ -515,7 +618,8 @@ def static_verdict(
         first = after.errors[0]
         return StaticVerdict(
             False,
-            f"the proposal has an ESLint error: {first.rule}: {first.message}",
+            f"the proposal has an {linter_of(finding.rel)} error: "
+            f"{first.rule}: {first.message}",
             changed,
         )
     left = after.warnings(finding.rule)
@@ -540,7 +644,9 @@ def static_verdict(
     # silencers let a changed one through (Codex's post-merge review of #566);
     # an unchanged one could be retargeted, and a bounded region could take
     # in a warning moved into it (Codex's reviews of #567).
-    refusal = silencing_refusal(before_text, after_text, before, after)
+    refusal = silencing_refusal(
+        before_text, after_text, before, after, python=is_python(finding.rel)
+    )
     if refusal:
         return StaticVerdict(False, refusal, changed)
     limit = MAX_CHANGED_LINES_BASE + MAX_CHANGED_LINES_PER_WARNING * len(
@@ -554,6 +660,181 @@ def static_verdict(
             changed,
         )
     return StaticVerdict(True, "parses; the warnings are gone; nothing new", changed)
+
+
+# --------------------------------------------------------------------- tests
+
+#: GAGOS's second kind of work (2026-11-02): a first test for a module of its
+#: frontend that has none. The finding's file is the new test; its subject is
+#: the module beside it with the same name. Nothing in the module changes.
+MISSING_TEST = "gagos/missing-test"
+_TESTABLE = (".jsx", ".tsx", ".js", ".ts")
+_IS_TEST = re.compile(r"\.(test|spec)\.[jt]sx?$")
+_EXPORTS = re.compile(r"^\s*export\s", re.M)
+#: A new test longer than this is not a first test; it is a project.
+MAX_TEST_LINES = 200
+#: What a test GAGOS writes may not reach. It runs only at delivery, after
+#: review, but then it runs on the operator's machine.
+_TEST_FORBIDDEN = re.compile(
+    r"\brequire\s*\(|\bimport\s*\(|\bprocess\s*\.|\beval\s*\(|\bFunction\s*\("
+    r"|\bfetch\s*\(|\bXMLHttpRequest\b|\bWebSocket\b|\bchild_process\b"
+    r"|from\s+['\"](?:node:[^'\"]*|fs|fs/promises|net|http|https|os|vm|dgram"
+    r"|tls|cluster|worker_threads|child_process)['\"]"
+)
+_SILENCER = re.compile(r"eslint-disable|@ts-ignore|@ts-nocheck|@ts-expect-error", re.I)
+
+TESTER_SYSTEM = (
+    "You are GAGOS's frontend test writer. You write ONE new Vitest test file "
+    "for the module you are given, of a React + TypeScript codebase. Import the "
+    "module from './<its name>' and test only what its exports do, with "
+    "@testing-library/react for components. Assert real behaviour, never "
+    "something that would pass whatever the module did. Mock anything the "
+    "module would fetch or reach outside the test; never mock the module "
+    "itself. No network, no filesystem, no process, no Node built-ins, no "
+    "eval, no dynamic import, no real timers or randomness you do not control. "
+    "Never add eslint-disable or ts-ignore comments. Every import and variable "
+    "must be used. Keep it to a few focused tests, under "
+    f"{MAX_TEST_LINES} lines. A placeholder (GAGOSMASK...) stands for a hidden "
+    "span of the module: use it only where that span could appear, never as a "
+    "name of your own. Reply with the complete test file in ONE fenced code "
+    "block and nothing else."
+)
+
+
+def first_test_path(rel: str) -> str | None:
+    """Where a first test for the module *rel* goes, or None when *rel* is not
+    a module GAGOS writes tests for."""
+    path = PurePosixPath(rel)
+    if (
+        path.suffix not in _TESTABLE
+        or _IS_TEST.search(path.name)
+        or path.name.endswith(".d.ts")
+        or path.stem in ("index", "main", "setupTests")
+        or ".stories" in path.name
+    ):
+        return None
+    return str(path.with_name(f"{path.stem}.test{path.suffix}"))
+
+
+def subject_of(test_rel: str) -> str:
+    """The module a first test written by GAGOS is for."""
+    path = PurePosixPath(test_rel)
+    return str(path.with_name(path.name.replace(".test.", ".", 1)))
+
+
+def missing_tests(
+    texts: Mapping[str, str], exists: Callable[[str], bool]
+) -> list[Finding]:
+    """A finding for every module with exports and no test file of its name
+    beside it (``X.test.*`` or ``X.spec.*``, in any of the four extensions)."""
+    out = []
+    for rel in sorted(texts):
+        test = first_test_path(rel)
+        if test is None or not _EXPORTS.search(texts[rel]):
+            continue
+        path = PurePosixPath(rel)
+        siblings = [
+            str(path.with_name(f"{path.stem}.{kind}{ext}"))
+            for kind in ("test", "spec")
+            for ext in _TESTABLE
+        ]
+        if any(s in texts or exists(s) for s in siblings):
+            continue
+        out.append(Finding(rel=test, rule=MISSING_TEST, warnings=()))
+    return out
+
+
+def first_test_prompt(
+    finding: Finding,
+    subject: str,
+    *,
+    example: str | None = None,
+    prior_refusals: Sequence[str] = (),
+    masked: bool = False,
+    facts: Sequence[str] = (),
+) -> str:
+    """The test writer's prompt: the module, its test's name and, when one is
+    near, another test of this codebase for its conventions. Names, never
+    paths."""
+    module = PurePosixPath(subject_of(finding.rel)).name
+    lines = [
+        f"Module: {module}",
+        f"Write its first test file: {PurePosixPath(finding.rel).name}",
+    ]
+    if facts:
+        lines += [
+            "",
+            "Facts about this project, and the operator's direction:",
+            *(f"  - {fact}" for fact in facts),
+        ]
+    if masked:
+        lines += [
+            "",
+            "Some spans are replaced by placeholders (GAGOSMASK followed by "
+            "letters, digits and an underscore): they hide paths or values that "
+            "may not leave this machine. Never invent one.",
+        ]
+    if prior_refusals:
+        lines += [
+            "",
+            "Earlier tests were refused for these reasons. Do not repeat them:",
+            *(f"  - {reason}" for reason in prior_refusals),
+        ]
+    if example:
+        lines += [
+            "",
+            "Another test in this codebase, for its conventions:",
+            "```",
+            example,
+            "```",
+        ]
+    lines += ["", f"The module {module}:", "```", subject, "```"]
+    return "\n".join(lines)
+
+
+def first_test_verdict(
+    finding: Finding, new_text: str, after: StaticResult
+) -> StaticVerdict:
+    """The unattended checks on a new test. Nothing the model wrote is
+    executed: it runs only at delivery, after review."""
+    lines = len(new_text.splitlines())
+    if not new_text.strip():
+        return StaticVerdict(False, "the test is empty", 0)
+    if after.parse_errors:
+        return StaticVerdict(
+            False, f"the test does not parse: {after.parse_errors[0]}", lines
+        )
+    if after.errors:
+        first = after.errors[0]
+        return StaticVerdict(
+            False, f"the test has an ESLint error: {first.rule}: {first.message}", lines
+        )
+    if after.warnings():
+        first = after.warnings()[0]
+        return StaticVerdict(
+            False,
+            f"a new test must have no ESLint warning: {first.rule}: {first.message}",
+            lines,
+        )
+    if _SILENCER.search(new_text):
+        return StaticVerdict(False, "the test silences a check", lines)
+    reach = _TEST_FORBIDDEN.search(new_text)
+    if reach:
+        return StaticVerdict(
+            False, f"the test reaches outside itself: {reach.group(0)!r}", lines
+        )
+    stem = re.escape(PurePosixPath(subject_of(finding.rel)).stem)
+    if not re.search(rf"""from\s+['"]\./{stem}(?:\.[jt]sx?)?['"]""", new_text):
+        return StaticVerdict(False, "the test does not import its module", lines)
+    if not (re.search(r"\b(?:it|test)\s*\(", new_text) and "expect(" in new_text):
+        return StaticVerdict(False, "the test has no test with an expectation", lines)
+    if lines > MAX_TEST_LINES:
+        return StaticVerdict(
+            False, f"the test is {lines} lines; the bound is {MAX_TEST_LINES}", lines
+        )
+    return StaticVerdict(
+        True, "parses; no ESLint message; imports its module; reaches nothing", lines
+    )
 
 
 # --------------------------------------------------------------------- reviewing
@@ -584,22 +865,46 @@ def review_prompt(
         if facts
         else []
     )
-    return "\n".join(
-        [
-            "You are reviewing a change GAGOS (an AI system) proposed to its own "
-            "frontend. You are one of two independent reviewers; the change "
-            "ships only if both accept. Be strict and honest.",
-            "",
-            "ACCEPT only if ALL hold:",
-            "- it fixes the listed ESLint warnings and nothing else;",
+    if is_python(finding.rel):
+        part, linter = "backend (Python; GAGOS's own code)", "ruff"
+        holds = [
+            "- behaviour, return values, exceptions raised, public names and "
+            "tests are unchanged;",
+            "- nothing is silenced (no noqa, type: ignore, nosec or pragma comments);",
+            "- removed code was truly unused, and nothing it did is lost (e.g. "
+            "an import's side effect, a call on the right of a removed "
+            "assignment, a name other code reads through this module).",
+        ]
+        checked = (
+            "Automated checks already passed: it parses, the listed warnings are "
+            "gone, no other ruff warning or error was added, and no other "
+            "tracked module imports a removed name from this one."
+        )
+    else:
+        part, linter = "frontend", "ESLint"
+        holds = [
             "- behaviour, rendering, exports, public names and tests are unchanged;",
             "- nothing is silenced (no disable or ts-ignore comments) and no "
             "type is weakened to hide a problem;",
             "- removed code was truly unused, and nothing it did is lost "
             "(e.g. a side effect, a hook call, an argument position).",
-            "Otherwise REJECT, and say exactly why in one or two sentences.",
+        ]
+        checked = (
             "Automated checks already passed: it parses, the listed warnings "
-            "are gone, and no other ESLint warning or error was added.",
+            "are gone, and no other ESLint warning or error was added."
+        )
+    return "\n".join(
+        [
+            "You are reviewing a change GAGOS (an AI system) proposed to its own "
+            f"{part}. You are its reviewer: if you accept, it goes to the "
+            "operator to merge; if you reject, it does not ship. Be strict and "
+            "honest.",
+            "",
+            "ACCEPT only if ALL hold:",
+            f"- it fixes the listed {linter} warnings and nothing else;",
+            *holds,
+            "Otherwise REJECT, and say exactly why in one or two sentences.",
+            checked,
             "",
             f"File: {Path(finding.rel).name}",
             f"Rule: {finding.rule}",
@@ -620,6 +925,61 @@ def review_prompt(
     )
 
 
+def first_test_review_prompt(
+    finding: Finding, subject: str, test: str, *, facts: Sequence[str] = ()
+) -> str:
+    """What each reviewer reads for a new test: the module and the test, the
+    same text for both."""
+    known = (
+        [
+            "",
+            "Facts about this project (from its configuration) and the operator's direction:",
+        ]
+        + [f"  - {fact}" for fact in facts]
+        if facts
+        else []
+    )
+    module = PurePosixPath(subject_of(finding.rel)).name
+    return "\n".join(
+        [
+            "You are reviewing a NEW test file GAGOS (an AI system) wrote for a "
+            "module of its own frontend that had no test. You are its reviewer: "
+            "if you accept, it goes to the operator to merge; if you reject, it "
+            "does not ship. Be strict and honest.",
+            "",
+            "ACCEPT only if ALL hold:",
+            "- it imports the module below and tests what its exports do; every "
+            "assertion checks real behaviour, and none would pass whatever the "
+            "module did;",
+            "- judged assertion by assertion against the module exactly as shown, "
+            "it would pass;",
+            "- it is deterministic: no real timers, randomness, dates or ordering "
+            "it does not control;",
+            "- it reaches no network, filesystem, process or global state it does "
+            "not set up and restore; whatever the module would fetch is mocked, "
+            "and the module itself is not mocked;",
+            "- it adds a test and changes nothing else.",
+            "Otherwise REJECT, and say exactly why in one or two sentences.",
+            "Automated checks already passed: it parses, has no ESLint error or "
+            "warning, imports its module, has an expectation, uses no Node "
+            "built-in, network, eval, dynamic import or process, and silences "
+            "nothing. It has NOT been run: it runs only after you accept, and "
+            "must pass then.",
+            *known,
+            "",
+            f"The module {module}:",
+            "```",
+            subject,
+            "```",
+            "",
+            f"The new test {PurePosixPath(finding.rel).name}:",
+            "```",
+            test,
+            "```",
+        ]
+    )
+
+
 def parse_review(raw: object) -> tuple[str, str]:
     """``(verdict, reason)`` from a reviewer's structured output, or
     ``ValueError`` when it is not one."""
@@ -634,7 +994,12 @@ def parse_review(raw: object) -> tuple[str, str]:
 
 # --------------------------------------------------------------------- the ledger
 
+#: Who may review. A reject from any of them rejects the proposal.
 REVIEWERS: tuple[str, ...] = ("codex", "claude")
+#: Whose acceptance a change needs. Both, until the operator's word of
+#: 2026-11-02 ("forget codex now we both r available so that's enough"):
+#: Claude Code reviews and the operator merges; Codex is no longer asked.
+REQUIRED_REVIEWERS: tuple[str, ...] = ("claude",)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS proposals (
@@ -772,8 +1137,14 @@ class DailyLedger:
         proposal_id = f"gd-{uuid.uuid4().hex[:10]}"
         passed = verdict is not None and verdict.passed and refusal is None
         reason = refusal or (None if passed else (verdict.reason if verdict else None))
+        # A new test's base is its module, kept for the reviewers; its diff is
+        # the whole new file.
         diff = (
-            unified_diff(finding.rel, base_text, new_text)
+            unified_diff(
+                finding.rel,
+                "" if finding.rule == MISSING_TEST else base_text,
+                new_text,
+            )
             if new_text is not None
             else None
         )
@@ -805,6 +1176,36 @@ class DailyLedger:
             )
         return proposal_id
 
+    def resettle(self) -> list[str]:
+        """Proposals awaiting review that the reviews already recorded now
+        decide, under today's required reviewers; returns them. When Codex left
+        the chain (2026-11-02), proposals Claude Code had accepted were still
+        waiting for Codex, and no new review would ever touch them again."""
+        moved = []
+        with self._db() as db:
+            for row in db.execute(
+                "SELECT proposal_id FROM proposals WHERE status = 'proposed'"
+            ).fetchall():
+                verdicts = {
+                    r["reviewer"]: r["verdict"]
+                    for r in db.execute(
+                        "SELECT reviewer, verdict FROM reviews WHERE proposal_id = ?",
+                        (row["proposal_id"],),
+                    )
+                }
+                if "reject" in verdicts.values():
+                    status = "rejected"
+                elif all(verdicts.get(r) == "accept" for r in REQUIRED_REVIEWERS):
+                    status = "accepted"
+                else:
+                    continue
+                db.execute(
+                    "UPDATE proposals SET status = ? WHERE proposal_id = ?",
+                    (status, row["proposal_id"]),
+                )
+                moved.append(row["proposal_id"])
+        return moved
+
     def record_review(
         self, proposal_id: str, reviewer: str, *, model: str, verdict: str, reason: str
     ) -> str:
@@ -834,7 +1235,7 @@ class DailyLedger:
             }
             if "reject" in verdicts.values():
                 status = "rejected"
-            elif all(verdicts.get(r) == "accept" for r in REVIEWERS):
+            elif all(verdicts.get(r) == "accept" for r in REQUIRED_REVIEWERS):
                 status = "accepted"
             else:
                 status = "proposed"
@@ -1187,25 +1588,41 @@ __all__ = [
     "Direction",
     "Finding",
     "MASK_TOKEN",
+    "MAX_TEST_LINES",
+    "MISSING_TEST",
     "NO_MODEL",
     "MaskingFailed",
     "PROPOSER_SYSTEM",
+    "PYTHON_PROPOSER_SYSTEM",
+    "PYTHON_RULES",
     "ProposalRefused",
+    "REQUIRED_REVIEWERS",
     "REVIEWERS",
     "REVIEW_SCHEMA",
     "StaticVerdict",
+    "TESTER_SYSTEM",
     "digest",
     "findings",
+    "is_python",
+    "linter_of",
     "load_direction",
+    "mask_aligned",
     "mask_like",
     "mask_lines",
+    "missing_tests",
     "parse_proposal",
     "parse_review",
     "project_facts",
     "proposal_prompt",
+    "proposer_system",
     "review_prompt",
     "set_direction",
     "static_verdict",
+    "subject_of",
+    "first_test_path",
+    "first_test_prompt",
+    "first_test_review_prompt",
+    "first_test_verdict",
     "unified_diff",
     "unmask",
 ]
