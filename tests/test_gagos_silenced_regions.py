@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 from aios.maintenance import daily_work as dw
-from tests.test_gagos_daily import REL, RULE, _result
+from tests.test_gagos_daily import REL, RULE, _comments, _result
 
 UNUSED = "'unused' is assigned a value but never used."
 
@@ -35,7 +35,13 @@ def _finding(line: int = 2) -> dw.Finding:
 def _verdict(before: str, after: str) -> dw.StaticVerdict:
     """The verdict with fake lint results that hide nothing: what the region
     alignment alone decides."""
-    return dw.static_verdict(_finding(), before, after, _result(), _result())
+    return dw.static_verdict(
+        _finding(), before, after, _result(text=before), _result(text=after)
+    )
+
+
+def _regions(lines: list[str]) -> list[tuple[int, int]]:
+    return dw._silenced_regions(len(lines), _comments("\n".join(lines)))
 
 
 # ------------------------------------------------------- the alignment, no ESLint
@@ -99,14 +105,14 @@ def test_an_enable_for_other_rules_does_not_end_the_region() -> None:
         "/* eslint-enable no-console */",
         "alert(1);",
     ]
-    assert dw._silenced_regions(lines) == [(0, 3)], "no-alert stays disabled"
+    assert _regions(lines) == [(0, 3)], "no-alert stays disabled"
     lines[2] = "/* eslint-enable no-console, no-alert */"
-    assert dw._silenced_regions(lines) == [(0, 2)]
+    assert _regions(lines) == [(0, 2)]
 
 
 def test_a_comment_over_several_lines_covers_through_its_close() -> None:
     lines = ["/*", "  eslint-disable-next-line no-console", "*/", "console.log(1);"]
-    assert dw._silenced_regions(lines) == [(1, 3)]
+    assert _regions(lines) == [(0, 3)]
 
 
 def test_two_identical_silencers_each_keep_their_place() -> None:
@@ -118,6 +124,50 @@ def test_two_identical_silencers_each_keep_their_place() -> None:
     assert not _verdict(before, pair + "console.log(1);\n").passed, (
         "removing one of two identical silencers is refused, whichever it was"
     )
+
+
+#: Codex's review of #574: text that looks like an enable, in a string and in a
+#: template literal, inside a real region. Read from the line, it ended the
+#: region there, and code after it could be edited.
+_LOOKALIKE = (
+    "export function Panel() {\n"
+    "  const unused = 3;\n"
+    "  /* eslint-disable no-console */\n"
+    '  const label = "eslint-enable no-console */";\n'
+    "  const t = `\n"
+    "/* eslint-enable no-console */\n"
+    "`;\n"
+    "  const value = 1;\n"
+    "  /* eslint-enable no-console */\n"
+    "  return [label, t, value];\n"
+    "}\n"
+)
+
+
+def _lookalike_edits() -> tuple[str, str]:
+    edited = _LOOKALIKE.replace("  const unused = 3;\n", "").replace(
+        "const value = 1;", "const value = 2;"
+    )
+    return edited, _LOOKALIKE.replace("  const unused = 3;\n", "")
+
+
+def test_text_that_looks_like_an_enable_does_not_end_a_region() -> None:
+    edited, fixed = _lookalike_edits()
+    verdict = _verdict(_LOOKALIKE, edited)
+    assert not verdict.passed and "disable comment silences" in verdict.reason
+    assert _verdict(_LOOKALIKE, fixed).passed
+
+
+def test_only_a_block_comment_that_is_an_enable_ends_a_region() -> None:
+    def ends(enable: str) -> bool:
+        lines = ["/* eslint-disable no-console */", "a;", enable, "b;"]
+        return _regions(lines) == [(0, 2)]
+
+    assert ends("/* eslint-enable no-console */")
+    assert ends("/* eslint-enable */")
+    assert not ends("/* see eslint-enable no-console */"), "not an enable"
+    assert not ends("// eslint-enable no-console"), "read strictly: a block comment"
+    assert not ends("/* eslint-enabled no-console */")
 
 
 def test_a_whole_file_silencer_refuses_any_change_and_cannot_be_added() -> None:
@@ -221,6 +271,17 @@ def test_real_an_edit_outside_cannot_newly_hide_a_warning_inside() -> None:
     assert _lint(after).warnings(RULE) == []
     verdict = _real(before, after)
     assert not verdict.passed and "hides a no-unused-vars" in verdict.reason
+
+
+def test_real_eslint_reads_no_comment_in_a_string_or_a_template() -> None:
+    """Codex's case through the real parser: the comments ESLint reports are
+    the two real ones, and the edit after the lookalikes is refused."""
+    was = _lint(_LOOKALIKE)
+    assert [c.start for c in was.comments] == [3, 9]
+    edited, fixed = _lookalike_edits()
+    verdict = _real(_LOOKALIKE, edited)
+    assert not verdict.passed and "disable comment silences" in verdict.reason
+    assert _real(_LOOKALIKE, fixed).passed
 
 
 def test_real_the_same_name_hidden_somewhere_else_is_still_new() -> None:

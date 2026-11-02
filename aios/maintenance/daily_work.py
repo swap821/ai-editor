@@ -42,7 +42,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from aios.maintenance.frontend_static import StaticResult
+from aios.maintenance.frontend_static import Comment, StaticResult
 
 #: Rules whose fix does not change behaviour by nature: removing what is unused,
 #: or naming a type. React-hooks rules change when effects run, and
@@ -54,15 +54,19 @@ FIRST_RULES: tuple[str, ...] = (
     "@typescript-eslint/no-explicit-any",
 )
 
-#: Comments that silence a check instead of fixing it, by how much they cover:
-#: the comment and the line after it; the comment's own line; a region up to
-#: the matching ``eslint-enable`` (or the end of the file); the whole file.
+#: Comments that silence a check instead of fixing it, read from the comments
+#: ESLint's own parser found (a string that looks like one is not one), by how
+#: much they cover: the comment and the line after it; the comment's own line;
+#: a region up to the matching ``eslint-enable`` (or the end of the file); the
+#: whole file. A start is read generously (anywhere in a comment), an end
+#: strictly (a block comment that IS an ``eslint-enable``): reading wrong can
+#: only widen what is protected, never narrow it.
 _NEXT_LINE = re.compile(r"eslint-disable-next-line|@ts-ignore|@ts-expect-error", re.I)
 _SAME_LINE = re.compile(r"eslint-disable-line", re.I)
-_REGION_START = re.compile(r"eslint-disable(?!-)(?P<rules>[^\n]*)", re.I)
-_REGION_END = re.compile(r"eslint-enable(?P<rules>[^\n]*)", re.I)
+_REGION_START = re.compile(r"eslint-disable(?!-)(?P<rules>.*)", re.I | re.S)
+_REGION_END = re.compile(r"\s*eslint-enable(?:\s(?P<rules>.*)|$)", re.I | re.S)
 _WHOLE_FILE = re.compile(
-    r"@ts-nocheck|/\*\s*(?:eslint(?:-env)?|globals?|exported)\s", re.I
+    r"@ts-nocheck|^\s*(?:eslint(?:-env)?|globals?|exported)\s", re.I
 )
 _FENCE = re.compile(r"^```[^\n]*\n(.*?)^```[ \t]*$", re.DOTALL | re.MULTILINE)
 
@@ -396,48 +400,35 @@ class StaticVerdict:
 
 def _directive_rules(tail: str) -> frozenset[str]:
     """The rules a directive names (none: all), before any ``--`` reason."""
-    tail = tail.split("*/")[0].split("--")[0]
+    tail = tail.split("--")[0]
     return frozenset(r.strip() for r in tail.split(",") if r.strip())
 
 
-def _silenced_regions(lines: Sequence[str]) -> list[tuple[int, int]]:
+def _silenced_regions(lines: int, comments: Sequence[Comment]) -> list[tuple[int, int]]:
     """Every line range a silencing comment covers, first line to last
-    (0-based, inclusive), in order. A comment that spans lines covers through
-    its closing line. Read generously: text that merely looks like a directive
-    covers too, so the check refuses more, never less."""
-    n = len(lines)
-    open_after = []  # does a /* ... */ comment stay open past this line?
-    inside = False
-    for line in lines:
-        k = 0
-        while (at := line.find("*/" if inside else "/*", k)) >= 0:
-            inside, k = not inside, at + 2
-        open_after.append(inside)
-
-    def comment_end(i: int) -> int:
-        if not open_after[i]:
-            return i
-        return next((j for j in range(i + 1, n) if not open_after[j]), n - 1)
-
+    (0-based, inclusive), in order, for a text of *lines* lines."""
+    last = lines - 1
+    ordered = sorted(comments, key=lambda c: (c.start, c.end))
     out = []
-    for i, line in enumerate(lines):
-        if _WHOLE_FILE.search(line):
-            out.append((0, n - 1))
-        elif _NEXT_LINE.search(line):
-            out.append((i, min(comment_end(i) + 1, n - 1)))
-        elif _SAME_LINE.search(line):
-            out.append((i, comment_end(i)))
-        elif start := _REGION_START.search(line):
-            rules = _directive_rules(start.group("rules"))
-            end = n - 1
-            for j in range(i + 1, n):
-                found = _REGION_END.search(lines[j])
-                if found:
-                    ends = _directive_rules(found.group("rules"))
-                    if not ends or (rules and rules <= ends):
-                        end = comment_end(j)
+    for k, c in enumerate(ordered):
+        start, end = c.start - 1, c.end - 1
+        if _WHOLE_FILE.search(c.value):
+            out.append((0, last))
+        elif _NEXT_LINE.search(c.value):
+            out.append((start, min(end + 1, last)))
+        elif _SAME_LINE.search(c.value):
+            out.append((start, end))
+        elif found := _REGION_START.search(c.value):
+            rules = _directive_rules(found.group("rules"))
+            close = last
+            for later in ordered[k + 1 :]:
+                ends = _REGION_END.match(later.value) if later.kind == "Block" else None
+                if ends:
+                    named = _directive_rules(ends.group("rules") or "")
+                    if not named or (rules and rules <= named):
+                        close = later.end - 1
                         break
-            out.append((i, end))
+            out.append((start, close))
     return sorted(out)
 
 
@@ -465,7 +456,13 @@ def silencing_refusal(
     for tag, i1, i2, j1, _j2 in matcher.get_opcodes():
         if tag == "equal":
             to_old.update({j1 + k: i1 + k for k in range(i2 - i1)})
-    was, now = _silenced_regions(old), _silenced_regions(new)
+    if before.comments is None or after.comments is None:
+        return (
+            "what the disable comments silence is unknown: ESLint did not run "
+            "with inline configuration off"
+        )
+    was = _silenced_regions(len(old), before.comments)
+    now = _silenced_regions(len(new), after.comments)
     if len(was) != len(now):
         return "the proposal adds or removes a disable comment, or changes what one silences"
     for (s0, e0), (s1, e1) in zip(was, now):

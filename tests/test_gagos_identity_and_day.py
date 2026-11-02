@@ -775,7 +775,9 @@ def test_a_changed_silencer_is_refused() -> None:
         "// eslint-disable-next-line no-console\nconsole.log(1);\nconst unused = 1;\n"
     )
     after = "// eslint-disable-next-line no-unused-vars\nconsole.log(1);\nconst unused = 1;\n"
-    verdict = dw.static_verdict(FINDING, before, after, _result(), _result())
+    verdict = dw.static_verdict(
+        FINDING, before, after, _result(text=before), _result(text=after)
+    )
     assert not verdict.passed and "disable comment" in verdict.reason
 
 
@@ -790,9 +792,11 @@ def test_an_unchanged_silencer_cannot_be_retargeted() -> None:
         "const visible = 2;\n"
     )
     after = "// eslint-disable-next-line no-unused-vars\nconst visible = 2;\n"
-    verdict = dw.static_verdict(FINDING, before, after, _result(), _result())
+    verdict = dw.static_verdict(
+        FINDING, before, after, _result(text=before), _result(text=after)
+    )
     assert not verdict.passed and "disable comment" in verdict.reason
     kept = before.replace("const visible = 2;\n", "")
-    assert dw.static_verdict(FINDING, before, kept, _result(), _result()).passed, (
-        "a silencer left over the same line is not a change"
-    )
+    assert dw.static_verdict(
+        FINDING, before, kept, _result(text=before), _result(text=kept)
+    ).passed, "a silencer left over the same line is not a change"

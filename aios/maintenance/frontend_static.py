@@ -12,7 +12,9 @@ for each text:
 * on request (``inline_off``), ESLint's messages once more with inline
   configuration off (``allowInlineConfig: false``): every warning a disable
   comment or an inline config comment hides then shows, so a proposal's hidden
-  warnings can be compared with the original's.
+  warnings can be compared with the original's; and every comment, as ESLint's
+  own parser sees it, so a directive is read only from a real comment, never
+  from a string that looks like one (Codex's review of #574).
 
 Linting parses code and runs the configured rules over it; it never runs the
 code. The toolchain is ``frontend/node_modules`` of the project being judged;
@@ -50,7 +52,17 @@ const ts = require(path.join(frontend, 'node_modules', 'typescript'));
 (async () => {
   const input = JSON.parse(fs.readFileSync(0, 'utf8'));
   const eslint = new ESLint({ cwd: frontend });
-  const bare = input.inline_off ? new ESLint({ cwd: frontend, allowInlineConfig: false }) : null;
+  // A rule that reports every comment the parser found: run with inline
+  // configuration off, so no directive can switch it off.
+  const comments = { meta: { type: 'suggestion', schema: [] }, create(context) {
+    return { Program() { for (const c of context.sourceCode.getAllComments()) {
+      context.report({ loc: c.loc, message: JSON.stringify({ kind: c.type, value: c.value,
+        start: c.loc.start.line, end: c.loc.end.line }) });
+    } } };
+  } };
+  const bare = input.inline_off ? new ESLint({ cwd: frontend, allowInlineConfig: false,
+    overrideConfig: { plugins: { gagos: { rules: { comments } } },
+      rules: { 'gagos/comments': 'warn' } } }) : null;
   const shape = (results) => (results[0] ? results[0].messages : []).map((m) => ({
     rule: m.ruleId || null, severity: m.severity, line: m.line || 0,
     column: m.column || 0, message: m.message, fatal: !!m.fatal,
@@ -59,11 +71,13 @@ const ts = require(path.join(frontend, 'node_modules', 'typescript'));
   for (const [rel, text] of Object.entries(input.files)) {
     const filePath = path.join(input.root, rel);
     const messages = shape(await eslint.lintText(text, { filePath }));
-    const inlineOff = bare ? shape(await bare.lintText(text, { filePath })) : null;
+    const off = bare ? shape(await bare.lintText(text, { filePath })) : null;
+    const inlineOff = off ? off.filter((m) => m.rule !== 'gagos/comments') : null;
+    const found = off ? off.filter((m) => m.rule === 'gagos/comments').map((m) => JSON.parse(m.message)) : null;
     const parsed = ts.transpileModule(text, { fileName: filePath, reportDiagnostics: true,
       compilerOptions: { jsx: ts.JsxEmit.ReactJSX, allowJs: true } });
     const parse = (parsed.diagnostics || []).map((d) => ts.flattenDiagnosticMessageText(d.messageText, ' '));
-    out[rel] = { messages, parse, inline_off: inlineOff };
+    out[rel] = { messages, parse, inline_off: inlineOff, comments: found };
   }
   process.stdout.write(JSON.stringify(out));
 })().catch((e) => { process.stderr.write(String((e && e.stack) || e)); process.exit(2); });
@@ -85,13 +99,26 @@ class LintMessage:
 
 
 @dataclass(frozen=True)
+class Comment:
+    """One comment as ESLint's parser saw it: ``Line`` or ``Block``, its text
+    without the delimiters, and its first and last lines (1-based)."""
+
+    kind: str
+    value: str
+    start: int
+    end: int
+
+
+@dataclass(frozen=True)
 class StaticResult:
     """What the toolchain says about one text. ``inline_off`` is ESLint's
-    messages with inline configuration off, or None when not asked for."""
+    messages with inline configuration off and ``comments`` every comment in the
+    text; each is None when that lint was not asked for."""
 
     messages: tuple[LintMessage, ...]
     parse_errors: tuple[str, ...] = field(default=())
     inline_off: tuple[LintMessage, ...] | None = None
+    comments: tuple[Comment, ...] | None = None
 
     def warnings(self, rule: str | None = None) -> list[LintMessage]:
         return [
@@ -171,8 +198,8 @@ def check_texts(
         entry = raw.get(rel)
         if not isinstance(entry, dict):
             raise StaticCheckUnavailable(f"static checks returned nothing for {rel}")
-        off = entry.get("inline_off")
-        if inline_off and not isinstance(off, list):
+        off, found = entry.get("inline_off"), entry.get("comments")
+        if inline_off and not (isinstance(off, list) and isinstance(found, list)):
             raise StaticCheckUnavailable(
                 f"static checks returned no inline-off lint for {rel}"
             )
@@ -180,6 +207,19 @@ def check_texts(
             messages=_messages(entry.get("messages", [])),
             parse_errors=tuple(str(e) for e in entry.get("parse", [])),
             inline_off=_messages(off) if inline_off else None,
+            comments=(
+                tuple(
+                    Comment(
+                        kind=str(c.get("kind", "")),
+                        value=str(c.get("value", "")),
+                        start=int(c.get("start", 0)),
+                        end=int(c.get("end", 0)),
+                    )
+                    for c in found
+                )
+                if inline_off
+                else None
+            ),
         )
     return results
 
@@ -236,6 +276,7 @@ def editable_frontend_files(project_root: Path) -> list[str]:
 
 
 __all__ = [
+    "Comment",
     "LintMessage",
     "PORT_MANIFEST",
     "StaticCheckUnavailable",

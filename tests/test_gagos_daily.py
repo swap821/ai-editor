@@ -28,6 +28,7 @@ import pytest
 
 from aios.maintenance import daily_work as dw
 from aios.maintenance.frontend_static import (
+    Comment,
     LintMessage,
     StaticResult,
     editable_frontend_files,
@@ -55,13 +56,46 @@ def _warn(rule, line=3, message="'unused' is assigned a value but never used."):
     return LintMessage(rule=rule, severity=1, line=line, column=9, message=message)
 
 
-def _result(*messages, parse=(), hidden=()):
-    """A lint result; ``hidden`` are messages only the inline-off lint shows."""
+def _result(*messages, parse=(), hidden=(), text=""):
+    """A lint result; ``hidden`` are messages only the inline-off lint shows,
+    and the comments are *text*'s."""
     return StaticResult(
         messages=tuple(messages),
         parse_errors=tuple(parse),
         inline_off=tuple(messages) + tuple(hidden),
+        comments=_comments(text),
     )
+
+
+def _comments(text: str) -> tuple[Comment, ...]:
+    """A fixture's comments, found as a JavaScript lexer finds them: a string
+    or a template literal is not a comment. For fixtures only (no regular
+    expression literals, no apostrophes in JSX text); the product reads the
+    comments ESLint's own parser found."""
+    out, i, line, n = [], 0, 1, len(text)
+    while i < n:
+        ch = text[i]
+        if ch in "'\"`":
+            j = i + 1
+            while j < n and text[j] != ch:
+                j += 2 if text[j] == "\\" else 1
+            line += text.count("\n", i, j + 1)
+            i = j + 1
+        elif text.startswith("//", i):
+            j = text.find("\n", i)
+            j = n if j < 0 else j
+            out.append(Comment("Line", text[i + 2 : j], line, line))
+            i = j
+        elif text.startswith("/*", i):
+            j = text.find("*/", i + 2)
+            j = n if j < 0 else j
+            end = line + text.count("\n", i, j)
+            out.append(Comment("Block", text[i + 2 : j], line, end))
+            line, i = end, j + 2
+        else:
+            line += ch == "\n"
+            i += 1
+    return tuple(out)
 
 
 FINDING = dw.Finding(
@@ -142,7 +176,11 @@ def test_a_clean_fix_passes_the_unattended_checks() -> None:
         ),
         (AFTER, _result(_warn(RULE)), "warnings remain"),
         (AFTER, _result(_warn("@typescript-eslint/no-explicit-any")), "adds warnings"),
-        (AFTER + "// eslint-disable-next-line\n", _result(), "disable comment"),
+        (
+            AFTER + "// eslint-disable-next-line\n",
+            _result(text=AFTER + "// eslint-disable-next-line\n"),
+            "disable comment",
+        ),
         (
             AFTER + "".join(f"// line {i}\n" for i in range(60)),
             _result(),
