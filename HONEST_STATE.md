@@ -1,9 +1,26 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-02 ("Later still on 2026-11-02" below; earlier sections keep
+**Last updated:** 2026-11-02 ("Evening of 2026-11-02" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Evening of 2026-11-02 (branch `feat/gagos-first-tests`, off master `012716a3`)
+
+- **The operator merged #579 and #580 at 15:19 UTC (squash `c2477622`, then `012716a3`) with only the chief review. Codex could not review: its usage limit (below).**
+  - #580's merged code is the head I accepted, `4e0011b6`. GitHub's update merge `3da1711e` added only #579's HONEST_STATE. Codex reviewed #580's first head `93ff5bb2` and found three P2s. It has not reviewed the fixes; it reviews them on master after its reset, and anything it finds is fixed.
+  - Codex has not reviewed #579's last commit `653ecab5` (the line on its limit).
+- **GAGOS works every hour from 15:50 UTC (21:20 IST), on master's tip,** whenever the laptop is awake and the operator is logged in. Each batch makes up to 10 proposals from five Bedrock writers, 2 at a time, within $100 a month.
+  - Until Codex's reset, each proposal gets the chief's review and then waits for Codex's. None is delivered.
+  - Its work on master is still three lint rules. At the 02:50 UTC scan, 16 findings under them had not been attempted, so the first batch or two use them up.
+- **This branch adds GAGOS's second kind of work: a first test for each frontend module that has none** (133 of 273). A test is executed only at delivery, after both reviews.
+  - The live smoke cost about $0.13 over three runs. On the last, 1 of 4 tests passed the static checks, and I rejected it: its Retry test clicks while the child still throws.
+  - Why the tests are weak: GAGOS's privacy filter masks long code identifiers, so the writers cannot see the names they test. That affects 35 of the 43 modules targeted, about 600 masked spans. Changing the egress filter is the operator's decision, with both reviews.
+- **Still open:**
+  - Codex's review of #580's fixes and of `653ecab5`, after 11-05 12:19 UTC.
+  - Master's CI on `012716a3`.
+  - Wake timers in the power plan (the operator's setting).
+  - The monthly probe stays red until 1 December, or until the operator runs it by hand.
 
 ## Later still on 2026-11-02 (branch `docs/honest-state-after-578`, off master `dd7aa102`)
 
