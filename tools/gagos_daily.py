@@ -1181,12 +1181,12 @@ def cmd_report(args: argparse.Namespace) -> int:
 
 # --------------------------------------------------------------------- the clerk
 
-#: What the clerk returns for a disagreement.
-CLERK_SCHEMA = {
-    "type": "object",
-    "properties": {"summary": {"type": "string"}, "crux": {"type": "string"}},
-    "required": ["summary", "crux"],
-}
+#: What the clerk returns for a disagreement, in the form the local workforce
+#: service reads: field name -> type. The service takes this mapping's keys as
+#: the exact set of fields, so a JSON-Schema object here ("type", "properties",
+#: "required") made it reject the right answer as extra fields. That was
+#: GAGOS's first day, 2026-11-02: "Extra fields rejected: ['crux', 'summary']".
+CLERK_SCHEMA = {"summary": "str", "crux": "str"}
 
 
 def clerk_summarise(p: dict, reviews: dict, *, service=None) -> dict:
