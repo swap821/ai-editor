@@ -358,6 +358,32 @@ def test_the_report_says_what_an_accepted_change_costs_and_where_work_is_lost(
     assert "the answer's form 1" in text and "the reviewer 0" in text
 
 
+def test_placeholders_never_look_like_secrets_and_never_occur_in_the_file() -> None:
+    from aios.runtime.secret_policy import SecretPolicy
+
+    redact = lambda text: text.replace("hiddenclass", "[R]")  # noqa: E731
+    base = "".join(f'<div className="hiddenclass" id="{n}" />\n' for n in range(30))
+    masked, mapping = dw.mask_lines(base, redact)
+    assert all(t.startswith("GAGOSMASKQ_") for t in mapping)
+    assert SecretPolicy().inspect_text(masked).scrubbed == masked
+    taken = "GAGOSMASKQ_ is already here\n" + base
+    _masked, again = dw.mask_lines(taken, redact)
+    assert all(t.startswith("GAGOSMASKQQ_") for t in again)
+
+
+def test_only_a_proposal_refused_for_how_it_was_shown_is_reopened(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    shown = _proposal(led)
+    led.refuse(shown, f"{dw.UNSHOWABLE}: the secret policy would scrub this file")
+    other = _proposal(led)
+    led.refuse(other, "the privacy filter would redact this file")
+    assert led.reopen(shown) and not led.reopen(other) and not led.reopen(shown)
+    assert {p["proposal_id"]: p["status"] for p in led.proposals()} == {
+        shown: "proposed",
+        other: "refused",
+    }
+
+
 def test_proposals_claude_code_accepted_while_codex_was_required_are_accepted(
     tmp_path, monkeypatch
 ) -> None:

@@ -165,10 +165,14 @@ def proposer_system(rel: str) -> str:
 
 
 #: The shape of a placeholder for a span that may not leave the machine (see
-#: :func:`mask_lines`): a prefix with a random part chosen per file so it never
-#: occurs in that file (Codex's review of #566: a fixed ``GAGOSMASK0000``
-#: already in a source file was restored as the private span), then a number.
-MASK_TOKEN = re.compile(r"GAGOSMASK[0-9A-F]{6}_\d{4}")
+#: :func:`mask_lines`): a prefix chosen per file so it never occurs in that file
+#: (Codex's review of #566: a fixed ``GAGOSMASK0000`` already in a source file
+#: was restored as the private span), then a number. The prefix is the first of
+#: ``GAGOSMASKQ_``, ``GAGOSMASKQQ_``, ... the file does not contain: never a
+#: random one. A random hex part made a placeholder look like a secret to the
+#: secret scanner's entropy test, by chance, and the file could not be sent
+#: (2026-11-02: gd-a9f57600cf refused 53 times in 60 maskings).
+MASK_TOKEN = re.compile(r"GAGOSMASKQ+_\d{4}")
 
 
 class MaskingFailed(ValueError):
@@ -206,11 +210,10 @@ def mask_lines(
     changes, so warning line numbers hold. The caller re-checks the whole
     prompt before sending anything.
     """
-    import secrets
-
-    prefix = f"GAGOSMASK{secrets.token_hex(3).upper()}_"
-    while prefix in text:
-        prefix = f"GAGOSMASK{secrets.token_hex(3).upper()}_"
+    width = 1
+    while f"GAGOSMASK{'Q' * width}_" in text:
+        width += 1
+    prefix = f"GAGOSMASK{'Q' * width}_"
     mapping: dict[str, str] = {}
     current = text
     for _ in range(rounds):
@@ -1127,6 +1130,9 @@ CREATE TABLE IF NOT EXISTS spend (
 #: The model recorded on a proposal no model was asked for (a file too long to
 #: send, or one that cannot leave the machine).
 NO_MODEL = "none"
+#: How a refusal after the unattended checks begins: the change could not be
+#: shown to a reviewer without exposing what may not leave the machine.
+UNSHOWABLE = "the change cannot be shown to a reviewer"
 
 STATUSES = (
     "refused",
@@ -1371,6 +1377,19 @@ class DailyLedger:
                 "UPDATE proposals SET status = 'refused', refusal = ? WHERE proposal_id = ?",
                 (reason, proposal_id),
             )
+
+    def reopen(self, proposal_id: str) -> bool:
+        """Put back for review a proposal refused only because it could not be
+        shown to a reviewer: it passed the unattended checks, and the cause
+        was how it was shown (2026-11-02: GAGOS's own placeholders looked like
+        secrets). Any other refusal stays. True when it was reopened."""
+        with self._db() as db:
+            done = db.execute(
+                "UPDATE proposals SET status = 'proposed', refusal = NULL "
+                "WHERE proposal_id = ? AND status = 'refused' AND refusal LIKE ?",
+                (proposal_id, f"{UNSHOWABLE}%"),
+            )
+            return done.rowcount == 1
 
     def reserve_day(self, day: str) -> bool:
         """Claim *day* for GAGOS's one batch, atomically across processes
@@ -1640,6 +1659,7 @@ __all__ = [
     "MAX_TEST_LINES",
     "MISSING_TEST",
     "NO_MODEL",
+    "UNSHOWABLE",
     "MaskingFailed",
     "PROPOSER_SYSTEM",
     "PYTHON_PROPOSER_SYSTEM",

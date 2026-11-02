@@ -55,6 +55,7 @@ from aios.maintenance.daily_work import (  # noqa: E402
     FIRST_RULES,
     MISSING_TEST,
     NO_MODEL,
+    UNSHOWABLE,
     PYTHON_RULES,
     REVIEW_SCHEMA,
     REQUIRED_REVIEWERS,
@@ -851,13 +852,16 @@ def review_evidence(p: dict, finding: Finding) -> str:
         )
     altered = would_be_altered(prompt, "")
     if altered:
-        raise MaskingFailed(f"the change cannot be shown to a reviewer: {altered}")
+        raise MaskingFailed(f"{UNSHOWABLE}: {altered}")
     return prompt
 
 
 def cmd_review(args: argparse.Namespace) -> int:
     led = ledger()
     again = set(getattr(args, "again", None) or ())
+    for pid in sorted(again):
+        if led.reopen(pid):
+            print(f"  {pid}: reopened; it was refused only for how it was shown")
     if again:
         # A verdict given on wrong evidence is given again, by a fresh session
         # on the evidence as it is shown now; the new verdict replaces it.
