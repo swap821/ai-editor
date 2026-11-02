@@ -54,7 +54,7 @@ packaging==26.3
 pluggy==1.7.0
 pydantic==2.14.2
 # Held in lockstep with pydantic, NOT by preference: pydantic pins its core
-# EXACTLY (pydantic 2.14.1 requires `pydantic-core==2.50.1`), so any other value
+# EXACTLY (pydantic 2.14.2 requires `pydantic-core==2.50.2`), so any other value
 # makes this file unresolvable and CI dies at pip install with
 # ResolutionImpossible before a single test runs.
 #
@@ -65,8 +65,9 @@ pydantic==2.14.2
 # .github/dependabot.yml above the version the current pydantic requires. When
 # Dependabot bumps pydantic, bump this to what the new pydantic requires and
 # move that ignore with it: #471 (2026-10-12) bumped pydantic to 2.14.0 and left
-# this at 2.46.5, and every backend job died at install.
-pydantic_core==2.50.1
+# this at 2.46.5, and every backend job died at install. #568 (2026-11-02) did
+# the same again: pydantic 2.14.2 with the core left at 2.50.1.
+pydantic_core==2.50.2
 Pygments==2.21.0
 bandit==1.9.4
 mypy==2.4.1
