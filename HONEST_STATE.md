@@ -1,9 +1,35 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-02 ("Later on 2026-11-02" below; earlier sections keep
+**Last updated:** 2026-11-02 ("Later still on 2026-11-02" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Later still on 2026-11-02 (branch `docs/honest-state-after-578`, off master `dd7aa102`)
+
+- **The operator merged #577, #576 and #578.**
+  - **#577** (07:52 UTC, squash `824782ca`): the organ re-gather. Its tree equals the head both reviewers accepted. Master's CI on it passed on all three systems, and the three evidence failures are gone.
+  - **#576** (10:33 UTC, squash `98fa9708`): Dependabot's lucide-react bump, 1.64.0 to 1.65.0. Codex reviewed the package metadata and its CI passed.
+  - **#578** (10:34 UTC, merge commit `dd7aa102`): GAGOS's check now matches a region's end case-sensitively, as ESLint does. **This closes the residual Codex found in #574, on master.** Both reviewers accepted it.
+- **Codex's post-merge reviews are done.** `2f153fab` (#574) gave the residual above, now fixed. `47d5a97d` (#575) gave no new finding.
+- **The organ evidence is still current at `dd7aa102`.** Neither later PR touches an organ's entrypoint, and the evidence tests pass at the tip.
+- **GAGOS's next day is the first to run with the clerk fix and the full static check.** Its batch runs at the first hourly tick of the UTC day (00:50 UTC on 11-03, 06:20 IST) if the laptop is awake and the operator is logged in, or at the first tick after that. Today's ran at 02:50 UTC only because GAGOS stood aside for D13 until 02:10. Its hourly runner moves to master's tip by itself.
+- **The operator corrected how GAGOS's work was scheduled.** "GAGOS will work 24/7 continously"; the interval he asked Codex and Claude Code to agree on was for their own review loop.
+  - We had applied it to GAGOS's work: one batch of 2 proposals a day, and the whole day blocked while GAGOS's PR was open. In its life so far GAGOS has made 4 proposals and delivered 1 merged two-line change (#565), on 2 days of work.
+  - **#580** (open, for both reviews) runs a batch of up to 10 every hour. An open PR holds back only delivery, and files GAGOS's unmerged work touches are left alone.
+  - The `\GAGOS\daily` task may now wake the laptop (WakeToRun). This has no effect until wake timers are allowed in the power plan, which is off on AC and battery; that system setting is the operator's.
+- **GAGOS's workforce, on #580 at the operator's word** ("$100 a month for AWS and codex s ready u start honestly"). Codex agreed the direction, with conditions; its first review of #580 found three P2s, all fixed on the PR.
+  - Five Bedrock writers (Devstral 2, Qwen3 Coder Next, DeepSeek V3.2, Mistral Large 3, Kimi K2.5), 2 calls at a time. Work follows each writer's accepted record within one rule.
+  - Every call first holds its worst case against $100 a month. The spend is an estimate pitched high, not AWS's bill, and it counts only GAGOS's work, not other Bedrock use through the gateway.
+  - A live batch on a throwaway ledger: 5 findings to 5 writers in 2.5 minutes. 3 passed GAGOS's static checks and 2 were refused by them, for about $0.07.
+  - Still limited: three lint rules. At GAGOS's 02:50 UTC scan, 16 findings under them had not been attempted; that day's 2 refusals stay attempted. 133 of 273 frontend modules have no test file of the same name. The superbrain's 212 port-managed files stay excluded until the lab/product port is decided.
+- **Master's CI on `dd7aa102` passed:** CI, Nightly and CodeQL.
+- **Codex cannot review until 5 November (found at 14:45 UTC).** Its last action was at 11:39 UTC. Every hourly check since 12:38 UTC failed at once on its ChatGPT usage limit, which resets on 11-05 at 17:49 local time (12:19 UTC).
+  - #580 and #579 wait for its review. Their CI passed (19 checks, 2 skipped, on each). Nothing merges on one review.
+  - GAGOS's own Codex reviewer uses the same account, so until the reset no proposal can be accepted by both reviewers, and nothing is delivered. Until #580 merges, GAGOS runs one batch a day.
+  - Waiting for the reset or buying Codex credits is the operator's call.
+- **Still open:**
+  - The monthly probe stays red until it runs on 1 December, or until the operator runs it by hand.
 
 ## Later on 2026-11-02 (branch `evidence/after-575`, off master `1eb39c27`)
 
