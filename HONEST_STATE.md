@@ -23,8 +23,12 @@ the commit they were measured on). The whole story, from the first commit, is
   - Every call first holds its worst case against $100 a month. The spend is an estimate pitched high, not AWS's bill, and it counts only GAGOS's work, not other Bedrock use through the gateway.
   - A live batch on a throwaway ledger: 5 findings to 5 writers in 2.5 minutes. 3 passed GAGOS's static checks and 2 were refused by them, for about $0.07.
   - Still limited: three lint rules. At GAGOS's 02:50 UTC scan, 16 findings under them had not been attempted; that day's 2 refusals stay attempted. 133 of 273 frontend modules have no test file of the same name. The superbrain's 212 port-managed files stay excluded until the lab/product port is decided.
+- **Master's CI on `dd7aa102` passed:** CI, Nightly and CodeQL.
+- **Codex cannot review until 5 November (found at 14:45 UTC).** Its last action was at 11:39 UTC. Every hourly check since 12:38 UTC failed at once on its ChatGPT usage limit, which resets on 11-05 at 17:49 local time (12:19 UTC).
+  - #580 and #579 wait for its review. Their CI passed (19 checks, 2 skipped, on each). Nothing merges on one review.
+  - GAGOS's own Codex reviewer uses the same account, so until the reset no proposal can be accepted by both reviewers, and nothing is delivered. Until #580 merges, GAGOS runs one batch a day.
+  - Waiting for the reset or buying Codex credits is the operator's call.
 - **Still open:**
-  - Master's CI on `dd7aa102`.
   - The monthly probe stays red until it runs on 1 December, or until the operator runs it by hand.
 
 ## Later on 2026-11-02 (branch `evidence/after-575`, off master `1eb39c27`)
