@@ -26,6 +26,37 @@ the commit they were measured on). The whole story, from the first commit, is
   - `gd-8b79700958` (`EcosystemDashboard.jsx`, the unused `React` import) failed "the tests related to the frontend targets".
   - The same related-test run fails on master's unchanged tree. `FixtureJourneyPage.test.tsx` exceeds its 5-second timeout when 22 test files run at once on this laptop.
   - The change is innocent. The delivery check does not compare against the base, and a failed delivery is final and counts against its writer. Not fixed yet.
+- **The sandbox step (the operator, about 20:20 UTC: "Yes honestly").** GAGOS's Python proposals now run their tests before review.
+  - **Where they run.** In the executor's own sandbox (`DockerRunner`, unchanged):
+    - no network;
+    - a read-only root and a read-only copy of the code;
+    - every capability dropped, and no-new-privileges;
+    - limits of 2 GiB, 2 CPUs, plus process and file-size limits;
+    - nothing from the host's environment.
+  - **What they see.** A `git archive` copy of the proposal's base commit, so no `.git`, `.env` or `data/`. The image is `aios-verify:<sha12 of its requirements.txt>`. I built `aios-verify:40909f67de63` tonight; the old `83b20d9b8dbd` predates #568 and #573.
+  - **Judged against the base.**
+    - A test that fails with and without the proposal is never blamed.
+    - A proposal that breaks a passing test is refused before review, and its writer is told which tests broke.
+    - The reviewer reads what the tests did.
+  - **Proven live tonight.**
+    - The accepted `router.py` change (`gd-b72768572b`): 163 tests in 9 files pass. One test fails without it too (`test_data_dir_private`) and is not blamed. 94 s.
+    - A deliberately broken `router.py`: 11 tests named as broken. 93 s.
+    - The containment probe, in the real container:
+      - no TCP and no DNS;
+      - no write outside `/tmp`, and `/tmp` is writable;
+      - no host secret, even with the whole host environment given to the `docker` client;
+      - not root, and only its own copy is visible;
+      - the in-container kill timer works.
+
+      The probe joins CI's real-container containment step.
+  - **Not yet:**
+    - Frontend proposals: the sandbox image has no Node. The reviewer is told so, and their tests still run at delivery.
+    - Multi-file work and written tasks: next.
+- **The delivery bug, fixed on this branch.** A delivery check that fails on master without the change too says nothing about the change. The change is committed with that stated, and CI judges it. `gd-8b79700958` stays `failed` in the ledger: no command reopens a failed delivery.
+- **Bedrock refused the AWS account at 20:50 UTC.**
+  - All 10 of that hour's calls, across all 5 models, failed with `ValidationException ... Error 002: Access to Bedrock models is not allowed for this account`. The 19:50 run had worked.
+  - GAGOS cannot write until access is restored. That is the operator's account, so restoring it is his act.
+  - Fixed on this branch: a call the provider refused no longer uses up its finding. Ten findings were marked attempted at 20:50, and they return when this merges.
 - **Who writes what.** GAGOS writes its own work (fixes and tests) and opens its own PRs as GAGOS. I write the workshop it runs on, because GAGOS's checks allow only bounded one-file changes and execute nothing before review. That boundary is why GAGOS cannot yet build its own workshop.
 
 ## Evening of 2026-11-02 (branch `feat/gagos-first-tests`, off master `012716a3`)
