@@ -1,9 +1,67 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-01 ("State on 2026-11-01" below; earlier sections keep
+**Last updated:** 2026-11-02 ("State on 2026-11-02" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## State on 2026-11-02 (branch `docs/d13-judged`, off master `c6c54652`)
+
+- **D13 is judged: not met, and no harm** (`docs/learning/PAYOFF_D13_RESULT.md`). Its fourth launch ran to the end (2026-10-31 17:52 UTC to 11-02 02:10 UTC, run `20261031T175215-bbaba5ab`).
+  - With only lessons about the named code, the local student earned 33 of 141 with lessons and 40 of 141 without. That is 5 targets better and 9 worse (Holm p = 0.48).
+  - Against a placebo of the same size: 4 better and 6 worse (p = 0.85). Both members point the wrong way.
+  - 38 of 85 targets are not comparable because of 420 s timeouts. The lesson-carrying arms timed out more (ON 39 and PLACEBO 39 of 255 samples, OFF 29); their prompts are about 1.8 times longer. Only 14 targets were discordant, against about 30 planned.
+  - Three judged families (Phase 8, D12, D13) have now found no benefit from lessons prepended to a prompt. The usefulness gate reads D13 and stays FAIL. D14 (real use) continues.
+  - The trail, the verdict and a test that recomputes the verdict from the trail are committed on this branch.
+- **The operator merged both #568 and #569** (02:21 UTC). The merged trees are the reviewed ones: #568's equals its reviewed head, and #569 differs from its reviewed head only by #568's rebase.
+  - **#568 went in unfixed, so master could not install:** pydantic 2.14.2 needs pydantic-core 2.50.2, and master pinned 2.50.1. Every backend CI job died at `pip install`.
+  - **#570 fixed it.** It moves the core to 2.50.2 and the Dependabot ignore to `>2.50.2`.
+    - I wrote it, at the operator's word ("start post D13 processes right now"). The operator merged it at 02:44 UTC as a merge commit (`c6c54652`), before Codex's review and before Windows CI finished. Its tree is the head I wrote (`fe0b7e3c`).
+  - **#570's CI was the first real test of #568's other bumps** (torch 2.15.0, transformers 5.22.0, starlette 1.10.0, among others):
+    - Ubuntu ran the whole suite (89% coverage) and failed only master's three evidence tests;
+    - **macOS crashes**: a segmentation fault after 1,008 tests (about 11%), in both runs. The crashing test is not named, because the crash dump is cut off. It is new with #568: the macOS runs before it failed only the evidence tests. Suspected: torch 2.15.0 (unproven). A one-change experiment follows;
+    - Windows was still running.
+  - The local `.venv` still has the versions from before #568.
+- **GAGOS's first real day starts by itself.** D13's process has ended, so the quiet marker no longer holds. The next hourly run (~02:50 UTC) fetches master, now `c6c54652`.
+- **Still open, in order:** the P3 fix, the mutation-probe fix, then the organ re-gather at master's tip (last, which turns master's CI green, except the macOS crash if it is still open then).
+
+## Later on 2026-11-01 (branch `chore/organs-after-567`, off master `bead0108`)
+
+- **#567 is merged** (squash, `bead0108`; GitHub records 09:04 UTC). The operator merged it.
+  - Codex's acceptance was scoped: the implementation fixes at `0faf61f1` and the doc follow-ups after it. It did not accept green CI, the evidence, or full merge qualification. CI and the evidence remained red.
+  - Codex checked that the merged tree is identical to the reviewed head `fc38dfce`.
+  - GAGOS's hourly task fetches origin/master into its own worktree (`C:\gdw`) on every run. So its first day, after D13, runs #567's code: publication bound to the exact commit, the day's claim kept, an App that fails closed.
+- **Still open on master (P3, tracked):** a bounded disable/enable region can hide a warning that a proposal moved into it.
+  - Until the fix lands, the two reviewers are the only check for it.
+  - The fix is planned (above) with no objection from Codex. It is built after D13, with real-ESLint tests.
+- **Master's CI stays red on the three organ-evidence tests**, as expected. The re-gather was never on #567's branch, so its squash orphaned nothing new.
+- **The monthly "Learning guards" mutation probe is newly red on master** (run 41303837576, 11:52 UTC; found by Codex's hourly check, then confirmed by me in the CI log and the source).
+  - It classified 704 mutations: 675 killed, 22 inert, 6 with no verdict, and 1 that survived.
+  - **The survivor, `4c2:S17`, is a real coverage gap. It is not a demonstrated leak:** today's code passes the caller's identity at both sites.
+    - The mutation makes the turn's fallback reflex check match as no one.
+    - Since reflexes are matched before routing (10-25), a fresh turn is matched earlier (`generate_pipeline.py` line 264). The fallback at line 791 runs only when that earlier check was not performed (an approval resume, or no cerebellum at that stage), so its test never reaches it.
+    - The earlier site, the one every fresh turn uses, has no mutation in the catalogue at all.
+    - The fix: a mutation for the earlier site, and a test that drives an approval resume through the fallback. The test must show that it reaches the fallback and that it kills S17 (Codex).
+  - **No verdict ×6:** each shard has one, all `self_model_handler`, all judged by the same three test files.
+    - Their tests failed on the unmutated code at the closing control, so none counts as a kill.
+    - The probe discards pytest's output, so the cause is not recorded.
+    - My hypothesis, not yet tested: those three files fail when run on their own. The baseline runs them in batches of 40 with other tests, which would explain why it passed.
+  - The plan, after D13 (no test runs while it runs):
+    - reproduce the three-file set at `bead0108`;
+    - keep the tail of pytest's output for a failed control;
+    - fix the cause;
+    - add the S17 test and the new mutation.
+- **Dependabot opened #568 (Python) and #569 (frontend) late on 11-01. #568 cannot install** (found by Codex's hourly review, then confirmed by me).
+  - It bumps pydantic to 2.14.2 but leaves `pydantic_core` at 2.50.1. PyPI says 2.14.2 requires `pydantic-core==2.50.2`, and every backend job died at `pip install` with ResolutionImpossible (Ubuntu job 124987617897).
+  - This is the #471 case that the comments in `requirements.txt` and `.github/dependabot.yml` already describe. The fix is to move the core to 2.50.2, update both comments, and raise the ignore bound to `>2.50.2`.
+  - Its other bumps (torch 2.15.0, transformers 5.22.0, starlette 1.10.0 among them) are unverified until a fixed head installs. It must not merge as it stands.
+  - Neither reviewer writes the fix; it waits until after D13.
+  - #569 changes only `package.json` and its lockfile. Both reviewers accept it, scoped to that change. Its frontend jobs pass. Its backend jobs fail
+    only on master's three evidence tests (Codex compared all six jobs; I checked Ubuntu). It is the operator's to merge, and merging it does not touch D13.
+- **D13's timeouts are rising** (as of 22:24 UTC: 77 of 85 targets, 33 not comparable). Not-comparable targets were 9 of the first 30, then 20 of the next 31. The 420 s model timeouts fall on every arm, not on one.
+- **A correction to my own advice:** I asked the operator for a merge commit, but master requires linear history. This was already recorded on 2026-09-25, and I repeated the mistake.
+  - The working remedy is #559's: gather the evidence on a checkout exactly at master's tip, so it cites a commit on master, then squash as usual.
+  - That is the plan after D13, on this branch.
 
 ## State on 2026-11-01 (branch `fix/gagos-daily-after-566`, off master `ad46f211`)
 
