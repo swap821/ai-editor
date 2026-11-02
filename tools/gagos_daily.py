@@ -251,13 +251,17 @@ def cmd_propose(args: argparse.Namespace) -> int:
         print(f"refused: {exc}")
         return 2
     every = Counter(m.rule for r in results.values() for m in r.warnings())
+    busy = set(getattr(args, "skip", None) or ())
     work = direction.steer(
         [
             f
             for f in findings(results, rules=rules)
-            if not led.attempted(f.rel, f.rule, digest(texts[f.rel]))
+            if f.rel not in busy
+            and not led.attempted(f.rel, f.rule, digest(texts[f.rel]))
         ]
     )
+    if busy:
+        print(f"left alone, GAGOS's unmerged work touches them: {len(busy)} file(s)")
     print(
         f"{root} @ {head[:12]}: {len(texts)} editable files, "
         f"{sum(every.values())} warnings; {len(work)} findings not yet attempted "
@@ -1121,7 +1125,7 @@ def report(
         f"{sum(1 for r in both if all(r[x]['verdict'] == 'accept' for x in REVIEWERS))}; "
         f"reviewers disagreed: {len(disagree)}",
         f"- delivered: {by['delivered']}; stale: {by['stale']}; failed delivery checks: {by['failed']}",
-        f"- days blocked: {len(blocked)}",
+        f"- batches blocked (days until 2026-11-02, hours since): {len(blocked)}",
         "- merged and reverted are not tracked automatically yet; read them from master.",
         "",
     ]
@@ -1270,9 +1274,34 @@ def cmd_clerk(args: argparse.Namespace) -> int:
 
 # --------------------------------------------------------------------- the day
 
-#: At most this many proposals per UTC day, rejections included (agreed with
-#: Codex, 2026-10-30: "two proposals is a ceiling, not a delivery target").
-DAILY_PROPOSALS = 2
+#: At most this many proposals in one hour's batch, rejections included. A
+#: ceiling, not a delivery target (Codex, 2026-10-30). Until 2026-11-02 GAGOS
+#: ran one batch of 2 a day: the hourly interval Codex and Claude Code agreed
+#: was meant for their own review loop, not for GAGOS's work. The operator
+#: corrected it: "GAGOS will work 24/7 continously". It now runs a batch every
+#: hour; 10 is the review limit below, so one review pass covers a batch.
+BATCH_PROPOSALS = 10
+
+#: At most this many proposals each reviewer reviews in one run.
+REVIEW_LIMIT = 10
+
+
+def _slot() -> str:
+    """This batch's slot: the UTC hour. One batch per slot."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H")
+
+
+def in_flight(led: DailyLedger, open_prs: list[str]) -> set[str]:
+    """Files GAGOS's unmerged work touches: under review, accepted, committed
+    but unpublished, or in a PR not yet merged or closed. A new proposal on
+    one would go stale against GAGOS's own change, so a batch leaves them
+    alone until that work merges or is turned down."""
+    busy = {
+        p["rel"]
+        for p in led.proposals()
+        if p["status"] in ("proposed", "accepted", "committed")
+    }
+    return busy | led.rels_in_prs(open_prs)
 
 
 def _pr_state(url: str) -> str:
@@ -1294,33 +1323,33 @@ def _pr_state(url: str) -> str:
 
 
 def cmd_daily(args: argparse.Namespace) -> int:
-    """GAGOS's day, run by its own scheduler, needing no one to start it:
-    the rules agreed with Codex (2026-10-30) decide whether there is work."""
+    """GAGOS's hour, run by its own scheduler around the clock, needing no one
+    to start it: one batch, then the reviews, then delivery. An open GAGOS PR
+    holds back only delivery; proposing and reviewing go on, on files no
+    unmerged GAGOS work touches (the operator, 2026-11-02)."""
     root = Path(args.project).resolve()
     led = ledger()
     today = _today()
-    # Work an earlier day committed but could not publish comes first: it is
-    # published (or its PR found) before anything new, and blocks until then.
-    blocked = publish_pending(led, root)
-    if blocked is None:
+    slot = _slot()
+    # Work an earlier hour committed but could not publish comes first: it is
+    # published (or its PR found) before anything new is delivered.
+    held = publish_pending(led, root)
+    open_prs: list[str] = []
+    if held is None:
         open_prs = [
             u for u in led.pr_urls() if _pr_state(u) not in ("MERGED", "CLOSED")
         ]
         if open_prs:
-            blocked = (
-                f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
-            )
-    proposed_today = len(led.proposals(day=today))
-    if blocked:
-        led.record_day(today, "blocked", blocked)
-        print(f"{today}: blocked -- {blocked}")
-    elif proposed_today or not led.reserve_day(today):
-        # The day is claimed atomically before any proposal: two overlapping
+            held = f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
+    if held:
+        print(f"{slot}: delivery waits -- {held}")
+    if not led.reserve_day(slot):
+        # The hour is claimed atomically before any proposal: two overlapping
         # runs can never both propose (Codex's review of #566).
-        print(f"{today}: today's batch already ran or is running")
+        print(f"{slot}: this hour's batch already ran or is running")
     else:
         if _git(root, "status", "--porcelain"):
-            led.record_day(today, "blocked", f"{root} has uncommitted changes")
+            led.record_day(slot, "blocked", f"{root} has uncommitted changes")
             print(f"refused: {root} has uncommitted changes")
             return 2
         _git(root, "fetch", "-q", "origin", "master")
@@ -1328,23 +1357,26 @@ def cmd_daily(args: argparse.Namespace) -> int:
         rc = cmd_propose(
             argparse.Namespace(
                 project=str(root),
-                budget=DAILY_PROPOSALS,
+                budget=BATCH_PROPOSALS,
                 model=args.model,
                 region=args.region,
                 rules=None,
                 dry_run=False,
+                skip=in_flight(led, open_prs),
             )
         )
         # The claim stands whatever propose did: a failed batch is not a
-        # reason to run a second one today.
-        led.record_day(today, "ran", None if rc == 0 else f"propose exited {rc}")
-    # Finishing today's reviews is not a new batch.
+        # reason to run a second one this hour.
+        led.record_day(slot, "ran", None if rc == 0 else f"propose exited {rc}")
+    # Finishing earlier reviews is not a new batch.
     for reviewer in REVIEW_ORDER:
         cmd_review(
-            argparse.Namespace(reviewer=reviewer, limit=10, model=None, timeout=900)
+            argparse.Namespace(
+                reviewer=reviewer, limit=REVIEW_LIMIT, model=None, timeout=900
+            )
         )
     cmd_clerk(argparse.Namespace())
-    if not blocked:
+    if not held:
         cmd_deliver(
             argparse.Namespace(
                 worktree=str(root),

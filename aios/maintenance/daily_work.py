@@ -1077,6 +1077,22 @@ class DailyLedger:
                 )
             ]
 
+    def rels_in_prs(self, pr_urls: Iterable[str]) -> set[str]:
+        """The files the proposals delivered in these PRs change."""
+        urls = list(pr_urls)
+        if not urls:
+            return set()
+        with self._db() as db:
+            return {
+                r["rel"]
+                for r in db.execute(
+                    "SELECT DISTINCT p.rel FROM proposals p JOIN deliveries d ON "
+                    "p.proposal_id = d.proposal_id WHERE d.pr_url IN "
+                    f"({', '.join('?' * len(urls))})",
+                    urls,
+                )
+            }
+
 
 __all__ = [
     "DailyLedger",
