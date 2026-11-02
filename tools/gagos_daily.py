@@ -347,7 +347,10 @@ def cmd_propose(args: argparse.Namespace) -> int:
             print(f"  {pid} {f.rel}: refused: {exc}")
             continue
         try:
-            after = check_texts(root, {f.rel: new_text})[f.rel]
+            # Both texts once more, each also with inline configuration off,
+            # so what disable comments hide can be compared (static_verdict).
+            before = check_texts(root, {f.rel: text}, inline_off=True)[f.rel]
+            after = check_texts(root, {f.rel: new_text}, inline_off=True)[f.rel]
         except StaticCheckUnavailable as exc:
             pid = led.record_proposal(
                 f,
@@ -358,7 +361,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  {pid} {f.rel}: {exc}")
             continue
-        verdict = static_verdict(f, text, new_text, results[f.rel], after)
+        verdict = static_verdict(f, text, new_text, before, after)
         pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
         state = (
             "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"

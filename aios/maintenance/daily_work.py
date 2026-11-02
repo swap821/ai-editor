@@ -14,7 +14,8 @@ its own:
   is asked, and the one shape of answer accepted (the whole file, once);
 * :func:`static_verdict` -- the unattended checks, which execute nothing the
   model wrote: it parses; the rule's warnings in the file are gone; no other
-  warning or error appears; no disable comment is added; the change is bounded;
+  warning or error appears; no disable comment is added, and nothing a disable
+  comment silences is touched or newly hidden; the change is bounded;
 * :func:`review_prompt` -- what each reviewer reads: the rule, the warnings, the
   whole original file and the diff;
 * :class:`DailyLedger` -- every proposal, refusal, review and delivery, durable,
@@ -53,9 +54,15 @@ FIRST_RULES: tuple[str, ...] = (
     "@typescript-eslint/no-explicit-any",
 )
 
-#: Comments that silence a check instead of fixing it.
-_SILENCERS = re.compile(
-    r"eslint-disable|@ts-ignore|@ts-nocheck|@ts-expect-error", re.IGNORECASE
+#: Comments that silence a check instead of fixing it, by how much they cover:
+#: the comment and the line after it; the comment's own line; a region up to
+#: the matching ``eslint-enable`` (or the end of the file); the whole file.
+_NEXT_LINE = re.compile(r"eslint-disable-next-line|@ts-ignore|@ts-expect-error", re.I)
+_SAME_LINE = re.compile(r"eslint-disable-line", re.I)
+_REGION_START = re.compile(r"eslint-disable(?!-)(?P<rules>[^\n]*)", re.I)
+_REGION_END = re.compile(r"eslint-enable(?P<rules>[^\n]*)", re.I)
+_WHOLE_FILE = re.compile(
+    r"@ts-nocheck|/\*\s*(?:eslint(?:-env)?|globals?|exported)\s", re.I
 )
 _FENCE = re.compile(r"^```[^\n]*\n(.*?)^```[ \t]*$", re.DOTALL | re.MULTILINE)
 
@@ -387,16 +394,105 @@ class StaticVerdict:
     changed_lines: int = 0
 
 
-def _silenced(text: str) -> Counter:
-    """Each silencing comment with the line it protects: the comment's own
-    line and the next one (``disable-next-line``, ``@ts-ignore`` and
-    ``@ts-expect-error`` act on the next line; ``disable-line`` on its own)."""
-    lines = [line.strip() for line in text.splitlines()]
-    return Counter(
-        (line, lines[i + 1] if i + 1 < len(lines) else "")
-        for i, line in enumerate(lines)
-        if _SILENCERS.search(line)
-    )
+def _directive_rules(tail: str) -> frozenset[str]:
+    """The rules a directive names (none: all), before any ``--`` reason."""
+    tail = tail.split("*/")[0].split("--")[0]
+    return frozenset(r.strip() for r in tail.split(",") if r.strip())
+
+
+def _silenced_regions(lines: Sequence[str]) -> list[tuple[int, int]]:
+    """Every line range a silencing comment covers, first line to last
+    (0-based, inclusive), in order. A comment that spans lines covers through
+    its closing line. Read generously: text that merely looks like a directive
+    covers too, so the check refuses more, never less."""
+    n = len(lines)
+    open_after = []  # does a /* ... */ comment stay open past this line?
+    inside = False
+    for line in lines:
+        k = 0
+        while (at := line.find("*/" if inside else "/*", k)) >= 0:
+            inside, k = not inside, at + 2
+        open_after.append(inside)
+
+    def comment_end(i: int) -> int:
+        if not open_after[i]:
+            return i
+        return next((j for j in range(i + 1, n) if not open_after[j]), n - 1)
+
+    out = []
+    for i, line in enumerate(lines):
+        if _WHOLE_FILE.search(line):
+            out.append((0, n - 1))
+        elif _NEXT_LINE.search(line):
+            out.append((i, min(comment_end(i) + 1, n - 1)))
+        elif _SAME_LINE.search(line):
+            out.append((i, comment_end(i)))
+        elif start := _REGION_START.search(line):
+            rules = _directive_rules(start.group("rules"))
+            end = n - 1
+            for j in range(i + 1, n):
+                found = _REGION_END.search(lines[j])
+                if found:
+                    ends = _directive_rules(found.group("rules"))
+                    if not ends or (rules and rules <= ends):
+                        end = comment_end(j)
+                        break
+            out.append((i, end))
+    return sorted(out)
+
+
+def silencing_refusal(
+    before_text: str,
+    after_text: str,
+    before: StaticResult,
+    after: StaticResult,
+) -> str | None:
+    """Why a proposal may not pass for what disable comments silence, or None.
+
+    The lines of the original and the proposal are aligned (difflib). Every
+    silenced region must survive whole: the same lines, unchanged, paired
+    line for line through unchanged text with the region in the same place
+    in the order. So nothing can be edited, added, removed or moved into or
+    out of anything silenced; a silencer cannot be retargeted, widened or
+    narrowed; and anything the alignment cannot pair this way is refused.
+    Then, from ESLint run again with inline configuration off: everything the
+    proposal's comments hide must already have been hidden, with the same rule
+    and message, on the aligned original line. Counting could not do this,
+    nor matching by rule and message alone (Codex's reviews of #567)."""
+    old, new = before_text.splitlines(), after_text.splitlines()
+    to_old: dict[int, int] = {}
+    matcher = difflib.SequenceMatcher(None, old, new, autojunk=False)
+    for tag, i1, i2, j1, _j2 in matcher.get_opcodes():
+        if tag == "equal":
+            to_old.update({j1 + k: i1 + k for k in range(i2 - i1)})
+    was, now = _silenced_regions(old), _silenced_regions(new)
+    if len(was) != len(now):
+        return "the proposal adds or removes a disable comment, or changes what one silences"
+    for (s0, e0), (s1, e1) in zip(was, now):
+        if old[s0 : e0 + 1] != new[s1 : e1 + 1] or any(
+            to_old.get(s1 + k) != s0 + k for k in range(e1 - s1 + 1)
+        ):
+            return (
+                "the proposal changes code a disable comment silences, or what "
+                f"one silences (line {s1 + 1})"
+            )
+    hidden_before, hidden_after = before.hidden(), after.hidden()
+    if hidden_before is None or hidden_after is None:
+        return (
+            "what the disable comments hide is unknown: ESLint did not run "
+            "with inline configuration off"
+        )
+    already = Counter((m.rule, m.message, m.line) for m in hidden_before)
+    for m in hidden_after:
+        line = to_old.get(m.line - 1)
+        key = (m.rule, m.message, None if line is None else line + 1)
+        if line is None or already[key] <= 0:
+            return (
+                f"the proposal hides a {m.rule or 'parse'} message under a "
+                f"disable comment (line {m.line}: {m.message})"
+            )
+        already[key] -= 1
+    return None
 
 
 def static_verdict(
@@ -440,16 +536,13 @@ def static_verdict(
             + ", ".join(f"{rule} +{n}" for rule, n in sorted(new.items(), key=str)),
             changed,
         )
-    # Every silencing line must already be there, unchanged, over the same
-    # line it silenced: counting them let a changed one through (Codex's
-    # post-merge review of #566), and an unchanged one could be retargeted
-    # by deleting the line under it (Codex's review of #567).
-    if _silenced(after_text) - _silenced(before_text):
-        return StaticVerdict(
-            False,
-            "the proposal adds a disable comment or changes what one silences",
-            changed,
-        )
+    # Nothing silenced may change, and nothing may be newly hidden: counting
+    # silencers let a changed one through (Codex's post-merge review of #566);
+    # an unchanged one could be retargeted, and a bounded region could take
+    # in a warning moved into it (Codex's reviews of #567).
+    refusal = silencing_refusal(before_text, after_text, before, after)
+    if refusal:
+        return StaticVerdict(False, refusal, changed)
     limit = MAX_CHANGED_LINES_BASE + MAX_CHANGED_LINES_PER_WARNING * len(
         finding.warnings
     )

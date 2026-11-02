@@ -55,8 +55,13 @@ def _warn(rule, line=3, message="'unused' is assigned a value but never used."):
     return LintMessage(rule=rule, severity=1, line=line, column=9, message=message)
 
 
-def _result(*messages, parse=()):
-    return StaticResult(messages=tuple(messages), parse_errors=tuple(parse))
+def _result(*messages, parse=(), hidden=()):
+    """A lint result; ``hidden`` are messages only the inline-off lint shows."""
+    return StaticResult(
+        messages=tuple(messages),
+        parse_errors=tuple(parse),
+        inline_off=tuple(messages) + tuple(hidden),
+    )
 
 
 FINDING = dw.Finding(
@@ -484,7 +489,9 @@ def test_propose_obeys_the_egress_law(tmp_path, monkeypatch, capsys) -> None:
     root = _repo(tmp_path / "project")
     monkeypatch.setattr(tool, "ledger", lambda: dw.DailyLedger(tmp_path / "l.db"))
     monkeypatch.setattr(
-        tool, "check_texts", lambda r, texts: {k: _result(_warn(RULE)) for k in texts}
+        tool,
+        "check_texts",
+        lambda r, texts, **kw: {k: _result(_warn(RULE)) for k in texts},
     )
     monkeypatch.setattr(
         tool, "cloud_coding_allowed", lambda: (False, "cloud tasks in force []")
@@ -508,7 +515,7 @@ def test_propose_records_a_checked_proposal_and_never_repeats_it(
     monkeypatch.setattr(
         tool,
         "check_texts",
-        lambda r, texts: {
+        lambda r, texts, **kw: {
             k: _result() if v == AFTER else _result(_warn(RULE))
             for k, v in texts.items()
         },
