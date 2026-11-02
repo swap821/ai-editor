@@ -16,6 +16,16 @@ the commit they were measured on). The whole story, from the first commit, is
   - In November so far, 1 of 18 proposals is accepted by review, at about $0.15 of estimated AWS spend per accepted change. 3 more were accepted by me and released by #581.
   - Where the rest were lost: 4 not sent (privacy filter or size, including the 2 placeholder cases above), 2 to the answer's form, 4 to the static checks, 4 to the reviewer.
   - On this branch a fix that changes lines more than 3 away from the nearest warning is refused before review. Replayed on the day's ledger, it refuses both over-broad changes I rejected and passes every change I accepted. GAGOS's report gains these numbers.
+- **GAGOS's first hour on #581's code (19:50 UTC) opened its own PR, #583, as `gagos-swap821[bot]`.**
+  - It holds five changes, each accepted by me:
+    - the evening's two frontend test fixes (`PanelLauncher.test.jsx`, `measuredState.test.ts`);
+    - GAGOS's first backend work: three unused imports removed (`model_router.py`, `checkpoint.py`, `router.py`).
+  - I rechecked each diff on the PR. Every removed name is unused across the repository, and the test helper the TypeScript fix uses is in scope.
+  - Of that hour's Python proposals, 6 passed the checks: I accepted 3 and rejected 3. All three rejected proposals came from Mistral's two models, and each also collapsed the file's two-blank-line spacing between definitions. The base files have that spacing, and Qwen's and DeepSeek's proposals kept it.
+- **One accepted change was wrongly failed at delivery.**
+  - `gd-8b79700958` (`EcosystemDashboard.jsx`, the unused `React` import) failed "the tests related to the frontend targets".
+  - The same related-test run fails on master's unchanged tree. `FixtureJourneyPage.test.tsx` exceeds its 5-second timeout when 22 test files run at once on this laptop.
+  - The change is innocent. The delivery check does not compare against the base, and a failed delivery is final and counts against its writer. Not fixed yet.
 - **Who writes what.** GAGOS writes its own work (fixes and tests) and opens its own PRs as GAGOS. I write the workshop it runs on, because GAGOS's checks allow only bounded one-file changes and execute nothing before review. That boundary is why GAGOS cannot yet build its own workshop.
 
 ## Evening of 2026-11-02 (branch `feat/gagos-first-tests`, off master `012716a3`)
