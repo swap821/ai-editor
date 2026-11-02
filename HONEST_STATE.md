@@ -1,9 +1,22 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-02 ("Later on 2026-11-02" below; earlier sections keep
+**Last updated:** 2026-11-02 ("Later still on 2026-11-02" below; earlier sections keep
 the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Later still on 2026-11-02 (branch `docs/honest-state-after-578`, off master `dd7aa102`)
+
+- **The operator merged #577, #576 and #578.**
+  - **#577** (07:52 UTC, squash `824782ca`): the organ re-gather. Its tree equals the head both reviewers accepted. Master's CI on it passed on all three systems, and the three evidence failures are gone.
+  - **#576** (10:33 UTC, squash `98fa9708`): Dependabot's lucide-react bump, 1.64.0 to 1.65.0. Codex reviewed the package metadata and its CI passed.
+  - **#578** (10:34 UTC, merge commit `dd7aa102`): GAGOS's check now matches a region's end case-sensitively, as ESLint does. **This closes the residual Codex found in #574, on master.** Both reviewers accepted it.
+- **Codex's post-merge reviews are done.** `2f153fab` (#574) gave the residual above, now fixed. `47d5a97d` (#575) gave no new finding.
+- **The organ evidence is still current at `dd7aa102`.** Neither later PR touches an organ's entrypoint, and the evidence tests pass at the tip.
+- **GAGOS's next day (about 02:50 UTC on 11-03) is the first to run with the clerk fix and the full static check.** Its hourly runner moves to master's tip by itself.
+- **Still open:**
+  - Master's CI on `dd7aa102`.
+  - The monthly probe stays red until it runs on 1 December, or until the operator runs it by hand.
 
 ## Later on 2026-11-02 (branch `evidence/after-575`, off master `1eb39c27`)
 
