@@ -1141,14 +1141,15 @@ class DailyLedger:
                 )
             }
 
-    def model_outcomes(self) -> dict[str, tuple[int, int]]:
-        """Per writing model: (proposals both reviewers accepted, proposals
-        decided). Decided: accepted, rejected by a reviewer, failed the
-        delivery checks, or refused for what the model wrote. A failed call, or
+    def model_outcomes(self, *, rule: str | None = None) -> dict[str, tuple[int, int]]:
+        """Per writing model, for one *rule* or all: (proposals both reviewers
+        accepted, proposals decided). Decided: accepted, rejected by a
+        reviewer, failed the delivery checks, or refused for what the model
+        wrote. A failed call (the provider's refusal, not the model's work), or
         a proposal no model was asked for, decides nothing."""
         out: dict[str, list[int]] = {}
         for p in self.proposals():
-            if p["model"] == NO_MODEL:
+            if p["model"] == NO_MODEL or (rule and p["rule"] != rule):
                 continue
             status, refusal = p["status"], p["refusal"] or ""
             if status in ("accepted", "committed", "delivered"):
@@ -1166,18 +1167,17 @@ class DailyLedger:
 
     def rels_in_prs(self, pr_urls: Iterable[str]) -> set[str]:
         """The files the proposals delivered in these PRs change."""
-        urls = list(pr_urls)
-        if not urls:
+        wanted = set(pr_urls)
+        if not wanted:
             return set()
         with self._db() as db:
             return {
                 r["rel"]
                 for r in db.execute(
-                    "SELECT DISTINCT p.rel FROM proposals p JOIN deliveries d ON "
-                    "p.proposal_id = d.proposal_id WHERE d.pr_url IN "
-                    f"({', '.join('?' * len(urls))})",
-                    urls,
+                    "SELECT p.rel, d.pr_url FROM proposals p JOIN deliveries d ON "
+                    "p.proposal_id = d.proposal_id WHERE d.pr_url IS NOT NULL"
                 )
+                if r["pr_url"] in wanted
             }
 
 

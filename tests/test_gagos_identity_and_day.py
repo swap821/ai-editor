@@ -575,6 +575,41 @@ def test_unpublished_work_holds_back_delivery(tmp_path, monkeypatch) -> None:
     )
 
 
+def test_a_failed_publication_still_guards_an_open_prs_files(
+    tmp_path, monkeypatch
+) -> None:
+    """Codex's review of #580: delivered A in an open PR, unpublished B; a
+    failed publication left A unguarded, and a new call was made on A."""
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _committed(led)
+    other = "frontend/src/workbench/Other.jsx"
+    pid = _proposal(led, dw.Finding(rel=other, rule=FINDING.rule, warnings=()))
+    _both(led, pid)
+    led.record_delivery(
+        pid, branch="b", outcome="delivered", commit_sha="c", pr_url="u/pull/3"
+    )
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(tool.config, "DATA_DIR", tmp_path)
+    monkeypatch.setattr(tool, "_github_app", lambda root: None)
+
+    def cannot(root, branch, app):
+        raise tool.PublishFailed("offline")
+
+    monkeypatch.setattr(tool, "_branch_prs", cannot)
+    monkeypatch.setattr(tool, "_pr_state", lambda url: "UNKNOWN")
+    calls: list = []
+    monkeypatch.setattr(tool, "_git", lambda root, *args: "")
+    monkeypatch.setattr(tool, "_slot", lambda: "2026-11-01T05")
+    monkeypatch.setattr(
+        tool, "cmd_propose", lambda a: calls.append(("propose", frozenset(a.skip))) or 0
+    )
+    monkeypatch.setattr(tool, "cmd_review", lambda a: 0)
+    monkeypatch.setattr(tool, "cmd_clerk", lambda a: 0)
+    monkeypatch.setattr(tool, "cmd_deliver", lambda a: calls.append("deliver") or 0)
+    tool.cmd_daily(SimpleNamespace(project=str(tmp_path), model="m", region="r"))
+    assert calls == [("propose", frozenset({FINDING.rel, other}))]
+
+
 def test_the_day_is_claimed_atomically(tmp_path) -> None:
     """Codex's review of #566: two overlapping runs each proposed two."""
     import threading

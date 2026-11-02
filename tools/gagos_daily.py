@@ -103,9 +103,10 @@ WORKFORCE = (
     "mistral.mistral-large-3-675b-instruct",
     "moonshotai.kimi-k2.5",
 )
-#: Model calls in flight at once. The ESLint checks run one at a time, so a
-#: batch never holds more than one lint's memory on the 16 GB laptop.
-WRITERS_AT_ONCE = 4
+#: Model calls in flight at once: Codex's starting point (2026-11-02), to be
+#: raised from measured capacity, not a quota. The ESLint checks run one at a
+#: time, so a batch never holds more than one lint's memory.
+WRITERS_AT_ONCE = 2
 #: A writer is tried on this many decided proposals before its record steers
 #: how much work it gets.
 EXPLORE = 5
@@ -422,7 +423,15 @@ def cmd_propose(args: argparse.Namespace) -> int:
             continue
         jobs.append((f, text, masked, mapping, prompt, common))
     roster = (args.model,) if args.model else WORKFORCE
-    writers = allocate(len(jobs), led.model_outcomes(), roster)
+    # Writers are compared within one rule, never across rules of different
+    # difficulty (Codex's review of #580).
+    by_rule: dict[str, list[int]] = {}
+    for i, job in enumerate(jobs):
+        by_rule.setdefault(job[0].rule, []).append(i)
+    writers = [""] * len(jobs)
+    for rule, idx in by_rule.items():
+        for i, m in zip(idx, allocate(len(idx), led.model_outcomes(rule=rule), roster)):
+            writers[i] = m
     completers = {m: governed_completer(m, args.region) for m in dict.fromkeys(writers)}
     month, slot, lint = _month(), _slot(), threading.Lock()
 
@@ -447,7 +456,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
         started = time.monotonic()
         try:
             raw = completers[model](
-                prompt, PROPOSER_SYSTEM, f"gagos:{slot}:{n}:{model}"
+                prompt, PROPOSER_SYSTEM, f"gagos:{slot}:spend-{hold}"
             )
         except (
             Exception
@@ -1489,13 +1498,12 @@ def cmd_daily(args: argparse.Namespace) -> int:
     # Work an earlier hour committed but could not publish comes first: it is
     # published (or its PR found) before anything new is delivered.
     held = publish_pending(led, root)
-    open_prs: list[str] = []
-    if held is None:
-        open_prs = [
-            u for u in led.pr_urls() if _pr_state(u) not in ("MERGED", "CLOSED")
-        ]
-        if open_prs:
-            held = f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
+    # Asked whether publishing failed or not: the files of every PR not known
+    # to be merged or closed stay GAGOS's, whatever else went wrong (Codex's
+    # review of #580: a failed publication left an open PR's files unguarded).
+    open_prs = [u for u in led.pr_urls() if _pr_state(u) not in ("MERGED", "CLOSED")]
+    if held is None and open_prs:
+        held = f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
     if held:
         print(f"{slot}: delivery waits -- {held}")
     if not led.reserve_day(slot):

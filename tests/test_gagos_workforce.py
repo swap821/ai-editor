@@ -15,6 +15,7 @@ work both reviewers accept. Pinned here, without a model or a network:
 
 from __future__ import annotations
 
+import sqlite3
 import threading
 from types import SimpleNamespace
 
@@ -120,10 +121,12 @@ def _batch(tmp_path, monkeypatch, *, ceiling=100.0):
     monkeypatch.setattr(tool, "WORKFORCE", ("writer-a", "writer-b"))
     monkeypatch.setattr(tool, "MONTHLY_AWS_USD", ceiling)
     asked: list = []
+    ids: list = []
 
     def completer(model, region):
         def complete(prompt, system, request_id):
             asked.append(model)
+            ids.append(request_id)
             return f"```jsx\n{AFTER}```"
 
         return complete
@@ -132,13 +135,13 @@ def _batch(tmp_path, monkeypatch, *, ceiling=100.0):
     args = SimpleNamespace(
         project=str(root), budget=10, model=None, region="r", rules=None, dry_run=False
     )
-    return led, asked, args
+    return led, asked, args, ids
 
 
 def test_a_batch_spreads_across_the_writers_and_pays_for_each_call(
     tmp_path, monkeypatch
 ) -> None:
-    led, asked, args = _batch(tmp_path, monkeypatch)
+    led, asked, args, ids = _batch(tmp_path, monkeypatch)
     assert tool.cmd_propose(args) == 0
     proposals = led.proposals()
     assert {p["rel"] for p in proposals} == {REL, OTHER}
@@ -149,12 +152,18 @@ def test_a_batch_spreads_across_the_writers_and_pays_for_each_call(
     assert set(spent) == {"writer-a", "writer-b"} and all(v > 0 for v in spent.values())
     worst = tool.worst_case_usd(1)
     assert all(v < worst for v in spent.values()), "every hold was settled"
+    with sqlite3.connect(led.path) as db:
+        holds = [row[0] for row in db.execute("SELECT id FROM spend")]
+    assert sorted(ids) == sorted(f"gagos:{tool._slot()}:spend-{h}" for h in holds), (
+        "Codex's review of #580: each call's request id is its own persisted "
+        "spend hold, never reused by a later batch"
+    )
 
 
 def test_past_the_ceiling_no_model_is_asked_and_the_work_waits(
     tmp_path, monkeypatch, capsys
 ) -> None:
-    led, asked, args = _batch(tmp_path, monkeypatch, ceiling=0.0)
+    led, asked, args, _ids = _batch(tmp_path, monkeypatch, ceiling=0.0)
     assert tool.cmd_propose(args) == 0
     assert asked == [] and led.proposals() == []
     assert "AWS ceiling" in capsys.readouterr().out
@@ -185,3 +194,29 @@ def test_a_writers_record_counts_only_what_it_wrote(tmp_path) -> None:
     by(dw.NO_MODEL, new_text=None, verdict=None, refusal="file is too long")
     by("w")  # awaiting review: not decided yet
     assert led.model_outcomes() == {"w": (1, 3)}
+
+
+def test_writers_are_compared_within_one_rule(tmp_path) -> None:
+    """Codex's review of #580: raw rates across rules reward easy work."""
+    led = dw.DailyLedger(tmp_path / "l.db")
+    easy = dw.Finding(rel=REL, rule="easy-rule", warnings=FINDING.warnings)
+    accepted = led.record_proposal(
+        easy,
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="w",
+        new_text=AFTER,
+        verdict=dw.StaticVerdict(True, "ok", 1),
+    )
+    _both(led, accepted)
+    led.record_proposal(
+        FINDING,
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="w",
+        new_text=AFTER,
+        verdict=dw.StaticVerdict(False, "the proposal adds warnings", 1),
+    )
+    assert led.model_outcomes(rule="easy-rule") == {"w": (1, 1)}
+    assert led.model_outcomes(rule=RULE) == {"w": (0, 1)}
+    assert led.model_outcomes() == {"w": (1, 2)}
