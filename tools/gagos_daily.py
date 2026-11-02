@@ -1687,6 +1687,8 @@ def cmd_daily(args: argparse.Namespace) -> int:
                 reviewer=reviewer, limit=REVIEW_LIMIT, model=None, timeout=900
             )
         )
+    for pid in led.resettle():
+        print(f"  {pid}: decided by the reviews already recorded")
     cmd_clerk(argparse.Namespace())
     if not held:
         cmd_deliver(

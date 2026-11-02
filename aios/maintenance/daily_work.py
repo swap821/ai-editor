@@ -1140,6 +1140,36 @@ class DailyLedger:
             )
         return proposal_id
 
+    def resettle(self) -> list[str]:
+        """Proposals awaiting review that the reviews already recorded now
+        decide, under today's required reviewers; returns them. When Codex left
+        the chain (2026-11-02), proposals Claude Code had accepted were still
+        waiting for Codex, and no new review would ever touch them again."""
+        moved = []
+        with self._db() as db:
+            for row in db.execute(
+                "SELECT proposal_id FROM proposals WHERE status = 'proposed'"
+            ).fetchall():
+                verdicts = {
+                    r["reviewer"]: r["verdict"]
+                    for r in db.execute(
+                        "SELECT reviewer, verdict FROM reviews WHERE proposal_id = ?",
+                        (row["proposal_id"],),
+                    )
+                }
+                if "reject" in verdicts.values():
+                    status = "rejected"
+                elif all(verdicts.get(r) == "accept" for r in REQUIRED_REVIEWERS):
+                    status = "accepted"
+                else:
+                    continue
+                db.execute(
+                    "UPDATE proposals SET status = ? WHERE proposal_id = ?",
+                    (status, row["proposal_id"]),
+                )
+                moved.append(row["proposal_id"])
+        return moved
+
     def record_review(
         self, proposal_id: str, reviewer: str, *, model: str, verdict: str, reason: str
     ) -> str:

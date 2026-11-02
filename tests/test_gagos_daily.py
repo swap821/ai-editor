@@ -272,6 +272,24 @@ def test_the_daily_report_shows_the_days_misses_too(tmp_path) -> None:
     assert "disagreed (while both reviewed, until 2026-11-02): 1" in text
 
 
+def test_proposals_claude_code_accepted_while_codex_was_required_are_accepted(
+    tmp_path, monkeypatch
+) -> None:
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    monkeypatch.setattr(dw, "REQUIRED_REVIEWERS", ("codex", "claude"))
+    waiting = _proposal(led)
+    led.record_review(waiting, "claude", model="opus", verdict="accept", reason="ok")
+    unreviewed = _proposal(led)
+    assert led.proposals(status="proposed") != []
+    monkeypatch.setattr(dw, "REQUIRED_REVIEWERS", ("claude",))
+    assert led.resettle() == [waiting]
+    assert {p["proposal_id"]: p["status"] for p in led.proposals()} == {
+        waiting: "accepted",
+        unreviewed: "proposed",
+    }
+    assert led.resettle() == [], "once"
+
+
 def test_claude_codes_acceptance_is_enough_and_any_reject_still_rejects(
     tmp_path,
 ) -> None:
