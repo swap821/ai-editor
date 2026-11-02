@@ -11,7 +11,8 @@ the commit they were measured on). The whole story, from the first commit, is
   - **#571:** the D13 write-up: not met, harm not detected.
   - **#572:** GAGOS's clerk can now summarise a disagreement. Tomorrow's day is the first to use it.
   - **#573:** torch is held at 2.14.1, so the macOS suite completes again.
-  - **#574 closes the P3 from #567.** GAGOS's static check now aligns everything a disable comment silences line by line, and lints once more with inline configuration off. It reads directives only from the comments ESLint's parser found.
+  - **#574 fixes the P3 from #567 for every case found before the merge.** GAGOS's static check now aligns everything a disable comment silences line by line, and lints once more with inline configuration off. It reads directives only from the comments ESLint's parser found.
+    - **Codex's post-merge review found one residual, still open on master.** The check reads a region's end without regard to case, so an uppercase `/* ESLINT-ENABLE rule */` ends protection, though ESLint (case-sensitive) ignores it. A fix follows in its own PR.
   - **#575:** the probe's six NO VERDICTs were an order-dependent test, now fixed. S17 is killed by a test that reaches the fallback, the pre-route site has its own mutation (S26), and a failed control now says which test failed.
   - **Two commits were merged before Codex re-reviewed them:** #574's `2f153fab` (directives read from real comments) and #575's `47d5a97d` (the failing test kept first in a report). Codex's earlier findings on both are fixed by those commits. Codex reviews them on master after the fact.
 - **Organs re-gathered at master's tip `1eb39c27`** (this branch), as #559 did. The PR adds evidence and docs only.
