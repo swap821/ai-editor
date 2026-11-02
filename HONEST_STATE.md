@@ -22,8 +22,16 @@ the commit they were measured on). The whole story, from the first commit, is
 - **The backend is back (16:00 UTC).** At the operator's word I started Docker Desktop and ran `daily_backend.py up`. The API and the executor answer health checks (200), and 3 of 11 reflexes are ready, as before D13.
 - **Codex is out of the review chain, by the operator's decision** ("forget codex now we both r available so that's enough"). On this branch, a GAGOS change is accepted when Claude Code accepts it, and the operator merges. A reject from Codex, if one is ever recorded, still rejects. GAGOS's hourly runs no longer ask Codex. The record of how often the two disagreed while both reviewed is kept.
   - My own code (tools, not GAGOS's work) now has no second machine reviewer. Its checks are its tests, CI, and the operator's merge.
+- **GAGOS's first hourly batch ran at 15:50 UTC on master `012716a3`.** It made 10 proposals from 5 writers in 5 minutes, for about $0.11 (an estimate pitched high).
+  - 6 passed the static checks. 4 were refused: Kimi K2.5 twice gave no code block, one did not parse, and one left a warning.
+  - Of the 6, one could not be shown to a reviewer (the privacy filter would redact the file). I accepted 3 and rejected 2; both rejected ones also changed lines they were not asked to fix.
+  - Nothing was delivered: master's code still needs Codex's acceptance too, until this branch merges.
+- **This branch also lets GAGOS improve its backend and itself** ("capable of improving its both backend and frontend and itself"). Its work now includes ruff's F401 (unused import) and F841 (unused local) in tracked Python under `aios/` and `tools/`; at `7302fa9d` that is 24 findings.
+  - GAGOS never changes the frozen security core (`aios/security/`) or any organ's production entrypoint, which would make that organ's evidence stale. 6 files with findings are excluded for that. Without the organ ledger it changes no Python.
+  - A removed import that another module takes from this one is refused. Delivery checks Python by compiling it and running the tests that import it.
+  - GAGOS already learns from refusals: each prompt carries the last reasons that kind of work was refused, by the checks or by a reviewer.
+- **Master's CI on `012716a3` passed** (CI and CodeQL).
 - **Still open:**
-  - Master's CI on `012716a3`.
   - Wake timers in the power plan (the operator's setting).
   - The monthly probe stays red until 1 December, or until the operator runs it by hand.
 
