@@ -75,6 +75,23 @@ _WHOLE_FILE = re.compile(
 _FENCE = re.compile(r"^```[^\n]*\n(.*?)^```[ \t]*$", re.DOTALL | re.MULTILINE)
 
 #: Bounds on one proposal's change, in changed (added + removed) lines.
+#: GAGOS's Python work (2026-11-02): its backend and itself, by ruff's codes:
+#: an unused import and an unused local. Each fix removes what the file does
+#: not use; what other modules take from it is checked apart
+#: (:func:`aios.maintenance.python_static.import_refusal`).
+PYTHON_RULES: tuple[str, ...] = ("F401", "F841")
+
+
+def is_python(rel: str) -> bool:
+    """A Python file is GAGOS's backend or GAGOS itself; anything else here is
+    its frontend."""
+    return rel.endswith(".py")
+
+
+def linter_of(rel: str) -> str:
+    return "ruff" if is_python(rel) else "ESLint"
+
+
 MAX_CHANGED_LINES_BASE = 24
 MAX_CHANGED_LINES_PER_WARNING = 8
 
@@ -124,6 +141,21 @@ PROPOSER_SYSTEM = (
     "asked to fix. Reply with the complete corrected file in ONE fenced code "
     "block and nothing else."
 )
+
+PYTHON_PROPOSER_SYSTEM = (
+    "You are GAGOS's backend maintainer. You fix exactly the ruff warnings you "
+    "are given in one Python file of GAGOS's own code, and nothing else. Your "
+    "change must not alter behaviour, return values, exceptions raised, public "
+    "names or anything other modules import from this file. When you remove an "
+    "unused variable, keep any call on its right-hand side whose effect "
+    "matters. Never add noqa, type: ignore, nosec or pragma comments. Do not "
+    "reformat, reorder or rename anything you were not asked to fix. Reply "
+    "with the complete corrected file in ONE fenced code block and nothing else."
+)
+
+
+def proposer_system(rel: str) -> str:
+    return PYTHON_PROPOSER_SYSTEM if is_python(rel) else PROPOSER_SYSTEM
 
 
 #: The shape of a placeholder for a span that may not leave the machine (see
@@ -443,11 +475,35 @@ def _silenced_regions(lines: int, comments: Sequence[Comment]) -> list[tuple[int
     return sorted(out)
 
 
+_PY_FILE_SILENCER = re.compile(r"^\s*(ruff|flake8)\s*:\s*noqa", re.I)
+_PY_SILENCER = re.compile(
+    r"noqa|type:\s*ignore|nosec|pragma\b|fmt:\s*(off|skip)|pylint:\s*disable"
+    r"|pyright:\s*ignore",
+    re.I,
+)
+
+
+def _python_silenced_regions(
+    lines: int, comments: Sequence[Comment]
+) -> list[tuple[int, int]]:
+    """What Python's silencers cover: a ``# ruff: noqa`` the whole file, any
+    other its own line (0-based, inclusive), in order."""
+    out = set()
+    for c in comments:
+        if _PY_FILE_SILENCER.match(c.value):
+            out.add((0, max(lines - 1, 0)))
+        elif _PY_SILENCER.search(c.value):
+            out.add((c.start - 1, c.end - 1))
+    return sorted(out)
+
+
 def silencing_refusal(
     before_text: str,
     after_text: str,
     before: StaticResult,
     after: StaticResult,
+    *,
+    python: bool = False,
 ) -> str | None:
     """Why a proposal may not pass for what disable comments silence, or None.
 
@@ -467,13 +523,16 @@ def silencing_refusal(
     for tag, i1, i2, j1, _j2 in matcher.get_opcodes():
         if tag == "equal":
             to_old.update({j1 + k: i1 + k for k in range(i2 - i1)})
+    linter, regions = (
+        ("ruff", _python_silenced_regions) if python else ("ESLint", _silenced_regions)
+    )
     if before.comments is None or after.comments is None:
         return (
-            "what the disable comments silence is unknown: ESLint did not run "
+            f"what the disable comments silence is unknown: {linter} did not run "
             "with inline configuration off"
         )
-    was = _silenced_regions(len(old), before.comments)
-    now = _silenced_regions(len(new), after.comments)
+    was = regions(len(old), before.comments)
+    now = regions(len(new), after.comments)
     if len(was) != len(now):
         return "the proposal adds or removes a disable comment, or changes what one silences"
     for (s0, e0), (s1, e1) in zip(was, now):
@@ -487,7 +546,7 @@ def silencing_refusal(
     hidden_before, hidden_after = before.hidden(), after.hidden()
     if hidden_before is None or hidden_after is None:
         return (
-            "what the disable comments hide is unknown: ESLint did not run "
+            f"what the disable comments hide is unknown: {linter} did not run "
             "with inline configuration off"
         )
     already = Counter((m.rule, m.message, m.line) for m in hidden_before)
@@ -523,7 +582,8 @@ def static_verdict(
         first = after.errors[0]
         return StaticVerdict(
             False,
-            f"the proposal has an ESLint error: {first.rule}: {first.message}",
+            f"the proposal has an {linter_of(finding.rel)} error: "
+            f"{first.rule}: {first.message}",
             changed,
         )
     left = after.warnings(finding.rule)
@@ -548,7 +608,9 @@ def static_verdict(
     # silencers let a changed one through (Codex's post-merge review of #566);
     # an unchanged one could be retargeted, and a bounded region could take
     # in a warning moved into it (Codex's reviews of #567).
-    refusal = silencing_refusal(before_text, after_text, before, after)
+    refusal = silencing_refusal(
+        before_text, after_text, before, after, python=is_python(finding.rel)
+    )
     if refusal:
         return StaticVerdict(False, refusal, changed)
     limit = MAX_CHANGED_LINES_BASE + MAX_CHANGED_LINES_PER_WARNING * len(
@@ -767,23 +829,46 @@ def review_prompt(
         if facts
         else []
     )
-    return "\n".join(
-        [
-            "You are reviewing a change GAGOS (an AI system) proposed to its own "
-            "frontend. You are its reviewer: if you accept, it goes to the "
-            "operator to merge; if you reject, it does not ship. Be strict and "
-            "honest.",
-            "",
-            "ACCEPT only if ALL hold:",
-            "- it fixes the listed ESLint warnings and nothing else;",
+    if is_python(finding.rel):
+        part, linter = "backend (Python; GAGOS's own code)", "ruff"
+        holds = [
+            "- behaviour, return values, exceptions raised, public names and "
+            "tests are unchanged;",
+            "- nothing is silenced (no noqa, type: ignore, nosec or pragma comments);",
+            "- removed code was truly unused, and nothing it did is lost (e.g. "
+            "an import's side effect, a call on the right of a removed "
+            "assignment, a name other code reads through this module).",
+        ]
+        checked = (
+            "Automated checks already passed: it parses, the listed warnings are "
+            "gone, no other ruff warning or error was added, and no other "
+            "tracked module imports a removed name from this one."
+        )
+    else:
+        part, linter = "frontend", "ESLint"
+        holds = [
             "- behaviour, rendering, exports, public names and tests are unchanged;",
             "- nothing is silenced (no disable or ts-ignore comments) and no "
             "type is weakened to hide a problem;",
             "- removed code was truly unused, and nothing it did is lost "
             "(e.g. a side effect, a hook call, an argument position).",
-            "Otherwise REJECT, and say exactly why in one or two sentences.",
+        ]
+        checked = (
             "Automated checks already passed: it parses, the listed warnings "
-            "are gone, and no other ESLint warning or error was added.",
+            "are gone, and no other ESLint warning or error was added."
+        )
+    return "\n".join(
+        [
+            "You are reviewing a change GAGOS (an AI system) proposed to its own "
+            f"{part}. You are its reviewer: if you accept, it goes to the "
+            "operator to merge; if you reject, it does not ship. Be strict and "
+            "honest.",
+            "",
+            "ACCEPT only if ALL hold:",
+            f"- it fixes the listed {linter} warnings and nothing else;",
+            *holds,
+            "Otherwise REJECT, and say exactly why in one or two sentences.",
+            checked,
             "",
             f"File: {Path(finding.rel).name}",
             f"Rule: {finding.rule}",
@@ -1442,6 +1527,8 @@ __all__ = [
     "NO_MODEL",
     "MaskingFailed",
     "PROPOSER_SYSTEM",
+    "PYTHON_PROPOSER_SYSTEM",
+    "PYTHON_RULES",
     "ProposalRefused",
     "REQUIRED_REVIEWERS",
     "REVIEWERS",
@@ -1450,6 +1537,8 @@ __all__ = [
     "TESTER_SYSTEM",
     "digest",
     "findings",
+    "is_python",
+    "linter_of",
     "load_direction",
     "mask_like",
     "mask_lines",
@@ -1458,6 +1547,7 @@ __all__ = [
     "parse_review",
     "project_facts",
     "proposal_prompt",
+    "proposer_system",
     "review_prompt",
     "set_direction",
     "static_verdict",

@@ -55,7 +55,7 @@ from aios.maintenance.daily_work import (  # noqa: E402
     FIRST_RULES,
     MISSING_TEST,
     NO_MODEL,
-    PROPOSER_SYSTEM,
+    PYTHON_RULES,
     REVIEW_SCHEMA,
     REQUIRED_REVIEWERS,
     REVIEWERS,
@@ -66,12 +66,14 @@ from aios.maintenance.daily_work import (  # noqa: E402
     set_direction,
     Finding,
     MaskingFailed,
+    StaticVerdict,
     ProposalRefused,
     digest,
     findings,
     first_test_prompt,
     first_test_review_prompt,
     first_test_verdict,
+    is_python,
     mask_like,
     mask_lines,
     missing_tests,
@@ -79,6 +81,7 @@ from aios.maintenance.daily_work import (  # noqa: E402
     parse_review,
     project_facts,
     proposal_prompt,
+    proposer_system,
     review_prompt,
     static_verdict,
     subject_of,
@@ -89,6 +92,12 @@ from aios.maintenance.frontend_static import (  # noqa: E402
     StaticCheckUnavailable,
     check_texts,
     editable_frontend_files,
+)
+from aios.maintenance.python_static import (  # noqa: E402
+    PYTHON_SCOPE,
+    check_python_texts,
+    editable_python_files,
+    import_refusal,
 )
 
 DEFAULT_MODEL = "mistral.mistral-large-3-675b-instruct"
@@ -112,9 +121,10 @@ WORKFORCE = (
     "mistral.mistral-large-3-675b-instruct",
     "moonshotai.kimi-k2.5",
 )
-#: GAGOS's work when the operator names none: the lint rules whose fix keeps
-#: behaviour, then a first test for each module that has none (2026-11-02).
-WORK_RULES = (*FIRST_RULES, MISSING_TEST)
+#: GAGOS's work when the operator names none (2026-11-02): the lint rules
+#: whose fix keeps behaviour, in its frontend and in its Python (its backend and
+#: itself), then a first test for each frontend module that has none.
+WORK_RULES = (*FIRST_RULES, *PYTHON_RULES, MISSING_TEST)
 #: An existing test shown to the test writer for this codebase's conventions,
 #: when one this short sits beside the module and needs no masking.
 MAX_EXAMPLE_CHARS = 6_000
@@ -315,7 +325,7 @@ def governed_completer(model: str, region: str):
             constitution_digest=snapshot.snapshot_digest,
             target="cloud",
             desired_outcome=(
-                "one proposed fix of ESLint warnings in one frontend file, for "
+                "one proposed fix of lint warnings in one file of GAGOS's own code, for "
                 "review before the operator merges"
             ),
             emergency_stop=emergency_stop,
@@ -335,11 +345,12 @@ def cmd_propose(args: argparse.Namespace) -> int:
     direction = load_direction(_direction_path())
     # The operator's taste reaches the proposer and both reviewers, scrubbed
     # like everything else that leaves the machine.
-    facts = project_facts(root) + tuple(
+    notes = tuple(
         f"The operator's direction: {egress_redact(note)}" for note in direction.notes
     )
-    if _git(root, "status", "--porcelain", "--", "frontend/src"):
-        print(f"refused: frontend/src has uncommitted changes in {root}")
+    facts = project_facts(root) + notes
+    if _git(root, "status", "--porcelain", "--", "frontend/src", *PYTHON_SCOPE):
+        print(f"refused: GAGOS's files have uncommitted changes in {root}")
         return 2
     rules = tuple(args.rules or direction.rules or WORK_RULES)
     texts = {
@@ -351,6 +362,17 @@ def cmd_propose(args: argparse.Namespace) -> int:
     except StaticCheckUnavailable as exc:
         print(f"refused: {exc}")
         return 2
+    if any(r in PYTHON_RULES for r in rules):
+        # Its backend and itself; unavailable, the frontend's work goes on.
+        try:
+            py_texts = {
+                rel: (root / rel).read_bytes().decode("utf-8")
+                for rel in editable_python_files(root)
+            }
+            results.update(check_python_texts(root, py_texts))
+            texts.update(py_texts)
+        except (StaticCheckUnavailable, subprocess.CalledProcessError) as exc:
+            print(f"Python work skipped this batch: {exc}")
     every = Counter(m.rule for r in results.values() for m in r.warnings())
     busy = set(getattr(args, "skip", None) or ())
 
@@ -400,7 +422,8 @@ def cmd_propose(args: argparse.Namespace) -> int:
         if len(jobs) >= args.budget:
             break
         text = base_of(f)
-        common = dict(base_text=text, base_commit=head, facts=facts)
+        known = notes if is_python(f.rel) else facts
+        common = dict(base_text=text, base_commit=head, facts=known)
         if len(text) > MAX_FILE_CHARS:
             led.record_proposal(
                 f,
@@ -435,12 +458,12 @@ def cmd_propose(args: argparse.Namespace) -> int:
                 example=_example_test(texts, f.rel),
                 prior_refusals=refusals,
                 masked=bool(mapping),
-                facts=facts,
+                facts=known,
             )
         else:
-            system = PROPOSER_SYSTEM
+            system = proposer_system(f.rel)
             prompt = proposal_prompt(
-                f, masked, prior_refusals=refusals, masked=bool(mapping), facts=facts
+                f, masked, prior_refusals=refusals, masked=bool(mapping), facts=known
             )
         altered = would_be_altered(prompt, system)
         if altered:
@@ -530,12 +553,13 @@ def cmd_propose(args: argparse.Namespace) -> int:
         try:
             # Both texts once more, each also with inline configuration off,
             # so what disable comments hide can be compared (static_verdict).
+            check = check_python_texts if is_python(f.rel) else check_texts
             with lint:
                 if f.rule == MISSING_TEST:
                     before = None
                 else:
-                    before = check_texts(root, {f.rel: text}, inline_off=True)[f.rel]
-                after = check_texts(root, {f.rel: new_text}, inline_off=True)[f.rel]
+                    before = check(root, {f.rel: text}, inline_off=True)[f.rel]
+                after = check(root, {f.rel: new_text}, inline_off=True)[f.rel]
         except StaticCheckUnavailable as exc:
             pid = led.record_proposal(
                 f,
@@ -551,6 +575,11 @@ def cmd_propose(args: argparse.Namespace) -> int:
             if before is None
             else static_verdict(f, text, new_text, before, after)
         )
+        if verdict.passed and is_python(f.rel):
+            # Ruff sees one file; what other modules take from it is checked here.
+            taken = import_refusal(root, f.rel, text, new_text)
+            if taken:
+                verdict = StaticVerdict(False, taken, verdict.changed_lines)
         pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
         state = (
             "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
@@ -941,7 +970,12 @@ def commit_message(p: dict, reviews: dict) -> str:
             f"proposed this change (proposal {p['proposal_id']}); "
             f"{model_name(p['model'])} wrote it. Unattended checks passed: it "
             "parses, the warnings are gone, nothing new. Checked again on master: "
-            "it parses, has no ESLint error, and the tests that import it pass.",
+            + (
+                "it compiles, and the tests that import it pass."
+                if is_python(p["rel"])
+                else "it parses, has no ESLint error, and the tests that import "
+                "it pass."
+            ),
         ]
     return "\n".join(
         [
@@ -1218,7 +1252,11 @@ def publish_pending(led: DailyLedger, root: Path) -> str | None:
 
 
 def cmd_deliver(args: argparse.Namespace) -> int:
-    from aios.application.promotion.smoke import SmokeStep, frontend_smoke
+    from aios.application.promotion.smoke import (
+        SmokeStep,
+        frontend_smoke,
+        python_smoke,
+    )
 
     root = Path(args.worktree).resolve()
     led = ledger()
@@ -1258,9 +1296,17 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             continue
         path.write_bytes(p["new_text"].encode("utf-8"))
         steps: list[SmokeStep] = []
-        failure = frontend_smoke(
-            root, [path], deadline=time.monotonic() + args.check_timeout, steps=steps
-        )
+        if is_python(p["rel"]):
+            # It compiles, and the tests that import it pass.
+            smoke = python_smoke(root, [p["rel"]], timeout_s=args.check_timeout)
+            failure = None if smoke.passed else smoke.reason
+        else:
+            failure = frontend_smoke(
+                root,
+                [path],
+                deadline=time.monotonic() + args.check_timeout,
+                steps=steps,
+            )
         if failure is not None:
             if current is None:
                 path.unlink()
