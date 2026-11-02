@@ -1,7 +1,6 @@
 import { render, screen, fireEvent } from '@testing-library/react';
 import { describe, it, expect, vi } from 'vitest';
 import PanelLauncher from './PanelLauncher';
-import React from 'react';
 
 describe('PanelLauncher', () => {
   it('is collapsed by default and shows no panel list', () => {
