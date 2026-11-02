@@ -6,9 +6,11 @@ day can stop anywhere and resume, and every outcome is in the ledger
 (``<AIOS_DATA_DIR>/gagos_daily/ledger.db``):
 
   propose   lint the frontend of --project (a clean checkout of master); for up
-            to --budget findings (one file, one rule), ask the frontier model
+            to --budget findings (one file, one rule), ask GAGOS's writers
+            (several Bedrock models at once, each finding to one, routed by
+            their accepted record, within the operator's monthly AWS ceiling)
             through the one gateway for the whole corrected file, and run the
-            unattended static checks. Nothing the model wrote is executed.
+            unattended static checks. Nothing a model wrote is executed.
   review    --reviewer codex|claude: each open proposal is reviewed by a fresh,
             read-only, tool-less session that sees the rule, the warnings, the
             whole original file and the diff, and returns a schema-checked
@@ -36,8 +38,10 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -48,6 +52,7 @@ if str(REPO) not in sys.path:
 from aios import config  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
     FIRST_RULES,
+    NO_MODEL,
     PROPOSER_SYSTEM,
     REVIEW_SCHEMA,
     REVIEWERS,
@@ -80,6 +85,80 @@ from aios.maintenance.frontend_static import (  # noqa: E402
 DEFAULT_MODEL = "mistral.mistral-large-3-675b-instruct"
 #: A whole-file proposal for a longer file would not fit one answer reliably.
 MAX_FILE_CHARS = 40_000
+#: The longest answer a writer may give, in tokens.
+MAX_OUTPUT_TOKENS = 12_000
+
+# --------------------------------------------------------------------- the workforce
+
+#: GAGOS's writers: several Bedrock models working at once, as GAGOS is
+#: designed to (the operator, 2026-11-02: "multi models agent simultaneously
+#: together"). Each answered a live call on GAGOS's own key in us-east-1 on
+#: 2026-11-02. Claude Sonnet 4.6 waits on the account's Anthropic use-case form
+#: (his); Claude Opus 4.6 answers but costs about ten times more, so it is not a
+#: routine writer.
+WORKFORCE = (
+    "mistral.devstral-2-123b",
+    "qwen.qwen3-coder-next",
+    "deepseek.v3.2",
+    "mistral.mistral-large-3-675b-instruct",
+    "moonshotai.kimi-k2.5",
+)
+#: Model calls in flight at once. The ESLint checks run one at a time, so a
+#: batch never holds more than one lint's memory on the 16 GB laptop.
+WRITERS_AT_ONCE = 4
+#: A writer is tried on this many decided proposals before its record steers
+#: how much work it gets.
+EXPLORE = 5
+
+#: The operator, 2026-11-02: "$100 a month for AWS". Every Bedrock call holds
+#: its worst case against the UTC month's total first, and makes no call past it.
+MONTHLY_AWS_USD = 100.0
+#: A deliberately high estimate for every writer, USD per million tokens
+#: (input, output), with tokens over-counted at 3 characters each. The spend is
+#: estimated from what was sent and received, never read from AWS's bill, so
+#: it is pitched to over-state the bill.
+PRICE_PER_MTOK = (1.00, 4.00)
+CHARS_PER_TOKEN = 3
+
+
+def _month() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m")
+
+
+def estimate_usd(chars_in: int, chars_out: int) -> float:
+    price_in, price_out = PRICE_PER_MTOK
+    return (chars_in * price_in + chars_out * price_out) / CHARS_PER_TOKEN / 1e6
+
+
+def worst_case_usd(chars_in: int) -> float:
+    price_in, price_out = PRICE_PER_MTOK
+    return (chars_in / CHARS_PER_TOKEN * price_in + MAX_OUTPUT_TOKENS * price_out) / 1e6
+
+
+def allocate(
+    n: int, outcomes: dict[str, tuple[int, int]], roster: tuple[str, ...]
+) -> list[str]:
+    """Which writer takes each of *n* findings. A writer still being tried
+    (fewer than EXPLORE decided proposals) gets one first; the rest go to
+    every writer in proportion to its record, (accepted + 1) / (decided + 2),
+    largest remainder first. GAGOS gives more work to the writers whose work
+    is accepted: what it learns from experience is measured, not prompted."""
+    if n <= 0 or not roster:
+        return []
+    record = {m: outcomes.get(m, (0, 0)) for m in roster}
+    picks = [m for m in roster if record[m][1] < EXPLORE][:n]
+    rest = n - len(picks)
+    if rest:
+        score = {m: (w + 1) / (d + 2) for m, (w, d) in record.items()}
+        quota = {m: rest * score[m] / sum(score.values()) for m in roster}
+        share = {m: int(quota[m]) for m in roster}
+        by_remainder = sorted(roster, key=lambda m: share[m] - quota[m])
+        for m in by_remainder[: rest - sum(share.values())]:
+            share[m] += 1
+        picks += [m for m in roster for _ in range(share[m])]
+    return picks
+
+
 TASK = "coding"
 
 
@@ -199,7 +278,12 @@ def governed_completer(model: str, region: str):
         )
     snapshot = get_constitution_authority().get_active_snapshot()
     provider = AdvisoryChatCompletionAdapter(
-        BedrockClient(model=model, region=region, max_tokens=12_000, temperature=0.0),
+        BedrockClient(
+            model=model,
+            region=region,
+            max_tokens=MAX_OUTPUT_TOKENS,
+            temperature=0.0,
+        ),
         model=model,
     )
     emergency_stop = get_emergency_stop()
@@ -284,17 +368,19 @@ def cmd_propose(args: argparse.Namespace) -> int:
             f"cloud ({why}). Run with AIOS_ROUTER_CLOUD_TASKS including {TASK}."
         )
         return 2
-    complete = governed_completer(args.model, args.region)
-    asked = 0
+    # Each finding is made ready here, one at a time and without a model:
+    # what cannot be sent is recorded and costs nothing of the batch.
+    jobs = []
     for f in work:
-        if asked >= args.budget:
+        if len(jobs) >= args.budget:
             break
         text = texts[f.rel]
-        common = dict(base_text=text, base_commit=head, model=args.model, facts=facts)
+        common = dict(base_text=text, base_commit=head, facts=facts)
         if len(text) > MAX_FILE_CHARS:
             led.record_proposal(
                 f,
                 **common,
+                model=NO_MODEL,
                 new_text=None,
                 verdict=None,
                 refusal=f"file is {len(text)} characters; the bound for a "
@@ -306,7 +392,12 @@ def cmd_propose(args: argparse.Namespace) -> int:
             masked, mapping = mask_lines(text, egress_redact)
         except MaskingFailed as exc:
             led.record_proposal(
-                f, **common, new_text=None, verdict=None, refusal=str(exc)
+                f,
+                **common,
+                model=NO_MODEL,
+                new_text=None,
+                verdict=None,
+                refusal=str(exc),
             )
             print(f"  skipped {f.rel}: {exc}")
             continue
@@ -320,17 +411,50 @@ def cmd_propose(args: argparse.Namespace) -> int:
         altered = would_be_altered(prompt, PROPOSER_SYSTEM)
         if altered:
             led.record_proposal(
-                f, **common, new_text=None, verdict=None, refusal=altered
+                f,
+                **common,
+                model=NO_MODEL,
+                new_text=None,
+                verdict=None,
+                refusal=altered,
             )
             print(f"  skipped {f.rel}: {altered}")
             continue
-        asked += 1
+        jobs.append((f, text, masked, mapping, prompt, common))
+    roster = (args.model,) if args.model else WORKFORCE
+    writers = allocate(len(jobs), led.model_outcomes(), roster)
+    completers = {m: governed_completer(m, args.region) for m in dict.fromkeys(writers)}
+    month, slot, lint = _month(), _slot(), threading.Lock()
+
+    def attempt(n: int, job: tuple, model: str) -> None:
+        f, text, masked, mapping, prompt, common = job
+        common = dict(common, model=model)
+        chars_in = len(prompt) + len(PROPOSER_SYSTEM)
+        hold = led.reserve_spend(
+            month=month,
+            model=model,
+            purpose=f"propose {f.rule} in {f.rel}",
+            usd=worst_case_usd(chars_in),
+            ceiling=MONTHLY_AWS_USD,
+        )
+        if hold is None:
+            # Not a proposal: the finding stays unattempted for a later month.
+            print(
+                f"  not asked: {f.rel} would pass this month's AWS ceiling "
+                f"(${MONTHLY_AWS_USD:.0f}, the operator's)"
+            )
+            return
         started = time.monotonic()
         try:
-            raw = complete(prompt, PROPOSER_SYSTEM, f"gagos-daily:{_today()}:{asked}")
+            raw = completers[model](
+                prompt, PROPOSER_SYSTEM, f"gagos:{slot}:{n}:{model}"
+            )
         except (
             Exception
         ) as exc:  # the model or the gateway refused; recorded, never hidden
+            led.settle_spend(
+                hold, usd=estimate_usd(chars_in, 0), chars_in=chars_in, chars_out=0
+            )
             pid = led.record_proposal(
                 f,
                 **common,
@@ -338,8 +462,14 @@ def cmd_propose(args: argparse.Namespace) -> int:
                 verdict=None,
                 refusal=f"model call failed: {type(exc).__name__}: {exc}"[:600],
             )
-            print(f"  {pid} {f.rel}: model call failed: {exc}")
-            continue
+            print(f"  {pid} {f.rel} ({model}): model call failed: {exc}")
+            return
+        led.settle_spend(
+            hold,
+            usd=estimate_usd(chars_in, len(raw)),
+            chars_in=chars_in,
+            chars_out=len(raw),
+        )
         try:
             new_text = unmask(
                 parse_proposal(raw, original=text), mapping, masked=masked
@@ -348,13 +478,14 @@ def cmd_propose(args: argparse.Namespace) -> int:
             pid = led.record_proposal(
                 f, **common, new_text=None, verdict=None, refusal=str(exc)
             )
-            print(f"  {pid} {f.rel}: refused: {exc}")
-            continue
+            print(f"  {pid} {f.rel} ({model}): refused: {exc}")
+            return
         try:
             # Both texts once more, each also with inline configuration off,
             # so what disable comments hide can be compared (static_verdict).
-            before = check_texts(root, {f.rel: text}, inline_off=True)[f.rel]
-            after = check_texts(root, {f.rel: new_text}, inline_off=True)[f.rel]
+            with lint:
+                before = check_texts(root, {f.rel: text}, inline_off=True)[f.rel]
+                after = check_texts(root, {f.rel: new_text}, inline_off=True)[f.rel]
         except StaticCheckUnavailable as exc:
             pid = led.record_proposal(
                 f,
@@ -363,17 +494,29 @@ def cmd_propose(args: argparse.Namespace) -> int:
                 verdict=None,
                 refusal=f"static checks unavailable: {exc}",
             )
-            print(f"  {pid} {f.rel}: {exc}")
-            continue
+            print(f"  {pid} {f.rel} ({model}): {exc}")
+            return
         verdict = static_verdict(f, text, new_text, before, after)
         pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
         state = (
             "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
         )
         print(
-            f"  {pid} {f.rule} in {f.rel}: {state} "
+            f"  {pid} {f.rule} in {f.rel} ({model}): {state} "
             f"({verdict.changed_lines} lines, {time.monotonic() - started:.0f}s)"
         )
+
+    if jobs:
+        print(
+            f"  {len(jobs)} finding(s) to {len(set(writers))} writer(s): "
+            + ", ".join(f"{m} {writers.count(m)}" for m in dict.fromkeys(writers))
+        )
+    with ThreadPoolExecutor(max_workers=WRITERS_AT_ONCE) as pool:
+        for done in [
+            pool.submit(attempt, n, job, model)
+            for n, (job, model) in enumerate(zip(jobs, writers), 1)
+        ]:
+            done.result()
     return 0
 
 
@@ -1129,6 +1272,18 @@ def report(
         "- merged and reverted are not tracked automatically yet; read them from master.",
         "",
     ]
+    month = _month()
+    spent = led.month_spend(month)
+    out += [
+        f"**The workforce** (AWS {month}, estimated high: "
+        f"${sum(spent.values()):.2f} of the operator's ${MONTHLY_AWS_USD:.0f}):",
+        *(
+            f"- {model_name(m)}: {w} accepted of {d} decided; "
+            f"${spent.get(m, 0.0):.2f} this month"
+            for m, (w, d) in sorted(led.model_outcomes().items())
+        ),
+        "",
+    ]
     for p in chosen:
         reviews = led.reviews(p["proposal_id"])
         carried = " (in this PR)" if in_pr and p["proposal_id"] in in_pr else ""
@@ -1404,9 +1559,11 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("propose")
     p.add_argument("--project", required=True, help="a clean checkout of master")
     p.add_argument(
-        "--budget", type=int, default=2, help="model calls today (default 2)"
+        "--budget", type=int, default=2, help="model calls in this batch (default 2)"
     )
-    p.add_argument("--model", default=DEFAULT_MODEL)
+    p.add_argument(
+        "--model", default=None, help="one writer; default: GAGOS's workforce"
+    )
     p.add_argument(
         "--region",
         default=os.environ.get("AIOS_BEDROCK_REGION") or config.BEDROCK_REGION,
@@ -1440,10 +1597,12 @@ def main(argv: list[str] | None = None) -> int:
     c.set_defaults(func=cmd_clerk)
 
     y = sub.add_parser(
-        "daily", help="GAGOS's whole day, by the rules agreed with Codex"
+        "daily", help="GAGOS's hour: a batch, the reviews, delivery (run hourly)"
     )
     y.add_argument("--project", required=True, help="GAGOS's own dedicated worktree")
-    y.add_argument("--model", default=DEFAULT_MODEL)
+    y.add_argument(
+        "--model", default=None, help="one writer; default: GAGOS's workforce"
+    )
     y.add_argument(
         "--region",
         default=os.environ.get("AIOS_BEDROCK_REGION") or config.BEDROCK_REGION,
