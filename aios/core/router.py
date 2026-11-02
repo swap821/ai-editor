@@ -53,8 +53,6 @@ from typing import Callable, Mapping, Optional, Sequence
 
 from aios.core.catalog import task_affinity
 from aios.core.model_selector import (
-    TASK_CODING,
-    TASKS,
     _normalise_task,
     describe_choice,
     select_model,
