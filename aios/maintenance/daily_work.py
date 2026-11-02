@@ -64,7 +64,10 @@ FIRST_RULES: tuple[str, ...] = (
 _NEXT_LINE = re.compile(r"eslint-disable-next-line|@ts-ignore|@ts-expect-error", re.I)
 _SAME_LINE = re.compile(r"eslint-disable-line", re.I)
 _REGION_START = re.compile(r"eslint-disable(?!-)(?P<rules>.*)", re.I | re.S)
-_REGION_END = re.compile(r"\s*eslint-enable(?:\s(?P<rules>.*)|$)", re.I | re.S)
+#: Case-sensitive, as ESLint's own directive parser is: /* ESLINT-ENABLE */ is
+#: not an enable to ESLint, so it must not end protection here (Codex's
+#: post-merge review of #574). Starts stay case-blind: generous is safe there.
+_REGION_END = re.compile(r"\s*eslint-enable(?:\s(?P<rules>.*)|$)", re.S)
 _WHOLE_FILE = re.compile(
     r"@ts-nocheck|^\s*(?:eslint(?:-env)?|globals?|exported)\s", re.I
 )
