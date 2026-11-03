@@ -1,9 +1,38 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-03 ("Afternoon of 2026-11-03" below; earlier sections keep the
+**Last updated:** 2026-11-03 ("Evening of 2026-11-03" below; earlier sections keep the
 commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Evening of 2026-11-03 (branch `feat/counter-plan-brains`, off master `0624892a`)
+
+- **Usefulness, measured honestly when the operator asked.** His daily store has 0 user turns in November. The last was 10-30 04:23, a proof script, and the last ordinary turn was 07-10. GAGOS's own work in two days was 20 changes: unused imports and variables, one `any`, and the first test files. That is real hygiene, but it did not help him. He works through Claude Code and Codex, not GAGOS.
+- **Why the counter went unused.** Two causes, both measured:
+  - **It ran old code.** His checkout was 64 commits behind master: `f6206755` against `0624892a`, so the tasks feature was not live. An executor started on 11-02 at 21:08 and not tracked by the tool held port 8081, so restarts kept the old one answering.
+  - **It ran a small brain.** Cloud tasks were off at the counter, so the local `qwen3.5:9b` answered him. The strong models (Sonnet, Haiku, Opus) worked only in the workshop.
+  - **Done at about 10:20 UTC:** I fast-forwarded his checkout, stopped the stray executor, and restarted the backend with its tool. It now runs `0624892a`, with the sandbox image `aios-verify:40909f67de63`.
+  - The frontend still needs `npm ci` (its dependencies changed) before the new panel shows. That waits for his word.
+- **The operator's choice: "connect codex models to counter also and C".** That means Claude through Claude Code on his Pro plan, and the GPT models through Codex on his OpenAI plan. No API key is involved. On this branch:
+  - **The client.** `aios/core/plan_cli.py` (`PlanCliClient`) sits behind one router provider, `plan`.
+    - Each call is sealed as the workshop runs them: no tools of their own, no session, none of his MCP servers or plugins, an empty directory.
+    - The PrivacyFilter runs before anything leaves.
+    - Every call goes through `model_calls.observe`, so the one-gateway law refuses a production call outside an entrance (tested).
+    - The agent's tools are answered through structured output.
+  - **The policy.** `plan` is a cloud provider, eligible only for his cloud tasks.
+  - **The launch default.** The daily backend now launches with his own user-wide cloud tasks, `reasoning,coding`, while general and fast turns stay local. It offers Sonnet and Haiku, and `gpt-6.1-sol`, `gpt-6.1-terra` and `gpt-6-luna`. Opus is left out, because it would spend the plan he shares with his own sessions fastest.
+  - **Live.** Haiku through Claude Code and GPT-6 luna through Codex each answered a tool turn with a correct `read_file` call (9 s and 15 s) and a plain turn (6 s).
+  - **Two adversarial reviewers.** Their findings, all fixed with tests that fail without the fix:
+    - **High:** failover's own cloud list lacked `plan` (and, before this branch, `anthropic`), so a turn could try two clouds in a row.
+    - **Medium:** the call ledger attributed `plan` calls to the client, not the caller.
+    - **Medium:** the architecture guard did not forbid constructing `PlanCliClient`.
+    - **Medium:** the ops doc still said cloud tasks default to none.
+    - **Low:** three smaller hardenings.
+  - **Organ evidence.** Organs 25, 27, 28, 29, 32, 33, 34, 38, 42, 50 and 53 were re-gathered at the branch tip `a2d3562b`. The live wave passed with Docker live. Organ 33's live local-clerk suite ran against the real Ollama with `qwen2.5:0.5b`: 10 passed, 0 skipped (`release/organ-33-37/clerk-junit-a2d3562b4fb0.xml`). None is a spine organ.
+  - **Not yet:**
+    - The frontend's model picker does not list the plan models. `auto` uses them for reasoning and coding.
+    - After the merge, his checkout must be pulled and the backend restarted.
+    - Whether he uses the counter will be measured the same way, by counting his real turns.
 
 ## Afternoon of 2026-11-03 (branch `feat/gagos-tasks`, off master `634b484d`)
 
