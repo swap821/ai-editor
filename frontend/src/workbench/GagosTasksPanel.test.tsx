@@ -131,4 +131,49 @@ describe('GagosTasksPanel', () => {
     await vi.advanceTimersByTimeAsync(120_000);
     expect(calls.length).toBe(after);
   });
+
+  it('posts the more files as "also", split by line, without blanks or repeats', async () => {
+    const calls: Call[] = [];
+    vi.stubGlobal('fetch', backend(calls));
+    render(<GagosTasksPanel />);
+    await screen.findByText('gt-0000000001');
+    fireEvent.change(screen.getByLabelText(/File \(/), { target: { value: 'aios/a.py' } });
+    fireEvent.change(screen.getByLabelText(/More files/), { target: { value: 'tests/test_a.py\n\n aios/b.py ,tests/test_a.py' } });
+    fireEvent.change(screen.getByLabelText('What should change'), { target: { value: 'Rename x to y' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Give GAGOS this task' }));
+    await waitFor(() => expect(screen.getByLabelText(/More files/)).toHaveValue(''));
+    const post = calls.find((c) => c.method === 'POST')!;
+    expect(post.body).toEqual({ file: 'aios/a.py', text: 'Rename x to y', also: ['tests/test_a.py', 'aios/b.py'] });
+  });
+
+  it('will not send more than four more files', async () => {
+    vi.stubGlobal('fetch', backend([]));
+    render(<GagosTasksPanel />);
+    await screen.findByText('gt-0000000001');
+    fireEvent.change(screen.getByLabelText(/File \(/), { target: { value: 'a.py' } });
+    fireEvent.change(screen.getByLabelText(/More files/), { target: { value: 'b.py\nc.py\nd.py\ne.py\nf.py' } });
+    fireEvent.change(screen.getByLabelText('What should change'), { target: { value: 'x' } });
+    expect(screen.getByRole('button', { name: 'Give GAGOS this task' })).toBeDisabled();
+    expect(screen.getByRole('alert')).toHaveTextContent('at most 4 more files');
+  });
+
+  it("shows a several-file task's files and every member proposal's file and status", async () => {
+    const group = {
+      task_id: 'gt-0000000009', created_at: 't9', rel: 'aios/a.py', also: ['tests/test_a.py'], files: ['aios/a.py', 'tests/test_a.py'],
+      text: 'Change both', said_by: 'operator-principal-SECRET', status: 'taken', proposal_id: 'p8', reason: null,
+      proposal: { proposal_id: 'p8', rel: 'aios/a.py', model: 'claude-sonnet', status: 'reviewed', refusal: null, changed_lines: 2, sandbox: 'passed', reviews: {}, pr_url: null },
+      proposals: [
+        { proposal_id: 'p8', rel: 'aios/a.py', status: 'reviewed', refusal: null, changed_lines: 2 },
+        { proposal_id: 'p9', rel: 'tests/test_a.py', status: 'refused', refusal: 'the writer changed nothing', changed_lines: 0 },
+      ],
+    };
+    vi.stubGlobal('fetch', backend([], { 'GET /api/gagos/tasks': { status: 200, body: { tasks: [group] } } }));
+    render(<GagosTasksPanel />);
+    const item = (await screen.findByText('gt-0000000009')).closest('li')!;
+    expect(within(item).getByText('Files')).toBeInTheDocument();
+    const members = within(within(item).getByRole('list', { name: 'Proposals for each file' })).getAllByRole('listitem');
+    expect(members).toHaveLength(2);
+    expect(members[0]).toHaveTextContent('aios/a.py reviewed');
+    expect(members[1]).toHaveTextContent('tests/test_a.py refused — the writer changed nothing');
+  });
 });

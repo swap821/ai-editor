@@ -9,12 +9,13 @@ import './GagosTasksPanel.css';
 
 /**
  * Tasks the operator writes (2026-11-03: "bigger work" for GAGOS): a change in
- * plain words on one file. GAGOS's writers make it, the sandbox runs its
+ * plain words on one file, or on up to five together (D14). GAGOS's writers make it, the sandbox runs its
  * tests, Claude Code reviews it, GAGOS opens its own PR, and he merges. The
  * counter serves GET/POST /api/gagos/tasks and POST .../{id}/cancel; this is
  * its face. The task row also carries who said it; that is never shown.
  */
 const MAX_TASK_CHARS = 4000;
+const MAX_ALSO = 4;
 const POLL_MS = 60_000;
 const COLLAPSED_LINES = 3;
 
@@ -46,6 +47,33 @@ function TaskText({ text }: { text: string }) {
       </summary>
       <p className="gagos-tasks__text">{text}</p>
     </details>
+  );
+}
+
+/** The task's files, its own first; an old row without "files" is just its "rel". */
+const taskFiles = (task: Rec): string[] => {
+  const files = Array.isArray(task.files) ? task.files.filter((f): f is string => typeof f === 'string') : [];
+  return files.length > 0 ? files : [asText(task.rel)];
+};
+
+/** The more files, one per line or comma-separated, without blanks or repeats. */
+const parseAlso = (raw: string): string[] =>
+  [...new Set(raw.split(/[\n,]/).map((f) => f.trim()).filter((f) => f !== ''))];
+
+/** A task over several files has one proposal per file: each one's file and status. */
+function GroupProposals({ proposals }: { proposals: Rec[] }) {
+  return (
+    <ul className="gagos-tasks__members" aria-label="Proposals for each file">
+      {proposals.map((member, index) => {
+        const refusal = asText(member.refusal);
+        return (
+          <li key={asText(member.proposal_id) || index}>
+            <code>{asText(member.rel)}</code>
+            <span> {textValue(member.status)}{refusal ? ` — ${refusal}` : ''}</span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 
@@ -87,6 +115,8 @@ function TaskItem({ task, onCancel, busy, error }: {
   const id = asText(task.task_id);
   const status = asText(task.status);
   const proposal = asRec(task.proposal);
+  const members = Array.isArray(task.proposals) ? task.proposals.map(asRec).filter((m): m is Rec => m !== null) : [];
+  const files = taskFiles(task);
   const reason = asText(task.reason);
   return (
     <li className="gagos-tasks__item">
@@ -94,9 +124,13 @@ function TaskItem({ task, onCancel, busy, error }: {
         <code>{id}</code>
         <span className={`gagos-tasks__status gagos-tasks__status--${status}`}>Status: {status || 'unknown'}</span>
       </div>
-      <p>File <code>{asText(task.rel)}</code></p>
+      <p>
+        {files.length > 1 ? 'Files' : 'File'}{' '}
+        {files.map((f, i) => <span key={f}>{i > 0 && ', '}<code>{f}</code></span>)}
+      </p>
       <TaskText text={asText(task.text)} />
       {reason && <p>{reason}</p>}
+      {members.length > 1 && <GroupProposals proposals={members} />}
       {proposal && <Progress proposal={proposal} />}
       {status === 'open' && (
         <button type="button" disabled={busy} onClick={() => onCancel(id)}>Cancel this task</button>
@@ -109,6 +143,7 @@ function TaskItem({ task, onCancel, busy, error }: {
 export default function GagosTasksPanel() {
   const tasks = useResource('/api/gagos/tasks', parseTasks, noRecords);
   const [file, setFile] = useState('');
+  const [also, setAlso] = useState('');
   const [text, setText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState('');
@@ -122,15 +157,18 @@ export default function GagosTasksPanel() {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  const ready = file.trim() !== '' && text.trim() !== '' && text.length <= MAX_TASK_CHARS && !submitting;
+  const alsoFiles = parseAlso(also);
+  const ready = file.trim() !== '' && alsoFiles.length <= MAX_ALSO && text.trim() !== '' && text.length <= MAX_TASK_CHARS && !submitting;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!ready) return;
     setSubmitting(true); setFormError('');
     try {
-      const result = await sendGuardedCommand('/api/gagos/tasks', { file: file.trim(), text });
-      if (result.status === 'accepted') { setText(''); } else { setFormError(rejectionText(result)); }
+      const result = await sendGuardedCommand('/api/gagos/tasks', {
+        file: file.trim(), text, ...(alsoFiles.length > 0 ? { also: alsoFiles } : {}),
+      });
+      if (result.status === 'accepted') { setText(''); setAlso(''); } else { setFormError(rejectionText(result)); }
     } finally { setSubmitting(false); refresh(); }
   }
 
@@ -147,13 +185,19 @@ export default function GagosTasksPanel() {
     <section className="gagos-panel gagos-tasks" aria-label="GAGOS tasks">
       <h3>GAGOS tasks</h3>
       <p>
-        Say what to change in one file. GAGOS&apos;s writers make it, the sandbox runs its tests,
+        Say what to change in one file, or in up to five together. GAGOS&apos;s writers make it, the sandbox runs its tests,
         Claude Code reviews it, and GAGOS opens the pull request for you to merge.
       </p>
       <form className="gagos-tasks__form" onSubmit={(e) => void submit(e)}>
         <label htmlFor="gagos-task-file">File (relative to the project)</label>
         <input id="gagos-task-file" type="text" value={file} autoComplete="off" spellCheck={false}
           placeholder="aios/example.py" onChange={(e) => setFile(e.target.value)} />
+        <label htmlFor="gagos-task-also">More files the same change touches (optional, one per line, up to {MAX_ALSO})</label>
+        <textarea id="gagos-task-also" value={also} rows={2} spellCheck={false}
+          placeholder="tests/test_example.py" onChange={(e) => setAlso(e.target.value)} />
+        {alsoFiles.length > MAX_ALSO && (
+          <p role="alert" className="gagos-tasks__error">A task can name at most {MAX_ALSO} more files.</p>
+        )}
         <label htmlFor="gagos-task-text">What should change</label>
         <textarea id="gagos-task-text" value={text} rows={5}
           onChange={(e) => setText(e.target.value)} />
