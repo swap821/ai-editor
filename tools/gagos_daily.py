@@ -523,7 +523,13 @@ def task_jobs(
             print(f"  task {tid} waits: {waits}")
             continue
         if len(files) > 1:
-            total = sum(len(part[1]) for part in parts)
+            # Measured as sent: a placeholder can be longer than what it hides,
+            # so the masked texts are what must fit one answer (a reviewer of
+            # D14, 2026-11-03).
+            total = max(
+                sum(len(part[1]) for part in parts),
+                sum(len(part[2]) for part in parts),
+            )
             if total > MAX_TASK_TOTAL_CHARS:
                 refuse(
                     f"the task's {len(files)} files are {total} characters together; "
