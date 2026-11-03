@@ -363,6 +363,48 @@ def _pytest(
     return PytestRun(False, code, passed, failing, seconds)
 
 
+#: Why a frontend change's tests do not run before review, until the frontend
+#: sandbox exists.
+NO_FRONTEND_SANDBOX = (
+    "the sandbox has no frontend toolchain yet; the tests that import it run at "
+    "delivery, on the operator's checkout"
+)
+
+
+def run_change_tests(
+    trees: BaseTrees,
+    *,
+    base_commit: str,
+    changes: dict[str, str],
+    runner_for: Callable[[str], Runner] = default_runner,
+    image_ready: Callable[[str], bool] = image_built,
+    timeout_s: int = TEST_TIMEOUT_S,
+) -> SandboxVerdict:
+    """The one entry point (2026-11-03): the tests of a set of changes
+    (``{rel: new_text}``, one file or a task's several), all in place at once,
+    judged against the base. Until the frontend sandbox and the several-file
+    runner exist, one Python file runs as before and anything else is
+    UNAVAILABLE, saying why."""
+    if not changes:
+        return SandboxVerdict(UNTESTED, "no change to test")
+    if len(changes) == 1:
+        [(rel, new_text)] = changes.items()
+        if rel.endswith(".py"):
+            return run_proposal_tests(
+                trees,
+                base_commit=base_commit,
+                rel=rel,
+                new_text=new_text,
+                runner_for=runner_for,
+                image_ready=image_ready,
+                timeout_s=timeout_s,
+            )
+        return SandboxVerdict(UNAVAILABLE, NO_FRONTEND_SANDBOX)
+    return SandboxVerdict(
+        UNAVAILABLE, "the sandbox runs one file's tests at a time, so far"
+    )
+
+
 def run_proposal_tests(
     trees: BaseTrees,
     *,
