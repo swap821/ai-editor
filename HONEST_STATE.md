@@ -1,9 +1,33 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-02 ("Night of 2026-11-02" below; earlier sections keep
-the commit they were measured on). The whole story, from the first commit, is
+**Last updated:** 2026-11-03 ("2026-11-03" below; earlier sections keep the
+commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-03 (branch `feat/gagos-claude-writers`, off master `575e7695`)
+
+- **The operator merged #582 and GAGOS's #583 at 03:17 UTC.** #582 is the squash `ca9641f3`; #583 went in as its five commits, ending at `575e7695`. Master's CI on `575e7695` passed.
+- **The 51 findings the AWS refusals had used up are back.** Between 20:50 and 01:50 UTC every call was refused, and the old rule counted each as an attempt, leaving 0 by 02:50 UTC. A dry run on the new master counts 51 not yet attempted.
+- **Both proposals refused only for how they were shown are accepted.** I re-ran `review --again` on `gd-a9f57600cf` and `gd-06ea4955fc` at 03:30 UTC, and Claude Code accepted both.
+- **GAGOS's 03:50 UTC run delivered them as its own PR, #584.** `gd-a9f57600cf`'s delivery check failed on master without the change too. So it was committed with that stated, and CI judges it. This is #582's delivery rule on its first real case.
+- **AWS still refuses the account.** At 03:37 UTC I made one call with GAGOS's key: `ValidationException: Error 002: Access to Bedrock models is not allowed for this account` (request id `e20dbb39-f9d6-4500-bd2a-9af0d8ce40c8`). The key itself was accepted; the account is refused. Restoring it is the operator's act.
+- **The operator chose Claude writers through his own plan (about 04:00 UTC):** "GAGOS can use several SONNET AND HAIKU AGENTS", and then "For #2", the option of Claude Code on his Pro plan with no API key. I told him first that the plan's usage is shared with his own sessions and the reviews, and that I am not sure how Anthropic's terms treat round-the-clock automated use on a personal plan. On this branch:
+  - **How they write.** Claude Sonnet 5.5 and Claude Haiku 5.5 run through `claude -p`, exactly as the chief reviewer does:
+    - no tools, no session kept, and none of his MCP servers;
+    - in an empty directory, with GAGOS's system prompt;
+    - through the same governed gateway, and the same privacy filter Bedrock's client applies.
+  - **The limit.** At most 4 findings a batch go to them. They cost nothing against the AWS ceiling.
+  - **A refused writer.** A writer whose last call was refused (AWS now, the plan's usage limit later) gets one finding a batch until it answers again. The rest of the work goes to writers that answer, and without a Bedrock key the other writers still work.
+  - **Live trial at 04:11 UTC, on two real findings:**
+    - Haiku's F401 fix in `sqlite_mission_repository.py` (`gd-c4bc33ba4e`) passed the checks.
+    - Sonnet's correct F401 fix in `admission.py` (`gd-c129fc7000`) was refused by the reach check, because of the bug below.
+    - The base was `346d8320`, the head of GAGOS's #584 branch, where delivery had left `C:\gdw`; it was not master. Both files are the same on master.
+- **A bug the trial found, fixed on this branch.** GAGOS's Python checker passed a CRLF file to ruff through a text-mode pipe, which on Windows doubles every line break.
+  - So a warning on line 10 was recorded on line 19.
+  - Until #582 this did no harm. Since #582's reach check compares line numbers, any Python fix far enough down a CRLF file is refused.
+  - Ruff now gets the file's own bytes. The new test fails without the fix (19, not 10) and passes with it.
+  - `gd-c129fc7000` stays refused, since no command re-judges a static refusal, and it counts once against Sonnet's record.
 
 ## Night of 2026-11-02 (branch `feat/gagos-efficiency`, off master `945d08b8`)
 

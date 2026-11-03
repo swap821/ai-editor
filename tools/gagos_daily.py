@@ -7,8 +7,9 @@ day can stop anywhere and resume, and every outcome is in the ledger
 
   propose   lint the frontend of --project (a clean checkout of master); for up
             to --budget findings (one file, one rule), ask GAGOS's writers
-            (several Bedrock models at once, each finding to one, routed by
-            their accepted record, within the operator's monthly AWS ceiling)
+            (Claude Sonnet and Haiku through Claude Code on the operator's plan,
+            and Bedrock models within his monthly AWS ceiling, several at once,
+            each finding to one, routed by their accepted record)
             through the one gateway for the whole corrected file, and run the
             unattended static checks. Nothing a model wrote is executed.
   test      each proposal awaiting review has its tests run in the executor's
@@ -29,8 +30,9 @@ day can stop anywhere and resume, and every outcome is in the ledger
   report    the day's work and D14's running numbers, as Markdown.
 
 The model call needs, by GAGOS's own law, the "coding" task allowed to the cloud
-(constitution intersected with the runtime profile: AIOS_ROUTER_CLOUD_TASKS) and
-Bedrock credentials; without either it refuses and says which. Run it with
+(constitution intersected with the runtime profile: AIOS_ROUTER_CLOUD_TASKS), and
+for a Bedrock writer Bedrock credentials; without either it refuses and says
+which. Run it with
 AIOS_DATA_DIR set to the operator's data, so the call is bound to his enrolled
 identity and constitution, and is recorded in his model-call ledger.
 """
@@ -124,19 +126,27 @@ MAX_OUTPUT_TOKENS = 12_000
 
 # --------------------------------------------------------------------- the workforce
 
-#: GAGOS's writers: several Bedrock models working at once, as GAGOS is
-#: designed to (the operator, 2026-11-02: "multi models agent simultaneously
-#: together"). Each answered a live call on GAGOS's own key in us-east-1 on
-#: 2026-11-02. Claude Sonnet 4.6 waits on the account's Anthropic use-case form
-#: (his); Claude Opus 4.6 answers but costs about ten times more, so it is not a
-#: routine writer.
-WORKFORCE = (
+#: GAGOS's Claude writers: Sonnet and Haiku through Claude Code on the
+#: operator's own plan, with no API key (the operator, 2026-11-03: "GAGOS can
+#: use several SONNET AND HAIKU AGENTS", through his plan). Each answered a live
+#: call on his plan that day.
+CLAUDE_WRITERS = ("claude-sonnet-5-5", "claude-haiku-5-5")
+#: His plan's usage is shared with his own sessions and with the chief
+#: reviewer's, so at most this many findings a batch go to the Claude writers;
+#: the rest wait for a later hour.
+PLAN_PROPOSALS_PER_BATCH = 4
+#: GAGOS's Bedrock writers (the operator, 2026-11-02: "multi models agent
+#: simultaneously together"). Each answered a live call on GAGOS's own key in
+#: us-east-1 on 2026-11-02; at 20:50 UTC that day AWS refused the account.
+BEDROCK_WRITERS = (
     "mistral.devstral-2-123b",
     "qwen.qwen3-coder-next",
     "deepseek.v3.2",
     "mistral.mistral-large-3-675b-instruct",
     "moonshotai.kimi-k2.5",
 )
+#: GAGOS's writers, several working at once.
+WORKFORCE = (*CLAUDE_WRITERS, *BEDROCK_WRITERS)
 #: GAGOS's work when the operator names none (2026-11-02): the lint rules
 #: whose fix keeps behaviour, in its frontend and in its Python (its backend and
 #: itself), then a first test for each frontend module that has none.
@@ -303,6 +313,84 @@ def would_be_altered(prompt: str, system: str) -> str | None:
     return None
 
 
+#: The longest a Claude writer may take over one answer.
+WRITER_TIMEOUT_S = 600
+
+
+class ClaudeCodeWriter:
+    """One of GAGOS's Claude writers: ``claude -p`` on the operator's own plan,
+    run as the chief reviewer is: no tools, no session kept, none of his MCP
+    servers, in an empty directory, with GAGOS's system prompt in place of
+    Claude Code's. :meth:`complete` is the provider contract the gateway
+    calls; a call that gives no answer raises, and is recorded as a failed
+    call, never as the model's work."""
+
+    def __init__(self, model: str, *, timeout_s: float = WRITER_TIMEOUT_S) -> None:
+        self.model = model
+        self.timeout_s = timeout_s
+
+    def complete(
+        self, prompt: str, *, system: str | None = None, json_mode: bool = False
+    ) -> str:
+        from aios.core.privacy_filter import PrivacyFilter
+
+        del json_mode  # the answer is a fenced file, never JSON
+        # What leaves passes the privacy filter Bedrock's client applies.
+        messages = [
+            *([{"role": "system", "content": system}] if system else []),
+            {"role": "user", "content": prompt},
+        ]
+        safe, _audit = PrivacyFilter().filter(messages)
+        safe_system = next((m["content"] for m in safe if m["role"] == "system"), "")
+        safe_prompt = next(m["content"] for m in safe if m["role"] == "user")
+        claude = _claude_executable()
+        if claude is None:
+            raise RuntimeError("the Claude Code CLI is not installed")
+        argv = [
+            claude,
+            "-p",
+            "--output-format",
+            "json",
+            "--model",
+            self.model,
+            "--tools",
+            "",
+            "--no-session-persistence",
+            "--strict-mcp-config",
+        ]
+        if safe_system:
+            argv += ["--system-prompt", safe_system]
+        with tempfile.TemporaryDirectory(prefix="gagos-writer-") as tmp:
+            try:
+                proc = subprocess.run(
+                    argv,
+                    input=safe_prompt,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    cwd=tmp,
+                    timeout=self.timeout_s,
+                )
+            except subprocess.TimeoutExpired as exc:
+                raise RuntimeError(
+                    f"Claude Code timed out after {self.timeout_s:.0f}s"
+                ) from exc
+        try:
+            data = json.loads(proc.stdout or "")
+        except ValueError:
+            data = {}
+        answer = data.get("result")
+        if proc.returncode != 0 or data.get("is_error") or not isinstance(answer, str):
+            # His plan's usage limit is said here: the writer's next batch
+            # gives it one finding only, until it answers again.
+            said = answer or (proc.stderr or "")[-300:]
+            raise RuntimeError(
+                f"Claude Code exited {proc.returncode}: {str(said)[:300]}"
+            )
+        return answer
+
+
 def governed_completer(model: str, region: str):
     """``complete(prompt, system, request_id) -> str`` through organ 32's
     gateway, bound to the enrolled operator and the active constitution."""
@@ -314,21 +402,24 @@ def governed_completer(model: str, region: str):
     from aios.core.bedrock import BedrockClient, credentials_available
     from aios.infrastructure.identity.sqlite_store import credential_digest
 
-    if not credentials_available(region):
+    if model in CLAUDE_WRITERS:
+        provider = ClaudeCodeWriter(model)
+    elif not credentials_available(region):
         raise SystemExit(
             f"no Bedrock credentials for {region}: set AWS_BEARER_TOKEN_BEDROCK "
             "(the operator's keystore) before proposing"
         )
-    snapshot = get_constitution_authority().get_active_snapshot()
-    provider = AdvisoryChatCompletionAdapter(
-        BedrockClient(
+    else:
+        provider = AdvisoryChatCompletionAdapter(
+            BedrockClient(
+                model=model,
+                region=region,
+                max_tokens=MAX_OUTPUT_TOKENS,
+                temperature=0.0,
+            ),
             model=model,
-            region=region,
-            max_tokens=MAX_OUTPUT_TOKENS,
-            temperature=0.0,
-        ),
-        model=model,
-    )
+        )
+    snapshot = get_constitution_authority().get_active_snapshot()
     emergency_stop = get_emergency_stop()
 
     def complete(prompt: str, system: str, request_id: str) -> str:
@@ -494,7 +585,29 @@ def cmd_propose(args: argparse.Namespace) -> int:
             print(f"  skipped {f.rel}: {altered}")
             continue
         jobs.append((f, text, masked, mapping, prompt, system, common))
-    roster = (args.model,) if args.model else WORKFORCE
+    if args.model:
+        roster, probe = (args.model,), None
+    else:
+        workforce = WORKFORCE
+        if any(m in BEDROCK_WRITERS for m in workforce):
+            from aios.core.bedrock import credentials_available
+
+            # With no key, the Bedrock writers cannot be asked; the others can.
+            if not credentials_available(args.region):
+                print("  the Bedrock writers wait: no Bedrock key")
+                workforce = tuple(m for m in workforce if m not in BEDROCK_WRITERS)
+        # A writer whose last call its provider refused (AWS refused the
+        # account on 2026-11-02; the operator's plan has usage limits) is given
+        # one finding a batch, the longest refused first, until it answers: the
+        # rest of the work goes to writers that answer.
+        refused = led.refused_writers(workforce)
+        roster = tuple(m for m in workforce if m not in refused)
+        probe = refused[0] if refused else None
+        if refused:
+            print(
+                f"  their last call was refused: {', '.join(refused)}; "
+                f"{probe} is tried on one finding"
+            )
     # Writers are compared within one rule, never across rules of different
     # difficulty (Codex's review of #580).
     by_rule: dict[str, list[int]] = {}
@@ -504,6 +617,27 @@ def cmd_propose(args: argparse.Namespace) -> int:
     for rule, idx in by_rule.items():
         for i, m in zip(idx, allocate(len(idx), led.model_outcomes(rule=rule), roster)):
             writers[i] = m
+    if probe and jobs:
+        writers[-1] = probe
+    # Not proposals: the findings no writer takes stay unattempted for a later
+    # hour.
+    capped = [i for i, m in enumerate(writers) if m in CLAUDE_WRITERS][
+        PLAN_PROPOSALS_PER_BATCH:
+    ]
+    for i in capped:
+        writers[i] = ""
+    idle = writers.count("") - len(capped)
+    if capped:
+        print(
+            f"  {len(capped)} finding(s) wait for a later hour: the operator's plan "
+            f"takes {PLAN_PROPOSALS_PER_BATCH} a batch"
+        )
+    if idle:
+        print(f"  {idle} finding(s) wait for a later hour: no writer answers")
+    jobs, writers = (
+        [j for j, m in zip(jobs, writers) if m],
+        [m for m in writers if m],
+    )
     completers = {m: governed_completer(m, args.region) for m in dict.fromkeys(writers)}
     month, slot, lint = _month(), _slot(), threading.Lock()
 
@@ -511,12 +645,15 @@ def cmd_propose(args: argparse.Namespace) -> int:
         f, text, masked, mapping, prompt, system, common = job
         common = dict(common, model=model)
         chars_in = len(prompt) + len(system)
+        # A call on the operator's plan costs nothing against the AWS ceiling;
+        # it is still held and settled, so its request id is its own.
+        on_aws = model not in CLAUDE_WRITERS
         hold = led.reserve_spend(
             month=month,
             model=model,
             purpose=f"propose {f.rule} in {f.rel}",
-            usd=worst_case_usd(chars_in),
-            ceiling=MONTHLY_AWS_USD,
+            usd=worst_case_usd(chars_in) if on_aws else 0.0,
+            ceiling=MONTHLY_AWS_USD if on_aws else float("inf"),
         )
         if hold is None:
             # Not a proposal: the finding stays unattempted for a later month.
@@ -532,7 +669,10 @@ def cmd_propose(args: argparse.Namespace) -> int:
             Exception
         ) as exc:  # the model or the gateway refused; recorded, never hidden
             led.settle_spend(
-                hold, usd=estimate_usd(chars_in, 0), chars_in=chars_in, chars_out=0
+                hold,
+                usd=estimate_usd(chars_in, 0) if on_aws else 0.0,
+                chars_in=chars_in,
+                chars_out=0,
             )
             pid = led.record_proposal(
                 f,
@@ -545,7 +685,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             return
         led.settle_spend(
             hold,
-            usd=estimate_usd(chars_in, len(raw)),
+            usd=estimate_usd(chars_in, len(raw)) if on_aws else 0.0,
             chars_in=chars_in,
             chars_out=len(raw),
         )
@@ -996,6 +1136,8 @@ MODEL_NAMES = {
     "us.anthropic.claude-sonnet-4-6": "Claude Sonnet 4.6 (Anthropic, on Amazon Bedrock)",
     "gpt-6.1-sol": "GPT-6.1 sol (OpenAI, via Codex)",
     "claude-opus-5-5": "Claude Opus 5.5 (Anthropic, via Claude Code)",
+    "claude-sonnet-5-5": "Claude Sonnet 5.5 (Anthropic, via Claude Code)",
+    "claude-haiku-5-5": "Claude Haiku 5.5 (Anthropic, via Claude Code)",
 }
 
 
@@ -1604,7 +1746,11 @@ def report(
         f"${sum(spent.values()):.2f} of the operator's ${MONTHLY_AWS_USD:.0f}):",
         *(
             f"- {model_name(m)}: {w} accepted of {d} decided; "
-            f"${spent.get(m, 0.0):.2f} this month"
+            + (
+                "on the operator's plan"
+                if m in CLAUDE_WRITERS
+                else f"${spent.get(m, 0.0):.2f} this month"
+            )
             for m, (w, d) in sorted(led.model_outcomes().items())
         ),
         "",

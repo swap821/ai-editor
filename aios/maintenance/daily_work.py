@@ -1673,6 +1673,23 @@ class DailyLedger:
             tally[1] += 1
         return {m: (w, d) for m, (w, d) in out.items()}
 
+    def refused_writers(self, models: Iterable[str]) -> list[str]:
+        """The writers among *models* whose most recent call failed (the
+        provider refused it, or it gave no answer), the longest refused first.
+        A writer never asked, or whose last call was answered, is not one."""
+        wanted = set(models)
+        last: dict[str, dict] = {}
+        for p in self.proposals():
+            if p["model"] in wanted:
+                last[p["model"]] = p
+        failed = [
+            p
+            for p in last.values()
+            if p["status"] == "refused"
+            and (p["refusal"] or "").startswith("model call failed")
+        ]
+        return [p["model"] for p in sorted(failed, key=lambda p: p["created_at"])]
+
     def rels_in_prs(self, pr_urls: Iterable[str]) -> set[str]:
         """The files the proposals delivered in these PRs change."""
         wanted = set(pr_urls)

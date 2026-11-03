@@ -50,16 +50,24 @@ _TIMEOUT_S = 60
 
 def _run(argv: list[str], root: Path, text: str | None = None):
     """The one place this module runs a program: git or the project's ruff,
-    by absolute path, never through a shell, on text it passes as input."""
-    return subprocess.run(
+    by absolute path, never through a shell, on text it passes as input.
+
+    The input goes as its own bytes. A text-mode pipe on Windows writes each
+    ``\\n`` as ``\\r\\n``, so a CRLF file reached ruff with every line break
+    doubled: on the operator's laptop (2026-11-03) a warning on line 10 was
+    recorded on line 19, and the reach check refused a correct fix."""
+    proc = subprocess.run(
         argv,
         cwd=str(root),
-        input=text,
+        input=None if text is None else text.encode("utf-8"),
         capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
         timeout=_TIMEOUT_S,
+    )
+    return subprocess.CompletedProcess(
+        proc.args,
+        proc.returncode,
+        proc.stdout.decode("utf-8", errors="replace"),
+        proc.stderr.decode("utf-8", errors="replace"),
     )
 
 
