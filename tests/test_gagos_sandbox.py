@@ -638,6 +638,12 @@ def test_the_reviewer_reads_what_the_tests_did(tmp_path, monkeypatch) -> None:
         "run_proposal_tests",
         lambda trees, **kw: st.SandboxVerdict(st.PASSED, "9 tests in 2 files pass"),
     )
+    # The frontend sandbox exists since D14; here its image is not built, so
+    # the frontend proposal's verdict says that.
+    monkeypatch.setattr(st, "image_built", lambda image: False)
+    (tmp_path / "frontend").mkdir()
+    (tmp_path / "frontend" / "package-lock.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(_Trees, "get", lambda self, commit: tmp_path, raising=False)
     _python_proposal(led)
     frontend = dw.Finding(rel="frontend/src/A.jsx", rule="no-unused-vars", warnings=())
     led.record_proposal(
@@ -656,7 +662,7 @@ def test_the_reviewer_reads_what_the_tests_did(tmp_path, monkeypatch) -> None:
     prompt = tool.review_evidence(py, finding)
     assert "in an isolated sandbox" in prompt and "9 tests in 2 files pass" in prompt
     front = st.SandboxVerdict.from_json(by["frontend/src/A.jsx"]["sandbox"])
-    assert front.outcome == st.UNAVAILABLE and "no frontend toolchain" in front.summary
+    assert front.outcome == st.UNAVAILABLE and "not built" in front.summary
     assert "tests in the sandbox: **passed**" in tool.report(led)
     message = tool.commit_message(py, {})
     assert (

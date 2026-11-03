@@ -551,10 +551,19 @@ def test_the_frontend_files_tests_say_why_they_do_not_run(
     tmp_path, monkeypatch
 ) -> None:
     """The tool has no frontend branch of its own any more: what the sandbox
-    cannot run it says, and the proposal goes on to review."""
+    cannot run (here: its image is not built) it says, and the group goes on to
+    review."""
     led, tid = _proposed_group(tmp_path, monkeypatch)
     monkeypatch.setattr(tool, "BaseTrees", _Trees)
+    asked: list = []
+
+    def not_built(trees, *, base_commit, changes, **kw):
+        asked.append(sorted(changes))
+        return st.SandboxVerdict(st.UNAVAILABLE, "the sandbox image is not built")
+
+    monkeypatch.setattr(tool, "run_change_tests", not_built)
     assert tool.cmd_test(_test_args(tmp_path)) == 0
+    assert len(asked) == 1, "the group's files are tested together, once"
     for p in led.group_members(tid):
         verdict = st.SandboxVerdict.from_json(p["sandbox"])
         assert verdict.outcome == st.UNAVAILABLE and p["status"] == "proposed"
