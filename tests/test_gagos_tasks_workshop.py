@@ -74,6 +74,20 @@ def test_the_oldest_task_is_first_and_a_file_is_held_by_one_task_a_batch(
     assert led.task(second)["status"] == "open", "its file is held; next hour"
 
 
+def test_a_file_a_task_takes_gets_no_lint_fix_in_the_same_batch(
+    tmp_path, monkeypatch
+) -> None:
+    """Both reviewers of the tasks build (2026-11-03): a task and a lint fix on
+    one file were two proposals on the same base; one would go stale."""
+    led, _asked, args, _ids = _batch(tmp_path, monkeypatch)
+    _reply(monkeypatch, [])
+    led.add_task(REL, WORDS, said_by="operator")
+    args.budget = 5
+    assert tool.cmd_propose(args) == 0
+    on = sorted((p["rel"], p["rule"]) for p in led.proposals())
+    assert on == [(OTHER, RULE), (REL, dw.TASK_RULE)]
+
+
 def test_a_task_on_a_file_gagos_may_not_edit_is_refused_and_no_model_is_asked(
     tmp_path, monkeypatch, capsys
 ) -> None:
@@ -145,7 +159,7 @@ def test_a_proposal_refused_by_the_checks_still_takes_the_task(
     args.rules = ["none-such"]
     tool.cmd_propose(args)
     (p,) = led.proposals()
-    assert p["status"] == "refused" and "changes nothing" in p["refusal"]
+    assert p["status"] == "refused" and "returned the file unchanged" in p["refusal"]
     assert led.task(tid)["proposal_id"] == p["proposal_id"]
 
 
@@ -203,7 +217,7 @@ def test_a_change_that_adds_a_disable_comment_is_refused() -> None:
 def test_a_change_that_changes_nothing_is_refused() -> None:
     result = _result(_warn(RULE), text=BEFORE)
     verdict = dw.task_verdict(REL, BEFORE, BEFORE, result, result)
-    assert not verdict.passed and "changes nothing" in verdict.reason
+    assert not verdict.passed and "returned the file unchanged" in verdict.reason
 
 
 # ------------------------------------------------- review, commit and report

@@ -641,9 +641,15 @@ def cmd_propose(args: argparse.Namespace) -> int:
     # what cannot be sent is recorded and costs nothing of the batch. The
     # operator's tasks come first (2026-11-03), oldest first.
     jobs = task_jobs(led, root, head, busy, notes, facts, args.budget)
+    # A file a task takes this batch is the task's: a lint fix on it would be a
+    # second proposal on the same base, and one of the two would go stale
+    # (both reviewers of the tasks build, 2026-11-03).
+    tasked = {job[0].rel for job in jobs}
     for f in work:
         if len(jobs) >= args.budget:
             break
+        if f.rel in tasked:
+            continue
         text = base_of(f)
         known = notes if is_python(f.rel) else facts
         common = dict(base_text=text, base_commit=head, facts=known)

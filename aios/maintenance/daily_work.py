@@ -791,7 +791,13 @@ def task_verdict(
     silences), and it changes something. No reach check and no bound on the
     lines: a task is not a lint fix. Nothing the model wrote is executed."""
     if after_text == before_text:
-        return StaticVerdict(False, "the proposal changes nothing")
+        # The writer is told to return the file unchanged when the task needs
+        # more than this one file.
+        return StaticVerdict(
+            False,
+            "the writer returned the file unchanged: the task may need more than "
+            "this one file",
+        )
     changed = _changed_lines(unified_diff(rel, before_text, after_text))
     if after.parse_errors:
         return StaticVerdict(
