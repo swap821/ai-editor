@@ -98,6 +98,22 @@ def _verdict(root, before, after):
     return dw.static_verdict(f, before, after, checked, then)
 
 
+def test_a_windows_checkout_is_judged_on_its_own_lines(tmp_path) -> None:
+    """2026-11-03, the operator's laptop: a CRLF file went to ruff through a
+    text-mode pipe, which doubles every line break on Windows. The warning on
+    line 10 was recorded on line 19, and the reach check refused Claude
+    Sonnet's correct fix as 9 lines away from it."""
+    root = _py_repo(tmp_path, {})
+    head = '"""Doc.\n\nMore.\n\nMore.\n\nMore.\n"""\n\n'
+    body = "import sys\n\n\ndef where():\n    return sys.platform\n"
+    before = (head + "import os\n" + body).replace("\n", "\r\n")
+    after = (head + body).replace("\n", "\r\n")
+    [unused] = ps.check_python_texts(root, {PY_REL: before})[PY_REL].warnings("F401")
+    assert unused.line == 10
+    verdict = _verdict(root, before, after)
+    assert verdict.passed, verdict.reason
+
+
 def test_the_unattended_checks_on_a_python_fix(tmp_path) -> None:
     root = _py_repo(tmp_path, {})
     assert _verdict(root, PY_BEFORE, PY_AFTER).passed

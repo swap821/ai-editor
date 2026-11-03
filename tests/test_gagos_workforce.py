@@ -10,12 +10,20 @@ work both reviewers accept. Pinned here, without a model or a network:
 * a batch spreads its findings across the writers, records each proposal
   under the writer that wrote it, and settles every hold;
 * a writer's record counts what it wrote, not a failed call nor a file no
-  model was asked about.
+  model was asked about;
+* a writer whose last call was refused (AWS refused the account on 2026-11-02)
+  is tried on one finding a batch until it answers, and the rest of the work
+  goes to writers that answer;
+* the Claude writers (Sonnet and Haiku, through Claude Code on the operator's
+  plan, 2026-11-03) take at most their share of a batch, cost nothing against
+  the AWS ceiling, and run with no tools, no session and only the text.
 """
 
 from __future__ import annotations
 
+import json
 import sqlite3
+import subprocess
 import threading
 from types import SimpleNamespace
 
@@ -35,6 +43,7 @@ from tests.test_gagos_identity_and_day import _both
 from tools import gagos_daily as tool
 
 OTHER = "frontend/src/workbench/Other.jsx"
+THIRD = "frontend/src/workbench/Third.jsx"
 
 
 def test_writers_being_tried_get_work_first() -> None:
@@ -105,8 +114,12 @@ def _two_file_repo(tmp_path):
     return root
 
 
-def _batch(tmp_path, monkeypatch, *, ceiling=100.0):
+def _batch(tmp_path, monkeypatch, *, ceiling=100.0, third=False):
     root = _two_file_repo(tmp_path)
+    if third:
+        (root / THIRD).write_bytes(BEFORE.encode())
+        _git(root, "add", "-A")
+        _git(root, "commit", "-q", "-m", "third")
     led = dw.DailyLedger(tmp_path / "l.db")
     monkeypatch.setattr(tool, "ledger", lambda: led)
     monkeypatch.setattr(
@@ -225,3 +238,139 @@ def test_writers_are_compared_within_one_rule(tmp_path) -> None:
     assert led.model_outcomes(rule="easy-rule") == {"w": (1, 1)}
     assert led.model_outcomes(rule=RULE) == {"w": (0, 1)}
     assert led.model_outcomes() == {"w": (1, 2)}
+
+
+def _failed_call(led, model: str) -> None:
+    led.record_proposal(
+        dw.Finding(
+            rel="frontend/src/Elsewhere.jsx", rule=RULE, warnings=FINDING.warnings
+        ),
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model=model,
+        new_text=None,
+        verdict=None,
+        refusal="model call failed: ValidationException: Error 002: Access to "
+        "Bedrock models is not allowed for this account",
+    )
+
+
+def test_refused_writers_are_those_whose_last_call_failed(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _failed_call(led, "a")
+    _failed_call(led, "b")
+    led.record_proposal(
+        FINDING,
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="c",
+        new_text=AFTER,
+        verdict=dw.StaticVerdict(True, "ok", 1),
+    )
+    assert led.refused_writers(("a", "b", "c", "never-asked")) == ["a", "b"], (
+        "the longest refused first; one answered or never asked is not refused"
+    )
+    led.record_proposal(
+        FINDING,
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="a",
+        new_text=AFTER,
+        verdict=dw.StaticVerdict(False, "the proposal adds warnings", 1),
+    )
+    assert led.refused_writers(("a", "b", "c")) == ["b"], (
+        "an answer, even a refused proposal, ends the refusal"
+    )
+
+
+def test_a_refused_writer_is_tried_on_one_finding_and_the_rest_goes_elsewhere(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    led, asked, args, _ids = _batch(tmp_path, monkeypatch, third=True)
+    _failed_call(led, "writer-a")
+    assert tool.cmd_propose(args) == 0
+    assert sorted(asked) == ["writer-a", "writer-b", "writer-b"], (
+        "untried, writer-a would have taken two of the three"
+    )
+    assert "their last call was refused: writer-a" in capsys.readouterr().out
+    assert led.refused_writers(tool.WORKFORCE) == [], "it answered: it is back"
+
+
+def test_the_operators_plan_takes_at_most_its_share_and_costs_no_aws(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    led, asked, args, _ids = _batch(tmp_path, monkeypatch, ceiling=0.0)
+    monkeypatch.setattr(tool, "WORKFORCE", tool.CLAUDE_WRITERS)
+    monkeypatch.setattr(tool, "PLAN_PROPOSALS_PER_BATCH", 1)
+    assert tool.cmd_propose(args) == 0
+    assert len(asked) == 1 and asked[0] in tool.CLAUDE_WRITERS, (
+        "asked although the AWS ceiling is spent: the plan is not AWS"
+    )
+    [p] = led.proposals()
+    assert p["status"] == "proposed"
+    assert led.month_spend(tool._month()) == {asked[0]: 0.0}
+    assert "the operator's plan takes 1 a batch" in capsys.readouterr().out
+    waiting = OTHER if p["rel"] == REL else REL
+    assert not led.attempted(waiting, RULE, dw.digest(BEFORE)), (
+        "the finding over the plan's share waits for a later hour"
+    )
+
+
+def _claude_code(monkeypatch, *, returncode=0, answer=None, is_error=False):
+    calls: list = []
+
+    def run(argv, **kw):
+        calls.append((argv, kw))
+        return subprocess.CompletedProcess(
+            argv,
+            returncode,
+            stdout=json.dumps({"is_error": is_error, "result": answer}),
+            stderr="",
+        )
+
+    monkeypatch.setattr(tool, "_claude_executable", lambda: "claude-bin")
+    monkeypatch.setattr(tool.subprocess, "run", run)
+    return calls
+
+
+def test_a_claude_writer_runs_claude_code_with_only_the_text(monkeypatch) -> None:
+    answer = "```jsx\nconst a = 1;\n```"
+    calls = _claude_code(monkeypatch, answer=answer)
+    writer = tool.ClaudeCodeWriter("claude-haiku-5-5")
+    assert writer.complete("PROMPT", system="SYSTEM") == answer
+    [(argv, kw)] = calls
+    assert argv[:2] == ["claude-bin", "-p"]
+    assert argv[argv.index("--model") + 1] == "claude-haiku-5-5"
+    assert argv[argv.index("--tools") + 1] == "", "no tools: it can only write text"
+    assert "--no-session-persistence" in argv and "--strict-mcp-config" in argv
+    assert argv[argv.index("--system-prompt") + 1] == "SYSTEM"
+    assert kw["input"] == "PROMPT"
+    assert "gagos-writer-" in kw["cwd"], "an empty directory, not a checkout"
+
+
+def test_a_claude_writer_that_gives_no_answer_is_a_failed_call(monkeypatch) -> None:
+    _claude_code(
+        monkeypatch, returncode=1, answer="Claude AI usage limit reached", is_error=True
+    )
+    writer = tool.ClaudeCodeWriter("claude-sonnet-5-5")
+    try:
+        writer.complete("PROMPT", system="SYSTEM")
+    except RuntimeError as exc:
+        assert "usage limit" in str(exc)
+    else:
+        raise AssertionError("a call with no answer must raise")
+
+
+def test_without_a_bedrock_key_the_other_writers_still_work(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    from aios.core import bedrock
+
+    led, asked, args, _ids = _batch(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        tool, "WORKFORCE", (tool.CLAUDE_WRITERS[0], tool.BEDROCK_WRITERS[0])
+    )
+    monkeypatch.setattr(bedrock, "credentials_available", lambda region: False)
+    assert tool.cmd_propose(args) == 0
+    assert asked == [tool.CLAUDE_WRITERS[0]] * 2
+    assert "the Bedrock writers wait" in capsys.readouterr().out
