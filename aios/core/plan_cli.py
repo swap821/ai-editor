@@ -221,7 +221,9 @@ class PlanCliClient:
         self._run = run
         self._privacy_filter = PrivacyFilter()
         self._privacy_audit_tracker = privacy_audit_tracker
-        self.model = (self.claude_models + self.codex_models + ("",))[0]
+        # The configured default, offered or not: a missing tool is said by
+        # name when the model is asked for, not as an empty model (CI, 11-03).
+        self.model = (tuple(claude_models) + tuple(codex_models) + ("",))[0]
 
     def models(self) -> tuple[str, ...]:
         return self.claude_models + self.codex_models
@@ -239,6 +241,10 @@ class PlanCliClient:
 
     def _ask(self, model: str, system: str, prompt: str, schema: Optional[dict]) -> Any:
         if model not in self.models():
+            if model.startswith("claude-") and not self.claude:
+                raise LLMError("the Claude Code CLI is not installed here")
+            if model.startswith("gpt-") and not self.codex:
+                raise LLMError("the Codex CLI is not installed here")
             raise LLMError(f"the plan model '{model}' is not offered here")
         model_calls.observe("plan", model, "chat")
         with tempfile.TemporaryDirectory(prefix="gagos-plan-") as tmp:

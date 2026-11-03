@@ -27,6 +27,8 @@ import subprocess
 import threading
 from types import SimpleNamespace
 
+import pytest
+
 from aios.maintenance import daily_work as dw
 from tests.test_gagos_daily import (
     AFTER,
@@ -336,8 +338,19 @@ class _Run:
         return subprocess.CompletedProcess(argv, self.returncode, self.stdout, "")
 
 
+@pytest.fixture(autouse=True)
+def _no_plan_tools_installed(monkeypatch):
+    """As on CI (2026-11-03): neither Claude Code nor Codex is installed, so a
+    writer built here never depends on this laptop having them."""
+    from aios.core import plan_cli
+
+    monkeypatch.setattr(plan_cli, "claude_executable", lambda: None)
+    monkeypatch.setattr(plan_cli, "codex_executable", lambda: None)
+
+
 def _writer(model, run):
     writer = tool.plan_writer(model)
+    assert writer.model == model, "the configured writer, installed or not"
     writer.claude, writer.codex, writer._run = "claude-bin", "codex-bin", run
     if model in tool.CLAUDE_WRITERS:
         writer.claude_models, writer.codex_models = (model,), ()

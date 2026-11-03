@@ -283,3 +283,18 @@ def test_tool_arguments_that_are_not_a_string_are_dropped_not_fatal() -> None:
     )
     answer = _client(run).chat([{"role": "user", "content": "read"}], tools=TOOLS)
     assert answer == {"role": "assistant", "content": "reading"}
+
+
+def test_a_missing_tool_is_named_not_an_empty_model() -> None:
+    """CI, 2026-11-03: with neither tool installed the client's model was ''."""
+    client = plan_cli.PlanCliClient(
+        claude_models=("claude-sonnet-5-5",),
+        codex_models=("gpt-6-luna",),
+        claude="",
+        codex="",
+    )
+    assert client.model == "claude-sonnet-5-5" and client.models() == ()
+    with pytest.raises(LLMError, match="Claude Code CLI is not installed"):
+        client.chat([{"role": "user", "content": "hi"}])
+    with pytest.raises(LLMError, match="Codex CLI is not installed"):
+        client.chat([{"role": "user", "content": "hi"}], model="gpt-6-luna")
