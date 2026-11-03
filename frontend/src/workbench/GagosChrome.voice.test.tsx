@@ -501,24 +501,31 @@ describe('GagosChrome voice UX', () => {
     expect(modelBtn.textContent).toBe('LOCAL');
   });
 
-  it('cycles the chat model from LOCAL to GEMINI on click and persists to localStorage', async () => {
+  it('cycles the chat model LOCAL, AUTO, SONNET, GPT and back, and persists it', async () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome experienceMode="expert" />);
 
     const modelBtn = screen.getByRole('button', { name: /chat model/i });
-    await act(async () => {
-      fireEvent.click(modelBtn);
-    });
+    const seen: Array<[string | null, string | null]> = [];
+    for (let i = 0; i < 4; i += 1) {
+      await act(async () => {
+        fireEvent.click(modelBtn);
+      });
+      seen.push([modelBtn.textContent, localStorage.getItem('gagos-chat-model')]);
+    }
+    expect(seen).toEqual([
+      ['AUTO', 'auto'],
+      ['SONNET', 'plan.claude-sonnet-5-5'],
+      ['GPT', 'plan.gpt-6.1-sol'],
+      ['LOCAL', null],
+    ]);
+  });
 
-    expect(modelBtn.textContent).toBe('GEMINI');
-    expect(localStorage.getItem('gagos-chat-model')).toBe('gemini.gemini-2.5-flash');
-
-    await act(async () => {
-      fireEvent.click(modelBtn);
-    });
-
-    expect(modelBtn.textContent).toBe('LOCAL');
-    expect(localStorage.getItem('gagos-chat-model')).toBeNull();
+  it('shows LOCAL for a saved choice no longer offered (Gemini, until 2026-11-03)', async () => {
+    localStorage.setItem('gagos-chat-model', 'gemini.gemini-2.5-flash');
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome experienceMode="expert" />);
+    expect(screen.getByRole('button', { name: /chat model/i }).textContent).toBe('LOCAL');
   });
 
   it('threads the selected chat model into sendVoiceTurn for a CHAT turn', async () => {
@@ -530,7 +537,10 @@ describe('GagosChrome voice UX', () => {
     await act(async () => {
       fireEvent.click(modelBtn);
     });
-    expect(modelBtn.textContent).toBe('GEMINI');
+    await act(async () => {
+      fireEvent.click(modelBtn);
+    });
+    expect(modelBtn.textContent).toBe('SONNET');
 
     const input = screen.getByLabelText('Talk to GAGOS');
     await act(async () => {
@@ -542,7 +552,7 @@ describe('GagosChrome voice UX', () => {
 
     await waitFor(() => expect(sendVoiceTurn).toHaveBeenCalled());
     const [, opts] = sendVoiceTurn.mock.calls[0];
-    expect(opts.modelId).toBe('gemini.gemini-2.5-flash');
+    expect(opts.modelId).toBe('plan.claude-sonnet-5-5');
   });
 
   it('omits modelId from sendVoiceTurn for a CHAT turn when Local is selected', async () => {
