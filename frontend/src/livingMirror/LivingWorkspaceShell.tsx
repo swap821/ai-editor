@@ -29,6 +29,7 @@ const Memory = lazy(() => import('../workbench/MemoryBrowser'));
 const Hiring = lazy(() => import('../workbench/IntelligenceHiringPanel'));
 const Workforce = lazy(() => import('../workbench/LocalWorkforcePanel'));
 const Maintenance = lazy(() => import('../workbench/MaintenanceCenterPanel'));
+const GagosTasks = lazy(() => import('../workbench/GagosTasksPanel'));
 const Settings = lazy(() => import('../workbench/SettingsPanel'));
 const Profile = lazy(() => import('../workbench/OperatorProfileCard'));
 const Stigmergy = lazy(() => import('../workbench/StigmergyPanel'));
@@ -61,7 +62,7 @@ const expertSurfaceGroups = [
   {
     id: 'evidence',
     label: 'Evidence',
-    surfaces: [['maintenance', 'Maintenance'], ['vulture', 'Maintenance feed'], ['ecosystem', 'Resources & ecosystem'], ['terminal', 'Terminal']],
+    surfaces: [['maintenance', 'Maintenance'], ['gagos-tasks', 'GAGOS tasks'], ['vulture', 'Maintenance feed'], ['ecosystem', 'Resources & ecosystem'], ['terminal', 'Terminal']],
   },
 ] as const;
 
@@ -172,6 +173,7 @@ function PanelContent({ panel, experienceMode }: { panel: WorkspacePanel; experi
     case 'workforce': return <Workforce />;
     case 'hiring': return <Hiring />;
     case 'maintenance': return <Maintenance />;
+    case 'gagos-tasks': return <GagosTasks />;
     case 'settings': return <Settings onClose={onClose} />;
     case 'profile': return <Profile />;
     case 'stigmergy': return <Stigmergy onClose={onClose} />;
