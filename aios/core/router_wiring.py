@@ -91,6 +91,18 @@ def _privacy_audit_tracker_singleton() -> Any:
         return None
 
 
+def _plan_client() -> Any:
+    """The operator's own plans as one chat client (2026-11-03), or ``None``
+    when none is configured. Fetched here rather than threaded through every
+    turn pipeline; a lookup error yields ``None``, as above."""
+    try:
+        from aios.api.deps import get_plan_client
+
+        return get_plan_client()
+    except Exception:  # noqa: BLE001 - a missing plan must never break routing
+        return None
+
+
 def _build_providers(
     ollama: Any,
     bedrock: Optional[Any],
@@ -178,6 +190,22 @@ def _build_providers(
                 capability=cap,
             )
         )
+    # The operator's own plans: one candidate per model he offers. LOW: their
+    # cost is his flat plans, not a bill per call.
+    plan = _plan_client()
+    for mid in plan.models() if plan is not None else ():
+        if model_availability.is_unavailable(router.PROVIDER_PLAN, mid):
+            continue
+        providers.append(
+            router.Provider(
+                name=router.PROVIDER_PLAN,
+                privacy=router.PRIVACY_CLOUD,
+                cost=router.COST_LOW,
+                available=True,
+                models=(mid,),
+                capability=catalog.cloud_capability(mid),
+            )
+        )
     return providers
 
 
@@ -202,6 +230,8 @@ def _client_for(
         return anthropic
     if provider == router.PROVIDER_VERTEX_MAAS:
         return vertex_maas
+    if provider == router.PROVIDER_PLAN:
+        return _plan_client()
     return ollama
 
 
@@ -301,6 +331,9 @@ def _provider_name(
         return router.PROVIDER_OPENAI
     if anthropic is not None and chat_client is anthropic:
         return router.PROVIDER_ANTHROPIC
+    plan = _plan_client()
+    if plan is not None and chat_client is plan:
+        return router.PROVIDER_PLAN
     return router.PROVIDER_OLLAMA
 
 
@@ -512,6 +545,14 @@ def _select_chat_client(
         raise HTTPException(
             status_code=503,
             detail="Anthropic model selected but Anthropic direct is not configured",
+        )
+    if model_id and model_id.startswith("plan."):
+        plan = _plan_client()
+        if plan is not None and model_id[len("plan.") :] in plan.models():
+            return plan, model_id[len("plan.") :]
+        raise HTTPException(
+            status_code=503,
+            detail="a plan model was selected but that plan is not offered here",
         )
     if model_id and model_id.startswith("vertexmaas."):
         if vertex_maas is not None:

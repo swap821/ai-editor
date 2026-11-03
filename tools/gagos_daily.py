@@ -120,6 +120,11 @@ from aios.maintenance.python_static import (  # noqa: E402
     editable_python_files,
     import_refusal,
 )
+
+# One derivation for the workshop and the counter (2026-11-03): how a Codex
+# session is sealed, and where the real Claude Code binary is.
+from aios.core.plan_cli import CODEX_ACTING_FEATURES  # noqa: E402
+from aios.core.plan_cli import claude_executable as _claude_executable  # noqa: E402
 from aios.maintenance.sandbox_tests import (  # noqa: E402
     BROKE_PREFIX,
     PASSED,
@@ -928,25 +933,6 @@ def _schema_file(tmp: str) -> Path:
     return path
 
 
-#: Codex features that let a session act, all switched off for a reviewer
-#: (Codex's review of #566: a read-only sandbox still ran shell commands and
-#: the operator's MCP servers, so it could execute a proposal before both had
-#: accepted). The review is a judgement of the text it is given, nothing more.
-CODEX_ACTING_FEATURES = (
-    "shell_tool",
-    "unified_exec",
-    "unified_exec_tty",
-    "apps",
-    "plugins",
-    "remote_plugin",
-    "browser_use",
-    "browser_use_external",
-    "in_app_browser",
-    "skill_search",
-    "tool_suggest",
-)
-
-
 def codex_settings() -> dict[str, str]:
     """The operator's chosen Codex model and effort, read from his config, so a
     reviewer that ignores the rest of that config (its MCP servers) still runs
@@ -1035,23 +1021,6 @@ def run_codex(
             reason,
             used.group(1) if used else (model or "codex (configured)"),
         )
-
-
-def _claude_executable() -> str | None:
-    """The real binary, never an npm .cmd shim: cmd.exe would mangle the JSON
-    schema argument."""
-    found = shutil.which("claude")
-    if found and found.lower().endswith((".cmd", ".bat")):
-        native = (
-            Path(found).parent
-            / "node_modules"
-            / "@anthropic-ai"
-            / "claude-code"
-            / "bin"
-            / "claude.exe"
-        )
-        return str(native) if native.is_file() else None
-    return found
 
 
 def run_claude(

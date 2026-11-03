@@ -109,10 +109,12 @@ _gemini_client: Optional[GeminiClient] = None
 _vertex_maas_client: Optional[Any] = None
 _openai_client: Optional[Any] = None
 _anthropic_client: Optional[Any] = None
+_plan_client: Optional[Any] = None
 _bedrock_lock = threading.Lock()
 _gemini_lock = threading.Lock()
 _openai_lock = threading.Lock()
 _anthropic_lock = threading.Lock()
+_plan_lock = threading.Lock()
 _memory_authority: Optional[MemoryAuthority] = None
 _memory_authority_lock = threading.Lock()
 _identity_service: Optional[IdentityService] = None
@@ -275,6 +277,31 @@ def get_anthropic_client() -> Optional[Any]:
             privacy_audit_tracker=_privacy_audit_tracker()
         )
     return _anthropic_client
+
+
+def get_plan_client() -> Optional[Any]:
+    """Provide the operator's own plans as one chat client (2026-11-03: Claude
+    through Claude Code, GPT through Codex), or ``None`` when none is configured
+    or neither tool is installed."""
+    global _plan_client
+    if not config.PLAN_ENABLED:
+        return None
+    if _plan_client is not None:
+        return _plan_client or None
+    with _plan_lock:
+        if _plan_client is None:
+            from aios.core.plan_cli import PlanCliClient
+
+            client = PlanCliClient(
+                claude_models=config.PLAN_CLAUDE_MODELS,
+                codex_models=config.PLAN_CODEX_MODELS,
+                timeout_s=config.PLAN_TIMEOUT_S,
+                codex_effort=config.PLAN_CODEX_EFFORT,
+                privacy_audit_tracker=_privacy_audit_tracker(),
+            )
+            # False, not None, remembers "nothing offered" without rebuilding.
+            _plan_client = client if client.models() else False
+    return _plan_client or None
 
 
 def get_semantic_indexer() -> Optional[Any]:

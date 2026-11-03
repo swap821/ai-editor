@@ -16,8 +16,17 @@ AIOS_TASK_SCOPE                work/ai-editor                        2026-10-29
 AIOS_CONTAINER_IMAGE           aios-verify:<sha12 of requirements>   2026-10-28
 AIOS_EXECUTOR_TIMEOUT_S        120                                   2026-10-28
 AIOS_REPLAY_APPROVED_COMMANDS  1                                     2026-10-19
-AIOS_ROUTER_CLOUD_TASKS        "" (auto is local), or --cloud-tasks  2026-10-29
+AIOS_ROUTER_CLOUD_TASKS        reasoning,coding, or --cloud-tasks    2026-11-03
+AIOS_PLAN_CLAUDE_MODELS        claude-sonnet-5-5,claude-haiku-5-5    2026-11-03
+AIOS_PLAN_CODEX_MODELS         gpt-6.1-sol,gpt-6.1-terra,gpt-6-luna  2026-11-03
 =============================  ====================================  ==========
+
+On 2026-11-03 the operator connected his own plans to the counter: "connect
+codex models to counter also and C" (Claude through Claude Code, the GPT models
+through Codex; :mod:`aios.core.plan_cli`). Cloud tasks became his own
+user-wide choice, ``reasoning,coding``; general and fast turns stay local.
+Opus is left out: it would spend the plan he shares with his own sessions
+fastest. ``--cloud-tasks ""`` keeps every turn local.
 
 (``docs/operations/WORK_SCOPE.md`` and ``docs/operations/DAILY_BACKEND.md``.)
 
@@ -80,12 +89,20 @@ def verify_image(repo: Path = REPO) -> str:
     return f"aios-verify:{digest[:12]}"
 
 
-def daily_settings(repo: Path = REPO, *, cloud_tasks: str = "") -> dict[str, str]:
+#: The operator's plans at the counter (2026-11-03): see the table above.
+CLOUD_TASKS = "reasoning,coding"
+PLAN_CLAUDE = ("claude-sonnet-5-5", "claude-haiku-5-5")
+PLAN_CODEX = ("gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna")
+
+
+def daily_settings(
+    repo: Path = REPO, *, cloud_tasks: str = CLOUD_TASKS
+) -> dict[str, str]:
     """The daily backend's launch settings. No secret is among them.
 
     ``AIOS_ROUTER_CLOUD_TASKS`` is always set, so a value inherited from the
-    user's environment never decides where a turn goes: empty keeps ``auto``
-    local, and cloud routing is a choice made at launch (``--cloud-tasks``).
+    user's environment never decides where a turn goes: the launch decides
+    (``--cloud-tasks``; his choice since 2026-11-03 is the default).
     """
     return {
         # training_ground FIRST: commands run from the parent of the first root.
@@ -97,6 +114,8 @@ def daily_settings(repo: Path = REPO, *, cloud_tasks: str = "") -> dict[str, str
         "AIOS_EXECUTOR_TIMEOUT_S": "120",
         "AIOS_REPLAY_APPROVED_COMMANDS": "1",
         "AIOS_ROUTER_CLOUD_TASKS": cloud_tasks,
+        "AIOS_PLAN_CLAUDE_MODELS": ",".join(PLAN_CLAUDE),
+        "AIOS_PLAN_CODEX_MODELS": ",".join(PLAN_CODEX),
     }
 
 
@@ -444,8 +463,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("command", choices=("up", "check", "status", "down", "_report"))
     parser.add_argument(
         "--cloud-tasks",
-        default="",
-        help='task classes auto may send to the cloud, e.g. "reasoning"; default none',
+        default=CLOUD_TASKS,
+        help=f'task classes auto may send to the cloud; default "{CLOUD_TASKS}", "" for none',
     )
     parser.add_argument(
         "--maintenance-root",
