@@ -151,6 +151,25 @@ CLAUDE_WRITERS = ("claude-sonnet-5-5", "claude-haiku-5-5")
 #: reviewer's, so at most this many findings a batch go to the Claude writers;
 #: the rest wait for a later hour.
 PLAN_PROPOSALS_PER_BATCH = 4
+#: GAGOS's Codex writers: the two GPT models the operator named, through Codex
+#: on his OpenAI plan (2026-11-03: "use its models also like GPT 6.1 terra or
+#: GPT 6 Luna ... like using sonnet and haiku"). Each answered a sealed call
+#: that day. Claude Code stays the reviewer: a different family judges.
+CODEX_WRITERS = ("gpt-6.1-terra", "gpt-6-luna")
+#: His OpenAI plan is shared with his own Codex sessions (it hit its usage
+#: limit on 2026-11-02), so it too takes at most this many a batch.
+CODEX_PROPOSALS_PER_BATCH = 4
+PLAN_WRITERS = (*CLAUDE_WRITERS, *CODEX_WRITERS)
+
+
+def plan_shares() -> tuple[tuple[str, tuple[str, ...], int], ...]:
+    """Each of his plans: its name, its writers, and its share of a batch."""
+    return (
+        ("Claude", CLAUDE_WRITERS, PLAN_PROPOSALS_PER_BATCH),
+        ("OpenAI", CODEX_WRITERS, CODEX_PROPOSALS_PER_BATCH),
+    )
+
+
 #: GAGOS's Bedrock writers (the operator, 2026-11-02: "multi models agent
 #: simultaneously together"). Each answered a live call on GAGOS's own key in
 #: us-east-1 on 2026-11-02; at 20:50 UTC that day AWS refused the account.
@@ -162,7 +181,7 @@ BEDROCK_WRITERS = (
     "moonshotai.kimi-k2.5",
 )
 #: GAGOS's writers, several working at once.
-WORKFORCE = (*CLAUDE_WRITERS, *BEDROCK_WRITERS)
+WORKFORCE = (*CLAUDE_WRITERS, *CODEX_WRITERS, *BEDROCK_WRITERS)
 #: GAGOS's work when the operator names none (2026-11-02): the lint rules
 #: whose fix keeps behaviour, in its frontend and in its Python (its backend and
 #: itself), then a first test for each frontend module that has none.
@@ -329,82 +348,23 @@ def would_be_altered(prompt: str, system: str) -> str | None:
     return None
 
 
-#: The longest a Claude writer may take over one answer.
+#: The longest a plan writer may take over one answer.
 WRITER_TIMEOUT_S = 600
 
 
-class ClaudeCodeWriter:
-    """One of GAGOS's Claude writers: ``claude -p`` on the operator's own plan,
-    run as the chief reviewer is: no tools, no session kept, none of his MCP
-    servers, in an empty directory, with GAGOS's system prompt in place of
-    Claude Code's. :meth:`complete` is the provider contract the gateway
-    calls; a call that gives no answer raises, and is recorded as a failed
-    call, never as the model's work."""
+def plan_writer(model: str):
+    """One of GAGOS's writers on the operator's plans: the counter's own
+    :class:`~aios.core.plan_cli.PlanCliClient`, sealed the same way (no tools,
+    no session, none of his MCP servers or plugins, an empty directory, the
+    privacy filter first). A call that gives no answer raises, and is recorded
+    as a failed call, never as the model's work."""
+    from aios.core.plan_cli import PlanCliClient
 
-    def __init__(self, model: str, *, timeout_s: float = WRITER_TIMEOUT_S) -> None:
-        self.model = model
-        self.timeout_s = timeout_s
-
-    def complete(
-        self, prompt: str, *, system: str | None = None, json_mode: bool = False
-    ) -> str:
-        from aios.core.privacy_filter import PrivacyFilter
-
-        del json_mode  # the answer is a fenced file, never JSON
-        # What leaves passes the privacy filter Bedrock's client applies.
-        messages = [
-            *([{"role": "system", "content": system}] if system else []),
-            {"role": "user", "content": prompt},
-        ]
-        safe, _audit = PrivacyFilter().filter(messages)
-        safe_system = next((m["content"] for m in safe if m["role"] == "system"), "")
-        safe_prompt = next(m["content"] for m in safe if m["role"] == "user")
-        claude = _claude_executable()
-        if claude is None:
-            raise RuntimeError("the Claude Code CLI is not installed")
-        argv = [
-            claude,
-            "-p",
-            "--output-format",
-            "json",
-            "--model",
-            self.model,
-            "--tools",
-            "",
-            "--no-session-persistence",
-            "--strict-mcp-config",
-        ]
-        if safe_system:
-            argv += ["--system-prompt", safe_system]
-        with tempfile.TemporaryDirectory(prefix="gagos-writer-") as tmp:
-            try:
-                proc = subprocess.run(
-                    argv,
-                    input=safe_prompt,
-                    capture_output=True,
-                    text=True,
-                    encoding="utf-8",
-                    errors="replace",
-                    cwd=tmp,
-                    timeout=self.timeout_s,
-                )
-            except subprocess.TimeoutExpired as exc:
-                raise RuntimeError(
-                    f"Claude Code timed out after {self.timeout_s:.0f}s"
-                ) from exc
-        try:
-            data = json.loads(proc.stdout or "")
-        except ValueError:
-            data = {}
-        answer = data.get("result")
-        if proc.returncode != 0 or data.get("is_error") or not isinstance(answer, str):
-            # His plan's usage limit is said here: the writer's next batch
-            # gives it one finding only, until it answers again.
-            said = answer or (proc.stderr or "")[-300:]
-            raise RuntimeError(
-                f"Claude Code exited {proc.returncode}: {str(said)[:300]}"
-            )
-        return answer
+    return PlanCliClient(
+        claude_models=(model,) if model in CLAUDE_WRITERS else (),
+        codex_models=(model,) if model in CODEX_WRITERS else (),
+        timeout_s=WRITER_TIMEOUT_S,
+    )
 
 
 def governed_completer(model: str, region: str):
@@ -418,8 +378,8 @@ def governed_completer(model: str, region: str):
     from aios.core.bedrock import BedrockClient, credentials_available
     from aios.infrastructure.identity.sqlite_store import credential_digest
 
-    if model in CLAUDE_WRITERS:
-        provider = ClaudeCodeWriter(model)
+    if model in PLAN_WRITERS:
+        provider = plan_writer(model)
     elif not credentials_available(region):
         raise SystemExit(
             f"no Bedrock credentials for {region}: set AWS_BEARER_TOKEN_BEDROCK "
@@ -748,17 +708,18 @@ def cmd_propose(args: argparse.Namespace) -> int:
         writers[-1] = probe
     # Not proposals: the findings no writer takes stay unattempted for a later
     # hour.
-    capped = [i for i, m in enumerate(writers) if m in CLAUDE_WRITERS][
-        PLAN_PROPOSALS_PER_BATCH:
-    ]
-    for i in capped:
-        writers[i] = ""
+    capped = []
+    for name, plan, cap in plan_shares():
+        over = [i for i, m in enumerate(writers) if m in plan][cap:]
+        for i in over:
+            writers[i] = ""
+        if over:
+            print(
+                f"  {len(over)} finding(s) wait for a later hour: the operator's "
+                f"{name} plan takes {cap} a batch"
+            )
+        capped += over
     idle = writers.count("") - len(capped)
-    if capped:
-        print(
-            f"  {len(capped)} finding(s) wait for a later hour: the operator's plan "
-            f"takes {PLAN_PROPOSALS_PER_BATCH} a batch"
-        )
     if idle:
         print(f"  {idle} finding(s) wait for a later hour: no writer answers")
     jobs, writers = (
@@ -782,7 +743,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
         chars_in = len(prompt) + len(system)
         # A call on the operator's plan costs nothing against the AWS ceiling;
         # it is still held and settled, so its request id is its own.
-        on_aws = model not in CLAUDE_WRITERS
+        on_aws = model not in PLAN_WRITERS
         hold = led.reserve_spend(
             month=month,
             model=model,
@@ -1269,6 +1230,8 @@ MODEL_NAMES = {
     "claude-opus-5-5": "Claude Opus 5.5 (Anthropic, via Claude Code)",
     "claude-sonnet-5-5": "Claude Sonnet 5.5 (Anthropic, via Claude Code)",
     "claude-haiku-5-5": "Claude Haiku 5.5 (Anthropic, via Claude Code)",
+    "gpt-6.1-terra": "GPT-6.1 terra (OpenAI, via Codex)",
+    "gpt-6-luna": "GPT-6 luna (OpenAI, via Codex)",
 }
 
 
@@ -1923,7 +1886,7 @@ def report(
             f"- {model_name(m)}: {w} accepted of {d} decided; "
             + (
                 "on the operator's plan"
-                if m in CLAUDE_WRITERS
+                if m in PLAN_WRITERS
                 else f"${spent.get(m, 0.0):.2f} this month"
             )
             for m, (w, d) in sorted(led.model_outcomes().items())
