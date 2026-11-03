@@ -1,9 +1,42 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-03 ("Night of 2026-11-03" below; earlier sections keep the
+**Last updated:** 2026-11-04 ("2026-11-04, D14 ready" below; earlier sections keep the
 commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-04, D14 ready (branch `feat/gagos-d14`, off `evidence/after-591`)
+
+- **The operator's request:** "plz honestly do all than we will be ready for D14". Three things were still not done:
+  - changes across several files;
+  - a frontend sandbox;
+  - the face coming back after a reboot.
+- **How it was built.** I wrote the contract (`7aba0794`/`a9d759b6`): up to `MAX_TASK_FILES = 5` per task, grouped proposals, one sandbox entry for a set of changes. Three Sonnet builders worked in parallel worktrees, then two adversarial reviewers.
+  - The sandbox builder and both reviewers were cut off by a usage limit. The sandbox builder's uncommitted work was intact, including a built image. A fresh run finished it, and the reviewers ran after it.
+  - I reviewed and integrated everything, and fixed what the reviewers found.
+- **Several files.** A task names up to five files. Each file must be one GAGOS may edit, and they must fit one answer together: 30,000 characters, measured as sent.
+  - One writer call returns every changed file, labelled.
+  - Each file is checked. One proposal per file is recorded under the task's group, and the group is all or nothing.
+  - The sandbox runs the group's tests once, with every change in place. One review covers the group, and its verdict is recorded on every file.
+  - One commit delivers it, and it fails or goes stale together.
+- **The frontend sandbox.** Image `aios-verify-web:326b5b186735` (980 MB): Node 24 and the frontend's dependencies from `package-lock.json`.
+  - It runs through the unchanged `DockerRunner`: no network, a read-only root and workspace, only `/tmp` writable, not root.
+  - The frontend (9.1 MB) is copied into `/tmp`, and vitest runs `related`, judged against the base as Python's tests are.
+  - Live:
+    - a harmless change to `ErrorBoundary.jsx` passed, 8 tests in 21 s;
+    - the same module broken was BROKE, with 7 tests named, in 26 s;
+    - a two-file change passed, 336 tests in 59 s, with the copy restored byte for byte.
+  - The containment probe passes 8 of 8 in real containers. CI does not build the web image, so its probe skips there.
+- **The face after a reboot.** `daily_backend.py up` starts the face (vite on :5173, no window, a process group of its own) when it does not answer. So the existing 15-minute watchdog brings it back, with no scheduled-task change.
+  - `down` stops only the face it started.
+  - Live, from the branch: it started in 8 s, answered, and was recognised as its own; `down` stopped exactly it.
+- **What the reviewers found, fixed with tests that fail without the fix:**
+  - **High (both reviewers).** `down` killed a recorded face pid whenever anything answered on :5173, but a pid outlives a reboot. The face is now recorded with its process's creation time, and stopped only while that pid still has it. Windows' socket listings (`netstat`, `Get-NetTCPConnection`) missed live listeners on this laptop, measured that night, so identity does not rest on them.
+  - **Medium.** The several-file bound summed the unmasked files, but a placeholder can be longer than what it hides.
+- **Tests.**
+  - The backend suites pass, 611 tests (GAGOS's, the counter's and its route guards, gateway, failover, the boundary).
+  - The frontend: 218 pass; ESLint and `tsc` are clean.
+  - Bandit passes, and no organ entrypoint changed.
 
 ## Night of 2026-11-03 (branch `evidence/after-591`, off master `fd161709`)
 
