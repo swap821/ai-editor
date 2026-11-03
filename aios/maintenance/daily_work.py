@@ -1296,7 +1296,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     status TEXT NOT NULL,
     proposal_id TEXT,
     reason TEXT,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    also TEXT NOT NULL DEFAULT '[]'
 );
 """
 
@@ -1307,12 +1308,29 @@ CREATE TABLE IF NOT EXISTS tasks (
 TASK_RULE = "gagos/task"
 #: The longest task text accepted.
 MAX_TASK_CHARS = 4_000
+#: The most files one task may change (2026-11-03, the operator: "plz honestly
+#: do all than we will be ready for D14"): its own file and up to four more,
+#: changed together, tested together, reviewed and delivered as one.
+MAX_TASK_FILES = 5
 #: Task statuses. ``open`` = waiting for a writer; ``taken`` = a writer's
 #: proposal is recorded (``proposal_id``), whose own status is the progress;
 #: ``refused`` = GAGOS cannot do it (``reason``: a file it may not edit, too
 #: long, or one that cannot leave the machine); ``cancelled`` = withdrawn by
 #: the operator before a writer took it.
 TASK_STATUSES = ("open", "taken", "refused", "cancelled")
+
+
+def _task_dict(row) -> dict:
+    """A task row as a dict, with ``also`` decoded and ``files`` (its own file
+    first) added."""
+    task = dict(row)
+    try:
+        also = json.loads(task.get("also") or "[]")
+    except ValueError:
+        also = []
+    task["also"] = [str(r) for r in also] if isinstance(also, list) else []
+    task["files"] = [task["rel"], *task["also"]]
+    return task
 
 
 class TaskRefused(ValueError):
@@ -1380,6 +1398,14 @@ class DailyLedger:
                 db.execute("ALTER TABLE proposals ADD COLUMN facts TEXT")
             if "sandbox" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN sandbox TEXT")
+            # A task over several files records one proposal per file, grouped.
+            if "group_id" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN group_id TEXT")
+            task_cols = {r["name"] for r in db.execute("PRAGMA table_info(tasks)")}
+            if "also" not in task_cols:
+                db.execute(
+                    "ALTER TABLE tasks ADD COLUMN also TEXT NOT NULL DEFAULT '[]'"
+                )
             # A day an earlier version recorded as run keeps its claim.
             db.execute(
                 "INSERT OR IGNORE INTO day_claims SELECT day, updated_at FROM days "
@@ -1404,7 +1430,10 @@ class DailyLedger:
         refusal: str | None = None,
         day: str | None = None,
         facts: Sequence[str] = (),
+        group_id: str | None = None,
     ) -> str:
+        """*group_id*: the task whose several files this proposal is one of;
+        the group is tested, reviewed and delivered together."""
         proposal_id = f"gd-{uuid.uuid4().hex[:10]}"
         passed = verdict is not None and verdict.passed and refusal is None
         reason = refusal or (None if passed else (verdict.reason if verdict else None))
@@ -1423,8 +1452,8 @@ class DailyLedger:
             db.execute(
                 "INSERT INTO proposals (proposal_id, day, created_at, rel, rule, "
                 "warnings, base_digest, base_commit, base_text, model, status, "
-                "refusal, new_text, new_digest, diff, changed_lines, facts) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "refusal, new_text, new_digest, diff, changed_lines, facts, group_id) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     proposal_id,
                     day or datetime.now(timezone.utc).date().isoformat(),
@@ -1443,9 +1472,21 @@ class DailyLedger:
                     diff,
                     verdict.changed_lines if verdict else None,
                     json.dumps(list(facts)),
+                    group_id,
                 ),
             )
         return proposal_id
+
+    def group_members(self, group_id: str) -> list[dict]:
+        """The proposals of one task over several files, in the order recorded."""
+        with self._db() as db:
+            return [
+                dict(r)
+                for r in db.execute(
+                    "SELECT * FROM proposals WHERE group_id = ? ORDER BY created_at",
+                    (group_id,),
+                )
+            ]
 
     def resettle(self) -> list[str]:
         """Proposals awaiting review that the reviews already recorded now
@@ -1901,9 +1942,13 @@ class DailyLedger:
         return [p["model"] for p in sorted(failed, key=lambda p: p["created_at"])]
 
     # tasks the operator writes
-    def add_task(self, rel: str, text: str, *, said_by: str) -> str:
-        """Queue the operator's task on one file; returns its id. Refuses an
-        empty or over-long text, or a path that is not project-relative."""
+    def add_task(
+        self, rel: str, text: str, *, said_by: str, also: Sequence[str] = ()
+    ) -> str:
+        """Queue the operator's task on one file, and on up to
+        ``MAX_TASK_FILES - 1`` more (*also*); returns its id. Refuses an empty
+        or over-long text, a path that is not project-relative, a file named
+        twice, or more files than the bound."""
         body = (text or "").strip()
         if not body:
             raise TaskRefused("a task needs words")
@@ -1914,14 +1959,23 @@ class DailyLedger:
         who = (said_by or "").strip()
         if not who:
             raise TaskRefused("a task says who wrote it")
+        first = task_path(rel)
+        more = [task_path(r) for r in also]
+        files = [first, *more]
+        if len(set(files)) != len(files):
+            raise TaskRefused("a file is named twice in the task")
+        if len(files) > MAX_TASK_FILES:
+            raise TaskRefused(
+                f"a task changes at most {MAX_TASK_FILES} files; this names {len(files)}"
+            )
         task_id = f"gt-{uuid.uuid4().hex[:10]}"
         now = _now()
         with self._db() as db:
             db.execute(
                 "INSERT INTO tasks (task_id, created_at, rel, text, said_by, status, "
-                "proposal_id, reason, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, 'open', NULL, NULL, ?)",
-                (task_id, now, task_path(rel), body, who[:200], now),
+                "proposal_id, reason, updated_at, also) "
+                "VALUES (?, ?, ?, ?, ?, 'open', NULL, NULL, ?, ?)",
+                (task_id, now, first, body, who[:200], now, json.dumps(more)),
             )
         return task_id
 
@@ -1930,7 +1984,7 @@ class DailyLedger:
             row = db.execute(
                 "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
             ).fetchone()
-        return dict(row) if row else None
+        return _task_dict(row) if row else None
 
     def tasks(self, *, status: str | None = None) -> list[dict]:
         """Tasks, oldest first; with *status*, only those."""
@@ -1939,7 +1993,9 @@ class DailyLedger:
             query += " WHERE status = ?"
             args.append(status)
         with self._db() as db:
-            return [dict(r) for r in db.execute(query + " ORDER BY created_at", args)]
+            return [
+                _task_dict(r) for r in db.execute(query + " ORDER BY created_at", args)
+            ]
 
     def _move_task(
         self,
@@ -1978,8 +2034,9 @@ class DailyLedger:
         out = []
         with self._db() as db:
             for t in db.execute("SELECT * FROM tasks ORDER BY created_at"):
-                task = dict(t)
+                task = _task_dict(t)
                 task["proposal"] = None
+                task["proposals"] = []
                 if task["proposal_id"]:
                     p = db.execute(
                         "SELECT proposal_id, model, status, refusal, changed_lines, "
@@ -2017,6 +2074,15 @@ class DailyLedger:
                             },
                             "pr_url": delivered["pr_url"] if delivered else None,
                         }
+                        task["proposals"] = [task["proposal"]]
+                # A task over several files: every file's proposal, in order.
+                members = db.execute(
+                    "SELECT proposal_id, rel, status, refusal, changed_lines FROM "
+                    "proposals WHERE group_id = ? ORDER BY created_at",
+                    (task["task_id"],),
+                ).fetchall()
+                if len(members) > 1:
+                    task["proposals"] = [dict(m) for m in members]
                 out.append(task)
         return out
 
