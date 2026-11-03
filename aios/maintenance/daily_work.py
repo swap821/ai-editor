@@ -1124,7 +1124,54 @@ CREATE TABLE IF NOT EXISTS spend (
     chars_out INTEGER,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS tasks (
+    task_id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    rel TEXT NOT NULL,
+    text TEXT NOT NULL,
+    said_by TEXT NOT NULL,
+    status TEXT NOT NULL,
+    proposal_id TEXT,
+    reason TEXT,
+    updated_at TEXT NOT NULL
+);
 """
+
+#: A task the operator wrote (2026-11-03, asked for "bigger work" in GAGOS's
+#: workshop, counter and face): his words and one file GAGOS may edit. Its
+#: proposal is recorded under this rule and judged like any other: the checks,
+#: the sandbox's tests, the chief reviewer, CI, and his merge.
+TASK_RULE = "gagos/task"
+#: The longest task text accepted.
+MAX_TASK_CHARS = 4_000
+#: Task statuses. ``open`` = waiting for a writer; ``taken`` = a writer's
+#: proposal is recorded (``proposal_id``), whose own status is the progress;
+#: ``refused`` = GAGOS cannot do it (``reason``: a file it may not edit, too
+#: long, or one that cannot leave the machine); ``cancelled`` = withdrawn by
+#: the operator before a writer took it.
+TASK_STATUSES = ("open", "taken", "refused", "cancelled")
+
+
+class TaskRefused(ValueError):
+    """A task that cannot be queued as given; the message says why."""
+
+
+def task_path(rel: str) -> str:
+    """*rel* as a project-relative POSIX path, or :class:`TaskRefused`. Only
+    its shape is judged here; whether GAGOS may edit the file is judged
+    against the project when a writer would take it."""
+    raw = (rel or "").strip().replace("\\", "/")
+    parts = raw.split("/")
+    if (
+        not raw
+        or len(raw) > 512
+        or raw.startswith("/")
+        or ":" in raw
+        or any(part in ("", ".", "..") for part in parts)
+    ):
+        raise TaskRefused(f"not a project-relative file path: {rel!r}")
+    return raw
+
 
 #: Proposal statuses. ``refused`` = failed the unattended checks or the model
 #: gave no usable answer; ``proposed`` = awaiting reviews; ``accepted`` = both
@@ -1689,6 +1736,126 @@ class DailyLedger:
             and (p["refusal"] or "").startswith("model call failed")
         ]
         return [p["model"] for p in sorted(failed, key=lambda p: p["created_at"])]
+
+    # tasks the operator writes
+    def add_task(self, rel: str, text: str, *, said_by: str) -> str:
+        """Queue the operator's task on one file; returns its id. Refuses an
+        empty or over-long text, or a path that is not project-relative."""
+        body = (text or "").strip()
+        if not body:
+            raise TaskRefused("a task needs words")
+        if len(body) > MAX_TASK_CHARS:
+            raise TaskRefused(
+                f"a task is at most {MAX_TASK_CHARS} characters; this is {len(body)}"
+            )
+        who = (said_by or "").strip()
+        if not who:
+            raise TaskRefused("a task says who wrote it")
+        task_id = f"gt-{uuid.uuid4().hex[:10]}"
+        now = _now()
+        with self._db() as db:
+            db.execute(
+                "INSERT INTO tasks (task_id, created_at, rel, text, said_by, status, "
+                "proposal_id, reason, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, 'open', NULL, NULL, ?)",
+                (task_id, now, task_path(rel), body, who[:200], now),
+            )
+        return task_id
+
+    def task(self, task_id: str) -> dict | None:
+        with self._db() as db:
+            row = db.execute(
+                "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def tasks(self, *, status: str | None = None) -> list[dict]:
+        """Tasks, oldest first; with *status*, only those."""
+        query, args = "SELECT * FROM tasks", []
+        if status:
+            query += " WHERE status = ?"
+            args.append(status)
+        with self._db() as db:
+            return [dict(r) for r in db.execute(query + " ORDER BY created_at", args)]
+
+    def _move_task(
+        self,
+        task_id: str,
+        to: str,
+        *,
+        proposal_id: str | None = None,
+        reason: str | None = None,
+    ) -> bool:
+        # Only an open task moves, and only once: a writer and a cancel cannot
+        # both take it.
+        with self._db() as db:
+            done = db.execute(
+                "UPDATE tasks SET status = ?, proposal_id = ?, reason = ?, "
+                "updated_at = ? WHERE task_id = ? AND status = 'open'",
+                (to, proposal_id, reason, _now(), task_id),
+            )
+            return done.rowcount == 1
+
+    def take_task(self, task_id: str, proposal_id: str) -> bool:
+        """A writer's proposal for the task is recorded. True when it was open."""
+        return self._move_task(task_id, "taken", proposal_id=proposal_id)
+
+    def refuse_task(self, task_id: str, reason: str) -> bool:
+        """GAGOS cannot do the task; *reason* says why. True when it was open."""
+        return self._move_task(task_id, "refused", reason=reason)
+
+    def cancel_task(self, task_id: str) -> bool:
+        """The operator withdraws an open task. True when it was open."""
+        return self._move_task(task_id, "cancelled", reason="withdrawn by the operator")
+
+    def task_progress(self) -> list[dict]:
+        """Every task, oldest first, with what became of its proposal: the one
+        read the counter and the face show. ``proposal`` is None until a writer
+        takes the task."""
+        out = []
+        with self._db() as db:
+            for t in db.execute("SELECT * FROM tasks ORDER BY created_at"):
+                task = dict(t)
+                task["proposal"] = None
+                if task["proposal_id"]:
+                    p = db.execute(
+                        "SELECT proposal_id, model, status, refusal, changed_lines, "
+                        "sandbox FROM proposals WHERE proposal_id = ?",
+                        (task["proposal_id"],),
+                    ).fetchone()
+                    if p:
+                        sandbox = None
+                        if p["sandbox"]:
+                            try:
+                                sandbox = json.loads(p["sandbox"]).get("outcome")
+                            except (ValueError, AttributeError):
+                                sandbox = None
+                        delivered = db.execute(
+                            "SELECT pr_url FROM deliveries WHERE proposal_id = ?",
+                            (p["proposal_id"],),
+                        ).fetchone()
+                        task["proposal"] = {
+                            "proposal_id": p["proposal_id"],
+                            "model": p["model"],
+                            "status": p["status"],
+                            "refusal": p["refusal"],
+                            "changed_lines": p["changed_lines"],
+                            "sandbox": sandbox,
+                            "reviews": {
+                                r["reviewer"]: {
+                                    "verdict": r["verdict"],
+                                    "reason": r["reason"],
+                                }
+                                for r in db.execute(
+                                    "SELECT reviewer, verdict, reason FROM reviews "
+                                    "WHERE proposal_id = ?",
+                                    (p["proposal_id"],),
+                                )
+                            },
+                            "pr_url": delivered["pr_url"] if delivered else None,
+                        }
+                out.append(task)
+        return out
 
     def rels_in_prs(self, pr_urls: Iterable[str]) -> set[str]:
         """The files the proposals delivered in these PRs change."""
