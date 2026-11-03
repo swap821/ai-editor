@@ -33,6 +33,14 @@ commit they were measured on). The whole story, from the first commit, is
     - The frontend's model picker does not list the plan models. `auto` uses them for reasoning and coding.
     - After the merge, his checkout must be pulled and the backend restarted.
     - Whether he uses the counter will be measured the same way, by counting his real turns.
+- **Then, at the operator's word ("plz honestly complete which is not done yet"):**
+  - **The face runs on current code.** I ran `npm ci` in his checkout (323 packages, 39 s), so its dependencies now match master's lock file. GAGOS's worktree links the same `node_modules`, so its lint ran on stale packages until now. The dev server was started hidden and logs to `data/services/frontend.log`; `http://localhost:5173` answers "GAGOS — The Voyaging Mind". Nothing starts it after a reboot; that stays a manual start.
+  - **A correction.** I had said the frontend's model picker did not list the plan brains. The superbrain has no picker: it always sends `auto`, so its reasoning and coding turns reach his plans through the router. The workbench's expert toggle offered only Local and Gemini, and no Gemini key is held. It now cycles Local, Auto, Sonnet and GPT (his plans, chosen outright through `plan.<model>`). A saved choice no longer offered shows Local. The 148 workbench tests pass, ESLint shows the same 12 warnings as master, and `tsc` is clean.
+  - **The Codex writers.** GPT-6.1 terra and GPT-6 luna join GAGOS's writers on his OpenAI plan. Each plan has its own share of a batch (Claude 4, OpenAI 4), and Claude Code stays the reviewer. Every plan writer is now the counter's own `PlanCliClient`, one sealed path, and `ClaudeCodeWriter` is gone. Live: GPT-6.1 terra wrote a 29-line first test for `starterPathData.ts` that passed the static checks (`gd-e61dde2b13`, 14 s).
+  - **Still not done, and bigger:**
+    - Changes across several files.
+    - A frontend sandbox (a Node image) so frontend proposals' tests run before review.
+    - Nothing restarts the face after a reboot.
 
 ## Afternoon of 2026-11-03 (branch `feat/gagos-tasks`, off master `634b484d`)
 
