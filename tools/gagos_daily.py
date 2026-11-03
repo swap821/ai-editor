@@ -68,7 +68,10 @@ from aios.maintenance.daily_work import (  # noqa: E402
     REVIEW_SCHEMA,
     REQUIRED_REVIEWERS,
     REVIEWERS,
+    TASK_RULE,
+    TASK_STATUSES,
     TESTER_SYSTEM,
+    TaskRefused,
     DailyLedger,
     Direction,
     load_direction,
@@ -95,6 +98,10 @@ from aios.maintenance.daily_work import (  # noqa: E402
     review_prompt,
     static_verdict,
     subject_of,
+    task_prompt,
+    task_review_prompt,
+    task_system,
+    task_verdict,
     unified_diff,
     unmask,
 )
@@ -445,6 +452,108 @@ def governed_completer(model: str, region: str):
 # --------------------------------------------------------------------- propose
 
 
+def task_jobs(
+    led: DailyLedger,
+    root: Path,
+    head: str,
+    busy: set[str],
+    notes: tuple[str, ...],
+    facts: tuple[str, ...],
+    budget: int,
+) -> list[tuple]:
+    """The operator's open tasks made ready, oldest first, as the same jobs the
+    batch makes of lint findings (the last element is the task's id). What
+    GAGOS cannot do is refused here with a reason, and no model is asked. A task
+    whose file another unmerged GAGOS change or an earlier task of this batch
+    holds waits, open, for a later hour."""
+    jobs: list[tuple] = []
+    editable: dict[bool, set[str] | Exception] = {}
+    held: set[str] = set()
+    for task in led.tasks(status="open"):
+        if len(jobs) >= budget:
+            break
+        tid, rel = task["task_id"], task["rel"]
+
+        def refuse(reason: str) -> None:
+            led.refuse_task(tid, reason)
+            print(f"  task {tid} refused: {reason}")
+
+        python = is_python(rel)
+        if python not in editable:
+            # The same files its lint work may change: never the frozen core
+            # nor an organ's entrypoint.
+            try:
+                editable[python] = set(
+                    editable_python_files(root)
+                    if python
+                    else editable_frontend_files(root)
+                )
+            except (StaticCheckUnavailable, subprocess.CalledProcessError) as exc:
+                editable[python] = exc
+        allowed = editable[python]
+        if isinstance(allowed, Exception):
+            print(
+                f"  task {tid} waits: which files GAGOS may edit is unknown: {allowed}"
+            )
+            continue
+        if rel not in allowed:
+            refuse(
+                f"{rel} is not a file GAGOS may edit: it does not exist here, or it "
+                "is frozen core, an organ's entrypoint or a port"
+            )
+            continue
+        if rel in busy or rel in held:
+            print(f"  task {tid} waits: another GAGOS change holds {rel}")
+            continue
+        try:
+            text = (root / rel).read_bytes().decode("utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            refuse(f"{rel} cannot be read as text: {exc}")
+            continue
+        if len(text) > MAX_FILE_CHARS:
+            refuse(
+                f"{rel} is {len(text)} characters; the bound for a whole-file "
+                f"proposal is {MAX_FILE_CHARS}"
+            )
+            continue
+        try:
+            masked, mapping = mask_lines(text, egress_redact)
+        except MaskingFailed as exc:
+            refuse(str(exc))
+            continue
+        # His words are scrubbed like his direction notes before any model
+        # reads them.
+        prompt = task_prompt(
+            rel,
+            egress_redact(task["text"]),
+            masked,
+            masked=bool(mapping),
+            facts=notes if python else facts,
+        )
+        system = task_system(rel)
+        altered = would_be_altered(prompt, system)
+        if altered:
+            refuse(altered)
+            continue
+        common = dict(
+            base_text=text, base_commit=head, facts=notes if python else facts
+        )
+        held.add(rel)
+        jobs.append(
+            (
+                Finding(rel, TASK_RULE, ()),
+                text,
+                masked,
+                mapping,
+                prompt,
+                system,
+                common,
+                tid,
+            )
+        )
+    return jobs
+
+
 def cmd_propose(args: argparse.Namespace) -> int:
     root = Path(args.project).resolve()
     led = ledger()
@@ -512,6 +621,8 @@ def cmd_propose(args: argparse.Namespace) -> int:
             + ", ".join(f"{rule} {n}" for rule, n in sorted(waiting.items(), key=str))
         )
     if args.dry_run:
+        for t in led.tasks(status="open")[: args.budget]:
+            print(f"  would take task {t['task_id']} in {t['rel']}")
         for f in work[: args.budget]:
             print(f"  would propose: {f.rule} in {f.rel} ({len(f.warnings)})")
         return 0
@@ -523,8 +634,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
         )
         return 2
     # Each finding is made ready here, one at a time and without a model:
-    # what cannot be sent is recorded and costs nothing of the batch.
-    jobs = []
+    # what cannot be sent is recorded and costs nothing of the batch. The
+    # operator's tasks come first (2026-11-03), oldest first.
+    jobs = task_jobs(led, root, head, busy, notes, facts, args.budget)
     for f in work:
         if len(jobs) >= args.budget:
             break
@@ -584,7 +696,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  skipped {f.rel}: {altered}")
             continue
-        jobs.append((f, text, masked, mapping, prompt, system, common))
+        jobs.append((f, text, masked, mapping, prompt, system, common, None))
     if args.model:
         roster, probe = (args.model,), None
     else:
@@ -642,8 +754,16 @@ def cmd_propose(args: argparse.Namespace) -> int:
     month, slot, lint = _month(), _slot(), threading.Lock()
 
     def attempt(n: int, job: tuple, model: str) -> None:
-        f, text, masked, mapping, prompt, system, common = job
+        f, text, masked, mapping, prompt, system, common, task_id = job
         common = dict(common, model=model)
+
+        def took(pid: str) -> None:
+            # A proposal with a model's answer takes the operator's task, passed
+            # or refused by the checks; one for a failed call does not, so the
+            # task is tried again next hour.
+            if task_id:
+                led.take_task(task_id, pid)
+
         chars_in = len(prompt) + len(system)
         # A call on the operator's plan costs nothing against the AWS ceiling;
         # it is still held and settled, so its request id is its own.
@@ -704,6 +824,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             pid = led.record_proposal(
                 f, **common, new_text=None, verdict=None, refusal=str(exc)
             )
+            took(pid)
             print(f"  {pid} {f.rel} ({model}): refused: {exc}")
             return
         try:
@@ -724,19 +845,22 @@ def cmd_propose(args: argparse.Namespace) -> int:
                 verdict=None,
                 refusal=f"static checks unavailable: {exc}",
             )
+            took(pid)
             print(f"  {pid} {f.rel} ({model}): {exc}")
             return
-        verdict = (
-            first_test_verdict(f, new_text, after)
-            if before is None
-            else static_verdict(f, text, new_text, before, after)
-        )
+        if task_id:
+            verdict = task_verdict(f.rel, text, new_text, before, after)
+        elif before is None:
+            verdict = first_test_verdict(f, new_text, after)
+        else:
+            verdict = static_verdict(f, text, new_text, before, after)
         if verdict.passed and is_python(f.rel):
             # Ruff sees one file; what other modules take from it is checked here.
             taken = import_refusal(root, f.rel, text, new_text)
             if taken:
                 verdict = StaticVerdict(False, taken, verdict.changed_lines)
         pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
+        took(pid)
         state = (
             "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
         )
@@ -991,6 +1115,17 @@ def review_evidence(p: dict, finding: Finding) -> str:
         # The module and the whole new test, under the module's mask.
         masked_new = mask_like(p["new_text"], mapping)
         prompt = first_test_review_prompt(finding, masked_base, masked_new, facts=facts)
+    elif finding.rule == TASK_RULE:
+        # The reviewer is shown the operator's task, scrubbed, in place of a
+        # rule and its warnings.
+        task = ledger().task_of_proposal(p["proposal_id"])
+        if task is None:
+            raise MaskingFailed(f"{UNSHOWABLE}: the task of this proposal is unknown")
+        masked_new = mask_aligned(p["new_text"], p["base_text"], masked_base, mapping)
+        diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
+        prompt = task_review_prompt(
+            finding.rel, egress_redact(task["text"]), masked_base, diff, facts=facts
+        )
     else:
         # Kept lines exactly as in the masked original, so the diff shows
         # only what the proposal changed.
@@ -1177,10 +1312,13 @@ PR_FOOTER_APP = (
 PR_FOOTER = PR_FOOTER_NO_APP
 
 
-def commit_message(p: dict, reviews: dict, *, moot: str | None = None) -> str:
+def commit_message(
+    p: dict, reviews: dict, *, moot: str | None = None, task: dict | None = None
+) -> str:
     """GAGOS's commit for one delivered change: what it did, how it was
     checked, who reviewed it, and the frontier model credited as co-author.
-    *moot*: the delivery check that fails on master without the change too."""
+    *moot*: the delivery check that fails on master without the change too.
+    *task*: the operator's task, for a proposal made for one."""
     warnings = json.loads(p["warnings"])
     sandbox = SandboxVerdict.from_json(p["sandbox"]) if p.get("sandbox") else None
     tested = (
@@ -1207,6 +1345,20 @@ def commit_message(p: dict, reviews: dict, *, moot: str | None = None) -> str:
             "checks passed: it parses, has no ESLint message, imports its module "
             "and reaches nothing outside itself. Checked on master: it parses, has "
             "no ESLint error, and it passes.",
+        ]
+    elif p["rule"] == TASK_RULE:
+        # His words, scrubbed like everything else that leaves the machine.
+        said = egress_redact((task or {}).get("text", "").strip())
+        first = (said.splitlines() or [""])[0]
+        title = first if len(first) <= 60 else first[:57].rstrip() + "..."
+        head = [
+            f"GAGOS: the operator's task in {p['rel']}: {title}",
+            "",
+            f"The operator wrote this task in plain words (task "
+            f"{(task or {}).get('task_id', 'unknown')}): {first}",
+            f"GAGOS proposed this change (proposal {p['proposal_id']}); "
+            f"{model_name(p['model'])} wrote it. Unattended checks passed: it "
+            "parses and adds no lint message. Checked again on master: " + checked,
         ]
     else:
         head = [
@@ -1586,7 +1738,9 @@ def cmd_deliver(args: argparse.Namespace) -> int:
             "commit",
             "-q",
             "-m",
-            commit_message(p, led.reviews(pid), moot=moot),
+            commit_message(
+                p, led.reviews(pid), moot=moot, task=led.task_of_proposal(pid)
+            ),
         )
         sha = _git(root, "rev-parse", "HEAD")
         led.record_delivery(pid, branch=branch, outcome="committed", commit_sha=sha)
@@ -1693,6 +1847,30 @@ def efficiency(every: list[dict], spent: float) -> list[str]:
     ]
 
 
+def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
+    """The report's lines on the operator's tasks: counts by status, and each
+    task still moving (open, or taken and not yet delivered). Never his words."""
+    progress = led.task_progress()
+    if not progress:
+        return []
+    by = Counter(t["status"] for t in progress)
+    out = [
+        "**Tasks** (the operator's, in his words; "
+        + ", ".join(f"{s} {by[s]}" for s in TASK_STATUSES)
+        + "):"
+    ]
+    for t in progress:
+        if t["status"] == "open":
+            out.append(f"- `{t['task_id']}` in `{scrub(t['rel'])}`: open")
+        elif t["status"] == "taken":
+            p = t["proposal"]
+            out.append(
+                f"- `{t['task_id']}` in `{scrub(t['rel'])}`: taken"
+                + (f", proposal `{p['proposal_id']}` {p['status']}" if p else "")
+            )
+    return [*out, ""]
+
+
 def report(
     led: DailyLedger,
     *,
@@ -1745,6 +1923,7 @@ def report(
         "- merged and reverted are not tracked automatically yet; read them from master.",
         "",
     ]
+    out += task_section(led, s)
     month = _month()
     spent = led.month_spend(month)
     out += [
@@ -2033,6 +2212,46 @@ def cmd_daily(args: argparse.Namespace) -> int:
     return 0
 
 
+# --------------------------------------------------------------------- tasks
+
+
+def cmd_task(args: argparse.Namespace) -> int:
+    """The operator's tasks (2026-11-03): add one, list them, cancel an open one."""
+    led = ledger()
+    if args.task_command == "add":
+        try:
+            tid = led.add_task(
+                args.file, args.text, said_by="the operator (command line)"
+            )
+        except TaskRefused as exc:
+            print(f"refused: {exc}")
+            return 2
+        print(tid)
+        return 0
+    if args.task_command == "cancel":
+        if led.cancel_task(args.task_id):
+            print(f"{args.task_id}: cancelled")
+            return 0
+        task = led.task(args.task_id)
+        print(
+            f"{args.task_id}: not cancelled, "
+            + (f"it is {task['status']}, not open" if task else "no such task")
+        )
+        return 2
+    for t in led.task_progress():
+        p = t["proposal"]
+        state = t["status"]
+        if p:
+            state += f" -> proposal {p['proposal_id']} {p['status']}"
+            if p["pr_url"]:
+                state += f" {p['pr_url']}"
+        elif t["status"] == "refused" and t["reason"]:
+            state += f" ({t['reason']})"
+        first = (t["text"].splitlines() or [""])[0]
+        print(f"{t['task_id']} {state} {t['rel']}: {first}")
+    return 0
+
+
 # --------------------------------------------------------------------- main
 
 
@@ -2125,6 +2344,18 @@ def main(argv: list[str] | None = None) -> int:
     g.add_argument("--clear", action="store_true", help="start from no direction")
     g.add_argument("--said", default="", help="what he said, verbatim, for the history")
     g.set_defaults(func=cmd_direct)
+
+    k = sub.add_parser(
+        "task", help="the operator's tasks: a change in his words, on one file"
+    )
+    ksub = k.add_subparsers(dest="task_command", required=True)
+    ka = ksub.add_parser("add", help="queue a task for GAGOS's writers")
+    ka.add_argument("--file", required=True, help="the project-relative file")
+    ka.add_argument("text", help="the change, in plain words")
+    ksub.add_parser("list", help="every task and what became of it")
+    kc = ksub.add_parser("cancel", help="withdraw a task no writer has taken")
+    kc.add_argument("task_id")
+    k.set_defaults(func=cmd_task)
 
     o = sub.add_parser("report")
     o.add_argument("--day", default=None)
