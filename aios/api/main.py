@@ -497,6 +497,7 @@ from aios.api.routes.local_workforce import router as _local_workforce_router
 from aios.api.routes.hiring import router as _hiring_router
 from aios.api.routes.skills import router as _skills_router
 from aios.api.routes.maintenance import router as _maintenance_router
+from aios.api.routes.gagos_tasks import router as _gagos_tasks_router
 
 app.include_router(_system_router)
 app.include_router(_auth_router)
@@ -519,6 +520,7 @@ app.include_router(_local_workforce_router)
 app.include_router(_hiring_router)
 app.include_router(_skills_router)
 app.include_router(_maintenance_router)
+app.include_router(_gagos_tasks_router)
 
 
 # Re-exported from the middleware module: tests and older callers import these
