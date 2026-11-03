@@ -1,0 +1,38 @@
+# The sandbox image for VERIFYING the frontend's tests (2026-11-03), beside
+# Dockerfile.verify (the Python tests). Before it, a model-written change to
+# frontend/ was tested only at delivery, on the operator's checkout; with it,
+# the tests run sealed before review, as a Python proposal's do.
+#
+# It carries Node and the frontend's dependencies, installed from
+# frontend/package.json + package-lock.json with `npm ci`, and NO copy of the
+# code: the tests run the checkout mounted at /workspace. The executor runs it
+# with the same flags as any sandbox (no network, read-only root, every
+# capability dropped, memory and pid limits, /tmp the only writable path), so
+# tools/verify_web_run.sh copies the frontend to /tmp and links these
+# node_modules in. Rebuild it whenever package-lock.json changes; the tag
+# names the lock file it holds:
+#
+#   docker build -f Dockerfile.verify-web \
+#     --label package-lock.sha256=<sha256 of frontend/package-lock.json> \
+#     -t aios-verify-web:<first 12 of that sha256> .
+#
+# See docs/operations/WORK_SCOPE.md.
+FROM node:24-bookworm-slim
+
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false \
+    NPM_CONFIG_FUND=false \
+    NPM_CONFIG_AUDIT=false
+
+WORKDIR /opt/web
+COPY frontend/package.json frontend/package-lock.json ./
+# Tests need no browser, native toolchain or lifecycle script's side effects.
+RUN npm ci --ignore-scripts --no-audit --no-fund \
+    && npm cache clean --force \
+    && chmod -R a+rX /opt/web
+
+COPY tools/verify_web_run.sh /opt/verify_web_run.sh
+RUN sed -i 's/\r$//' /opt/verify_web_run.sh && chmod 755 /opt/verify_web_run.sh
+
+WORKDIR /workspace
+USER 65534:65534
+ENTRYPOINT []
