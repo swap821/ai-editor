@@ -11,11 +11,10 @@ never sends doc content to any external service.
 from __future__ import annotations
 
 import hashlib
-import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from aios import config
 from aios.memory.db import get_connection, init_memory_db
