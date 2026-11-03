@@ -67,6 +67,8 @@ if str(REPO) not in sys.path:
 
 from aios import config  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
+    BEHAVIOUR_RULES,
+    UNTESTED_BEHAVIOUR,
     FIRST_RULES,
     MISSING_TEST,
     NO_MODEL,
@@ -138,6 +140,7 @@ from aios.core.plan_cli import claude_executable as _claude_executable  # noqa: 
 from aios.maintenance.sandbox_tests import (  # noqa: E402
     BROKE_PREFIX,
     PASSED,
+    UNAVAILABLE,
     BaseTrees,
     SandboxVerdict,
     run_change_tests,
@@ -194,7 +197,7 @@ WORKFORCE = (*CLAUDE_WRITERS, *CODEX_WRITERS, *BEDROCK_WRITERS)
 #: GAGOS's work when the operator names none (2026-11-02): the lint rules
 #: whose fix keeps behaviour, in its frontend and in its Python (its backend and
 #: itself), then a first test for each frontend module that has none.
-WORK_RULES = (*FIRST_RULES, *PYTHON_RULES, MISSING_TEST)
+WORK_RULES = (*FIRST_RULES, *PYTHON_RULES, *BEHAVIOUR_RULES, MISSING_TEST)
 #: An existing test shown to the test writer for this codebase's conventions,
 #: when one this short sits beside the module and needs no masking.
 MAX_EXAMPLE_CHARS = 6_000
@@ -1343,6 +1346,15 @@ def whole_tasks(led: DailyLedger, rows: list[dict]) -> list[list[dict]]:
     return units
 
 
+def awaits_tests(p: dict) -> bool:
+    """A behaviour-changing fix whose tests have not yet run and passed."""
+    if p["rule"] not in BEHAVIOUR_RULES:
+        return False
+    if not p.get("sandbox"):
+        return True
+    return SandboxVerdict.from_json(p["sandbox"]).outcome != PASSED
+
+
 def cmd_review(args: argparse.Namespace) -> int:
     led = ledger()
     again = set(getattr(args, "again", None) or ())
@@ -1365,7 +1377,9 @@ def cmd_review(args: argparse.Namespace) -> int:
             and p["status"] in ("proposed", "accepted", "rejected")
         ]
     else:
-        pending = led.awaiting(args.reviewer)
+        # A fix that can change behaviour is read only after its tests ran in
+        # the sandbox and passed (2026-11-04).
+        pending = [p for p in led.awaiting(args.reviewer) if not awaits_tests(p)]
     units = whole_tasks(led, pending)
     if not again:
         units = units[: args.limit]
@@ -1466,10 +1480,24 @@ def cmd_test(args: argparse.Namespace) -> int:
                 base_commit=p["base_commit"],
                 changes={m["rel"]: m["new_text"] for m in unit},
             )
+            refusal = verdict.refusal
+            if (
+                refusal is None
+                and verdict.outcome != PASSED
+                and any(m["rule"] in BEHAVIOUR_RULES for m in unit)
+            ):
+                # A fix that can change behaviour reaches review only with
+                # tests that ran and passed (2026-11-04, GAGOS completing
+                # itself). The sandbox not running is not its fault: it waits.
+                if verdict.outcome == UNAVAILABLE:
+                    print(
+                        f"  {', '.join(m['proposal_id'] for m in unit)}: waits, "
+                        f"its tests could not run: {verdict.summary}"
+                    )
+                    continue
+                refusal = f"{UNTESTED_BEHAVIOUR}: {verdict.summary}"
             for m in unit:
-                led.record_sandbox(
-                    m["proposal_id"], verdict.to_json(), refusal=verdict.refusal
-                )
+                led.record_sandbox(m["proposal_id"], verdict.to_json(), refusal=refusal)
             print(
                 f"  {', '.join(m['proposal_id'] for m in unit)} "
                 f"{', '.join(m['rel'] for m in unit)}: tests "
