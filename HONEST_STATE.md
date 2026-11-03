@@ -1,9 +1,37 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-03 ("Later on 2026-11-03" below; earlier sections keep the
+**Last updated:** 2026-11-03 ("Afternoon of 2026-11-03" below; earlier sections keep the
 commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Afternoon of 2026-11-03 (branch `feat/gagos-tasks`, off master `634b484d`)
+
+- **The operator merged #586 (GAGOS's three Python fixes) and #587 (the test-name fix).** #587 went in linear, as `634b484d`.
+- **The two proposals the test-name bug had blocked are accepted.** I reopened them with `review --again` at 07:31 UTC, and Claude Code accepted both: Haiku's `doc_ingest.py` and Sonnet's `curriculum_miner.py`.
+- **GAGOS takes tasks the operator writes, in its workshop, counter and face.**
+  - **The request.** The operator asked why GAGOS's changes are only one or two lines. I answered honestly that so far it is held to lint fixes that keep behaviour, one file at a time, with a reach check. He replied: "Yes there is lot of work ... in every infra-end of GAGOS plz start that multi-agent workflow". Workshop, counter and face are my own earlier names for GAGOS's hourly worker, its backend, and its frontend.
+  - **How it was built.**
+    - I wrote the shared contract myself (`bcf9e58c`): a `tasks` table in GAGOS's ledger. A task is his words plus one file, and it moves once: from open to taken, refused or cancelled.
+    - A workflow ran three Sonnet builders in parallel worktrees, then two adversarial reviewers.
+    - I reviewed every diff, integrated the three, and fixed the one bug both reviewers found.
+  - **The workshop.**
+    - Open tasks go first in each batch.
+    - A task on a file GAGOS may not edit is refused before any model is asked: the frozen core, an organ's entrypoint, or a file that does not exist.
+    - His words are scrubbed before any model reads them.
+    - A failed model call leaves the task open for the next hour.
+    - The checks: the change parses, no lint count rises, nothing is silenced, and something changes. There is no reach check.
+    - The reviewer judges the change against his words. The commit says it was his task.
+    - `task add/list/cancel` on the command line.
+  - **The counter.** `GET /api/gagos/tasks` (GREEN), plus `POST /api/gagos/tasks` and `POST /api/gagos/tasks/{task_id}/cancel` (YELLOW, so each asks for his approval). All three need the privileged operator. They never call a model and never return his principal.
+  - **The face.** A "GAGOS tasks" panel under Expert, next to Maintenance: write a task and watch it through writer, sandbox, review and PR. It uses the existing guarded command client and existing tokens only. I have not looked at it in a browser.
+  - **The bug both reviewers found, fixed.** A task and a lint fix on the same file became two proposals on one base, so one would go stale. Now a file a task takes gets no lint fix in that batch. The new test fails without the fix.
+  - **Organ evidence.** The counter had to touch three organ entrypoints: `aios/policy/kernel.py`, where every route must be declared; `aios/domain/actions/envelope.py`; and `aios/api/main.py`. Organs 7, 25, 26, 27, 30, 32, 42, 45 and 52 were re-gathered at the branch tip `725a2e1c`: every claimed organ passed, with Docker live. None is a spine organ. A squash merge will orphan that tip, so they need re-gathering on master afterwards, as before.
+  - **Tests.**
+    - The tasks suites, GAGOS's suites, and the route, policy, action and organ guards pass.
+    - The panel's tests and the shell's pass, 67 of 67. ESLint and `tsc --noEmit` are clean.
+    - The Bandit gate passes.
+  - **Not yet:** changes that span several files; a frontend sandbox; and Codex writers (GPT-6.1 terra and GPT-6 luna each answered one call today), which come next.
 
 ## Later on 2026-11-03 (branch `fix/gagos-sandbox-names-egress`, off master `e71d2694`)
 
