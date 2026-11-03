@@ -334,11 +334,19 @@ class PlanCliClient:
 
     # the chat-client contract
     def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+        """One prompt, sent as written (after the privacy filter): the
+        workshop's writers use this, with their own answer format."""
         outbound = [{"role": "system", "content": system}] if system else []
         outbound.append({"role": "user", "content": prompt})
         safe = self._filtered_for_egress(outbound)
-        sys_text, body = _transcript(safe, None)
-        return str(self._ask(self.model, sys_text, body, None) or "")
+        sys_text = "\n\n".join(
+            str(m["content"]) for m in safe if m["role"] == "system" and m["content"]
+        )
+        body = next(str(m["content"]) for m in safe if m["role"] == "user")
+        answer = str(self._ask(self.model, sys_text, body, None) or "")
+        if not answer.strip():
+            raise LLMError("the plan model's answer was empty")
+        return answer
 
     def chat(
         self,
