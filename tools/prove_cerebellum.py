@@ -29,7 +29,7 @@ from pathlib import Path
 # below the project root).
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from aios.core.cerebellum import Cerebellum, _parse_step, PlaybookStep
+from aios.core.cerebellum import Cerebellum, _parse_step
 from aios.memory.db import init_memory_db, get_connection
 
 
