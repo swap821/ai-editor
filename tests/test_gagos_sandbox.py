@@ -289,7 +289,7 @@ def test_a_proposal_that_broke_its_tests_never_reaches_a_reviewer(
     monkeypatch.setattr(tool, "ledger", lambda: led)
     monkeypatch.setattr(tool, "BaseTrees", _Trees)
     monkeypatch.setattr(
-        tool,
+        st,
         "run_proposal_tests",
         lambda trees, **kw: st.SandboxVerdict(
             st.BROKE,
@@ -314,7 +314,7 @@ def test_the_reviewer_reads_what_the_tests_did(tmp_path, monkeypatch) -> None:
     monkeypatch.setattr(tool, "ledger", lambda: led)
     monkeypatch.setattr(tool, "BaseTrees", _Trees)
     monkeypatch.setattr(
-        tool,
+        st,
         "run_proposal_tests",
         lambda trees, **kw: st.SandboxVerdict(st.PASSED, "9 tests in 2 files pass"),
     )

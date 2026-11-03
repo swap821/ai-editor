@@ -198,7 +198,7 @@ def _middle(line: str, redacted: str) -> tuple[int, int]:
 
 
 def mask_lines(
-    text: str, redact: Callable[[str], str], *, rounds: int = 4
+    text: str, redact: Callable[[str], str], *, rounds: int = 4, min_width: int = 1
 ) -> tuple[str, dict[str, str]]:
     """Hide what GAGOS's egress scrubbers would redact behind placeholders the
     model must keep: ``(masked text, {placeholder: original})``.
@@ -212,8 +212,12 @@ def mask_lines(
     earlier one, and :func:`unmask` restores them in reverse. Line count never
     changes, so warning line numbers hold. The caller re-checks the whole
     prompt before sending anything.
+
+    *min_width* starts the placeholder prefix at that many ``Q``s: a task over
+    several files masks each file under a prefix of its own, so a placeholder
+    moved from one file into another is never restored as the wrong span.
     """
-    width = 1
+    width = max(1, min_width)
     while f"GAGOSMASK{'Q' * width}_" in text:
         width += 1
     prefix = f"GAGOSMASK{'Q' * width}_"
@@ -877,6 +881,206 @@ def task_review_prompt(
             "```",
         ]
     )
+
+
+# ------------------------------------------------------- a task over several files
+
+#: The most characters of file text a task over several files may send: the
+#: writer returns every file it changes whole, in ONE answer, and an answer holds
+#: at most 12,000 tokens (about 36,000 characters at three a token). Thirty
+#: thousand leaves room for the labels and for a change that grows the files; a
+#: task over more is refused with the number, never cut short.
+MAX_TASK_TOTAL_CHARS = 30_000
+
+#: How a writer labels each file it returns, and how it is told to: the file's
+#: index in the task, and its name, never its path.
+_FILE_LABEL = re.compile(r"^[ \t#*=_-]*File[ \t]+(\d+)\b[^\n]*$", re.MULTILINE)
+
+
+def file_label(index: int, rel: str) -> str:
+    """The label of file *index* (from 1) of a task: shown to the writer and the
+    reviewer, never a path."""
+    return f"File {index}: {Path(rel).name}"
+
+
+def task_files_system(rels: Sequence[str]) -> str:
+    """The writer's instruction for a task over several files."""
+    kinds = {is_python(rel) for rel in rels}
+    what = (
+        "Python files of GAGOS's own code"
+        if kinds == {True}
+        else "files of a React + TypeScript codebase"
+        if kinds == {False}
+        else "files of GAGOS's own code, Python and React + TypeScript"
+    )
+    rules = []
+    if False in kinds:
+        rules.append(
+            "a frontend file must add no ESLint warning or error and never gain "
+            "eslint-disable, @ts-ignore, @ts-nocheck or @ts-expect-error"
+        )
+    if True in kinds:
+        rules.append(
+            "a Python file must add no ruff warning or error, keep every public "
+            "name other modules import from it, and never gain noqa, type: "
+            "ignore, nosec or pragma comments"
+        )
+    return (
+        f"You are GAGOS's maintainer. The operator has asked for one change that "
+        f"spans several {what}. Make exactly that change and nothing else: keep "
+        "everything else in every file as it is, and do not reformat, reorder or "
+        "rename anything the task does not need changed. "
+        + "; ".join(rules)[:1].upper()
+        + "; ".join(rules)[1:]
+        + ". Reply with, for each file you change, a line `File N: name` exactly "
+        "as the file is labelled, then the complete changed file in ONE fenced "
+        "code block. Leave out every file you do not change. If the task cannot "
+        "be done in these files, change none of them and reply with no fenced "
+        "code block."
+    )
+
+
+def task_files_prompt(
+    task_text: str,
+    files: Sequence[tuple[str, str]],
+    *,
+    masked: bool = False,
+    facts: Sequence[str] = (),
+) -> str:
+    """The writer's prompt for a task over several files: *task_text* already
+    scrubbed, and *files* as ``(rel, text)`` (the text already masked), each
+    under its :func:`file_label`."""
+    lines = ["The operator's task:", task_text]
+    if facts:
+        lines += [
+            "",
+            "Facts about this project, and the operator's direction:",
+            *(f"  - {fact}" for fact in facts),
+        ]
+    if masked:
+        lines += [
+            "",
+            "Some spans are replaced by placeholders (GAGOSMASK followed by letters, digits and an underscore): they "
+            "hide paths or values that may not leave this machine. Each file has "
+            "placeholders of its own; keep every placeholder you keep exactly as "
+            "written, in the file it is in; never invent one.",
+        ]
+    for n, (rel, text) in enumerate(files, 1):
+        lines += ["", f"{file_label(n, rel)}", "```", text, "```"]
+    return "\n".join(lines)
+
+
+def parse_task_files(raw: str, originals: Sequence[str]) -> dict[int, str]:
+    """The files a writer changed, from its answer to a task over several:
+    ``{index from 0: whole file}``, each in its original's line endings and
+    final-newline convention. A file left out is unchanged; an answer with no
+    fenced block changes nothing. Refused: a block with no ``File N`` label
+    before it, a label with no block after it, a label of a file the task does
+    not have, a file given twice."""
+    out: dict[int, str] = {}
+    pending: int | None = None
+    at = 0
+
+    def labels(chunk: str) -> None:
+        nonlocal pending
+        for label in _FILE_LABEL.finditer(chunk):
+            if pending is not None:
+                raise ProposalRefused(
+                    f"File {pending} is labelled but has no fenced code block"
+                )
+            pending = int(label.group(1))
+            if not 1 <= pending <= len(originals):
+                raise ProposalRefused(
+                    f"the answer labels File {pending}; the task has "
+                    f"{len(originals)} file(s)"
+                )
+
+    for block in _FENCE.finditer(raw or ""):
+        labels(raw[at : block.start()])
+        if pending is None:
+            raise ProposalRefused("a fenced code block has no `File N` label before it")
+        index = pending - 1
+        if index in out:
+            raise ProposalRefused(f"File {pending} is given twice")
+        out[index] = parse_proposal(
+            f"```\n{block.group(1)}```", original=originals[index]
+        )
+        pending, at = None, block.end()
+    labels((raw or "")[at:])
+    if pending is not None:
+        raise ProposalRefused(
+            f"File {pending} is labelled but has no fenced code block"
+        )
+    return out
+
+
+def task_files_review_prompt(
+    task_text: str,
+    parts: Sequence[tuple[str, str, str]],
+    *,
+    facts: Sequence[str] = (),
+) -> str:
+    """What a reviewer reads for a task over several files: the operator's words
+    (already scrubbed), then each changed file as ``(rel, masked original,
+    diff)`` under its label. One verdict is asked for the whole change."""
+    kinds = {is_python(rel) for rel, _base, _diff in parts}
+    part = (
+        "backend (Python; GAGOS's own code)"
+        if kinds == {True}
+        else "frontend"
+        if kinds == {False}
+        else "backend and frontend"
+    )
+    linters = " and ".join(
+        name for name, on in (("ruff", True in kinds), ("ESLint", False in kinds)) if on
+    )
+    known = (
+        [
+            "",
+            "Facts about this project (from its configuration) and the operator's direction:",
+        ]
+        + [f"  - {fact}" for fact in facts]
+        if facts
+        else []
+    )
+    lines = [
+        "You are reviewing a change GAGOS (an AI system) made to its own "
+        f"{part} because its operator asked for it in plain words. The change "
+        f"spans {len(parts)} files and is accepted or rejected as a whole. You "
+        "are its reviewer: if you accept, it goes to the operator to merge; if "
+        "you reject, it does not ship. Be strict and honest.",
+        "",
+        "ACCEPT only if ALL hold:",
+        "- the change, across the files together, does what the operator's task "
+        "asks, and the files agree with one another;",
+        "- it does only that: nothing else in any file is changed, reformatted "
+        "or removed;",
+        "- it breaks nothing: behaviour and public names the task did not ask "
+        "to change are as before, and nothing is silenced (no disable, "
+        "ts-ignore, noqa or type: ignore comments);",
+        "- the code is correct and would pass review in this codebase.",
+        "Otherwise REJECT, and say exactly why in one or two sentences.",
+        f"Automated checks already passed: every file parses and adds no {linters} message.",
+        "",
+        "The operator's task:",
+        task_text,
+        *known,
+    ]
+    for n, (rel, base, diff) in enumerate(parts, 1):
+        lines += [
+            "",
+            file_label(n, rel),
+            "The whole original file:",
+            "```",
+            base,
+            "```",
+            "",
+            "The proposed change:",
+            "```diff",
+            diff,
+            "```",
+        ]
+    return "\n".join(lines)
 
 
 # --------------------------------------------------------------------- tests
@@ -2087,11 +2291,18 @@ class DailyLedger:
         return out
 
     def task_of_proposal(self, proposal_id: str) -> dict | None:
-        """The task a proposal was made for, or None (a lint fix has none)."""
+        """The task a proposal was made for, or None (a lint fix has none). A
+        task over several files is found from any one of its proposals."""
         with self._db() as db:
             row = db.execute(
                 "SELECT * FROM tasks WHERE proposal_id = ?", (proposal_id,)
             ).fetchone()
+            if row is None:
+                row = db.execute(
+                    "SELECT t.* FROM tasks t JOIN proposals p ON p.group_id = "
+                    "t.task_id WHERE p.proposal_id = ?",
+                    (proposal_id,),
+                ).fetchone()
         return dict(row) if row else None
 
     def rels_in_prs(self, pr_urls: Iterable[str]) -> set[str]:
@@ -2117,6 +2328,7 @@ __all__ = [
     "Finding",
     "MASK_TOKEN",
     "MAX_REACH",
+    "MAX_TASK_TOTAL_CHARS",
     "MAX_TEST_LINES",
     "MISSING_TEST",
     "NO_MODEL",
@@ -2144,6 +2356,8 @@ __all__ = [
     "missing_tests",
     "parse_proposal",
     "parse_review",
+    "parse_task_files",
+    "file_label",
     "project_facts",
     "proposal_prompt",
     "proposer_system",
@@ -2151,6 +2365,9 @@ __all__ = [
     "set_direction",
     "static_verdict",
     "subject_of",
+    "task_files_prompt",
+    "task_files_review_prompt",
+    "task_files_system",
     "task_prompt",
     "task_review_prompt",
     "task_system",
