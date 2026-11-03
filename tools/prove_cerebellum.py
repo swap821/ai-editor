@@ -175,7 +175,7 @@ def main() -> None:
         _separator("4. Compilation Guards — what does NOT compile")
 
         # Skill with failures
-        failed_id = _insert_verified_skill(
+        _insert_verified_skill(
             db_path,
             goal="a skill with failures",
             steps=["read_file: a.py"],
@@ -189,7 +189,7 @@ def main() -> None:
         )
 
         # Skill with edit_file step
-        edit_id = _insert_verified_skill(
+        _insert_verified_skill(
             db_path,
             goal="a skill with edit steps",
             steps=["read_file: a.py", "edit_file: a.py"],
