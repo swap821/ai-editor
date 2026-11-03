@@ -128,7 +128,7 @@ export default function CouncilServicesPanel() {
     try {
       await postJson(`/api/v1/council/services/${encodeURIComponent(serviceName)}/${start ? 'start' : 'stop'}`);
       void loadServices();
-    } catch (err) {
+    } catch {
       alert(`Could not toggle service ${serviceName}`);
     } finally {
       setBusyAction(null);
@@ -159,7 +159,7 @@ export default function CouncilServicesPanel() {
     try {
       const data = await fetchJson(`/api/v1/council/reports/${encodeURIComponent(reportMissionId)}`);
       setReportData(data);
-    } catch (err) {
+    } catch {
       alert('Report not found or error loading.');
     } finally {
       setReportBusy(false);

@@ -1,7 +1,7 @@
-import { render, screen, act } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import CouncilDeliberationPanel from './CouncilDeliberationPanel';
-import { subscribeSwarmHUD, resetSwarmHUD } from '../superbrain/lib/swarmHUDStore';
+import { resetSwarmHUD } from '../superbrain/lib/swarmHUDStore';
 
 vi.mock('../components/HUDPanel', () => ({
   default: ({ title, children, tint }) => (
