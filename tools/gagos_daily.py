@@ -1124,6 +1124,16 @@ def review_evidence(p: dict, finding: Finding) -> str:
     if finding.rule == MISSING_TEST:
         # The module and the whole new test, under the module's mask.
         masked_new = mask_like(p["new_text"], mapping)
+    else:
+        # Kept lines exactly as in the masked original, so the diff shows
+        # only what the proposal changed.
+        masked_new = mask_aligned(p["new_text"], p["base_text"], masked_base, mapping)
+    # What the writer added that the scrubbers would redact is hidden too, behind
+    # placeholders of its own (2026-11-03: three new test files by Sonnet and
+    # Haiku could not be shown, for a relative import, a regex the filter took
+    # for a path, and a fixed test UUID, none of them in the module).
+    masked_new, added = mask_lines(masked_new, egress_redact)
+    if finding.rule == MISSING_TEST:
         prompt = first_test_review_prompt(finding, masked_base, masked_new, facts=facts)
     elif finding.rule == TASK_RULE:
         # The reviewer is shown the operator's task, scrubbed, in place of a
@@ -1131,23 +1141,24 @@ def review_evidence(p: dict, finding: Finding) -> str:
         task = ledger().task_of_proposal(p["proposal_id"])
         if task is None:
             raise MaskingFailed(f"{UNSHOWABLE}: the task of this proposal is unknown")
-        masked_new = mask_aligned(p["new_text"], p["base_text"], masked_base, mapping)
         diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
         prompt = task_review_prompt(
             finding.rel, egress_redact(task["text"]), masked_base, diff, facts=facts
         )
     else:
-        # Kept lines exactly as in the masked original, so the diff shows
-        # only what the proposal changed.
-        masked_new = mask_aligned(p["new_text"], p["base_text"], masked_base, mapping)
         # The file's name, never its path: paths do not leave the machine.
         diff = unified_diff(Path(finding.rel).name, masked_base, masked_new)
         prompt = review_prompt(finding, masked_base, diff, facts=facts)
-    if mapping:
+    if mapping or added:
         prompt += (
             "\n\nSome spans are shown as placeholders (GAGOSMASK...): they hide "
             "paths or values that may not leave this machine. Judge the change "
             "around them; a placeholder is the same text before and after."
+        )
+    if added:
+        prompt += (
+            " A placeholder that appears only in the change hides something the "
+            "writer added (a path, a long name, an id); judge the code around it."
         )
     if p.get("sandbox"):
         # GAGOS's own report of its tests, scrubbed like everything else that

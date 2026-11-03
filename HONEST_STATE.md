@@ -31,6 +31,7 @@ commit they were measured on). The whole story, from the first commit, is
     - The tasks suites, GAGOS's suites, and the route, policy, action and organ guards pass.
     - The panel's tests and the shell's pass, 67 of 67. ESLint and `tsc --noEmit` are clean.
     - The Bandit gate passes.
+  - **A third egress gap, found at 08:50 UTC and fixed on this branch.** Sonnet and Haiku wrote three whole new frontend test files (56-124 lines); all three were refused as unshowable. The privacy filter alters a relative import (`'../superbrain/components/qualityTierContext'`), a regex it takes for a path (`/last-known/`) and a fixed test UUID, none of which were in the module, so the module's mask did not cover them. Now what a writer adds that the scrubbers would redact is hidden behind placeholders of its own, for every kind of proposal; the reviewer is told so. The new test fails without the fix; all three real proposals are showable now (3-11 placeholders each), to be reopened with `review --again` after merge.
   - **Not yet:** changes that span several files; a frontend sandbox; and Codex writers (GPT-6.1 terra and GPT-6 luna each answered one call today), which come next.
 
 ## Later on 2026-11-03 (branch `fix/gagos-sandbox-names-egress`, off master `e71d2694`)
