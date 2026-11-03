@@ -34,3 +34,5 @@
 .gagos-tasks__progress div { display: flex; flex-wrap: wrap; gap: 6px; }
 .gagos-tasks__progress dt { color: var(--text-3); }
 .gagos-tasks__progress dd { margin: 0; overflow-wrap: anywhere; }
+.gagos-tasks__members { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 4px; }
+.gagos-tasks__members li { overflow-wrap: anywhere; }

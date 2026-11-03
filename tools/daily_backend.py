@@ -28,6 +28,17 @@ user-wide choice, ``reasoning,coding``; general and fast turns stay local.
 Opus is left out: it would spend the plan he shares with his own sessions
 fastest. ``--cloud-tasks ""`` keeps every turn local.
 
+The face (2026-11-03, D14: "plz honestly do all"). The frontend dev server on
+:5173 did not start by itself after a reboot. ``up`` now also makes sure it
+answers: if ``http://localhost:5173`` is silent it starts ``npm run dev`` from
+``frontend/`` (no window, detached, output to ``data/services/frontend.log``)
+and records the pid in the state file; if something already answers, it is left
+alone and is not recorded as ours, so ``down`` never stops a server he started
+by hand. Without ``frontend/node_modules`` it starts nothing and says to run
+``npm ci``. The watchdog that already runs ``up`` every 15 minutes
+(``\\GAGOS\\backend``) thereby brings the face back after every reboot, with no
+change to his scheduled tasks.
+
 (``docs/operations/WORK_SCOPE.md`` and ``docs/operations/DAILY_BACKEND.md``.)
 
 Commands, from the repository root::
@@ -67,6 +78,8 @@ SERVICES = REPO / "data" / "services"
 STATE = SERVICES / "daily.json"
 BACKEND_PORT = 8000
 EXECUTOR_PORT = 8081
+FACE_PORT = 5173
+FRONTEND = REPO / "frontend"
 #: The keys the daily backend needs, and no others. Loading every stored key
 #: also sets ``AIOS_API_TOKEN``, which turns on token-only auth and refused the
 #: operator's own local tools (2026-10-19).
@@ -81,6 +94,9 @@ KEYS = (
     "AIOS_AUDIT_PRIVATE_KEY",
 )
 _DETACHED = (0x00000008 | 0x00000200) if os.name == "nt" else 0
+#: The face runs under cmd.exe (npm is a .cmd): CREATE_NO_WINDOW | NEW_PROCESS_GROUP.
+#: DETACHED_PROCESS would let cmd.exe open a console window of its own.
+_FACE_FLAGS = (0x08000000 | 0x00000200) if os.name == "nt" else 0
 
 
 def verify_image(repo: Path = REPO) -> str:
@@ -132,6 +148,79 @@ def _health(port: int, timeout: float = 3.0) -> Optional[int]:
         return exc.code
     except Exception:  # noqa: BLE001 - down is down
         return None
+
+
+def _face_health(timeout: float = 3.0) -> Optional[int]:
+    """The dev server answers ``/`` (any HTTP status counts as answering)."""
+    try:
+        with urllib.request.urlopen(
+            f"http://localhost:{FACE_PORT}", timeout=timeout
+        ) as response:
+            return response.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+    except Exception:  # noqa: BLE001 - down is down
+        return None
+
+
+def _face_command() -> list[str]:
+    # --strictPort: never drift to :5174 and leave :5173 silent.
+    run = ["npm", "run", "dev", "--", "--port", str(FACE_PORT), "--strictPort"]
+    return ["cmd.exe", "/c", *run] if os.name == "nt" else run
+
+
+def _write_state(state: dict[str, Any]) -> None:
+    SERVICES.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
+def _ensure_face(wait_s: float = 60) -> str:
+    """Make sure the face answers. Starts it only when :5173 is silent."""
+    status = _face_health()
+    if status is not None:
+        return f"already answers on :{FACE_PORT} (HTTP {status}); left alone"
+    if not (FRONTEND / "node_modules").is_dir():
+        return (
+            f"not started: {FRONTEND / 'node_modules'} is missing; "
+            f"run npm ci in {FRONTEND}"
+        )
+    SERVICES.mkdir(parents=True, exist_ok=True)
+    with (SERVICES / "frontend.log").open("w", encoding="utf-8") as log:
+        process = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+            _face_command(),
+            cwd=str(FRONTEND),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            creationflags=_FACE_FLAGS,
+        )
+    state = _read_state()
+    state["face"] = {
+        "pid": process.pid,
+        "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "port": FACE_PORT,
+    }
+    _write_state(state)
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        if _face_health() is not None:
+            return f"started on :{FACE_PORT} (pid {process.pid})"
+        time.sleep(1)
+    return (
+        f"started (pid {process.pid}) but :{FACE_PORT} did not answer; "
+        f"see {SERVICES / 'frontend.log'}"
+    )
+
+
+def _kill_tree(pid: int) -> None:
+    if os.name == "nt":
+        # /T: cmd.exe -> npm -> node; the whole tree goes.
+        _run(["taskkill", "/PID", str(pid), "/T", "/F"], timeout=30)
+    else:  # pragma: no cover - the operator's laptop is Windows
+        try:
+            os.kill(int(pid), 15)
+        except OSError:
+            pass
 
 
 def _wait_health(port: int, seconds: float) -> Optional[int]:
@@ -240,6 +329,9 @@ def _image_present(tag: str) -> bool:
 # Commands
 # --------------------------------------------------------------------------- #
 def up(args: argparse.Namespace) -> int:
+    # The face does not depend on the backend, so it is made sure of first: a
+    # refusal below (Docker, image) must not leave him without a face.
+    print("face:", _ensure_face())
     if _health(BACKEND_PORT) is not None:
         print(f"a backend already answers on :{BACKEND_PORT}; not starting another.")
         status(args)
@@ -327,7 +419,11 @@ def up(args: argparse.Namespace) -> int:
         "executor_health": _wait_health(EXECUTOR_PORT, 90),
         "backend_health": _wait_health(BACKEND_PORT, 240),
     }
-    STATE.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    # The state file is rewritten here; the face's record (if ours) must survive.
+    face = _read_state().get("face")
+    if face:
+        state["face"] = face
+    _write_state(state)
     print(json.dumps({k: v for k, v in state.items() if k != "settings"}, indent=2))
     missing = sorted(set(KEYS) - set(keys))
     if missing:
@@ -426,6 +522,15 @@ def status(args: argparse.Namespace) -> int:
     state = _read_state()
     print(f"backend :{BACKEND_PORT} health: {_health(BACKEND_PORT)}")
     print(f"executor :{EXECUTOR_PORT} health: {_health(EXECUTOR_PORT)}")
+    face = state.get("face") or {}
+    print(
+        f"face :{FACE_PORT} health: {_face_health()} "
+        + (
+            f"(started by this tool, pid {face['pid']})"
+            if face.get("pid")
+            else "(not started by this tool)"
+        )
+    )
     if state:
         print(json.dumps(state, indent=2))
     else:
@@ -436,21 +541,28 @@ def status(args: argparse.Namespace) -> int:
 def down(args: argparse.Namespace) -> int:
     state = _read_state()
     pids = (state.get("pids") or {}) if state else {}
-    if not pids:
+    face = (state.get("face") or {}) if state else {}
+    if not pids and not face.get("pid"):
         print("no state file: nothing this tool started is recorded; stopping nothing")
         return 1
     for name, pid in pids.items():
-        if os.name == "nt":
-            # /T: the venv launcher re-execs the real interpreter as a child.
-            _run(["taskkill", "/PID", str(pid), "/T", "/F"], timeout=30)
-        else:  # pragma: no cover - the operator's laptop is Windows
-            try:
-                os.kill(int(pid), 15)
-            except OSError:
-                pass
+        # /T: the venv launcher re-execs the real interpreter as a child.
+        _kill_tree(pid)
         print(f"stopped {name} (pid {pid})")
+    if face.get("pid"):
+        # A recorded pid outlives a reboot and can be another process's by now:
+        # it is stopped only while the face it started still answers.
+        if _face_health() is None:
+            print(f"face (pid {face['pid']}) is not answering; nothing to stop")
+        else:
+            _kill_tree(face["pid"])
+            print(f"stopped face (pid {face['pid']})")
     time.sleep(2)
-    still = [p for p in (BACKEND_PORT, EXECUTOR_PORT) if _health(p) is not None]
+    still = [
+        p for p in (BACKEND_PORT, EXECUTOR_PORT) if pids and _health(p) is not None
+    ]
+    if face.get("pid") and _face_health() is not None:
+        still.append(FACE_PORT)
     if still:
         print("still answering on", still)
         return 1
