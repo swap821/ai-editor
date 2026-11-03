@@ -37,7 +37,9 @@ from tests.test_gagos_workforce import OTHER, _batch
 from tools import gagos_daily as tool
 
 WORDS = "Rename the unused local to `spare`, and say why in a comment."
-SECRET = "AKIAIOSFODNN7EXAMPLE"
+#: AWS's own published documentation example access key id: not a credential,
+#: but the shape the scrubbers must mask.
+DOCS_EXAMPLE_ID = "AKIAIOSFODNN7EXAMPLE"
 
 
 def _answer(*files: tuple[int, str, str]) -> str:
@@ -334,11 +336,13 @@ def test_a_refused_file_trumps_a_held_one(tmp_path, monkeypatch) -> None:
 # ------------------------------------------------------------- the masks
 
 
-def _with_secret(args) -> None:
+def _with_docs_example_id(args) -> None:
     root = Path(args.project)
     for rel in (REL, OTHER):
         (root / rel).write_text(
-            BEFORE + f'const key = "{SECRET}";\n', encoding="utf-8", newline="\n"
+            BEFORE + f'const key = "{DOCS_EXAMPLE_ID}";\n',
+            encoding="utf-8",
+            newline="\n",
         )
     _git(root, "add", "-A")
     _git(root, "commit", "-q", "-m", "keys")
@@ -360,15 +364,17 @@ def test_each_file_is_masked_under_a_prefix_of_its_own_and_restored_by_its_own(
         )
 
     led, _asked, args, tid = _many(tmp_path, monkeypatch, answer, prompts=prompts)
-    _with_secret(args)
+    _with_docs_example_id(args)
     assert tool.cmd_propose(args) == 0
     ((prompt, _system),) = prompts
-    assert SECRET not in prompt
+    assert DOCS_EXAMPLE_ID not in prompt
     first, second = _file_text(prompt, 1), _file_text(prompt, 2)
     assert "GAGOSMASKQ_0000" in first and "GAGOSMASKQQ_0000" in second
     a, b = led.group_members(tid)
     assert a["status"] == b["status"] == "proposed"
-    assert SECRET in a["new_text"] and SECRET in b["new_text"], "each restored"
+    assert DOCS_EXAMPLE_ID in a["new_text"] and DOCS_EXAMPLE_ID in b["new_text"], (
+        "each restored"
+    )
     assert a["new_text"].endswith("// one\n") and b["new_text"].endswith("// two\n")
 
 
@@ -385,7 +391,7 @@ def test_a_placeholder_moved_into_another_file_is_refused(
         )
 
     led, _asked, args, tid = _many(tmp_path, monkeypatch, answer)
-    _with_secret(args)
+    _with_docs_example_id(args)
     assert tool.cmd_propose(args) == 0
     (p,) = led.proposals()
     assert p["status"] == "refused" and "placeholder of another file" in p["refusal"]
