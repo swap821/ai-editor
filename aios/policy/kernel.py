@@ -463,6 +463,22 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="maintenance_repair_status",
         action_type=ActionType.PLAN,
     ),
+    # The operator's tasks for GAGOS's workshop (2026-11-03). Adding one queues
+    # work that spends model calls and ends in a PR, so it is YELLOW.
+    "/api/gagos/tasks": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="gagos_task_add",
+        action_type=ActionType.GAGOS_TASK_ADD,
+    ),
+    "/api/gagos/tasks/{task_id}/cancel": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="gagos_task_cancel",
+        action_type=ActionType.GAGOS_TASK_CANCEL,
+    ),
     "/api/v1/local-workforce/{model_id}/qualify": RouteAuthority(
         "YELLOW",
         30,
@@ -977,6 +993,18 @@ _METHOD_ROUTE_AUTHORITY: dict[tuple[str, str], RouteAuthority] = {
         "session",
         audit_event="maintenance_finding_list",
         action_type=ActionType.PLAN,
+    ),
+    # The operator's task list for GAGOS, with each task's progress (2026-11-03).
+    (
+        "GET",
+        "/api/gagos/tasks",
+    ): RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="gagos_task_list",
+        action_type=ActionType.PLAN,
+        serves_operator_data=True,
     ),
     # What a repair would change, as a diff, before anyone approves it
     # (2026-10-30, the daily frontend worker). Read-only, like the list above.
