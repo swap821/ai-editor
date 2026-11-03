@@ -256,6 +256,23 @@ function HumanStateHint({ humanState, open, onToggle, onCorrect }) {
 }
 
 /**
+ * The chat brain the expert toggle cycles through (2026-11-03: the operator's
+ * own plans at the counter). Local is the laptop's model; Auto lets GAGOS route
+ * by his cloud tasks (reasoning and coding may use his plans); Sonnet and GPT
+ * are his plans, chosen outright. Gemini left the cycle: no Gemini key is held.
+ */
+const CHAT_MODELS = [
+  { id: undefined, label: 'LOCAL', name: 'Local (Ollama)' },
+  { id: 'auto', label: 'AUTO', name: 'Auto (your routing rules)' },
+  { id: 'plan.claude-sonnet-5-5', label: 'SONNET', name: 'Claude Sonnet (your plan)' },
+  { id: 'plan.gpt-6.1-sol', label: 'GPT', name: 'GPT-6.1 sol (your plan)' },
+];
+
+function chatModelEntry(id) {
+  return CHAT_MODELS.find((m) => m.id === id) || CHAT_MODELS[0];
+}
+
+/**
  * @param {{ integrated?: boolean, experienceMode?: string,
  *   onExperienceModeChange?: (mode: string) => void,
  *   onInputAttentionChange?: (active: boolean) => void,
@@ -318,11 +335,18 @@ export default function GagosChrome({
   }, []);
 
   const [chatModelId, setChatModelId] = useState(() => {
-    try { return localStorage.getItem('gagos-chat-model') || undefined; } catch { return undefined; }
+    try {
+      const saved = localStorage.getItem('gagos-chat-model') || undefined;
+      // A choice no longer offered (Gemini, until 2026-11-03) is the local model.
+      return CHAT_MODELS.some((m) => m.id === saved) ? saved : undefined;
+    } catch { return undefined; }
   });
+  const chatModel = chatModelEntry(chatModelId);
+  const nextChatModel = CHAT_MODELS[(CHAT_MODELS.indexOf(chatModel) + 1) % CHAT_MODELS.length];
   const cycleChatModel = useCallback(() => {
     setChatModelId((prev) => {
-      const next = prev === 'gemini.gemini-2.5-flash' ? undefined : 'gemini.gemini-2.5-flash';
+      const current = chatModelEntry(prev);
+      const next = CHAT_MODELS[(CHAT_MODELS.indexOf(current) + 1) % CHAT_MODELS.length].id;
       try {
         if (next) localStorage.setItem('gagos-chat-model', next);
         else localStorage.removeItem('gagos-chat-model');
@@ -1197,10 +1221,10 @@ export default function GagosChrome({
                 type="button"
                 className="gagos-btn gagos-model gagos-expert-only"
                 onClick={cycleChatModel}
-                aria-label={`Chat model: ${chatModelId ? 'Gemini' : 'Local (Ollama)'}. Click to switch to ${chatModelId ? 'Local (Ollama)' : 'Gemini'}.`}
-                title={chatModelId ? 'Switch to Local (Ollama)' : 'Switch to Gemini'}
+                aria-label={`Chat model: ${chatModel.name}. Click to switch to ${nextChatModel.name}.`}
+                title={`Switch to ${nextChatModel.name}`}
               >
-                {chatModelId ? 'GEMINI' : 'LOCAL'}
+                {chatModel.label}
               </button>
               <button
                 type="button"
