@@ -1005,7 +1005,13 @@ def review_evidence(p: dict, finding: Finding) -> str:
             "around them; a placeholder is the same text before and after."
         )
     if p.get("sandbox"):
-        prompt += "\n\n" + SandboxVerdict.from_json(p["sandbox"]).for_reviewer()
+        # GAGOS's own report of its tests, scrubbed like everything else that
+        # leaves the machine (2026-11-03: the privacy filter took the test name
+        # `test_get_executor_and_rollback_engine_return_real_instances` for
+        # something sensitive, and two correct changes could not be shown).
+        prompt += "\n\n" + egress_redact(
+            SandboxVerdict.from_json(p["sandbox"]).for_reviewer()
+        )
     altered = would_be_altered(prompt, "")
     if altered:
         raise MaskingFailed(f"{UNSHOWABLE}: {altered}")

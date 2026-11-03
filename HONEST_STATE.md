@@ -1,9 +1,27 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-03 ("2026-11-03" below; earlier sections keep the
+**Last updated:** 2026-11-03 ("Later on 2026-11-03" below; earlier sections keep the
 commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Later on 2026-11-03 (branch `fix/gagos-sandbox-names-egress`, off master `e71d2694`)
+
+- **The operator merged #584 (GAGOS's two frontend fixes) and #585 (the Claude writers) by 05:14 UTC.**
+  - #585 went in as a merge commit after GitHub's "Update branch", although master's protection requires linear history.
+  - Master's tree is exactly #584's two commits plus #585's change set, and master's CI on `e71d2694` passed.
+- **GAGOS's first hour with Claude writers (05:50 UTC), on master `e71d2694`:**
+  - **Writers.** Sonnet took 3 findings and Haiku 1. The 5 Bedrock writers were refused last time, so only Mistral Large 3 was tried, on one finding, and AWS refused it again. 5 findings waited for a later hour: the plan's share is 4 a batch.
+  - **Static checks.** All 4 Claude proposals passed.
+  - **Sandbox tests.** 3 passed (90 to 217 tests each). 1 had no test that exercises its file.
+  - **Review.** Claude Code accepted 2: Sonnet's `operator_model.py` and `project_passport.py` fixes. The other 2 were refused as unshowable, because of the bug below.
+  - **Delivery.** GAGOS opened its own PR, #586, with those two and Haiku's accepted fix from the trial (`sqlite_mission_repository.py`). I checked each diff: every removed name occurs once on master, in its import only, and no other module imports it from there.
+- **My sandbox step showed the reviewer a test name the privacy filter hides. Fixed on this branch.**
+  - The two refused proposals (`gd-426622285d`, Haiku, `doc_ingest.py`; `gd-3d41608cd0`, Sonnet, `curriculum_miner.py`) are correct.
+  - Each carried "1 fail without it too": `test_get_executor_and_rollback_engine_return_real_instances`, which fails on master as well. The privacy filter takes that name for something sensitive, so the whole review prompt counted as altered, and the change could not be shown.
+  - The fix: GAGOS's report of its tests is scrubbed like everything else that leaves the machine, so the reviewer sees `[SENSITIVE: ...]` in place of that one name.
+  - The new test uses the real filters. It fails without the fix (the same "cannot be shown" refusal) and passes with it.
+  - Both proposals were refused only for how they were shown, so `review --again` can reopen them once this merges.
 
 ## 2026-11-03 (branch `feat/gagos-claude-writers`, off master `575e7695`)
 

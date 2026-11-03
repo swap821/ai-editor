@@ -343,3 +343,29 @@ def test_the_reviewer_reads_what_the_tests_did(tmp_path, monkeypatch) -> None:
         "Before review, its tests ran in the sandbox: 9 tests in 2 files pass."
         in message
     )
+
+
+def test_a_test_name_the_privacy_filter_hides_does_not_hide_the_change(
+    tmp_path,
+) -> None:
+    """2026-11-03, GAGOS's first hour with Claude writers: two correct changes
+    were refused as unshowable, because the privacy filter took the name of a
+    test that fails on master too for something sensitive. The real filters,
+    no stand-ins."""
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    pid = _python_proposal(led)
+    name = "test_api_main_gaps.py::test_get_executor_and_rollback_engine_return_real_instances"
+    verdict = st.SandboxVerdict(
+        st.PASSED,
+        f"195 tests in 2 files pass; 1 fail without it too, so not its doing: {name}",
+        failing_anyway=(name,),
+    )
+    assert tool.would_be_altered(verdict.for_reviewer(), ""), (
+        "the case itself: the filter would change this name"
+    )
+    led.record_sandbox(pid, verdict.to_json())
+    [p] = led.proposals()
+    finding = dw.Finding(rel=p["rel"], rule=p["rule"], warnings=((1, 1, "x"),))
+    prompt = tool.review_evidence(p, finding)
+    assert "195 tests in 2 files pass" in prompt
+    assert "test_get_executor_and_rollback_engine_return_real_instances" not in prompt
