@@ -144,6 +144,43 @@ def test_a_batch_writes_a_first_test_and_keeps_its_module_as_the_base(
     assert "NEW test file" in evidence and TEST.splitlines()[2] in evidence
 
 
+def test_what_a_new_test_adds_that_may_not_leave_is_hidden_not_refused(
+    tmp_path,
+) -> None:
+    """2026-11-03: three correct new test files by Sonnet and Haiku could not be
+    shown to the reviewer, for a relative import, a regex the privacy filter
+    took for a path, and a fixed test UUID. The real filters, no stand-ins."""
+    added = (
+        "import { describe, it, expect, vi } from 'vitest';\n"
+        "import { Panel } from './Panel';\n"
+        "\n"
+        "vi.mock('../superbrain/components/qualityTierContext', () => ({}));\n"
+        "const MISSION_UUID = '00000000-0000-4000-8000-000000000001';\n"
+        "\n"
+        "describe('Panel', () => {\n"
+        "  it('shows its value', () => {\n"
+        "    expect(MISSION_UUID).toMatch(/last-known/);\n"
+        "  });\n"
+        "});\n"
+    )
+    assert tool.would_be_altered(added, ""), "the case itself: the filter alters it"
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    led.record_proposal(
+        FIRST,
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="claude-sonnet-5-5",
+        new_text=added,
+        verdict=dw.StaticVerdict(True, "ok", 11),
+    )
+    [p] = led.proposals()
+    evidence = tool.review_evidence(p, FIRST)
+    assert "qualityTierContext" not in evidence
+    assert "00000000-0000-4000-8000-000000000001" not in evidence
+    assert "GAGOSMASK" in evidence and "something the writer added" in evidence
+    assert "describe('Panel'" in evidence, "the rest of the test is shown"
+
+
 @pytest.fixture()
 def origin_and_worktree(tmp_path):
     """An origin with the module and GAGOS's worktree cloned from it."""

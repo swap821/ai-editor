@@ -1,0 +1,36 @@
+/* GAGOS tasks: the operator's written tasks and what became of them.
+   Panel-scoped; existing tokens only. */
+.gagos-tasks { color: var(--text-1); font-size: var(--text-sm); }
+.gagos-tasks p { color: var(--text-2); }
+.gagos-tasks__form { display: flex; flex-direction: column; gap: 6px; margin-block: 12px; }
+.gagos-tasks__form input,
+.gagos-tasks__form textarea {
+  background: var(--ag-surface-base);
+  border: var(--hairline);
+  border-radius: var(--radius-sm);
+  color: var(--text-1);
+  padding: 6px 8px;
+  font: inherit;
+}
+.gagos-tasks__form button { align-self: flex-start; }
+.gagos-tasks__count { margin: 0; font-size: var(--text-xs); color: var(--text-3); }
+.gagos-tasks .gagos-tasks__error { color: var(--danger); }
+.gagos-tasks__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.gagos-tasks__item {
+  border: var(--hairline);
+  border-radius: var(--radius-md);
+  background: var(--ag-surface-base);
+  padding: 10px 12px;
+}
+.gagos-tasks__head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.gagos-tasks__status { font-size: var(--text-xs); padding: 1px 8px; border-radius: var(--radius-pill); border: var(--hairline); }
+.gagos-tasks__status--open { color: var(--accent); }
+.gagos-tasks__status--taken { color: var(--success); }
+.gagos-tasks__status--refused { color: var(--danger); }
+.gagos-tasks__status--cancelled { color: var(--text-3); }
+.gagos-tasks__text { white-space: pre-wrap; overflow-wrap: anywhere; margin: 4px 0; }
+.gagos-tasks__more summary { cursor: pointer; }
+.gagos-tasks__progress { margin: 8px 0 0; display: grid; gap: 4px; }
+.gagos-tasks__progress div { display: flex; flex-wrap: wrap; gap: 6px; }
+.gagos-tasks__progress dt { color: var(--text-3); }
+.gagos-tasks__progress dd { margin: 0; overflow-wrap: anywhere; }

@@ -716,6 +716,169 @@ def beyond_reach(
     return sorted(out.items())
 
 
+# --------------------------------------------------------------------- tasks
+
+#: The writer's instruction for a task the operator wrote (2026-11-03): his
+#: change in one file, and nothing around it. The answer has the proposer's
+#: form, so :func:`parse_proposal` and :func:`unmask` read it unchanged.
+TASK_SYSTEM = (
+    "You are GAGOS's frontend maintainer. The operator has asked for one change "
+    "to one file of a React + TypeScript codebase. Make exactly that change and "
+    "nothing else: keep everything else in the file as it is, and do not "
+    "reformat, reorder or rename anything the task does not need changed. Your "
+    "change must add no ESLint warning or error. Never add eslint-disable, "
+    "@ts-ignore, @ts-nocheck or @ts-expect-error. If the task cannot be done "
+    "in this file alone, return the file unchanged. Reply with the complete "
+    "changed file in ONE fenced code block and nothing else."
+)
+
+PYTHON_TASK_SYSTEM = (
+    "You are GAGOS's backend maintainer. The operator has asked for one change "
+    "to one Python file of GAGOS's own code. Make exactly that change and "
+    "nothing else: keep everything else in the file as it is, and do not "
+    "reformat, reorder or rename anything the task does not need changed. Keep "
+    "every public name other modules import from this file. Your change must "
+    "add no ruff warning or error. Never add noqa, type: ignore, nosec or "
+    "pragma comments. If the task cannot be done in this file alone, return "
+    "the file unchanged. Reply with the complete changed file in ONE fenced "
+    "code block and nothing else."
+)
+
+
+def task_system(rel: str) -> str:
+    return PYTHON_TASK_SYSTEM if is_python(rel) else TASK_SYSTEM
+
+
+def task_prompt(
+    rel: str,
+    task_text: str,
+    text: str,
+    *,
+    masked: bool = False,
+    facts: Sequence[str] = (),
+) -> str:
+    """The task writer's prompt. *task_text* must already be scrubbed; the file
+    is named, never its path."""
+    lines = [f"File: {Path(rel).name}", "The operator's task:", task_text]
+    if facts:
+        lines += [
+            "",
+            "Facts about this project, and the operator's direction:",
+            *(f"  - {fact}" for fact in facts),
+        ]
+    if masked:
+        lines += [
+            "",
+            "Some spans are replaced by placeholders (GAGOSMASK followed by letters, digits and an underscore): they "
+            "hide paths or values that may not leave this machine. Keep every "
+            "placeholder you keep exactly as written; never invent one.",
+        ]
+    lines += ["", "The file:", "```", text, "```"]
+    return "\n".join(lines)
+
+
+def task_verdict(
+    rel: str,
+    before_text: str,
+    after_text: str,
+    before: StaticResult,
+    after: StaticResult,
+) -> StaticVerdict:
+    """The unattended checks of a task's change. Whether it does what the
+    operator asked is the reviewer's to say; these only keep the file sound:
+    it parses, no rule's count of warnings and errors rises over the base, no
+    disable comment is added or moved (and no change touches code one
+    silences), and it changes something. No reach check and no bound on the
+    lines: a task is not a lint fix. Nothing the model wrote is executed."""
+    if after_text == before_text:
+        # The writer is told to return the file unchanged when the task needs
+        # more than this one file.
+        return StaticVerdict(
+            False,
+            "the writer returned the file unchanged: the task may need more than "
+            "this one file",
+        )
+    changed = _changed_lines(unified_diff(rel, before_text, after_text))
+    if after.parse_errors:
+        return StaticVerdict(
+            False, f"the proposal does not parse: {after.parse_errors[0]}", changed
+        )
+    was = Counter(m.rule for m in before.messages)
+    now = Counter(m.rule for m in after.messages)
+    new = {rule: now[rule] - was[rule] for rule in now if now[rule] > was[rule]}
+    if new:
+        return StaticVerdict(
+            False,
+            f"the proposal adds {linter_of(rel)} messages: "
+            + ", ".join(f"{rule} +{n}" for rule, n in sorted(new.items(), key=str)),
+            changed,
+        )
+    refusal = silencing_refusal(
+        before_text, after_text, before, after, python=is_python(rel)
+    )
+    if refusal:
+        return StaticVerdict(False, refusal, changed)
+    return StaticVerdict(True, "parses; nothing new", changed)
+
+
+def task_review_prompt(
+    rel: str,
+    task_text: str,
+    before_text: str,
+    diff: str,
+    *,
+    facts: Sequence[str] = (),
+) -> str:
+    """What each reviewer reads for a task: the operator's words (already
+    scrubbed), the file and the change. The same verdict schema as a lint fix."""
+    python = is_python(rel)
+    part = "backend (Python; GAGOS's own code)" if python else "frontend"
+    linter = "ruff" if python else "ESLint"
+    known = (
+        [
+            "",
+            "Facts about this project (from its configuration) and the operator's direction:",
+        ]
+        + [f"  - {fact}" for fact in facts]
+        if facts
+        else []
+    )
+    return "\n".join(
+        [
+            "You are reviewing a change GAGOS (an AI system) made to its own "
+            f"{part} because its operator asked for it in plain words. You are "
+            "its reviewer: if you accept, it goes to the operator to merge; if "
+            "you reject, it does not ship. Be strict and honest.",
+            "",
+            "ACCEPT only if ALL hold:",
+            "- the change does what the operator's task asks;",
+            "- it does only that: nothing else in the file is changed, "
+            "reformatted or removed;",
+            "- it breaks nothing: behaviour and public names the task did not "
+            "ask to change are as before, and nothing is silenced (no disable, "
+            "ts-ignore, noqa or type: ignore comments);",
+            "- the code is correct and would pass review in this codebase.",
+            "Otherwise REJECT, and say exactly why in one or two sentences.",
+            f"Automated checks already passed: it parses and adds no {linter} message.",
+            "",
+            f"File: {Path(rel).name}",
+            "The operator's task:",
+            task_text,
+            *known,
+            "",
+            "The whole original file:",
+            "```",
+            before_text,
+            "```",
+            "",
+            "The proposed change:",
+            "```diff",
+            diff,
+            "```",
+        ]
+    )
+
+
 # --------------------------------------------------------------------- tests
 
 #: GAGOS's second kind of work (2026-11-02): a first test for a module of its
@@ -1124,7 +1287,54 @@ CREATE TABLE IF NOT EXISTS spend (
     chars_out INTEGER,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS tasks (
+    task_id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    rel TEXT NOT NULL,
+    text TEXT NOT NULL,
+    said_by TEXT NOT NULL,
+    status TEXT NOT NULL,
+    proposal_id TEXT,
+    reason TEXT,
+    updated_at TEXT NOT NULL
+);
 """
+
+#: A task the operator wrote (2026-11-03, asked for "bigger work" in GAGOS's
+#: workshop, counter and face): his words and one file GAGOS may edit. Its
+#: proposal is recorded under this rule and judged like any other: the checks,
+#: the sandbox's tests, the chief reviewer, CI, and his merge.
+TASK_RULE = "gagos/task"
+#: The longest task text accepted.
+MAX_TASK_CHARS = 4_000
+#: Task statuses. ``open`` = waiting for a writer; ``taken`` = a writer's
+#: proposal is recorded (``proposal_id``), whose own status is the progress;
+#: ``refused`` = GAGOS cannot do it (``reason``: a file it may not edit, too
+#: long, or one that cannot leave the machine); ``cancelled`` = withdrawn by
+#: the operator before a writer took it.
+TASK_STATUSES = ("open", "taken", "refused", "cancelled")
+
+
+class TaskRefused(ValueError):
+    """A task that cannot be queued as given; the message says why."""
+
+
+def task_path(rel: str) -> str:
+    """*rel* as a project-relative POSIX path, or :class:`TaskRefused`. Only
+    its shape is judged here; whether GAGOS may edit the file is judged
+    against the project when a writer would take it."""
+    raw = (rel or "").strip().replace("\\", "/")
+    parts = raw.split("/")
+    if (
+        not raw
+        or len(raw) > 512
+        or raw.startswith("/")
+        or ":" in raw
+        or any(part in ("", ".", "..") for part in parts)
+    ):
+        raise TaskRefused(f"not a project-relative file path: {rel!r}")
+    return raw
+
 
 #: Proposal statuses. ``refused`` = failed the unattended checks or the model
 #: gave no usable answer; ``proposed`` = awaiting reviews; ``accepted`` = both
@@ -1690,6 +1900,134 @@ class DailyLedger:
         ]
         return [p["model"] for p in sorted(failed, key=lambda p: p["created_at"])]
 
+    # tasks the operator writes
+    def add_task(self, rel: str, text: str, *, said_by: str) -> str:
+        """Queue the operator's task on one file; returns its id. Refuses an
+        empty or over-long text, or a path that is not project-relative."""
+        body = (text or "").strip()
+        if not body:
+            raise TaskRefused("a task needs words")
+        if len(body) > MAX_TASK_CHARS:
+            raise TaskRefused(
+                f"a task is at most {MAX_TASK_CHARS} characters; this is {len(body)}"
+            )
+        who = (said_by or "").strip()
+        if not who:
+            raise TaskRefused("a task says who wrote it")
+        task_id = f"gt-{uuid.uuid4().hex[:10]}"
+        now = _now()
+        with self._db() as db:
+            db.execute(
+                "INSERT INTO tasks (task_id, created_at, rel, text, said_by, status, "
+                "proposal_id, reason, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, 'open', NULL, NULL, ?)",
+                (task_id, now, task_path(rel), body, who[:200], now),
+            )
+        return task_id
+
+    def task(self, task_id: str) -> dict | None:
+        with self._db() as db:
+            row = db.execute(
+                "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
+    def tasks(self, *, status: str | None = None) -> list[dict]:
+        """Tasks, oldest first; with *status*, only those."""
+        query, args = "SELECT * FROM tasks", []
+        if status:
+            query += " WHERE status = ?"
+            args.append(status)
+        with self._db() as db:
+            return [dict(r) for r in db.execute(query + " ORDER BY created_at", args)]
+
+    def _move_task(
+        self,
+        task_id: str,
+        to: str,
+        *,
+        proposal_id: str | None = None,
+        reason: str | None = None,
+    ) -> bool:
+        # Only an open task moves, and only once: a writer and a cancel cannot
+        # both take it.
+        with self._db() as db:
+            done = db.execute(
+                "UPDATE tasks SET status = ?, proposal_id = ?, reason = ?, "
+                "updated_at = ? WHERE task_id = ? AND status = 'open'",
+                (to, proposal_id, reason, _now(), task_id),
+            )
+            return done.rowcount == 1
+
+    def take_task(self, task_id: str, proposal_id: str) -> bool:
+        """A writer's proposal for the task is recorded. True when it was open."""
+        return self._move_task(task_id, "taken", proposal_id=proposal_id)
+
+    def refuse_task(self, task_id: str, reason: str) -> bool:
+        """GAGOS cannot do the task; *reason* says why. True when it was open."""
+        return self._move_task(task_id, "refused", reason=reason)
+
+    def cancel_task(self, task_id: str) -> bool:
+        """The operator withdraws an open task. True when it was open."""
+        return self._move_task(task_id, "cancelled", reason="withdrawn by the operator")
+
+    def task_progress(self) -> list[dict]:
+        """Every task, oldest first, with what became of its proposal: the one
+        read the counter and the face show. ``proposal`` is None until a writer
+        takes the task."""
+        out = []
+        with self._db() as db:
+            for t in db.execute("SELECT * FROM tasks ORDER BY created_at"):
+                task = dict(t)
+                task["proposal"] = None
+                if task["proposal_id"]:
+                    p = db.execute(
+                        "SELECT proposal_id, model, status, refusal, changed_lines, "
+                        "sandbox FROM proposals WHERE proposal_id = ?",
+                        (task["proposal_id"],),
+                    ).fetchone()
+                    if p:
+                        sandbox = None
+                        if p["sandbox"]:
+                            try:
+                                sandbox = json.loads(p["sandbox"]).get("outcome")
+                            except (ValueError, AttributeError):
+                                sandbox = None
+                        delivered = db.execute(
+                            "SELECT pr_url FROM deliveries WHERE proposal_id = ?",
+                            (p["proposal_id"],),
+                        ).fetchone()
+                        task["proposal"] = {
+                            "proposal_id": p["proposal_id"],
+                            "model": p["model"],
+                            "status": p["status"],
+                            "refusal": p["refusal"],
+                            "changed_lines": p["changed_lines"],
+                            "sandbox": sandbox,
+                            "reviews": {
+                                r["reviewer"]: {
+                                    "verdict": r["verdict"],
+                                    "reason": r["reason"],
+                                }
+                                for r in db.execute(
+                                    "SELECT reviewer, verdict, reason FROM reviews "
+                                    "WHERE proposal_id = ?",
+                                    (p["proposal_id"],),
+                                )
+                            },
+                            "pr_url": delivered["pr_url"] if delivered else None,
+                        }
+                out.append(task)
+        return out
+
+    def task_of_proposal(self, proposal_id: str) -> dict | None:
+        """The task a proposal was made for, or None (a lint fix has none)."""
+        with self._db() as db:
+            row = db.execute(
+                "SELECT * FROM tasks WHERE proposal_id = ?", (proposal_id,)
+            ).fetchone()
+        return dict(row) if row else None
+
     def rels_in_prs(self, pr_urls: Iterable[str]) -> set[str]:
         """The files the proposals delivered in these PRs change."""
         wanted = set(pr_urls)
@@ -1726,6 +2064,7 @@ __all__ = [
     "REVIEWERS",
     "REVIEW_SCHEMA",
     "StaticVerdict",
+    "TASK_SYSTEM",
     "TESTER_SYSTEM",
     "digest",
     "beyond_reach",
@@ -1746,6 +2085,10 @@ __all__ = [
     "set_direction",
     "static_verdict",
     "subject_of",
+    "task_prompt",
+    "task_review_prompt",
+    "task_system",
+    "task_verdict",
     "first_test_path",
     "first_test_prompt",
     "first_test_review_prompt",
