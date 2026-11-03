@@ -1,9 +1,20 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-03 ("Evening of 2026-11-03" below; earlier sections keep the
+**Last updated:** 2026-11-03 ("Night of 2026-11-03" below; earlier sections keep the
 commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## Night of 2026-11-03 (branch `evidence/after-591`, off master `fd161709`)
+
+- **The operator merged #591, the counter's plan brains.**
+  - It went in as a rebase merge, ending at `fd161709`, so the branch commit `a2d3562b` its organ evidence cited is not on master.
+  - Before the merge, CI had failed on all three systems in the same two workshop tests. A client built where neither Claude Code nor Codex is installed had the model `''`. Fixed in `b82909e1`: the client keeps its configured model and names the missing tool, and the tests now simulate CI's missing tools.
+- **The counter runs it.** I pulled his checkout and restarted the backend with its tool. It runs `fd161709`, reports "auto routing: cloud-eligible for reasoning,coding", and offers Sonnet and Haiku, plus gpt-6.1-sol, gpt-6.1-terra and gpt-6-luna. Whether he uses it is measured by his turns in the daily store.
+- **Organs re-gathered at master's tip `fd161709`:**
+  - the Phase 4 live wave passed, with Docker live;
+  - organ 33's live local-clerk suite ran against the real Ollama with `qwen2.5:0.5b`: 10 passed, 0 skipped (`release/organ-33-37/clerk-junit-fd1617098921.xml`);
+  - the organ guards pass.
 
 ## Evening of 2026-11-03 (branch `feat/counter-plan-brains`, off master `0624892a`)
 
