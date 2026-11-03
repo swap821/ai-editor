@@ -931,10 +931,15 @@ jobs:
         # path, asserting the real outcome -- in BOTH directions, because
         # "cannot write the spine" passes trivially if the container cannot
         # write anything, which would break every mission while looking secure.
+        #
+        # tests/test_gagos_sandbox_containment.py (2026-11-03): GAGOS's
+        # proposals run their tests in this container BEFORE review, so it is
+        # the line, not a second one. Its probe: no network, nothing writable
+        # but /tmp, no host secret, not root, only its own copy visible.
         env:
           AIOS_EXECUTOR_INTEGRATION: "1"
         run: |
-          python -m pytest -q -o addopts= -rs             tests/test_container_containment_integration.py
+          python -m pytest -q -o addopts= -rs             tests/test_container_containment_integration.py             tests/test_gagos_sandbox_containment.py
 
       # Organ 40's one remaining named gap: failure/timeout are proven above,
       # but restart resilience specifically was not. The control-plane
