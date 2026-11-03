@@ -28,6 +28,10 @@ day can stop anywhere and resume, and every outcome is in the ledger
             judges it. --open-pr pushes and opens one PR. The operator merges;
             CI gates.
   report    the day's work and D14's running numbers, as Markdown.
+  task      the operator's own work (2026-11-03): ``task add --file REL TEXT``
+            queues a change in his words on one file; propose takes open tasks
+            before any lint finding, and they are tested, reviewed against his
+            words and delivered like the rest. ``task list``, ``task cancel``.
 
 The model call needs, by GAGOS's own law, the "coding" task allowed to the cloud
 (constitution intersected with the runtime profile: AIOS_ROUTER_CLOUD_TASKS), and
