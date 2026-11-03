@@ -68,6 +68,7 @@ _PLUMBING = (
     "aios/core/openai_compat.py",
     "aios/core/anthropic_direct.py",
     "aios/core/vertex_maas.py",
+    "aios/core/plan_cli.py",
     "aios/core/failover.py",
     "aios/application/intelligence/gateway.py",
 )
