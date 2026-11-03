@@ -202,7 +202,6 @@ def iter_rules(text: str):
     """Yield (selector, body, body_start_index) for each top-level/nested rule
     block. Simple brace matcher; good enough for our flat product CSS (it also
     yields @keyframes blocks and their inner frames as separate rules)."""
-    depth = 0
     i = 0
     n = len(text)
     sel_start = 0

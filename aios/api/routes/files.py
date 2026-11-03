@@ -77,7 +77,7 @@ def _build_tree(root_dir: Path) -> List[Dict[str, Any]]:
                 # We'll just do shallow children for directories that we expand
                 node["children"] = []
             tree.append(node)
-    except Exception as e:
+    except Exception:
         pass
 
     return sorted(tree, key=lambda x: (x["type"] == "file", x["name"]))
