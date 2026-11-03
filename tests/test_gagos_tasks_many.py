@@ -266,6 +266,27 @@ def test_files_that_are_too_long_together_for_one_answer_refuse_the_task(
     assert led2.task(tid2)["status"] == "taken"
 
 
+def test_the_bound_is_measured_on_the_files_as_sent(tmp_path, monkeypatch) -> None:
+    """A reviewer of D14 (2026-11-03): a placeholder can be longer than what it
+    hides, so files that fit unmasked could overflow the answer once masked."""
+    led, asked, args, tid = _many(tmp_path, monkeypatch)
+    each = len(BEFORE)
+    monkeypatch.setattr(tool, "MAX_TASK_TOTAL_CHARS", 2 * each)
+    real = tool.mask_lines
+
+    def longer(text, redact, **kw):
+        masked, mapping = real(text, redact, **kw)
+        return masked + "/" * 10, mapping
+
+    monkeypatch.setattr(tool, "mask_lines", longer)
+    assert tool.cmd_propose(args) == 0
+    task = led.task(tid)
+    assert (
+        task["status"] == "refused" and f"{2 * each + 20} characters" in task["reason"]
+    )
+    assert asked == []
+
+
 def test_the_total_bound_fits_one_answer() -> None:
     answer_chars = tool.MAX_OUTPUT_TOKENS * tool.CHARS_PER_TOKEN
     assert dw.MAX_TASK_TOTAL_CHARS < answer_chars, (

@@ -178,6 +178,12 @@ def _ensure_face(wait_s: float = 60) -> str:
     """Make sure the face answers. Starts it only when :5173 is silent."""
     status = _face_health()
     if status is not None:
+        state = _read_state()
+        face = state.get("face")
+        if face and not _face_is_ours(face):
+            # Not the one this tool started: its record is stale.
+            del state["face"]
+            _write_state(state)
         return f"already answers on :{FACE_PORT} (HTTP {status}); left alone"
     if not (FRONTEND / "node_modules").is_dir():
         return (
@@ -197,6 +203,9 @@ def _ensure_face(wait_s: float = 60) -> str:
     state = _read_state()
     state["face"] = {
         "pid": process.pid,
+        # Its identity: a pid with this creation time is this process and no
+        # other, even after the pid is reused.
+        "created": _process_created(process.pid),
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "port": FACE_PORT,
     }
@@ -210,6 +219,39 @@ def _ensure_face(wait_s: float = 60) -> str:
         f"started (pid {process.pid}) but :{FACE_PORT} did not answer; "
         f"see {SERVICES / 'frontend.log'}"
     )
+
+
+def _process_created(pid: int) -> Optional[str]:
+    """When the process *pid* was created (UTC, to the 100 ns Windows keeps),
+    or None when no such process runs."""
+    if os.name != "nt":  # pragma: no cover - the operator's laptop is Windows
+        return None
+    try:
+        out = _run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                f"Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}' | "
+                "ForEach-Object { $_.CreationDate.ToUniversalTime().ToString('o') }",
+            ],
+            timeout=60,
+        ).stdout.strip()
+    except Exception:  # noqa: BLE001 - unknown is not ours
+        return None
+    return out or None
+
+
+def _face_is_ours(face: dict[str, Any]) -> bool:
+    """Whether the recorded face process is still the one this tool started:
+    the same pid created at the same instant. A recorded pid outlives a reboot
+    and can be another program's by then (both reviewers of D14, 2026-11-03);
+    a reused pid never has the same creation time. Measured that day: Windows'
+    own socket listings (netstat, Get-NetTCPConnection) missed live listeners on
+    this laptop, so the port's owner is not what decides."""
+    pid, created = face.get("pid"), face.get("created")
+    return bool(pid and created) and _process_created(int(pid)) == created
 
 
 def _kill_tree(pid: int) -> None:
@@ -549,19 +591,26 @@ def down(args: argparse.Namespace) -> int:
         # /T: the venv launcher re-execs the real interpreter as a child.
         _kill_tree(pid)
         print(f"stopped {name} (pid {pid})")
+    ours = False
     if face.get("pid"):
         # A recorded pid outlives a reboot and can be another process's by now:
-        # it is stopped only while the face it started still answers.
+        # it is stopped only when the server on the port descends from it.
         if _face_health() is None:
             print(f"face (pid {face['pid']}) is not answering; nothing to stop")
+        elif not _face_is_ours(face):
+            print(
+                f"the face answering on :{FACE_PORT} is not the one this tool "
+                f"started (pid {face['pid']}); not stopped"
+            )
         else:
+            ours = True
             _kill_tree(face["pid"])
             print(f"stopped face (pid {face['pid']})")
     time.sleep(2)
     still = [
         p for p in (BACKEND_PORT, EXECUTOR_PORT) if pids and _health(p) is not None
     ]
-    if face.get("pid") and _face_health() is not None:
+    if ours and _face_health() is not None:
         still.append(FACE_PORT)
     if still:
         print("still answering on", still)
