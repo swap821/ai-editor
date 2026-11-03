@@ -51,8 +51,10 @@ logger = logging.getLogger(__name__)
 
 #: Provider names that are considered *cloud* providers.  Only one is tried per
 #: turn; if it fails the failover falls back to a local provider.
+#: ``anthropic`` and ``plan`` were missing until 2026-11-03 (both reviewers of
+#: the operator's plans at the counter): a turn could try two clouds in a row.
 _CLOUD_PROVIDERS: frozenset[str] = frozenset(
-    {"bedrock", "gemini", "openai", "aws", "google", "vertex"}
+    {"bedrock", "gemini", "openai", "aws", "google", "vertex", "anthropic", "plan"}
 )
 
 #: Provider names that are considered *local* providers.

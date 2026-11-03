@@ -34,9 +34,13 @@ From the repository root, in PowerShell:
 | `AIOS_CONTAINER_IMAGE` | `aios-verify:<first 12 of the sha256 of requirements.txt>` | 2026-10-28 |
 | `AIOS_EXECUTOR_TIMEOUT_S` | `120` | 2026-10-28 |
 | `AIOS_REPLAY_APPROVED_COMMANDS` | `1` | 2026-10-19 |
-| `AIOS_ROUTER_CLOUD_TASKS` | empty, so `auto` stays local; `--cloud-tasks reasoning` opts in for one launch | 2026-10-29 |
+| `AIOS_ROUTER_CLOUD_TASKS` | `reasoning,coding`, his own user-wide choice; `--cloud-tasks ""` keeps every turn local | 2026-11-03 |
+| `AIOS_PLAN_CLAUDE_MODELS` | `claude-sonnet-5-5,claude-haiku-5-5`, through Claude Code on his plan | 2026-11-03 |
+| `AIOS_PLAN_CODEX_MODELS` | `gpt-6.1-sol,gpt-6.1-terra,gpt-6-luna`, through Codex on his plan | 2026-11-03 |
 
 `AIOS_ROUTER_CLOUD_TASKS` is always set by the tool, so a value inherited from the user environment never decides where a turn goes.
+
+On 2026-11-03 the operator connected his own plans to the counter ("connect codex models to counter also and C"; `aios/core/plan_cli.py`). Reasoning and coding turns on `auto` may now go to them; general and fast turns stay local. Opus is left out: it would spend the plan he shares with his own sessions fastest.
 
 The user-wide `reasoning,coding` still reaches every other process he starts. Removing it is his choice:
 

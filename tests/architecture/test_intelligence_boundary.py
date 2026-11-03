@@ -60,6 +60,7 @@ FORBIDDEN_CLASSES = {
     "GeminiClient",
     "AnthropicDirectClient",
     "OpenAICompatClient",
+    "PlanCliClient",
     "OllamaClient",
 }
 

@@ -97,6 +97,15 @@ def claude_executable() -> Optional[str]:
     return found
 
 
+def codex_executable() -> Optional[str]:
+    """The real Codex binary; a .cmd or .bat shim is refused, as for Claude Code:
+    cmd.exe would re-read its arguments."""
+    found = shutil.which("codex")
+    if found and found.lower().endswith((".cmd", ".bat")):
+        return None
+    return found
+
+
 def family(model: str) -> str:
     """Which tool serves *model*: ``claude`` or ``codex``."""
     if model.startswith("claude-"):
@@ -166,7 +175,7 @@ def _turn(answer: Any, tools: Sequence[dict[str, Any]]) -> dict[str, Any]:
             continue
         try:
             args = json.loads(call.get("arguments_json") or "{}")
-        except ValueError:
+        except (ValueError, TypeError):  # not a JSON string: the call is dropped
             continue
         if isinstance(args, dict):
             calls.append(
@@ -203,7 +212,7 @@ class PlanCliClient:
         codex: Optional[str] = None,
     ) -> None:
         self.claude = claude if claude is not None else claude_executable()
-        self.codex = codex if codex is not None else shutil.which("codex")
+        self.codex = codex if codex is not None else codex_executable()
         # A plan whose tool is not installed offers nothing.
         self.claude_models = tuple(claude_models) if self.claude else ()
         self.codex_models = tuple(codex_models) if self.codex else ()
@@ -256,10 +265,10 @@ class PlanCliClient:
                 except ValueError:
                     data = {}
                 if proc.returncode != 0 or data.get("is_error"):
-                    said = data.get("result") or (proc.stderr or "")[-300:]
+                    # Scrubbed whole, then shortened: a cut could split a secret.
+                    said = scrub_exception(str(data.get("result") or proc.stderr or ""))
                     raise LLMError(
-                        f"Claude Code exited {proc.returncode}: "
-                        f"{scrub_exception(str(said))[:300]}"
+                        f"Claude Code exited {proc.returncode}: {said[-300:]}"
                     )
                 return data.get("structured_output") if schema else data.get("result")
             out = Path(tmp, "answer.txt")

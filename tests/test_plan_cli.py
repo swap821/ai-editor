@@ -211,12 +211,75 @@ def test_a_plan_model_not_offered_is_refused_by_name(monkeypatch) -> None:
 
 
 def test_a_plan_call_outside_the_gateway_is_refused_before_it_leaves() -> None:
-    """The one-gateway law holds for the plans too (docs/ONE_GATEWAY.md)."""
+    """The one-gateway law holds for the plans too (docs/ONE_GATEWAY.md): a
+    production caller with no entrance is refused, and nothing is run. The
+    caller's frames report a production file, as in tests/test_gateway_enforcement.py."""
     run = FakeRun(stdout=json.dumps({"is_error": False, "result": "Hello."}))
+    scope = {"client": _client(run)}
+    repo = Path(__file__).resolve().parents[1]
+    code = compile(
+        "def production():\n"
+        "    return client.chat([{'role': 'user', 'content': 'hi'}])\n",
+        str(repo / "aios" / "application" / "turns" / "_plan_probe.py"),
+        "exec",
+    )
+    exec(code, scope)
     token = model_calls._ENTRANCE.set(None)
     try:
         with pytest.raises(model_calls.UngatedModelCall):
-            _client(run).chat([{"role": "user", "content": "hi"}])
+            scope["production"]()
     finally:
         model_calls._ENTRANCE.reset(token)
     assert run.calls == [], "nothing was run"
+
+
+def test_a_turn_tries_at_most_one_cloud_the_plans_and_anthropic_included() -> None:
+    """Both reviewers of this change: the failover's own cloud list lacked
+    ``plan`` (and ``anthropic``), so a turn could try two clouds in a row."""
+    from aios.core.failover import FailoverChatClient, _is_cloud_provider
+
+    assert _is_cloud_provider("plan") and _is_cloud_provider("anthropic")
+
+    class Fails:
+        def chat(self, messages, **kw):
+            raise LLMError("refused")
+
+    class Answers:
+        def __init__(self) -> None:
+            self.asked = 0
+
+        def chat(self, messages, **kw):
+            self.asked += 1
+            return {"role": "assistant", "content": "ok"}
+
+    plan, local = Answers(), Answers()
+    failover = FailoverChatClient(
+        [
+            (Fails(), "m", "bedrock"),
+            (plan, "claude-sonnet-5-5", "plan"),
+            (local, "q", "ollama"),
+        ]
+    )
+    assert failover.chat([{"role": "user", "content": "hi"}])["content"] == "ok"
+    assert (plan.asked, local.asked) == (0, 1), "a second cloud is skipped"
+
+
+def test_the_ledger_names_the_real_caller_not_the_plan_client() -> None:
+    run = FakeRun(stdout=json.dumps({"is_error": False, "result": "Hello."}))
+    before = model_calls.counts().copy()
+    _client(run).chat([{"role": "user", "content": "hi"}])
+    new = model_calls.counts() - before
+    [(provider, _model, _method, _entrance, site)] = list(new)
+    assert provider == "plan" and not site.startswith("aios/core/plan_cli.py")
+
+
+def test_tool_arguments_that_are_not_a_string_are_dropped_not_fatal() -> None:
+    structured = {
+        "content": "reading",
+        "tool_calls": [{"name": "read_file", "arguments_json": {"path": "a.py"}}],
+    }
+    run = FakeRun(
+        stdout=json.dumps({"is_error": False, "structured_output": structured})
+    )
+    answer = _client(run).chat([{"role": "user", "content": "read"}], tools=TOOLS)
+    assert answer == {"role": "assistant", "content": "reading"}
