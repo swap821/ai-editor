@@ -8,7 +8,6 @@ and project context. The output is consumed by system-prompt builders and
 
 from __future__ import annotations
 
-from collections import defaultdict
 from typing import Any, Optional
 
 from aios.memory.facts import SemanticFacts
