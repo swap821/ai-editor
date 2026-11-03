@@ -178,11 +178,7 @@ def test_the_sandbox_has_one_entry_for_a_set_of_changes(monkeypatch) -> None:
     )
     one = st.run_change_tests(object(), base_commit="c", changes={"aios/a.py": "x"})
     assert one.outcome == st.PASSED and seen == ["aios/a.py"]
-    front = st.run_change_tests(
-        object(), base_commit="c", changes={"frontend/src/A.tsx": "x"}
-    )
-    assert front.outcome == st.UNAVAILABLE and "frontend" in front.summary
-    many = st.run_change_tests(
-        object(), base_commit="c", changes={"aios/a.py": "x", "aios/b.py": "y"}
-    )
-    assert many.outcome == st.UNAVAILABLE
+    # The frontend and several files run for real since the sandbox's own
+    # build (2026-11-03): tests/test_gagos_sandbox.py drives both.
+    nothing = st.run_change_tests(object(), base_commit="c", changes={})
+    assert nothing.outcome == st.UNTESTED
