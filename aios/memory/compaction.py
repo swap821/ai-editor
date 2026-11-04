@@ -297,8 +297,8 @@ class MemoryCompactor:
         existing_workflows: set[str] = set()
         if trusted_workflows_path.exists():
             with open(trusted_workflows_path, "r", encoding="utf-8") as f:
-                for l in f:
-                    clean = l.strip().lstrip("-* ").strip()
+                for workflow_line in f:
+                    clean = workflow_line.strip().lstrip("-* ").strip()
                     if clean:
                         existing_workflows.add(clean.lower())
 
