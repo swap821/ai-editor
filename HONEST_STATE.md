@@ -1,9 +1,27 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-04 ("2026-11-04, D14 ready" below; earlier sections keep the
-commit they were measured on). The whole story, from the first commit, is
+**Last updated:** 2026-11-04 ("2026-11-04, consistency measured" below; earlier sections
+keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-04, consistency measured (branch `feat/consistency-register`, off master `d7bd7ef0`)
+
+- **The operator's request:** "I want u to make my cross-system consistency of my project 10/10 honestly 100%." This is the first of four steps: measure. Nothing in GAGOS behaves differently yet.
+- **The register.** `.aios/state/CONSISTENCY_REGISTER.json` lists the facts two or more parts of GAGOS rely on, every place each is derived, and whether a test fails when they drift. `scripts/consistency_audit.py` checks every claim (a row cannot claim a guard that is not a real test) and generates the status in `docs/architecture/CONSISTENCY_REGISTER.md`.
+- **The honest start: 12 of 35 registered facts guarded (34%).** The 12 are guards that already existed (the one gateway, the event vocabularies, the route registry, the one egress law, and so on). 100% will mean every *registered* fact is guarded; a fact nobody registered is not measured.
+- **Eleven disagree today, two agree only under conditions** (staged work while `AIOS_DATA_DIR` is unset, the plan models only when the daily backend starts the counter), **and two guards have drifted**: the privacy guard over cloud clients lists four by hand and lacks the plan client (which does filter), and the workshop's Codex test pins a hand-written subset of the sealing flags. Among the eleven:
+  - a turn served by Vertex outside failover is recorded as `ollama`, a local brain: `_provider_name` never checks the Vertex client;
+  - the provider-health list, the readiness probe, the hiring broker, the council's dissent reasoner and the swarm's cloud burst each keep their own shorter list of brains, none with the operator's plans;
+  - the hiring broker prices openai high, the router low;
+  - three judges of "did the tests pass" can disagree (the sandbox judges against the base, the other two on exit code alone);
+  - the `.env` template names cloud-task classes (`general`, `fast`) that the law silently drops;
+  - the launcher's provenance command reads a database file nothing writes;
+  - rollback checkpoints and the profile each have two defaults, and the Ollama address two setting names;
+  - the face cannot repair a REOPENED finding, and its skill states differ from the backend's.
+- **Seventeen hand-written lists of provider names** remain in `aios/` and `tools/`, counted by the same script.
+- **A correction.** On 2026-11-04 I told the operator the ant-colony swarm runs when he switches swarm on. It does not: production refuses it (`generate_pipeline.py`: "route it through WorkerFoundry before enabling"). The swarm is switched off, not merely unused.
+- **Next:** one registry of brains, then one engine for all workers (the swarm entering the Foundry), then guards on the rest, each its own PR.
 
 ## 2026-11-04, D14 ready (branch `feat/gagos-d14`, off `evidence/after-591`)
 
