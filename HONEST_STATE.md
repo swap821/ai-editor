@@ -12,7 +12,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - It may reach 12 lines from its warning, or anywhere in the file for a rename (E741).
   - Its writer is told behaviour must not change and that tests will run.
   - It reaches a reviewer only if the sandbox ran tests that exercise its file, and they passed. A fix with no such test is refused; when the sandbox cannot run, the fix waits, unreviewed.
-- **Left out:** `react-refresh/only-export-components` (11), since its fix moves exports into a new file, and a task changes files that exist.
+- **Left out:** `react-refresh/only-export-components` (10), since its fix moves exports into a new file, and a task changes files that exist; and one warning ESLint reports without a rule, not yet identified. (A first draft of this line said 11: a miscount, corrected the same day.)
 - **Tests:** `tests/test_gagos_self_complete.py`, 6 tests, 5 of which fail without the change; all 210 of GAGOS's tests pass.
 - **The full backend suite reached 92%** before Claude Code stopped it for low memory, with two failures. Both fail on master too, only because the operator's user-wide `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding` reaches the tests, and both pass with it unset. CI runs the rest.
 
