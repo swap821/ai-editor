@@ -84,6 +84,24 @@ _FENCE = re.compile(r"^```[^\n]*\n(.*?)^```[ \t]*$", re.DOTALL | re.MULTILINE)
 #: (:func:`aios.maintenance.python_static.import_refusal`).
 PYTHON_RULES: tuple[str, ...] = ("F401", "F841")
 
+#: GAGOS's harder work on itself (2026-11-04, the operator: "I want GAGOS
+#: HONESTLY 100% complete itself"): warnings whose fix can change behaviour.
+#: Each fix must still remove its warnings and add none, and it reaches review
+#: only when the sandbox ran tests that exercise its file and they passed
+#: (frontend or Python, since D14). react-refresh/only-export-components stays
+#: out: its fix moves exports into a new file, and a task changes files that exist.
+BEHAVIOUR_RULES: tuple[str, ...] = (
+    "react-hooks/set-state-in-effect",
+    "react-hooks/exhaustive-deps",
+    "F821",
+    "E402",
+    "E741",
+)
+#: How a refusal begins when such a fix had no test to run.
+UNTESTED_BEHAVIOUR = (
+    "a fix that can change behaviour needs tests that exercise its file"
+)
+
 
 def is_python(rel: str) -> bool:
     """A Python file is GAGOS's backend or GAGOS itself; anything else here is
@@ -103,6 +121,18 @@ MAX_CHANGED_LINES_PER_WARNING = 8
 #: rejected for touching what they were not asked to reached 17 and 24 lines
 #: away. Refused here, they cost no review and teach the writer why.
 MAX_REACH = 3
+#: The reach of a behaviour-changing fix: an effect's body or an import block
+#: can sit a few lines from where the warning points. A rename (E741) reaches
+#: every use in the file: no reach, only the bound on changed lines.
+BEHAVIOUR_REACH: dict[str, int | None] = {"E741": None}
+BEHAVIOUR_REACH_DEFAULT = 12
+
+
+def reach_of(rule: str) -> int | None:
+    """How many lines from its nearest warning a fix for *rule* may change."""
+    if rule in BEHAVIOUR_RULES:
+        return BEHAVIOUR_REACH.get(rule, BEHAVIOUR_REACH_DEFAULT)
+    return MAX_REACH
 
 
 def digest(text: str) -> str:
@@ -421,6 +451,14 @@ def proposal_prompt(
         "Warnings to fix (line:column message):",
         *(f"  {line}:{col} {msg}" for line, col, msg in finding.warnings),
     ]
+    if finding.rule in BEHAVIOUR_RULES:
+        lines += [
+            "",
+            "This rule's fix can change what the code does. Keep its behaviour "
+            "for its users exactly as it is; the tests that exercise this file "
+            "run before any reviewer reads your change, and it is refused if "
+            "one of them breaks.",
+        ]
     if facts:
         lines += [
             "",
@@ -675,13 +713,18 @@ def static_verdict(
             f"{len(finding.warnings)} warning(s) is {limit}",
             changed,
         )
-    far = beyond_reach(diff, [line for line, _col, _msg in finding.warnings])
+    reach = reach_of(finding.rule)
+    far = (
+        beyond_reach(diff, [line for line, _col, _msg in finding.warnings], reach)
+        if reach is not None
+        else []
+    )
     if far:
         line, distance = far[0]
         return StaticVerdict(
             False,
             f"the proposal changes line {line}, {distance} lines from the nearest "
-            f"warning; a fix stays within {MAX_REACH} lines of what it fixes",
+            f"warning; a fix stays within {reach} lines of what it fixes",
             changed,
         )
     return StaticVerdict(True, "parses; the warnings are gone; nothing new", changed)
