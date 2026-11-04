@@ -28,6 +28,7 @@ import json
 import os
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -135,3 +136,76 @@ def test_a_killed_client_does_not_leave_the_tests_running() -> None:
         check=False,
     )
     assert found.returncode == 137, found
+
+
+# ------------------------------------------------------------ the frontend image
+
+WEB_PROBE = """
+const fs = require('fs'), net = require('net'), dns = require('dns');
+const out = {};
+const tcp = new Promise((done) => {
+  const s = net.connect({ host: '1.1.1.1', port: 53, timeout: 5000 });
+  s.on('connect', () => { out.tcp = 'open'; s.destroy(); done(); });
+  s.on('error', () => { out.tcp = 'blocked'; done(); });
+  s.on('timeout', () => { out.tcp = 'blocked'; s.destroy(); done(); });
+});
+const name = new Promise((done) => {
+  dns.lookup('example.com', (err) => { out.dns = err ? 'blocked' : 'resolved'; done(); });
+});
+for (const target of ['/workspace/escape.txt', '/opt/web/escape.txt',
+    '/opt/web/node_modules/escape.txt', '/usr/escape.txt', '/etc/escape.txt', '/tmp/ok.txt']) {
+  try { fs.writeFileSync(target, 'x'); out[target] = 'written'; }
+  catch (e) { out[target] = 'refused'; }
+}
+out.secret = process.env.GAGOS_PROBE_TOKEN || null;
+out.uid = process.getuid();
+out.workspace = fs.readdirSync('/workspace').sort();
+Promise.all([tcp, name]).then(() => console.log(JSON.stringify(out)));
+"""
+
+
+@pytest.fixture(scope="module")
+def web_probe(tmp_path_factory) -> dict:
+    """The same probe in ``aios-verify-web``, the image the frontend's tests run
+    in (``Dockerfile.verify-web``), through the same runner and limits."""
+    lock = (
+        Path(__file__).resolve().parents[1] / "frontend/package-lock.json"
+    ).read_bytes()
+    image = st.web_image(lock)
+    if not st.image_built(image):
+        pytest.skip(f"{image} is not built; {st.web_build_hint(lock)}")
+    tree = tmp_path_factory.mktemp("gagos-web-probe")
+    (tree / "probe.js").write_text(WEB_PROBE, encoding="utf-8")
+    os.environ["GAGOS_PROBE_TOKEN"] = "never-in-the-sandbox"
+    try:
+        out, err, code = st.default_runner(image)(
+            "node probe.js", cwd=str(tree), env=dict(os.environ), timeout_s=180
+        )
+    finally:
+        os.environ.pop("GAGOS_PROBE_TOKEN", None)
+    assert code == 0, f"the web probe did not run: exit {code}\n{out}\n{err}"
+    result = json.loads(out.strip().splitlines()[-1])
+    result["host_escape"] = (tree / "escape.txt").exists()
+    return result
+
+
+def test_the_web_sandbox_has_no_network(web_probe) -> None:
+    assert web_probe["tcp"] == "blocked" and web_probe["dns"] == "blocked", web_probe
+
+
+def test_the_web_sandbox_writes_only_its_own_tmp(web_probe) -> None:
+    for target in (
+        "/workspace/escape.txt",
+        "/opt/web/escape.txt",
+        "/opt/web/node_modules/escape.txt",
+        "/usr/escape.txt",
+        "/etc/escape.txt",
+    ):
+        assert web_probe[target] == "refused", (target, web_probe)
+    assert not web_probe["host_escape"], "a file appeared in the host's copy"
+    assert web_probe["/tmp/ok.txt"] == "written", "the sandbox must still be usable"
+
+
+def test_the_web_sandbox_is_not_root_and_leaks_no_secret(web_probe) -> None:
+    assert web_probe["uid"] != 0 and web_probe["secret"] is None, web_probe
+    assert web_probe["workspace"] == ["probe.js"], web_probe

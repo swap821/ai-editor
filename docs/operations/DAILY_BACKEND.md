@@ -20,10 +20,25 @@ From the repository root, in PowerShell:
 ```
 
 `up` does the following, in order:
+0. Makes sure the face answers (see "The face" below). This comes first because the face does not depend on the backend, and a refusal in the steps below must not leave him without one.
 1. Starts Ollama if it is down, and Docker Desktop if it is not reachable.
 2. Refuses if the sandbox image for the current `requirements.txt` is not built, and prints the build command.
 3. Reads the keys it needs from Windows Credential Manager, in memory only.
 4. Starts the executor service on :8081 and the backend on :8000, writes `data/services/daily.json`, and runs `check`.
+
+## The face
+
+*2026-11-03, the operator's ask: "plz honestly do all than we will be ready for D14".* The frontend dev server on :5173 used to be started by hand, so after a reboot it was simply gone.
+
+| Command | What it does about the face |
+|---|---|
+| `up` | If `http://localhost:5173` does not answer, starts `npm run dev -- --port 5173 --strictPort` through `cmd.exe` from `frontend/`: no window, detached, output to `data/services/frontend.log`. Records its pid under `face` in `data/services/daily.json` and reports it. If something already answers, it leaves it alone and says so; a server he started by hand is not recorded as ours. If `frontend/node_modules` is missing it starts nothing and says to run `npm ci` (never `npm install`). |
+| `status` | Prints the face's health, and the pid when this tool started it. |
+| `down` | Stops only a face this tool started, the whole process tree (`cmd.exe`, npm, node). It does so only while that face still answers: a pid recorded before a reboot may belong to another process by now. |
+
+The face's start does not change `up`'s exit code or anything about the backend: a face that is not up is reported, and the backend's own result decides the exit code.
+
+The watchdog task `\GAGOS\backend` already runs `up` every 15 minutes, so the face now comes back after every reboot and after any crash, with no change to his scheduled tasks. `--strictPort` makes a busy :5173 a visible failure in `frontend.log` instead of a silent move to :5174.
 
 ## What it sets
 
@@ -34,9 +49,13 @@ From the repository root, in PowerShell:
 | `AIOS_CONTAINER_IMAGE` | `aios-verify:<first 12 of the sha256 of requirements.txt>` | 2026-10-28 |
 | `AIOS_EXECUTOR_TIMEOUT_S` | `120` | 2026-10-28 |
 | `AIOS_REPLAY_APPROVED_COMMANDS` | `1` | 2026-10-19 |
-| `AIOS_ROUTER_CLOUD_TASKS` | empty, so `auto` stays local; `--cloud-tasks reasoning` opts in for one launch | 2026-10-29 |
+| `AIOS_ROUTER_CLOUD_TASKS` | `reasoning,coding`, his own user-wide choice; `--cloud-tasks ""` keeps every turn local | 2026-11-03 |
+| `AIOS_PLAN_CLAUDE_MODELS` | `claude-sonnet-5-5,claude-haiku-5-5`, through Claude Code on his plan | 2026-11-03 |
+| `AIOS_PLAN_CODEX_MODELS` | `gpt-6.1-sol,gpt-6.1-terra,gpt-6-luna`, through Codex on his plan | 2026-11-03 |
 
 `AIOS_ROUTER_CLOUD_TASKS` is always set by the tool, so a value inherited from the user environment never decides where a turn goes.
+
+On 2026-11-03 the operator connected his own plans to the counter ("connect codex models to counter also and C"; `aios/core/plan_cli.py`). Reasoning and coding turns on `auto` may now go to them; general and fast turns stay local. Opus is left out: it would spend the plan he shares with his own sessions fastest.
 
 The user-wide `reasoning,coding` still reaches every other process he starts. Removing it is his choice:
 

@@ -16,8 +16,28 @@ AIOS_TASK_SCOPE                work/ai-editor                        2026-10-29
 AIOS_CONTAINER_IMAGE           aios-verify:<sha12 of requirements>   2026-10-28
 AIOS_EXECUTOR_TIMEOUT_S        120                                   2026-10-28
 AIOS_REPLAY_APPROVED_COMMANDS  1                                     2026-10-19
-AIOS_ROUTER_CLOUD_TASKS        "" (auto is local), or --cloud-tasks  2026-10-29
+AIOS_ROUTER_CLOUD_TASKS        reasoning,coding, or --cloud-tasks    2026-11-03
+AIOS_PLAN_CLAUDE_MODELS        claude-sonnet-5-5,claude-haiku-5-5    2026-11-03
+AIOS_PLAN_CODEX_MODELS         gpt-6.1-sol,gpt-6.1-terra,gpt-6-luna  2026-11-03
 =============================  ====================================  ==========
+
+On 2026-11-03 the operator connected his own plans to the counter: "connect
+codex models to counter also and C" (Claude through Claude Code, the GPT models
+through Codex; :mod:`aios.core.plan_cli`). Cloud tasks became his own
+user-wide choice, ``reasoning,coding``; general and fast turns stay local.
+Opus is left out: it would spend the plan he shares with his own sessions
+fastest. ``--cloud-tasks ""`` keeps every turn local.
+
+The face (2026-11-03, D14: "plz honestly do all"). The frontend dev server on
+:5173 did not start by itself after a reboot. ``up`` now also makes sure it
+answers: if ``http://localhost:5173`` is silent it starts ``npm run dev`` from
+``frontend/`` (no window, detached, output to ``data/services/frontend.log``)
+and records the pid in the state file; if something already answers, it is left
+alone and is not recorded as ours, so ``down`` never stops a server he started
+by hand. Without ``frontend/node_modules`` it starts nothing and says to run
+``npm ci``. The watchdog that already runs ``up`` every 15 minutes
+(``\\GAGOS\\backend``) thereby brings the face back after every reboot, with no
+change to his scheduled tasks.
 
 (``docs/operations/WORK_SCOPE.md`` and ``docs/operations/DAILY_BACKEND.md``.)
 
@@ -58,6 +78,8 @@ SERVICES = REPO / "data" / "services"
 STATE = SERVICES / "daily.json"
 BACKEND_PORT = 8000
 EXECUTOR_PORT = 8081
+FACE_PORT = 5173
+FRONTEND = REPO / "frontend"
 #: The keys the daily backend needs, and no others. Loading every stored key
 #: also sets ``AIOS_API_TOKEN``, which turns on token-only auth and refused the
 #: operator's own local tools (2026-10-19).
@@ -72,6 +94,9 @@ KEYS = (
     "AIOS_AUDIT_PRIVATE_KEY",
 )
 _DETACHED = (0x00000008 | 0x00000200) if os.name == "nt" else 0
+#: The face runs under cmd.exe (npm is a .cmd): CREATE_NO_WINDOW | NEW_PROCESS_GROUP.
+#: DETACHED_PROCESS would let cmd.exe open a console window of its own.
+_FACE_FLAGS = (0x08000000 | 0x00000200) if os.name == "nt" else 0
 
 
 def verify_image(repo: Path = REPO) -> str:
@@ -80,12 +105,20 @@ def verify_image(repo: Path = REPO) -> str:
     return f"aios-verify:{digest[:12]}"
 
 
-def daily_settings(repo: Path = REPO, *, cloud_tasks: str = "") -> dict[str, str]:
+#: The operator's plans at the counter (2026-11-03): see the table above.
+CLOUD_TASKS = "reasoning,coding"
+PLAN_CLAUDE = ("claude-sonnet-5-5", "claude-haiku-5-5")
+PLAN_CODEX = ("gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna")
+
+
+def daily_settings(
+    repo: Path = REPO, *, cloud_tasks: str = CLOUD_TASKS
+) -> dict[str, str]:
     """The daily backend's launch settings. No secret is among them.
 
     ``AIOS_ROUTER_CLOUD_TASKS`` is always set, so a value inherited from the
-    user's environment never decides where a turn goes: empty keeps ``auto``
-    local, and cloud routing is a choice made at launch (``--cloud-tasks``).
+    user's environment never decides where a turn goes: the launch decides
+    (``--cloud-tasks``; his choice since 2026-11-03 is the default).
     """
     return {
         # training_ground FIRST: commands run from the parent of the first root.
@@ -97,6 +130,8 @@ def daily_settings(repo: Path = REPO, *, cloud_tasks: str = "") -> dict[str, str
         "AIOS_EXECUTOR_TIMEOUT_S": "120",
         "AIOS_REPLAY_APPROVED_COMMANDS": "1",
         "AIOS_ROUTER_CLOUD_TASKS": cloud_tasks,
+        "AIOS_PLAN_CLAUDE_MODELS": ",".join(PLAN_CLAUDE),
+        "AIOS_PLAN_CODEX_MODELS": ",".join(PLAN_CODEX),
     }
 
 
@@ -113,6 +148,121 @@ def _health(port: int, timeout: float = 3.0) -> Optional[int]:
         return exc.code
     except Exception:  # noqa: BLE001 - down is down
         return None
+
+
+def _face_health(timeout: float = 3.0) -> Optional[int]:
+    """The dev server answers ``/`` (any HTTP status counts as answering)."""
+    try:
+        with urllib.request.urlopen(
+            f"http://localhost:{FACE_PORT}", timeout=timeout
+        ) as response:
+            return response.status
+    except urllib.error.HTTPError as exc:
+        return exc.code
+    except Exception:  # noqa: BLE001 - down is down
+        return None
+
+
+def _face_command() -> list[str]:
+    # --strictPort: never drift to :5174 and leave :5173 silent.
+    run = ["npm", "run", "dev", "--", "--port", str(FACE_PORT), "--strictPort"]
+    return ["cmd.exe", "/c", *run] if os.name == "nt" else run
+
+
+def _write_state(state: dict[str, Any]) -> None:
+    SERVICES.mkdir(parents=True, exist_ok=True)
+    STATE.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+
+
+def _ensure_face(wait_s: float = 60) -> str:
+    """Make sure the face answers. Starts it only when :5173 is silent."""
+    status = _face_health()
+    if status is not None:
+        state = _read_state()
+        face = state.get("face")
+        if face and not _face_is_ours(face):
+            # Not the one this tool started: its record is stale.
+            del state["face"]
+            _write_state(state)
+        return f"already answers on :{FACE_PORT} (HTTP {status}); left alone"
+    if not (FRONTEND / "node_modules").is_dir():
+        return (
+            f"not started: {FRONTEND / 'node_modules'} is missing; "
+            f"run npm ci in {FRONTEND}"
+        )
+    SERVICES.mkdir(parents=True, exist_ok=True)
+    with (SERVICES / "frontend.log").open("w", encoding="utf-8") as log:
+        process = subprocess.Popen(  # noqa: S603 - fixed argv, no shell
+            _face_command(),
+            cwd=str(FRONTEND),
+            stdout=log,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+            creationflags=_FACE_FLAGS,
+        )
+    state = _read_state()
+    state["face"] = {
+        "pid": process.pid,
+        # Its identity: a pid with this creation time is this process and no
+        # other, even after the pid is reused.
+        "created": _process_created(process.pid),
+        "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
+        "port": FACE_PORT,
+    }
+    _write_state(state)
+    deadline = time.time() + wait_s
+    while time.time() < deadline:
+        if _face_health() is not None:
+            return f"started on :{FACE_PORT} (pid {process.pid})"
+        time.sleep(1)
+    return (
+        f"started (pid {process.pid}) but :{FACE_PORT} did not answer; "
+        f"see {SERVICES / 'frontend.log'}"
+    )
+
+
+def _process_created(pid: int) -> Optional[str]:
+    """When the process *pid* was created (UTC, to the 100 ns Windows keeps),
+    or None when no such process runs."""
+    if os.name != "nt":  # pragma: no cover - the operator's laptop is Windows
+        return None
+    try:
+        out = _run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-NonInteractive",
+                "-Command",
+                f"Get-CimInstance Win32_Process -Filter 'ProcessId={int(pid)}' | "
+                "ForEach-Object { $_.CreationDate.ToUniversalTime().ToString('o') }",
+            ],
+            timeout=60,
+        ).stdout.strip()
+    except Exception:  # noqa: BLE001 - unknown is not ours
+        return None
+    return out or None
+
+
+def _face_is_ours(face: dict[str, Any]) -> bool:
+    """Whether the recorded face process is still the one this tool started:
+    the same pid created at the same instant. A recorded pid outlives a reboot
+    and can be another program's by then (both reviewers of D14, 2026-11-03);
+    a reused pid never has the same creation time. Measured that day: Windows'
+    own socket listings (netstat, Get-NetTCPConnection) missed live listeners on
+    this laptop, so the port's owner is not what decides."""
+    pid, created = face.get("pid"), face.get("created")
+    return bool(pid and created) and _process_created(int(pid)) == created
+
+
+def _kill_tree(pid: int) -> None:
+    if os.name == "nt":
+        # /T: cmd.exe -> npm -> node; the whole tree goes.
+        _run(["taskkill", "/PID", str(pid), "/T", "/F"], timeout=30)
+    else:  # pragma: no cover - the operator's laptop is Windows
+        try:
+            os.kill(int(pid), 15)
+        except OSError:
+            pass
 
 
 def _wait_health(port: int, seconds: float) -> Optional[int]:
@@ -221,6 +371,9 @@ def _image_present(tag: str) -> bool:
 # Commands
 # --------------------------------------------------------------------------- #
 def up(args: argparse.Namespace) -> int:
+    # The face does not depend on the backend, so it is made sure of first: a
+    # refusal below (Docker, image) must not leave him without a face.
+    print("face:", _ensure_face())
     if _health(BACKEND_PORT) is not None:
         print(f"a backend already answers on :{BACKEND_PORT}; not starting another.")
         status(args)
@@ -308,7 +461,11 @@ def up(args: argparse.Namespace) -> int:
         "executor_health": _wait_health(EXECUTOR_PORT, 90),
         "backend_health": _wait_health(BACKEND_PORT, 240),
     }
-    STATE.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+    # The state file is rewritten here; the face's record (if ours) must survive.
+    face = _read_state().get("face")
+    if face:
+        state["face"] = face
+    _write_state(state)
     print(json.dumps({k: v for k, v in state.items() if k != "settings"}, indent=2))
     missing = sorted(set(KEYS) - set(keys))
     if missing:
@@ -407,6 +564,15 @@ def status(args: argparse.Namespace) -> int:
     state = _read_state()
     print(f"backend :{BACKEND_PORT} health: {_health(BACKEND_PORT)}")
     print(f"executor :{EXECUTOR_PORT} health: {_health(EXECUTOR_PORT)}")
+    face = state.get("face") or {}
+    print(
+        f"face :{FACE_PORT} health: {_face_health()} "
+        + (
+            f"(started by this tool, pid {face['pid']})"
+            if face.get("pid")
+            else "(not started by this tool)"
+        )
+    )
     if state:
         print(json.dumps(state, indent=2))
     else:
@@ -417,21 +583,35 @@ def status(args: argparse.Namespace) -> int:
 def down(args: argparse.Namespace) -> int:
     state = _read_state()
     pids = (state.get("pids") or {}) if state else {}
-    if not pids:
+    face = (state.get("face") or {}) if state else {}
+    if not pids and not face.get("pid"):
         print("no state file: nothing this tool started is recorded; stopping nothing")
         return 1
     for name, pid in pids.items():
-        if os.name == "nt":
-            # /T: the venv launcher re-execs the real interpreter as a child.
-            _run(["taskkill", "/PID", str(pid), "/T", "/F"], timeout=30)
-        else:  # pragma: no cover - the operator's laptop is Windows
-            try:
-                os.kill(int(pid), 15)
-            except OSError:
-                pass
+        # /T: the venv launcher re-execs the real interpreter as a child.
+        _kill_tree(pid)
         print(f"stopped {name} (pid {pid})")
+    ours = False
+    if face.get("pid"):
+        # A recorded pid outlives a reboot and can be another process's by now:
+        # it is stopped only when the server on the port descends from it.
+        if _face_health() is None:
+            print(f"face (pid {face['pid']}) is not answering; nothing to stop")
+        elif not _face_is_ours(face):
+            print(
+                f"the face answering on :{FACE_PORT} is not the one this tool "
+                f"started (pid {face['pid']}); not stopped"
+            )
+        else:
+            ours = True
+            _kill_tree(face["pid"])
+            print(f"stopped face (pid {face['pid']})")
     time.sleep(2)
-    still = [p for p in (BACKEND_PORT, EXECUTOR_PORT) if _health(p) is not None]
+    still = [
+        p for p in (BACKEND_PORT, EXECUTOR_PORT) if pids and _health(p) is not None
+    ]
+    if ours and _face_health() is not None:
+        still.append(FACE_PORT)
     if still:
         print("still answering on", still)
         return 1
@@ -444,8 +624,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("command", choices=("up", "check", "status", "down", "_report"))
     parser.add_argument(
         "--cloud-tasks",
-        default="",
-        help='task classes auto may send to the cloud, e.g. "reasoning"; default none',
+        default=CLOUD_TASKS,
+        help=f'task classes auto may send to the cloud; default "{CLOUD_TASKS}", "" for none',
     )
     parser.add_argument(
         "--maintenance-root",

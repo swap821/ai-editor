@@ -613,6 +613,19 @@ ANTHROPIC_MODEL: Final[str] = _env_str(
 ANTHROPIC_MAX_TOKENS: Final[int] = _env_int("AIOS_ANTHROPIC_MAX_TOKENS", 1024)
 ANTHROPIC_ENABLED: Final[bool] = bool(ANTHROPIC_API_KEY)
 
+# The operator's own plans at the counter (2026-11-03: "connect codex models to
+# counter also and C"): Claude models through Claude Code, GPT models through
+# Codex, comma-separated. Empty, the default, offers none.
+PLAN_CLAUDE_MODELS: Final[tuple[str, ...]] = tuple(
+    m.strip() for m in _env_str("AIOS_PLAN_CLAUDE_MODELS", "").split(",") if m.strip()
+)
+PLAN_CODEX_MODELS: Final[tuple[str, ...]] = tuple(
+    m.strip() for m in _env_str("AIOS_PLAN_CODEX_MODELS", "").split(",") if m.strip()
+)
+PLAN_TIMEOUT_S: Final[int] = _env_int("AIOS_PLAN_TIMEOUT_S", 300)
+PLAN_CODEX_EFFORT: Final[str] = _env_str("AIOS_PLAN_CODEX_EFFORT", "medium")
+PLAN_ENABLED: Final[bool] = bool(PLAN_CLAUDE_MODELS or PLAN_CODEX_MODELS)
+
 CLOUD_HISTORY_WINDOW: Final[int] = _env_int("AIOS_CLOUD_HISTORY_WINDOW", 2)
 CLOUD_CODING_HISTORY_WINDOW: Final[int] = _env_int(
     "AIOS_CLOUD_CODING_HISTORY_WINDOW", 4

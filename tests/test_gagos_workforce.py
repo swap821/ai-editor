@@ -27,6 +27,8 @@ import subprocess
 import threading
 from types import SimpleNamespace
 
+import pytest
+
 from aios.maintenance import daily_work as dw
 from tests.test_gagos_daily import (
     AFTER,
@@ -309,56 +311,116 @@ def test_the_operators_plan_takes_at_most_its_share_and_costs_no_aws(
     [p] = led.proposals()
     assert p["status"] == "proposed"
     assert led.month_spend(tool._month()) == {asked[0]: 0.0}
-    assert "the operator's plan takes 1 a batch" in capsys.readouterr().out
+    assert "the operator's Claude plan takes 1 a batch" in capsys.readouterr().out
     waiting = OTHER if p["rel"] == REL else REL
     assert not led.attempted(waiting, RULE, dw.digest(BEFORE)), (
         "the finding over the plan's share waits for a later hour"
     )
 
 
-def _claude_code(monkeypatch, *, returncode=0, answer=None, is_error=False):
-    calls: list = []
-
-    def run(argv, **kw):
-        calls.append((argv, kw))
-        return subprocess.CompletedProcess(
-            argv,
+class _Run:
+    def __init__(self, stdout="", returncode=0, codex_answer=None):
+        self.calls: list = []
+        self.stdout, self.returncode, self.codex_answer = (
+            stdout,
             returncode,
-            stdout=json.dumps({"is_error": is_error, "result": answer}),
-            stderr="",
+            codex_answer,
         )
 
-    monkeypatch.setattr(tool, "_claude_executable", lambda: "claude-bin")
-    monkeypatch.setattr(tool.subprocess, "run", run)
-    return calls
+    def __call__(self, argv, **kw):
+        from pathlib import Path
+
+        self.calls.append((argv, kw))
+        if "-o" in argv and self.codex_answer is not None:
+            Path(argv[argv.index("-o") + 1]).write_text(
+                self.codex_answer, encoding="utf-8"
+            )
+        return subprocess.CompletedProcess(argv, self.returncode, self.stdout, "")
 
 
-def test_a_claude_writer_runs_claude_code_with_only_the_text(monkeypatch) -> None:
-    answer = "```jsx\nconst a = 1;\n```"
-    calls = _claude_code(monkeypatch, answer=answer)
-    writer = tool.ClaudeCodeWriter("claude-haiku-5-5")
-    assert writer.complete("PROMPT", system="SYSTEM") == answer
-    [(argv, kw)] = calls
-    assert argv[:2] == ["claude-bin", "-p"]
-    assert argv[argv.index("--model") + 1] == "claude-haiku-5-5"
-    assert argv[argv.index("--tools") + 1] == "", "no tools: it can only write text"
-    assert "--no-session-persistence" in argv and "--strict-mcp-config" in argv
-    assert argv[argv.index("--system-prompt") + 1] == "SYSTEM"
-    assert kw["input"] == "PROMPT"
-    assert "gagos-writer-" in kw["cwd"], "an empty directory, not a checkout"
+@pytest.fixture(autouse=True)
+def _no_plan_tools_installed(monkeypatch):
+    """As on CI (2026-11-03): neither Claude Code nor Codex is installed, so a
+    writer built here never depends on this laptop having them."""
+    from aios.core import plan_cli
+
+    monkeypatch.setattr(plan_cli, "claude_executable", lambda: None)
+    monkeypatch.setattr(plan_cli, "codex_executable", lambda: None)
 
 
-def test_a_claude_writer_that_gives_no_answer_is_a_failed_call(monkeypatch) -> None:
-    _claude_code(
-        monkeypatch, returncode=1, answer="Claude AI usage limit reached", is_error=True
-    )
-    writer = tool.ClaudeCodeWriter("claude-sonnet-5-5")
-    try:
-        writer.complete("PROMPT", system="SYSTEM")
-    except RuntimeError as exc:
-        assert "usage limit" in str(exc)
+def _writer(model, run):
+    writer = tool.plan_writer(model)
+    assert writer.model == model, "the configured writer, installed or not"
+    writer.claude, writer.codex, writer._run = "claude-bin", "codex-bin", run
+    if model in tool.CLAUDE_WRITERS:
+        writer.claude_models, writer.codex_models = (model,), ()
     else:
-        raise AssertionError("a call with no answer must raise")
+        writer.claude_models, writer.codex_models = (), (model,)
+    return writer
+
+
+def test_a_plan_writer_is_sent_only_the_text_as_written() -> None:
+    """The workshop's writers are the counter's plan client: one sealed path
+    for Claude Code and Codex (aios/core/plan_cli.py, pinned in
+    tests/test_plan_cli.py)."""
+    from aios.core import model_calls
+
+    answer = "```jsx\nconst a = 1;\n```"
+    claude = _Run(stdout=json.dumps({"is_error": False, "result": answer}))
+    codex = _Run(codex_answer=answer)
+    with model_calls.gateway_scope("route"):
+        assert (
+            _writer("claude-haiku-5-5", claude).complete("PROMPT", system="SYSTEM")
+            == answer
+        )
+        assert (
+            _writer("gpt-6-luna", codex).complete("PROMPT", system="SYSTEM") == answer
+        )
+    [(argv, kw)] = claude.calls
+    assert argv[argv.index("--model") + 1] == "claude-haiku-5-5"
+    assert argv[argv.index("--system-prompt") + 1] == "SYSTEM"
+    assert kw["input"] == "PROMPT", "GAGOS's prompt, as written"
+    [(argv, kw)] = codex.calls
+    assert (
+        argv[:2] == ["codex-bin", "exec"] and argv[argv.index("-m") + 1] == "gpt-6-luna"
+    )
+    assert kw["input"] == "SYSTEM\n\nPROMPT"
+
+
+def test_a_plan_writer_that_gives_no_answer_is_a_failed_call() -> None:
+    from aios.core import model_calls
+    from aios.core.llm import LLMError
+
+    run = _Run(
+        stdout=json.dumps(
+            {"is_error": True, "result": "Claude AI usage limit reached"}
+        ),
+        returncode=1,
+    )
+    with model_calls.gateway_scope("route"):
+        try:
+            _writer("claude-sonnet-5-5", run).complete("PROMPT", system="SYSTEM")
+        except LLMError as exc:
+            assert "usage limit" in str(exc)
+        else:
+            raise AssertionError("a call with no answer must raise")
+
+
+def test_each_plan_takes_its_own_share_and_neither_costs_aws(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """2026-11-03: the GPT models the operator named write too, on his OpenAI
+    plan, which has its own share of a batch."""
+    led, asked, args, _ids = _batch(tmp_path, monkeypatch, ceiling=0.0, third=True)
+    monkeypatch.setattr(
+        tool, "WORKFORCE", (tool.CLAUDE_WRITERS[0], tool.CODEX_WRITERS[0])
+    )
+    monkeypatch.setattr(tool, "PLAN_PROPOSALS_PER_BATCH", 1)
+    monkeypatch.setattr(tool, "CODEX_PROPOSALS_PER_BATCH", 1)
+    assert tool.cmd_propose(args) == 0
+    assert sorted(asked) == sorted([tool.CLAUDE_WRITERS[0], tool.CODEX_WRITERS[0]])
+    assert set(led.month_spend(tool._month()).values()) == {0.0}
+    assert "the operator's Claude plan takes 1 a batch" in capsys.readouterr().out
 
 
 def test_without_a_bedrock_key_the_other_writers_still_work(

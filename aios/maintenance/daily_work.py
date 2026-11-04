@@ -198,7 +198,7 @@ def _middle(line: str, redacted: str) -> tuple[int, int]:
 
 
 def mask_lines(
-    text: str, redact: Callable[[str], str], *, rounds: int = 4
+    text: str, redact: Callable[[str], str], *, rounds: int = 4, min_width: int = 1
 ) -> tuple[str, dict[str, str]]:
     """Hide what GAGOS's egress scrubbers would redact behind placeholders the
     model must keep: ``(masked text, {placeholder: original})``.
@@ -212,8 +212,12 @@ def mask_lines(
     earlier one, and :func:`unmask` restores them in reverse. Line count never
     changes, so warning line numbers hold. The caller re-checks the whole
     prompt before sending anything.
+
+    *min_width* starts the placeholder prefix at that many ``Q``s: a task over
+    several files masks each file under a prefix of its own, so a placeholder
+    moved from one file into another is never restored as the wrong span.
     """
-    width = 1
+    width = max(1, min_width)
     while f"GAGOSMASK{'Q' * width}_" in text:
         width += 1
     prefix = f"GAGOSMASK{'Q' * width}_"
@@ -879,6 +883,206 @@ def task_review_prompt(
     )
 
 
+# ------------------------------------------------------- a task over several files
+
+#: The most characters of file text a task over several files may send: the
+#: writer returns every file it changes whole, in ONE answer, and an answer holds
+#: at most 12,000 tokens (about 36,000 characters at three a token). Thirty
+#: thousand leaves room for the labels and for a change that grows the files; a
+#: task over more is refused with the number, never cut short.
+MAX_TASK_TOTAL_CHARS = 30_000
+
+#: How a writer labels each file it returns, and how it is told to: the file's
+#: index in the task, and its name, never its path.
+_FILE_LABEL = re.compile(r"^[ \t#*=_-]*File[ \t]+(\d+)\b[^\n]*$", re.MULTILINE)
+
+
+def file_label(index: int, rel: str) -> str:
+    """The label of file *index* (from 1) of a task: shown to the writer and the
+    reviewer, never a path."""
+    return f"File {index}: {Path(rel).name}"
+
+
+def task_files_system(rels: Sequence[str]) -> str:
+    """The writer's instruction for a task over several files."""
+    kinds = {is_python(rel) for rel in rels}
+    what = (
+        "Python files of GAGOS's own code"
+        if kinds == {True}
+        else "files of a React + TypeScript codebase"
+        if kinds == {False}
+        else "files of GAGOS's own code, Python and React + TypeScript"
+    )
+    rules = []
+    if False in kinds:
+        rules.append(
+            "a frontend file must add no ESLint warning or error and never gain "
+            "eslint-disable, @ts-ignore, @ts-nocheck or @ts-expect-error"
+        )
+    if True in kinds:
+        rules.append(
+            "a Python file must add no ruff warning or error, keep every public "
+            "name other modules import from it, and never gain noqa, type: "
+            "ignore, nosec or pragma comments"
+        )
+    return (
+        f"You are GAGOS's maintainer. The operator has asked for one change that "
+        f"spans several {what}. Make exactly that change and nothing else: keep "
+        "everything else in every file as it is, and do not reformat, reorder or "
+        "rename anything the task does not need changed. "
+        + "; ".join(rules)[:1].upper()
+        + "; ".join(rules)[1:]
+        + ". Reply with, for each file you change, a line `File N: name` exactly "
+        "as the file is labelled, then the complete changed file in ONE fenced "
+        "code block. Leave out every file you do not change. If the task cannot "
+        "be done in these files, change none of them and reply with no fenced "
+        "code block."
+    )
+
+
+def task_files_prompt(
+    task_text: str,
+    files: Sequence[tuple[str, str]],
+    *,
+    masked: bool = False,
+    facts: Sequence[str] = (),
+) -> str:
+    """The writer's prompt for a task over several files: *task_text* already
+    scrubbed, and *files* as ``(rel, text)`` (the text already masked), each
+    under its :func:`file_label`."""
+    lines = ["The operator's task:", task_text]
+    if facts:
+        lines += [
+            "",
+            "Facts about this project, and the operator's direction:",
+            *(f"  - {fact}" for fact in facts),
+        ]
+    if masked:
+        lines += [
+            "",
+            "Some spans are replaced by placeholders (GAGOSMASK followed by letters, digits and an underscore): they "
+            "hide paths or values that may not leave this machine. Each file has "
+            "placeholders of its own; keep every placeholder you keep exactly as "
+            "written, in the file it is in; never invent one.",
+        ]
+    for n, (rel, text) in enumerate(files, 1):
+        lines += ["", f"{file_label(n, rel)}", "```", text, "```"]
+    return "\n".join(lines)
+
+
+def parse_task_files(raw: str, originals: Sequence[str]) -> dict[int, str]:
+    """The files a writer changed, from its answer to a task over several:
+    ``{index from 0: whole file}``, each in its original's line endings and
+    final-newline convention. A file left out is unchanged; an answer with no
+    fenced block changes nothing. Refused: a block with no ``File N`` label
+    before it, a label with no block after it, a label of a file the task does
+    not have, a file given twice."""
+    out: dict[int, str] = {}
+    pending: int | None = None
+    at = 0
+
+    def labels(chunk: str) -> None:
+        nonlocal pending
+        for label in _FILE_LABEL.finditer(chunk):
+            if pending is not None:
+                raise ProposalRefused(
+                    f"File {pending} is labelled but has no fenced code block"
+                )
+            pending = int(label.group(1))
+            if not 1 <= pending <= len(originals):
+                raise ProposalRefused(
+                    f"the answer labels File {pending}; the task has "
+                    f"{len(originals)} file(s)"
+                )
+
+    for block in _FENCE.finditer(raw or ""):
+        labels(raw[at : block.start()])
+        if pending is None:
+            raise ProposalRefused("a fenced code block has no `File N` label before it")
+        index = pending - 1
+        if index in out:
+            raise ProposalRefused(f"File {pending} is given twice")
+        out[index] = parse_proposal(
+            f"```\n{block.group(1)}```", original=originals[index]
+        )
+        pending, at = None, block.end()
+    labels((raw or "")[at:])
+    if pending is not None:
+        raise ProposalRefused(
+            f"File {pending} is labelled but has no fenced code block"
+        )
+    return out
+
+
+def task_files_review_prompt(
+    task_text: str,
+    parts: Sequence[tuple[str, str, str]],
+    *,
+    facts: Sequence[str] = (),
+) -> str:
+    """What a reviewer reads for a task over several files: the operator's words
+    (already scrubbed), then each changed file as ``(rel, masked original,
+    diff)`` under its label. One verdict is asked for the whole change."""
+    kinds = {is_python(rel) for rel, _base, _diff in parts}
+    part = (
+        "backend (Python; GAGOS's own code)"
+        if kinds == {True}
+        else "frontend"
+        if kinds == {False}
+        else "backend and frontend"
+    )
+    linters = " and ".join(
+        name for name, on in (("ruff", True in kinds), ("ESLint", False in kinds)) if on
+    )
+    known = (
+        [
+            "",
+            "Facts about this project (from its configuration) and the operator's direction:",
+        ]
+        + [f"  - {fact}" for fact in facts]
+        if facts
+        else []
+    )
+    lines = [
+        "You are reviewing a change GAGOS (an AI system) made to its own "
+        f"{part} because its operator asked for it in plain words. The change "
+        f"spans {len(parts)} files and is accepted or rejected as a whole. You "
+        "are its reviewer: if you accept, it goes to the operator to merge; if "
+        "you reject, it does not ship. Be strict and honest.",
+        "",
+        "ACCEPT only if ALL hold:",
+        "- the change, across the files together, does what the operator's task "
+        "asks, and the files agree with one another;",
+        "- it does only that: nothing else in any file is changed, reformatted "
+        "or removed;",
+        "- it breaks nothing: behaviour and public names the task did not ask "
+        "to change are as before, and nothing is silenced (no disable, "
+        "ts-ignore, noqa or type: ignore comments);",
+        "- the code is correct and would pass review in this codebase.",
+        "Otherwise REJECT, and say exactly why in one or two sentences.",
+        f"Automated checks already passed: every file parses and adds no {linters} message.",
+        "",
+        "The operator's task:",
+        task_text,
+        *known,
+    ]
+    for n, (rel, base, diff) in enumerate(parts, 1):
+        lines += [
+            "",
+            file_label(n, rel),
+            "The whole original file:",
+            "```",
+            base,
+            "```",
+            "",
+            "The proposed change:",
+            "```diff",
+            diff,
+            "```",
+        ]
+    return "\n".join(lines)
+
+
 # --------------------------------------------------------------------- tests
 
 #: GAGOS's second kind of work (2026-11-02): a first test for a module of its
@@ -1296,7 +1500,8 @@ CREATE TABLE IF NOT EXISTS tasks (
     status TEXT NOT NULL,
     proposal_id TEXT,
     reason TEXT,
-    updated_at TEXT NOT NULL
+    updated_at TEXT NOT NULL,
+    also TEXT NOT NULL DEFAULT '[]'
 );
 """
 
@@ -1307,12 +1512,29 @@ CREATE TABLE IF NOT EXISTS tasks (
 TASK_RULE = "gagos/task"
 #: The longest task text accepted.
 MAX_TASK_CHARS = 4_000
+#: The most files one task may change (2026-11-03, the operator: "plz honestly
+#: do all than we will be ready for D14"): its own file and up to four more,
+#: changed together, tested together, reviewed and delivered as one.
+MAX_TASK_FILES = 5
 #: Task statuses. ``open`` = waiting for a writer; ``taken`` = a writer's
 #: proposal is recorded (``proposal_id``), whose own status is the progress;
 #: ``refused`` = GAGOS cannot do it (``reason``: a file it may not edit, too
 #: long, or one that cannot leave the machine); ``cancelled`` = withdrawn by
 #: the operator before a writer took it.
 TASK_STATUSES = ("open", "taken", "refused", "cancelled")
+
+
+def _task_dict(row) -> dict:
+    """A task row as a dict, with ``also`` decoded and ``files`` (its own file
+    first) added."""
+    task = dict(row)
+    try:
+        also = json.loads(task.get("also") or "[]")
+    except ValueError:
+        also = []
+    task["also"] = [str(r) for r in also] if isinstance(also, list) else []
+    task["files"] = [task["rel"], *task["also"]]
+    return task
 
 
 class TaskRefused(ValueError):
@@ -1380,6 +1602,14 @@ class DailyLedger:
                 db.execute("ALTER TABLE proposals ADD COLUMN facts TEXT")
             if "sandbox" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN sandbox TEXT")
+            # A task over several files records one proposal per file, grouped.
+            if "group_id" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN group_id TEXT")
+            task_cols = {r["name"] for r in db.execute("PRAGMA table_info(tasks)")}
+            if "also" not in task_cols:
+                db.execute(
+                    "ALTER TABLE tasks ADD COLUMN also TEXT NOT NULL DEFAULT '[]'"
+                )
             # A day an earlier version recorded as run keeps its claim.
             db.execute(
                 "INSERT OR IGNORE INTO day_claims SELECT day, updated_at FROM days "
@@ -1404,7 +1634,10 @@ class DailyLedger:
         refusal: str | None = None,
         day: str | None = None,
         facts: Sequence[str] = (),
+        group_id: str | None = None,
     ) -> str:
+        """*group_id*: the task whose several files this proposal is one of;
+        the group is tested, reviewed and delivered together."""
         proposal_id = f"gd-{uuid.uuid4().hex[:10]}"
         passed = verdict is not None and verdict.passed and refusal is None
         reason = refusal or (None if passed else (verdict.reason if verdict else None))
@@ -1423,8 +1656,8 @@ class DailyLedger:
             db.execute(
                 "INSERT INTO proposals (proposal_id, day, created_at, rel, rule, "
                 "warnings, base_digest, base_commit, base_text, model, status, "
-                "refusal, new_text, new_digest, diff, changed_lines, facts) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "refusal, new_text, new_digest, diff, changed_lines, facts, group_id) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     proposal_id,
                     day or datetime.now(timezone.utc).date().isoformat(),
@@ -1443,9 +1676,21 @@ class DailyLedger:
                     diff,
                     verdict.changed_lines if verdict else None,
                     json.dumps(list(facts)),
+                    group_id,
                 ),
             )
         return proposal_id
+
+    def group_members(self, group_id: str) -> list[dict]:
+        """The proposals of one task over several files, in the order recorded."""
+        with self._db() as db:
+            return [
+                dict(r)
+                for r in db.execute(
+                    "SELECT * FROM proposals WHERE group_id = ? ORDER BY created_at",
+                    (group_id,),
+                )
+            ]
 
     def resettle(self) -> list[str]:
         """Proposals awaiting review that the reviews already recorded now
@@ -1901,9 +2146,13 @@ class DailyLedger:
         return [p["model"] for p in sorted(failed, key=lambda p: p["created_at"])]
 
     # tasks the operator writes
-    def add_task(self, rel: str, text: str, *, said_by: str) -> str:
-        """Queue the operator's task on one file; returns its id. Refuses an
-        empty or over-long text, or a path that is not project-relative."""
+    def add_task(
+        self, rel: str, text: str, *, said_by: str, also: Sequence[str] = ()
+    ) -> str:
+        """Queue the operator's task on one file, and on up to
+        ``MAX_TASK_FILES - 1`` more (*also*); returns its id. Refuses an empty
+        or over-long text, a path that is not project-relative, a file named
+        twice, or more files than the bound."""
         body = (text or "").strip()
         if not body:
             raise TaskRefused("a task needs words")
@@ -1914,14 +2163,23 @@ class DailyLedger:
         who = (said_by or "").strip()
         if not who:
             raise TaskRefused("a task says who wrote it")
+        first = task_path(rel)
+        more = [task_path(r) for r in also]
+        files = [first, *more]
+        if len(set(files)) != len(files):
+            raise TaskRefused("a file is named twice in the task")
+        if len(files) > MAX_TASK_FILES:
+            raise TaskRefused(
+                f"a task changes at most {MAX_TASK_FILES} files; this names {len(files)}"
+            )
         task_id = f"gt-{uuid.uuid4().hex[:10]}"
         now = _now()
         with self._db() as db:
             db.execute(
                 "INSERT INTO tasks (task_id, created_at, rel, text, said_by, status, "
-                "proposal_id, reason, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, 'open', NULL, NULL, ?)",
-                (task_id, now, task_path(rel), body, who[:200], now),
+                "proposal_id, reason, updated_at, also) "
+                "VALUES (?, ?, ?, ?, ?, 'open', NULL, NULL, ?, ?)",
+                (task_id, now, first, body, who[:200], now, json.dumps(more)),
             )
         return task_id
 
@@ -1930,7 +2188,7 @@ class DailyLedger:
             row = db.execute(
                 "SELECT * FROM tasks WHERE task_id = ?", (task_id,)
             ).fetchone()
-        return dict(row) if row else None
+        return _task_dict(row) if row else None
 
     def tasks(self, *, status: str | None = None) -> list[dict]:
         """Tasks, oldest first; with *status*, only those."""
@@ -1939,7 +2197,9 @@ class DailyLedger:
             query += " WHERE status = ?"
             args.append(status)
         with self._db() as db:
-            return [dict(r) for r in db.execute(query + " ORDER BY created_at", args)]
+            return [
+                _task_dict(r) for r in db.execute(query + " ORDER BY created_at", args)
+            ]
 
     def _move_task(
         self,
@@ -1978,8 +2238,9 @@ class DailyLedger:
         out = []
         with self._db() as db:
             for t in db.execute("SELECT * FROM tasks ORDER BY created_at"):
-                task = dict(t)
+                task = _task_dict(t)
                 task["proposal"] = None
+                task["proposals"] = []
                 if task["proposal_id"]:
                     p = db.execute(
                         "SELECT proposal_id, model, status, refusal, changed_lines, "
@@ -2017,15 +2278,31 @@ class DailyLedger:
                             },
                             "pr_url": delivered["pr_url"] if delivered else None,
                         }
+                        task["proposals"] = [task["proposal"]]
+                # A task over several files: every file's proposal, in order.
+                members = db.execute(
+                    "SELECT proposal_id, rel, status, refusal, changed_lines FROM "
+                    "proposals WHERE group_id = ? ORDER BY created_at",
+                    (task["task_id"],),
+                ).fetchall()
+                if len(members) > 1:
+                    task["proposals"] = [dict(m) for m in members]
                 out.append(task)
         return out
 
     def task_of_proposal(self, proposal_id: str) -> dict | None:
-        """The task a proposal was made for, or None (a lint fix has none)."""
+        """The task a proposal was made for, or None (a lint fix has none). A
+        task over several files is found from any one of its proposals."""
         with self._db() as db:
             row = db.execute(
                 "SELECT * FROM tasks WHERE proposal_id = ?", (proposal_id,)
             ).fetchone()
+            if row is None:
+                row = db.execute(
+                    "SELECT t.* FROM tasks t JOIN proposals p ON p.group_id = "
+                    "t.task_id WHERE p.proposal_id = ?",
+                    (proposal_id,),
+                ).fetchone()
         return dict(row) if row else None
 
     def rels_in_prs(self, pr_urls: Iterable[str]) -> set[str]:
@@ -2051,6 +2328,7 @@ __all__ = [
     "Finding",
     "MASK_TOKEN",
     "MAX_REACH",
+    "MAX_TASK_TOTAL_CHARS",
     "MAX_TEST_LINES",
     "MISSING_TEST",
     "NO_MODEL",
@@ -2078,6 +2356,8 @@ __all__ = [
     "missing_tests",
     "parse_proposal",
     "parse_review",
+    "parse_task_files",
+    "file_label",
     "project_facts",
     "proposal_prompt",
     "proposer_system",
@@ -2085,6 +2365,9 @@ __all__ = [
     "set_direction",
     "static_verdict",
     "subject_of",
+    "task_files_prompt",
+    "task_files_review_prompt",
+    "task_files_system",
     "task_prompt",
     "task_review_prompt",
     "task_system",

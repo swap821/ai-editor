@@ -115,3 +115,45 @@ def test_unknown_and_malformed_ids_are_404(env) -> None:
     client, _ledger = env
     for task_id in ("gt-0123456789", "nonsense", "gt-ZZZZZZZZZZ"):
         assert client.post(f"/api/gagos/tasks/{task_id}/cancel").status_code == 404
+
+
+def _add_also(client, also, file=_FILE):
+    return client.post(
+        "/api/gagos/tasks", json={"file": file, "text": "change together", "also": also}
+    )
+
+
+def test_a_task_over_two_files_is_added_and_listed_with_both(env) -> None:
+    client, ledger = env
+    other = "aios/maintenance/sandbox_tests.py"
+    created = _add_also(client, [other])
+    assert created.status_code == 201, created.text
+    task = created.json()["task"]
+    assert task["also"] == [other] and task["files"] == [_FILE, other]
+    (item,) = client.get("/api/gagos/tasks").json()["tasks"]
+    assert item["files"] == [_FILE, other] and item["also"] == [other]
+    assert ledger.task(task["task_id"])["files"] == [_FILE, other]
+
+
+def test_a_sixth_file_is_422(env) -> None:
+    client, ledger = env
+    four = [f"aios/extra_{n}.py" for n in range(4)]
+    assert _add_also(client, four).status_code == 201
+    five = [f"aios/more_{n}.py" for n in range(5)]
+    assert _add_also(client, five).status_code == 422
+    assert len(ledger.tasks()) == 1
+
+
+def test_a_file_named_twice_is_422(env) -> None:
+    client, ledger = env
+    for also in ([_FILE], ["aios/x.py", "aios/x.py"]):
+        response = _add_also(client, also)
+        assert response.status_code == 422, also
+    assert ledger.tasks() == []
+
+
+def test_an_empty_or_long_also_entry_is_422(env) -> None:
+    client, ledger = env
+    assert _add_also(client, [""]).status_code == 422
+    assert _add_also(client, ["a" * 513]).status_code == 422
+    assert ledger.tasks() == []

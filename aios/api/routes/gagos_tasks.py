@@ -1,6 +1,6 @@
 """The operator's tasks for GAGOS: the counter's three doors (2026-11-03).
 
-He describes a change on one file in plain words; GAGOS's workshop reads the
+He describes a change on one file, or on up to five together, in plain words; GAGOS's workshop reads the
 ledger's open tasks, has its writers make the change, runs the tests in the
 sandbox, asks Claude Code to review it, and opens its own PR. This module only
 puts tasks into that ledger, lists them with how far each has come, and lets him
@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -19,7 +20,12 @@ from aios import config
 from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import require_privileged_operator
 from aios.domain.identity.models import Principal
-from aios.maintenance.daily_work import MAX_TASK_CHARS, DailyLedger, TaskRefused
+from aios.maintenance.daily_work import (
+    MAX_TASK_CHARS,
+    MAX_TASK_FILES,
+    DailyLedger,
+    TaskRefused,
+)
 
 router = APIRouter(
     tags=["gagos-tasks"], dependencies=[Depends(enforce_action_boundary)]
@@ -39,6 +45,10 @@ class AddTaskRequest(BaseModel):
 
     file: str = Field(min_length=1, max_length=512)
     text: str = Field(min_length=1, max_length=MAX_TASK_CHARS)
+    # More files the same task changes together (2026-11-03, D14).
+    also: list[Annotated[str, Field(min_length=1, max_length=512)]] = Field(
+        default_factory=list, max_length=MAX_TASK_FILES - 1
+    )
 
 
 def _known_task(ledger: DailyLedger, task_id: str) -> dict:
@@ -64,7 +74,9 @@ def add_task(
     ledger: DailyLedger = Depends(get_gagos_task_ledger),
 ) -> dict:
     try:
-        task_id = ledger.add_task(body.file, body.text, said_by=_SAID_BY)
+        task_id = ledger.add_task(
+            body.file, body.text, said_by=_SAID_BY, also=tuple(body.also)
+        )
     except TaskRefused as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     return {"task": ledger.task(task_id)}

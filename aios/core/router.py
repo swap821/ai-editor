@@ -68,6 +68,9 @@ PROVIDER_ANTHROPIC = "anthropic"
 #: Google's infrastructure, someone else's weights. Gated exactly like any
 #: other cloud provider -- ineligible unless the task is in cloud_tasks.
 PROVIDER_VERTEX_MAAS = "vertexmaas"
+#: The operator's own plans (2026-11-03): Claude through Claude Code, GPT
+#: through Codex (:mod:`aios.core.plan_cli`). CLOUD, gated like any other.
+PROVIDER_PLAN = "plan"
 
 #: UI model-id prefixes (``ollama.qwen2.5-coder:7b`` etc.). The router's chosen
 #: model is a BARE id/tag; :func:`route_model_id` re-attaches the prefix for the
@@ -79,6 +82,7 @@ _PREFIX = {
     PROVIDER_OPENAI: "openai.",
     PROVIDER_ANTHROPIC: "anthropic.",
     PROVIDER_VERTEX_MAAS: "vertexmaas.",
+    PROVIDER_PLAN: "plan.",
 }
 
 # --- Privacy + cost tags -----------------------------------------------------
@@ -100,6 +104,7 @@ _DEFAULT_CAPABILITY = {
     PROVIDER_OPENAI: 300,
     PROVIDER_ANTHROPIC: 300,
     PROVIDER_VERTEX_MAAS: 300,
+    PROVIDER_PLAN: 300,
 }
 #: Tie-bias that makes a local provider win over an equally-capable cloud one when
 #: the policy allows both (local-first preference). Small on purpose: genuine
