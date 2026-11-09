@@ -6,23 +6,23 @@
 # direct import to aios/, add it to both files, not just this one.
 annotated-doc==0.0.5
 annotated-types==0.8.0
-anyio==4.15.1
-boto3==1.43.122
-botocore==1.43.122
+anyio==4.16.0
+boto3==1.43.125
+botocore==1.43.125
 beautifulsoup4==4.15.0
 certifi==2026.10.23
 click==8.5.0
 colorama==0.4.6
-coverage==7.17.0
+coverage==7.17.2
 cryptography==50.0.2
 faiss-cpu==1.15.1
 fastapi==0.162.0
-filelock==4.2.4
+filelock==4.2.9
 fsspec==2026.9.0
 gitdb==4.0.12
 GitPython==3.2.1
 h11==0.16.0
-hf-xet==1.7.1
+hf-xet==1.8.0
 httpcore==1.0.9
 httptools==0.9.0
 httpx==0.28.1
@@ -52,7 +52,7 @@ networkx==3.6.1
 numpy==2.4.6
 packaging==26.3
 pluggy==1.7.0
-pydantic==2.14.2
+pydantic==2.14.3
 # Held in lockstep with pydantic, NOT by preference: pydantic pins its core
 # EXACTLY (pydantic 2.14.2 requires `pydantic-core==2.50.2`), so any other value
 # makes this file unresolvable and CI dies at pip install with
@@ -76,7 +76,7 @@ pytest-asyncio==1.4.1.post1
 pytest-cov==7.1.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.4
-python-multipart==0.0.32
+python-multipart==0.0.33
 PyYAML==6.0.3
 radon==6.0.1
 rank-bm25==0.2.2
@@ -96,7 +96,7 @@ prometheus-client==0.26.0
 smmap==5.0.3
 starlette==1.10.0
 sympy==1.14.0
-threadpoolctl==3.7.0
+threadpoolctl==3.8.0
 # Ceilinged by transformers, NOT by preference: transformers 5.15.0 requires
 # `tokenizers >=0.22.0,<=0.23.0`. Note 0.23.0 was never released as a final --
 # PyPI has 0.23.0rc0 and then 0.23.1 -- so 0.22.2 is the highest version that
@@ -113,9 +113,9 @@ tokenizers==0.23.1
 # Lift when a later torch completes the macOS suite without a crash.
 torch==2.14.1
 tqdm==4.70.1
-transformers==5.22.0
-typer==0.27.3
-typing-inspection==0.4.4
+transformers==5.22.1
+typer==0.28.0
+typing-inspection==0.4.5
 typing_extensions==4.16.0
 urllib3==2.8.0
 uvicorn==0.54.0
