@@ -898,7 +898,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
         tried += resting
         # A writer that may not answer never takes the last finding a writer
         # that answers could: found 2026-11-09, when one finding was left and
-        # went to a refused Bedrock writer each hour for seven hours while the
+        # went to a refused Bedrock writer for seven runs in a row while the
         # plans' writers stood idle.
         spare = len(jobs) - 1 if roster else len(jobs)
         for k, writer in enumerate(tried[: max(0, spare)]):
