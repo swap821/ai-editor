@@ -61,7 +61,9 @@ def _find_closest_context_window(
 
     for i in range(len(current_lines)):
         chunk = current_lines[i : i + window_size]
-        norm_chunk = " ".join(_normalize_line(line) for line in chunk if _normalize_line(line))
+        norm_chunk = " ".join(
+            _normalize_line(line) for line in chunk if _normalize_line(line)
+        )
         ratio = difflib.SequenceMatcher(None, norm_target, norm_chunk).ratio()
         if ratio > best_ratio:
             best_ratio = ratio
