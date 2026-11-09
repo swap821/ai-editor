@@ -47,6 +47,19 @@ def _warn_unparseable(name: str, raw: str, default: object) -> None:
     )
 
 
+#: The profile GAGOS runs as when ``AIOS_PROFILE`` is unset: development and
+#: test runs. The operator's daily backend says ``production`` itself
+#: (tools/daily_backend.py, the operator's decision of 2026-11-09). Until then
+#: the private executor service defaulted to production and every other reader
+#: to development, so one process held two profiles.
+DEFAULT_PROFILE = "development"
+
+
+def profile() -> str:
+    """The profile GAGOS runs as, read when asked (a test may set it)."""
+    return os.environ.get("AIOS_PROFILE", DEFAULT_PROFILE).strip().lower()
+
+
 def _env_str(name: str, default: str) -> str:
     value = os.getenv(name)
     return value if value not in (None, "") else default
@@ -359,6 +372,11 @@ NARRATIVE_SELF_ENABLED: Final[bool] = _env_bool("AIOS_NARRATIVE_SELF", True)
 
 SWARM_MAX_WORKERS: Final[int] = _env_int("AIOS_SWARM_MAX_WORKERS", 4)
 SWARM_WORKER_CONCURRENCY: Final[int] = _env_int("AIOS_SWARM_WORKER_CONCURRENCY", 1)
+#: Worker legs side by side when the turn's brain is a cloud or plan one
+#: (2026-11-09, the operator: "multiple workers working"). A local brain
+#: keeps SWARM_WORKER_CONCURRENCY: on one laptop, parallel local legs
+#: contend for the same memory and model.
+SWARM_CLOUD_CONCURRENCY: Final[int] = _env_int("AIOS_SWARM_CLOUD_CONCURRENCY", 3)
 SWARM_REDUNDANCY: Final[int] = _env_int("AIOS_SWARM_REDUNDANCY", 1)
 # Second, independent egress path: swarm subtasks bursting to a cloud provider.
 # OFF by default as of 2026-08-04 (was True). It is deliberately separate from
@@ -631,22 +649,6 @@ CLOUD_CODING_HISTORY_WINDOW: Final[int] = _env_int(
     "AIOS_CLOUD_CODING_HISTORY_WINDOW", 4
 )
 
-_VALID_ROUTER_TASKS: Final[tuple[str, ...]] = ("coding", "reasoning", "general", "fast")
-
-
-def _env_router_tasks(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    if raw == "":
-        return ()
-    return tuple(
-        t.strip().lower()
-        for t in raw.split(",")
-        if t.strip().lower() in _VALID_ROUTER_TASKS
-    )
-
-
 # Cloud egress is OFF by default: no task class leaves the machine until the
 # operator names one (operator decision, 2026-08-04).
 #
@@ -662,10 +664,16 @@ def _env_router_tasks(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
 # otherwise, not local until credentialed.
 #
 # Opt in per task class with AIOS_ROUTER_CLOUD_TASKS (e.g. "reasoning,coding"
-# restores the old behavior; valid names in _VALID_ROUTER_TASKS). The capability
-# argument is unchanged — a 7B local model does hit a ceiling on hard reasoning —
-# so expect to set this deliberately for heavy work.
-_ROUTER_CLOUD_TASKS_DEFAULT: Final[tuple[str, ...]] = ()
+# restores the old behavior). The capability argument is unchanged — a 7B local
+# model does hit a ceiling on hard reasoning — so expect to set this deliberately
+# for heavy work.
+#
+# The default and the valid names are the law's, in aios/security/limits.py, and
+# nowhere else. Until 2026-11-04 this module kept its own copy of both (valid
+# names "coding, reasoning, general, fast", two of which the law drops) and a
+# default constant that the security test and the thesis audit checked while the
+# law's own default went unchecked; tools/thesis_audit.shipped_cloud_tasks now
+# reads the law itself.
 #: Guardrail — defined in aios/security/limits.py. This decides what may LEAVE
 #: the machine, so it belongs behind the freeze with the other egress controls.
 ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _limits.ROUTER_CLOUD_TASKS

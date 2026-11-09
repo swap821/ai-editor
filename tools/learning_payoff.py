@@ -113,6 +113,7 @@ from tools.reverse_engineer_gagos import (  # noqa: E402
 # rather than re-derived. A benchmark that recalls differently from the turn
 # path measures a system nobody runs -- and the underscore names are exactly
 # what `stream_generate` calls, which is why they are the right ones to use.
+from aios import config  # noqa: E402
 from aios.api.turn_pipeline import (  # noqa: E402
     _recall_lessons,
     _recall_skills,
@@ -147,10 +148,10 @@ def text_sha256(raw: bytes) -> str:
 
 PREREGISTRATION = REPO_ROOT / "docs" / "learning" / "PAYOFF_PREREGISTRATION.md"
 WORKTREE = REPO_ROOT.parent / "ai-editor-selfcorpus"
-DB = REPO_ROOT / "data" / "aios_memory.db"
+DB = REPO_ROOT / "data" / config.MEMORY_DB_PATH.name
 #: The institutional skill library beside it (D3): the SAME data directory as
 #: the memory store measured, never a separately configured one.
-LIBRARY_DB = DB.with_name("aios_operational_state.db")
+LIBRARY_DB = DB.with_name(config.OPERATIONAL_STATE_DB_PATH.name)
 #: Plan Phase 4c-2: an activated skill is recalled only for the principal it
 #: belongs to -- the operator, for a skill he activated. This harness recalls
 #: skills as the principal named here (the operator's principal id), and as

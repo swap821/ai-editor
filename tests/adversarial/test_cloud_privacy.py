@@ -194,7 +194,12 @@ class TestRouterCloudPolicy:
 
         The history is kept here on purpose: a security case that silently flips to
         match whatever the code does is not evidence of anything."""
-        assert config._ROUTER_CLOUD_TASKS_DEFAULT == (), (
+        # The law's own default, read from aios/security/limits.py: until
+        # 2026-11-04 this asserted a copy in aios/config.py that nothing tied to
+        # the law, so the law's default could have changed under a green test.
+        from tools.thesis_audit import shipped_cloud_tasks
+
+        assert shipped_cloud_tasks() == (), (
             "shipped default must send no task class to cloud (opt-in egress)"
         )
 

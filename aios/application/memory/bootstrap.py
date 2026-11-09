@@ -208,7 +208,7 @@ def build_council_memory_scope(
     from aios.council.council_state import CouncilState
 
     root = Path(runtime_root)
-    council_state = CouncilState(db_path=root / "council_state.db")
+    council_state = CouncilState(db_path=root / config.COUNCIL_STATE_DB.name)
     council_memory = CouncilMemory(state=council_state)
     scoped = authority.with_adapter("council", CouncilMemoryAdapter(council_memory))
     return council_state, council_memory, scoped

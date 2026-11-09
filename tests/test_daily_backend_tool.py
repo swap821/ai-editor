@@ -37,6 +37,8 @@ def test_the_settings_are_the_ones_the_operator_chose() -> None:
     assert settings["AIOS_PLAN_CLAUDE_MODELS"] == "claude-sonnet-5-5,claude-haiku-5-5"
     assert settings["AIOS_PLAN_CODEX_MODELS"] == "gpt-6.1-sol,gpt-6.1-terra,gpt-6-luna"
     assert daily_backend.daily_settings(cloud_tasks="")["AIOS_ROUTER_CLOUD_TASKS"] == ""
+    # 2026-11-09: his counter runs as production (the private executor).
+    assert settings["AIOS_PROFILE"] == "production"
 
 
 def test_the_sandbox_image_names_the_requirements_it_holds() -> None:

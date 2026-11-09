@@ -4,6 +4,9 @@ import { ResourceNotice } from '../livingMirror/ResourceNotice';
 import { durableCollection, noRecords, textValue } from '../livingMirror/recordCollections';
 import { sendGuardedCommand } from '../livingMirror/commands';
 import { MaintenanceRepairFlow } from '../livingMirror/MaintenanceRepairFlow';
+// The states the backend repairs from (aios/domain/maintenance/lifecycle.py
+// REPAIRABLE_STATES; tests/test_consistency_guards.py keeps them equal).
+const REPAIRABLE_STATUSES = ['OPEN', 'REOPENED', 'VERIFICATION_FAILED'];
 const parseFindings = (value) => durableCollection(value, 'finding_id');
 const parseScans = (value) => durableCollection(value, 'scan_id');
 
@@ -54,7 +57,7 @@ export default function MaintenanceCenterPanel() {
           ['Frontier analysis', finding.frontier_analysis], ['Verification IDs', finding.verification_ids], ['Resolution evidence', finding.resolution_evidence]]
           .map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{textValue(value)}</dd></div>)}</dl>
       </details>
-      {finding.status === 'OPEN' && typeof finding.fingerprint === 'string'
+      {REPAIRABLE_STATUSES.includes(finding.status) && typeof finding.fingerprint === 'string'
         ? <MaintenanceRepairFlow fingerprint={finding.fingerprint} available={available} refresh={refreshAll} />
         : <p>Inspecting this finding does not start a repair.</p>}
     </li>)}</ul>

@@ -15,7 +15,7 @@
 | Secret scanner | `aios/security/secret_scanner.py` | stable | security | frozen core |
 | Audit logger | `aios/security/audit_logger.py` | stable | security | frozen core |
 | Injection shield | `aios/security/injection_shield.py` | stable | security | frozen core |
-| Core router | `aios/core/router.py` | stable | core | multi-provider LLM routing |
+| Core router | `aios/core/router.py` | stable | core | multi-provider LLM routing; `PROVIDERS` is the one registry of brains every layer derives from |
 | Memory engine | `aios/memory/` | stable | memory | product memory |
 | Agent runtime | `aios/agents/` | stable | agents | agent execution |
 

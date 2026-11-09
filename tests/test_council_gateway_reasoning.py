@@ -258,10 +258,11 @@ def test_build_dissent_llm_client_returns_none_when_no_cloud_provider_configured
     _seed_operator(tmp_path / "identity.db")
     from aios.api import deps
 
-    monkeypatch.setattr(deps, "get_gemini_client", lambda: None)
-    monkeypatch.setattr(deps, "get_bedrock_client", lambda: None)
-    monkeypatch.setattr(deps, "get_openai_client", lambda: None)
-    monkeypatch.setattr(deps, "get_anthropic_client", lambda: None)
+    from aios.core import router
+
+    # Every cloud brain in the registry, so none is read from the machine.
+    for spec in router.cloud_providers():
+        monkeypatch.setattr(deps, spec.client_getter, lambda: None)
 
     assert build_dissent_llm_client() is None
 

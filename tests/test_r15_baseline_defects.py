@@ -38,8 +38,17 @@ def test_defect3_maintenance_invokes_executor_service() -> None:
     )
 
 
-def test_defect4_production_executor_composition_is_valid() -> None:
-    """Defect 4: Production ExecutorService requires a configured StructuredExecutorClient."""
+def test_defect4_production_executor_composition_is_valid(monkeypatch) -> None:
+    """Defect 4: Production ExecutorService requires a configured StructuredExecutorClient.
+
+    Production is asked for, not assumed: since 2026-11-09 an unset
+    AIOS_PROFILE is development for every reader (config.profile(), the
+    operator's decision), and his daily backend sets production itself.
+    """
+    from aios.api import deps
+
+    monkeypatch.setenv("AIOS_PROFILE", "production")
+    monkeypatch.setattr(deps, "_private_executor_service", None)
     service = get_maintenance_convergence_service()
     executor_service = service.executor_service
     assert executor_service.profile == "production"

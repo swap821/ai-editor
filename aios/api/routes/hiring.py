@@ -17,8 +17,11 @@ from aios.api.deps import (
     get_hiring_service,
     get_ollama_client,
     get_openai_client,
+    get_plan_client,
+    get_vertex_maas_client,
 )
 from aios.application.models.hiring_service import IntelligenceHiringService
+from aios.core.router_wiring import clients_by_provider
 from aios.domain.privacy import (
     DataClassification,
     FallbackPolicy,
@@ -91,14 +94,25 @@ def get_hiring_status(
     gemini: Any = Depends(get_gemini_client),
     openai: Any = Depends(get_openai_client),
     anthropic: Any = Depends(get_anthropic_client),
+    vertex_maas: Any = Depends(get_vertex_maas_client),
+    plan: Any = Depends(get_plan_client),
 ) -> dict[str, Any]:
-    """Report provider adapter configuration without fabricating capabilities."""
+    """Report provider adapter configuration without fabricating capabilities.
+
+    One row per brain in the router's registry (2026-11-04: this list was the
+    route's own and lacked Vertex and the operator's plans).
+    """
     providers = [
-        _adapter_status("ollama", ollama),
-        _adapter_status("bedrock", bedrock),
-        _adapter_status("gemini", gemini),
-        _adapter_status("openai", openai),
-        _adapter_status("anthropic", anthropic),
+        _adapter_status(name, client)
+        for name, client in clients_by_provider(
+            ollama,
+            bedrock,
+            gemini,
+            openai=openai,
+            anthropic=anthropic,
+            vertex_maas=vertex_maas,
+            plan=plan,
+        ).items()
     ]
     availability = {row["availability"] for row in providers}
     if "available" in availability:

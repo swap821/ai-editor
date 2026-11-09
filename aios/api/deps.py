@@ -20,7 +20,6 @@ self-apply, edit snapshots, the memory compactor's singleton cluster) stay in
 
 from __future__ import annotations
 
-import os
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -1041,7 +1040,7 @@ def get_executor() -> Executor:
     """Provide the default executor; production crosses the private service."""
     kernel = get_policy_kernel()
     approved_runner = kernel.build_approved_runner()
-    profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+    profile = config.profile()
     command_runner = (
         approved_runner
         if profile in {"production", "demo"}
@@ -1126,7 +1125,7 @@ def get_self_apply_engine(
     # the legacy container-backed verifier contract for those callers while
     # keeping production/demo strictly dependent on the Executor Service
     # runner constructed by ``get_executor``.
-    profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+    profile = config.profile()
     if isolated_runner is None and profile not in {"production", "demo"}:
         isolated_runner = get_policy_kernel().build_approved_runner()
 
@@ -1333,6 +1332,8 @@ def get_hiring_service(
     gemini: Any = Depends(get_gemini_client),
     openai: Any = Depends(get_openai_client),
     anthropic: Any = Depends(get_anthropic_client),
+    vertex_maas: Any = Depends(get_vertex_maas_client),
+    plan: Any = Depends(get_plan_client),
     repository: Any = Depends(get_hiring_repository),
     cortex: Any = Depends(get_cortex_observation_bus),
     policy: Any = Depends(get_policy_kernel),
@@ -1344,16 +1345,20 @@ def get_hiring_service(
         ChatProviderAdapter,
         IntelligenceHiringService,
     )
-    from aios.core.router_wiring import _build_providers
+    from aios.core.router_wiring import _build_providers, clients_by_provider
     from aios.domain.intelligence.broker import HiringBroker
 
-    raw_clients = {
-        "ollama": ollama,
-        "bedrock": bedrock,
-        "gemini": gemini,
-        "openai": openai,
-        "anthropic": anthropic,
-    }
+    # Every brain in the router's registry (2026-11-04: this list was the
+    # hiring service's own and lacked Vertex and the operator's plans).
+    raw_clients = clients_by_provider(
+        ollama,
+        bedrock,
+        gemini,
+        openai=openai,
+        anthropic=anthropic,
+        vertex_maas=vertex_maas,
+        plan=plan,
+    )
     clients = {
         name: ChatProviderAdapter(client)
         for name, client in raw_clients.items()
@@ -1367,6 +1372,8 @@ def get_hiring_service(
             gemini,
             openai=openai,
             anthropic=anthropic,
+            vertex_maas=vertex_maas,
+            plan=plan,
         ),
         clients=clients,
         repository=repository,
@@ -1498,28 +1505,6 @@ def get_promotion_capability_consumer(
     return consume
 
 
-def _resolve_external_rollback_dir(project_root: Path) -> Path:
-    import os, tempfile
-
-    env_dir = os.environ.get("AIOS_ROLLBACK_DIR")
-    proj_resolved = project_root.resolve()
-    if env_dir:
-        rollback_root = Path(env_dir).expanduser().resolve()
-    else:
-        rollback_root = (config.DATA_DIR / "checkpoints").resolve()
-
-    if rollback_root == proj_resolved:
-        raise ValueError("rollback root cannot equal project root")
-    if rollback_root.is_relative_to(proj_resolved):
-        rollback_root = (
-            Path(tempfile.gettempdir()) / "aios_rollback_checkpoints"
-        ).resolve()
-    if proj_resolved.is_relative_to(rollback_root):
-        raise ValueError("project root cannot be a descendant of rollback root")
-    rollback_root.mkdir(parents=True, exist_ok=True)
-    return rollback_root
-
-
 def get_checkpoint_creator(
     promotion_authority: Any = Depends(get_promotion_authority),
 ) -> Callable[[Any], str]:
@@ -1643,7 +1628,7 @@ def get_private_executor_service() -> Any:
                 StructuredExecutorClient,
             )
 
-            profile = os.environ.get("AIOS_PROFILE", "production").strip().lower()
+            profile = config.profile()
             client = StructuredExecutorClient(
                 base_url=config.EXECUTOR_URL,
                 token=config.EXECUTOR_TOKEN,
@@ -1707,6 +1692,31 @@ def get_worker_foundry(
                 bus=get_cortex_observation_bus(),
             )
     return _worker_foundry
+
+
+_swarm_foundry: Optional[Any] = None
+_swarm_foundry_lock = threading.Lock()
+
+
+def get_swarm_foundry() -> Any:
+    """The Worker Foundry that admits the ant colony's caste legs (2026-11-09).
+
+    Its own scheduler (a swarm's legs share one mission, which the backend
+    Foundry runs one at a time) under the same emergency stop and on the same
+    cortex bus as every other worker.
+    """
+    global _swarm_foundry
+    if _swarm_foundry is not None:
+        return _swarm_foundry
+    with _swarm_foundry_lock:
+        if _swarm_foundry is None:
+            from aios.application.workers.swarm_foundry import SwarmFoundry
+
+            _swarm_foundry = SwarmFoundry(
+                emergency_stop=get_emergency_stop(),
+                bus=get_cortex_observation_bus(),
+            )
+    return _swarm_foundry
 
 
 def get_learning_service(

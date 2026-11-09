@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Callable, Optional, Sequence
+from typing import Any, Callable, Mapping, Optional, Sequence
 
 from fastapi import HTTPException
 
@@ -103,6 +103,86 @@ def _plan_client() -> Any:
         return None
 
 
+#: ``plan`` was not given: :func:`clients_by_provider` fetches it.
+_FETCH: Any = object()
+
+
+def clients_by_provider(
+    ollama: Any,
+    bedrock: Optional[Any] = None,
+    gemini: Optional[Any] = None,
+    *,
+    openai: Optional[Any] = None,
+    anthropic: Optional[Any] = None,
+    vertex_maas: Optional[Any] = None,
+    plan: Any = _FETCH,
+) -> dict[str, Any]:
+    """Every brain's live client by its router name, one entry per registry brain.
+
+    The one mapping both directions use: :func:`_client_for` (a name to its
+    client) and :func:`_provider_name` (a client back to its name), and the
+    hiring service and its status route. They were hand-written ladders, and on
+    2026-11-04 the second lacked Vertex, so a turn Vertex served outside
+    failover was recorded as ``ollama``, a local brain. A brain added to the
+    registry without a client here is a :class:`KeyError`, never a silent
+    fallback. ``plan`` is fetched from :mod:`aios.api.deps` unless given.
+    """
+    clients = {
+        router.PROVIDER_OLLAMA: ollama,
+        router.PROVIDER_BEDROCK: bedrock,
+        router.PROVIDER_GEMINI: gemini,
+        router.PROVIDER_OPENAI: openai,
+        router.PROVIDER_ANTHROPIC: anthropic,
+        router.PROVIDER_VERTEX_MAAS: vertex_maas,
+        router.PROVIDER_PLAN: _plan_client() if plan is _FETCH else plan,
+    }
+    return {name: clients[name] for name in router.PROVIDER_NAMES}
+
+
+def first_cloud_brain(clients: Mapping[str, Any]) -> Optional[tuple[str, Any]]:
+    """The cloud brain a side job uses when it needs any one, as ``(name,
+    client)``, or ``None``.
+
+    The first in the registry's order whose client is configured and whose
+    model this account has not refused (as the router skips it). The council's
+    dissent reasoner, CRAG's cloud source and the swarm's cloud burst each
+    picked their own until 2026-11-09: the registry's order, "gemini or
+    bedrock", and "bedrock or gemini". Each keeps its own switch; only which
+    brain answers is decided here.
+    """
+    for spec in router.cloud_providers():
+        client = clients.get(spec.name)
+        if client is None:
+            continue
+        model = str(getattr(client, "model", "") or "")
+        if model and model_availability.is_unavailable(spec.name, model):
+            continue
+        return spec.name, client
+    return None
+
+
+def side_job_cloud(
+    ollama: Any,
+    bedrock: Optional[Any],
+    gemini: Optional[Any],
+    *,
+    openai: Optional[Any] = None,
+    anthropic: Optional[Any] = None,
+    vertex_maas: Optional[Any] = None,
+) -> Optional[tuple[str, Any]]:
+    """:func:`first_cloud_brain` over a turn's clients."""
+    return first_cloud_brain(
+        clients_by_provider(
+            ollama,
+            bedrock,
+            gemini,
+            openai=openai,
+            anthropic=anthropic,
+            vertex_maas=vertex_maas,
+        )
+    )
+
+
 def _build_providers(
     ollama: Any,
     bedrock: Optional[Any],
@@ -111,6 +191,7 @@ def _build_providers(
     openai: Optional[Any] = None,
     anthropic: Optional[Any] = None,
     vertex_maas: Optional[Any] = None,
+    plan: Any = _FETCH,
 ) -> list[router.Provider]:
     """Describe the live providers as router :class:`~aios.core.router.Provider` rows.
 
@@ -123,11 +204,12 @@ def _build_providers(
     except Exception as exc:  # noqa: BLE001 - discovery must never break a turn
         logger.warning("Local model discovery failed", exc_info=exc)
         local_models = []
+    local = router.provider_spec(router.PROVIDER_OLLAMA)
     providers = [
         router.Provider(
-            name=router.PROVIDER_OLLAMA,
-            privacy=router.PRIVACY_LOCAL,
-            cost=router.COST_FREE,
+            name=local.name,
+            privacy=local.privacy,
+            cost=local.cost,
             available=bool(local_models),
             models=tuple(m for m in local_models if isinstance(m, str)),
         )
@@ -141,7 +223,7 @@ def _build_providers(
     ):
         if cloud is None:
             continue
-        cost = router.COST_HIGH if name == router.PROVIDER_BEDROCK else router.COST_LOW
+        spec = router.provider_spec(name)
         for mid in catalog_models(cloud, name, default):
             # A model this account refused is not offered until the refusal
             # expires (aios/core/model_availability.py).
@@ -153,8 +235,8 @@ def _build_providers(
             providers.append(
                 router.Provider(
                     name=name,
-                    privacy=router.PRIVACY_CLOUD,
-                    cost=cost,
+                    privacy=spec.privacy,
+                    cost=spec.cost,
                     available=True,
                     models=(mid,),
                     capability=cap,
@@ -162,45 +244,36 @@ def _build_providers(
             )
     # OpenAI-compatible and Anthropic direct — no multi-model catalog discovery;
     # each registers its configured default model only.
-    for client, name, default, cost in (
-        (openai, router.PROVIDER_OPENAI, config.OPENAI_MODEL, router.COST_LOW),
-        (
-            anthropic,
-            router.PROVIDER_ANTHROPIC,
-            config.ANTHROPIC_MODEL,
-            router.COST_HIGH,
-        ),
-        (
-            vertex_maas,
-            router.PROVIDER_VERTEX_MAAS,
-            config.VERTEX_MAAS_MODEL,
-            router.COST_LOW,
-        ),
+    for client, name, default in (
+        (openai, router.PROVIDER_OPENAI, config.OPENAI_MODEL),
+        (anthropic, router.PROVIDER_ANTHROPIC, config.ANTHROPIC_MODEL),
+        (vertex_maas, router.PROVIDER_VERTEX_MAAS, config.VERTEX_MAAS_MODEL),
     ):
         if client is None:
             continue
+        spec = router.provider_spec(name)
         cap = catalog.cloud_capability(default) + catalog.DEFAULT_BONUS
         providers.append(
             router.Provider(
                 name=name,
-                privacy=router.PRIVACY_CLOUD,
-                cost=cost,
+                privacy=spec.privacy,
+                cost=spec.cost,
                 available=True,
                 models=(default,),
                 capability=cap,
             )
         )
-    # The operator's own plans: one candidate per model he offers. LOW: their
-    # cost is his flat plans, not a bill per call.
-    plan = _plan_client()
+    # The operator's own plans: one candidate per model he offers.
+    plan = _plan_client() if plan is _FETCH else plan
+    spec = router.provider_spec(router.PROVIDER_PLAN)
     for mid in plan.models() if plan is not None else ():
         if model_availability.is_unavailable(router.PROVIDER_PLAN, mid):
             continue
         providers.append(
             router.Provider(
-                name=router.PROVIDER_PLAN,
-                privacy=router.PRIVACY_CLOUD,
-                cost=router.COST_LOW,
+                name=spec.name,
+                privacy=spec.privacy,
+                cost=spec.cost,
                 available=True,
                 models=(mid,),
                 capability=catalog.cloud_capability(mid),
@@ -220,19 +293,14 @@ def _client_for(
     vertex_maas: Optional[Any] = None,
 ) -> Optional[Any]:
     """Map a router provider name back to its live chat client."""
-    if provider == router.PROVIDER_BEDROCK:
-        return bedrock
-    if provider == router.PROVIDER_GEMINI:
-        return gemini
-    if provider == router.PROVIDER_OPENAI:
-        return openai
-    if provider == router.PROVIDER_ANTHROPIC:
-        return anthropic
-    if provider == router.PROVIDER_VERTEX_MAAS:
-        return vertex_maas
-    if provider == router.PROVIDER_PLAN:
-        return _plan_client()
-    return ollama
+    return clients_by_provider(
+        ollama,
+        bedrock,
+        gemini,
+        openai=openai,
+        anthropic=anthropic,
+        vertex_maas=vertex_maas,
+    ).get(provider, ollama)
 
 
 #: How the route picker reaches its model: runs the given zero-argument model
@@ -323,17 +391,17 @@ def _provider_name(
     vertex_maas: Optional[Any] = None,
 ) -> str:
     """The router provider name for the selected *chat_client* (for evidence + UI)."""
-    if bedrock is not None and chat_client is bedrock:
-        return router.PROVIDER_BEDROCK
-    if gemini is not None and chat_client is gemini:
-        return router.PROVIDER_GEMINI
-    if openai is not None and chat_client is openai:
-        return router.PROVIDER_OPENAI
-    if anthropic is not None and chat_client is anthropic:
-        return router.PROVIDER_ANTHROPIC
-    plan = _plan_client()
-    if plan is not None and chat_client is plan:
-        return router.PROVIDER_PLAN
+    clients = clients_by_provider(
+        None,
+        bedrock,
+        gemini,
+        openai=openai,
+        anthropic=anthropic,
+        vertex_maas=vertex_maas,
+    )
+    for name, client in clients.items():
+        if client is not None and chat_client is client:
+            return name
     return router.PROVIDER_OLLAMA
 
 
@@ -356,7 +424,12 @@ def _active_route(
     if isinstance(chat_client, FailoverChatClient):
         return chat_client.active_provider, chat_client.active_model
     return _provider_name(
-        chat_client, bedrock, gemini, openai=openai, anthropic=anthropic
+        chat_client,
+        bedrock,
+        gemini,
+        openai=openai,
+        anthropic=anthropic,
+        vertex_maas=vertex_maas,
     ), model
 
 

@@ -1,4 +1,17 @@
-"""The swarm/cloud-burst strategy is refused by design -- pinned by a test.
+"""The swarm runs through the Worker Foundry; the role pass is still refused.
+
+## 2026-11-09: rewritten, deliberately
+
+The last paragraph below said this file "is the thing that must be rewritten
+first -- deliberately, not by accident" if the swarm were ever routed through
+WorkerFoundry and re-enabled. It now is (the operator, 2026-11-09, "Swarm into
+the Foundry"): a swarm turn runs, each caste leg a worker the Foundry admits
+(aios/application/workers/swarm_foundry.py). So the refusal is pinned for
+``role_pass`` alone, and what holds for a swarm turn is pinned instead: it
+runs, its legs are admitted, and with cloud burst off it sends nothing to a
+cloud brain.
+
+## Before 2026-11-09
 
 ## Why this file replaces `tests/e2e/e2e_cloud_burst.py`
 
@@ -141,11 +154,11 @@ def _generate(client: TestClient, **extra: Any) -> list[dict[str, object]]:
         return _parse_sse(resp)
 
 
-@pytest.mark.parametrize("strategy", ["swarm", "role_pass"])
+@pytest.mark.parametrize("strategy", ["role_pass"])
 def test_an_experimental_strategy_is_refused_with_a_named_reason(
     client: TestClient, strategy: str
 ) -> None:
-    """Both experimental strategies fail closed, and say why.
+    """The role pass fails closed, and says why (the swarm no longer does).
 
     Asserted through the real SSE stream rather than by reading the source, so a
     refactor that moves the gate keeps this honest as long as the behaviour holds.
@@ -176,19 +189,54 @@ def test_an_experimental_strategy_is_refused_with_a_named_reason(
     )
 
 
-def test_the_refusal_emits_no_cloud_route_frame(client: TestClient) -> None:
+def test_a_swarm_turn_runs_through_the_worker_foundry(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A swarm turn is no longer refused: its plan reaches the stream, it ends
+    with ``done``, and every caste leg was a worker the Foundry admitted."""
+    from aios.api import deps
+    from aios.application.workers.swarm_foundry import SwarmFoundry
+
+    admitted: list[str] = []
+    real = SwarmFoundry(emergency_stop=deps.get_emergency_stop())
+
+    class _Recording:
+        def mission(self) -> str:
+            return real.mission()
+
+        def admit(self, mission, caste, run, **kw):
+            admitted.append(caste)
+            return real.admit(mission, caste, run, **kw)
+
+    monkeypatch.setattr(deps, "get_swarm_foundry", lambda: _Recording())
+    events = _generate(client, swarm=True)
+    frames = [e.get("event") for e in events]
+
+    assert not [
+        e
+        for e in events
+        if e.get("event") == "error"
+        and isinstance(e.get("data"), dict)
+        and e["data"].get("code") == "strategy_unavailable"
+    ], f"the swarm was refused: {frames}"
+    assert "swarm_plan" in frames, frames
+    assert frames[-1] == "done", frames
+    assert admitted and admitted[0] == "decomposer", admitted
+    assert any(caste.startswith("worker-") for caste in admitted), admitted
+
+
+def test_a_swarm_turn_sends_nothing_to_the_cloud_by_default(client: TestClient) -> None:
     """The specific thing `e2e_cloud_burst.py` existed to demonstrate.
 
     `cloud_route` is the frame that tells the UI a leg of the turn left the local
-    machine. While the strategy is gated off, no such frame may appear -- a
-    silent regression here would mean work is being shipped to a cloud provider
-    on a path nobody believes is reachable.
+    machine. With cloud burst off (its default) a swarm turn's legs stay on the
+    turn's own brain, so no such frame may appear.
     """
     events = _generate(client, swarm=True)
 
     assert not [e for e in events if e.get("event") == "cloud_route"], (
-        "a cloud_route frame was emitted by a strategy that is supposed to be "
-        "refused -- local work reached a cloud provider through a gated path"
+        "a cloud_route frame was emitted with cloud burst off -- a swarm leg "
+        "reached a cloud provider nobody opted into"
     )
 
 
@@ -196,8 +244,8 @@ def test_cloud_burst_stays_off_by_default(client: TestClient) -> None:
     """The gate above is not the only thing holding this closed.
 
     `SWARM_CLOUD_BURST_ENABLED` is what decides whether a cloud client is built
-    for a swarm turn at all. It defaults to False, so even if the strategy gate
-    were lifted the burst path would still need a deliberate opt-in. Pinned
+    for a swarm turn at all. It defaults to False, so with the swarm now running
+    the burst path still needs a deliberate opt-in. Pinned
     because a default flip is a one-character change with a cloud-egress blast
     radius.
     """

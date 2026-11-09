@@ -10,17 +10,16 @@ cancel one nobody has taken yet. It never runs a writer and never calls a model.
 from __future__ import annotations
 
 import re
-from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
-from aios import config
 from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import require_privileged_operator
 from aios.domain.identity.models import Principal
 from aios.maintenance.daily_work import (
+    ledger_path,
     MAX_TASK_CHARS,
     MAX_TASK_FILES,
     DailyLedger,
@@ -37,7 +36,7 @@ _SAID_BY = "the operator (the counter)"
 
 def get_gagos_task_ledger() -> DailyLedger:
     """The workshop's own ledger file; tests override this with a tmp_path one."""
-    return DailyLedger(Path(config.DATA_DIR) / "gagos_daily" / "ledger.db")
+    return DailyLedger(ledger_path())
 
 
 class AddTaskRequest(BaseModel):

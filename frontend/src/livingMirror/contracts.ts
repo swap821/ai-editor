@@ -25,7 +25,10 @@ const finite = (value: unknown, label: string): number => {
 };
 const optionalText = (value: unknown): string | null => typeof value === 'string' ? value : null;
 
-export const skillStates = ['candidate', 'human_reviewed', 'qualified', 'active', 'probation', 'degraded', 'suspended', 'revoked', 'superseded', 'deprecated', 'blocked'] as const;
+// The backend's SkillState (aios/domain/learning/skill_contracts.py), kept equal by
+// tests/test_consistency_guards.py: until 2026-11-04 this had a state the backend
+// never sends ('qualified'), and a state it lacks throws below.
+export const skillStates = ['candidate', 'human_reviewed', 'active', 'probation', 'degraded', 'suspended', 'revoked', 'superseded', 'deprecated', 'blocked'] as const;
 export interface SkillContract {
   skill_id: string;
   version: number;

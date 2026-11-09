@@ -407,8 +407,11 @@ def provenance_clerk_job(config: LauncherConfig, *, job_id: str, as_json: bool) 
     from aios.application.local_workforce import get_clerk_job_provenance
     from aios.infrastructure.local_workforce import LocalWorkforceProvenanceStore
 
+    # The store the clerk writes (2026-11-04: this opened
+    # "local_workforce_provenance.db", without the "aios_" prefix, which
+    # nothing writes, so every trace read came back empty).
     store = LocalWorkforceProvenanceStore(
-        aios_config.DATA_DIR / "local_workforce_provenance.db"
+        aios_config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH
     )
     trace = get_clerk_job_provenance(store, job_id)
     if as_json:

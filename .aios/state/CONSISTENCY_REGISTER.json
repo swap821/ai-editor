@@ -4,134 +4,185 @@
     {
       "id": "provider-names",
       "fact": "Which brains (providers) exist.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/core/router.py::PROVIDERS",
       "places": [
-        "aios/core/router.py::PROVIDER_PLAN",
+        "aios/core/router.py::PROVIDERS",
         "aios/core/failover.py::_CLOUD_PROVIDERS",
         "aios/application/read_models/governance_projections.py::KNOWN_PROVIDER_NAMES",
         "aios/api/routes/system.py::cloud_configured",
-        "aios/api/routes/hiring.py::_adapter_status",
-        "aios/api/deps.py::get_hiring_service",
+        "aios/api/routes/hiring.py::clients_by_provider",
+        "aios/api/deps.py::clients_by_provider",
         "aios/domain/intelligence/broker.py::_provider_capabilities",
-        "aios/council/gateway_reasoning.py::build_dissent_llm_client",
-        "aios/application/turns/generate_pipeline.py::SWARM_CLOUD_BURST_ENABLED",
+        "aios/council/gateway_reasoning.py::cloud_providers",
         "tools/preflight.py::PROVIDER_OLLAMA"
       ],
-      "guards": [],
-      "note": "Measured 2026-11-04: the router knows seven (ollama, bedrock, gemini, openai, anthropic, vertexmaas, plan). The provider-health list, the readiness probe, the hiring broker and its route, the council's dissent reasoner and the swarm's cloud burst each keep their own shorter list; none includes plan, and none but the router's includes vertexmaas."
+      "guards": [
+        "tests/architecture/test_one_provider_registry.py::test_no_hand_written_provider_list_outside_the_registry",
+        "tests/architecture/test_one_provider_registry.py::test_every_list_of_brains_is_the_registry",
+        "tests/architecture/test_one_provider_registry.py::test_a_brain_the_wiring_does_not_know_fails_loudly",
+        "tests/architecture/test_one_provider_registry.py::test_the_readiness_probe_names_every_configured_cloud_brain"
+      ],
+      "note": "One registry since 2026-11-04 (seven brains). Every list the measurement found now reads it; the health list, the readiness probe, the hiring service and route and the council's dissent reasoner gained Vertex and the operator's plans. Five hand-written lists stay, each named with its reason in the guard. The swarm's cloud burst and CRAG still pick by hand: the side-job-cloud-brain row."
     },
     {
       "id": "provider-cloud-class",
       "fact": "Which brains are cloud and which are local.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/core/router.py::PROVIDERS",
       "places": [
+        "aios/core/router.py::PROVIDERS",
         "aios/core/router_wiring.py::_build_providers",
-        "aios/core/failover.py::_is_cloud_provider",
+        "aios/core/failover.py::_CLOUD_PROVIDERS",
         "aios/core/failover.py::_LOCAL_PROVIDERS",
         "aios/domain/intelligence/privacy.py::LOCAL_PROVIDERS",
-        "aios/council/gateway_reasoning.py::build_dissent_llm_client"
+        "aios/domain/intelligence/broker.py::LOCAL_PROVIDERS"
       ],
-      "guards": [],
-      "note": "They agree today, partly by accident: the failover counts vertexmaas as cloud only because its name contains 'vertex' (a substring match)."
+      "guards": [
+        "tests/architecture/test_one_provider_registry.py::test_every_layer_agrees_whether_a_brain_is_cloud",
+        "tests/architecture/test_one_provider_registry.py::test_the_routers_rows_are_the_registrys"
+      ],
+      "note": "The failover, the privacy broker and the hiring broker take their cloud and local sets from the registry; only the failover's aliases (aws, google, vertex) are its own."
     },
     {
       "id": "provider-cost",
       "fact": "What each brain costs (free, low, high).",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/core/router.py::PROVIDERS",
       "places": [
+        "aios/core/router.py::PROVIDERS",
         "aios/core/router_wiring.py::_build_providers",
         "aios/domain/intelligence/broker.py::_provider_costs"
       ],
-      "guards": [],
-      "note": "They disagree today: the router prices openai low, the hiring broker prices it high."
+      "guards": [
+        "tests/architecture/test_one_provider_registry.py::test_the_routers_rows_are_the_registrys",
+        "tests/architecture/test_one_provider_registry.py::test_the_hiring_broker_prices_and_skills_are_the_registrys"
+      ],
+      "note": "One price per brain; the hiring broker now prices openai low, as the router always did."
     },
     {
       "id": "provider-capability",
       "fact": "What each brain is good for and how capable it is.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/core/router.py::PROVIDERS",
       "places": [
+        "aios/core/router.py::PROVIDERS",
         "aios/core/router.py::_DEFAULT_CAPABILITY",
-        "aios/core/catalog.py::cloud_capability",
         "aios/domain/intelligence/broker.py::_provider_capabilities"
       ],
-      "guards": [],
-      "note": "The hiring broker's capability table is its own and knows five brains."
+      "guards": [
+        "tests/architecture/test_one_provider_registry.py::test_the_hiring_broker_prices_and_skills_are_the_registrys",
+        "tests/architecture/test_one_provider_registry.py::test_every_list_of_brains_is_the_registry"
+      ],
+      "note": "Per-model capability still comes from aios/core/catalog.py's cloud_capability, which ranks models, not brains."
     },
     {
       "id": "served-provider-label",
       "fact": "Which brain actually served a turn, as recorded for evidence and the face.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/core/router_wiring.py::clients_by_provider",
       "places": [
+        "aios/core/router_wiring.py::clients_by_provider",
         "aios/core/router_wiring.py::_client_for",
         "aios/core/router_wiring.py::_provider_name",
-        "aios/core/router_wiring.py::_active_route"
+        "aios/core/router_wiring.py::_active_route",
+        "aios/core/router_wiring.py::_select_chat_client",
+        "aios/application/turns/generate_pipeline.py::_active_route"
       ],
-      "guards": [],
-      "note": "They disagree today: _client_for maps vertexmaas to its client, but _provider_name never checks that client (and _active_route does not pass it), so a turn served by Vertex outside failover is recorded as ollama, a local brain."
+      "guards": [
+        "tests/architecture/test_one_provider_registry.py::test_a_brains_name_and_its_client_round_trip",
+        "tests/architecture/test_one_provider_registry.py::test_an_explicit_model_id_reaches_its_brain",
+        "tests/architecture/test_one_provider_registry.py::test_a_call_that_names_one_brains_client_names_them_all"
+      ],
+      "note": "Fixed 2026-11-04: a turn Vertex served outside failover was recorded as ollama. Both directions now read one mapping, and every brain's name and client round-trip. Found 2026-11-09: three of five calls in the generate pipeline still passed every client but Vertex's, and one of them set the turn's privacy target, so a turn Vertex served had its context compiled for a LOCAL brain; the chat route could not select a Vertex model. All pass every client now, and a call that names one brain's client must name them all."
     },
     {
       "id": "cloud-egress-privacy",
       "fact": "Every client that sends text to a cloud brain passes it through the PrivacyFilter first.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/core/router.py::PROVIDERS",
       "places": [
+        "aios/core/router.py::PROVIDERS",
         "aios/core/anthropic_direct.py::_filtered_for_egress",
         "aios/core/openai_compat.py::_filtered_for_egress",
         "aios/core/bedrock.py::PrivacyFilter",
         "aios/core/gemini.py::PrivacyFilter",
-        "aios/core/plan_cli.py::PrivacyFilter",
+        "aios/core/plan_cli.py::_filtered_for_egress",
         "tests/test_cloud_complete_filters_egress.py::_cloud_clients"
       ],
-      "guards": [],
-      "note": "Every one filters today, but the structural guard (test_every_egress_method_filters) lists its four cloud clients by hand and lacks PlanCliClient, so a fifth could ship unguarded; it is not counted until it derives its list."
+      "guards": [
+        "tests/test_cloud_complete_filters_egress.py::test_every_egress_method_filters",
+        "tests/test_cloud_complete_filters_egress.py::test_no_unreviewed_public_method_transmits"
+      ],
+      "note": "The guard checks every cloud client the registry names (six; it named four by hand, without the plan and Vertex clients). A method may hand its messages to a filtered sibling, but one that sends by itself must filter by itself."
     },
     {
       "id": "cli-sealing",
       "fact": "How the Claude Code and Codex CLIs are launched so a call cannot act: no tools, no session, no user config, an empty directory.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/core/plan_cli.py::CLAUDE_SEALED",
       "places": [
-        "aios/core/plan_cli.py::PlanCliClient",
-        "aios/core/plan_cli.py::CODEX_ACTING_FEATURES",
-        "tools/gagos_daily.py::run_claude",
-        "tools/gagos_daily.py::run_codex"
+        "aios/core/plan_cli.py::CLAUDE_SEALED",
+        "aios/core/plan_cli.py::CODEX_SEALED",
+        "aios/core/plan_cli.py::codex_executable",
+        "tools/gagos_daily.py::CLAUDE_SEALED",
+        "tools/gagos_daily.py::CODEX_SEALED"
       ],
-      "guards": [],
-      "note": "Only the Codex feature list is shared (one list since #591). The rest of each sealed command is written twice, in the workshop's reviewers and in the counter's plan client; they agree today. The workshop's test pins a hand-written subset of the features, so a drift there would pass."
+      "guards": [
+        "tests/test_consistency_guards.py::test_the_workshop_asks_the_clis_sealed_as_the_plan_client_does",
+        "tests/test_consistency_guards.py::test_the_workshop_finds_codex_as_the_plan_client_does"
+      ],
+      "note": "One sealed command per CLI since 2026-11-04. On the way: the workshop found Codex with shutil.which alone, so it would have launched a .cmd shim the plan client refuses (cmd.exe re-reads its arguments)."
     },
     {
-      "id": "test-verdict",
-      "fact": "Whether a change's tests passed.",
-      "state": "open",
-      "source": null,
+      "id": "command-verdict",
+      "fact": "Whether a verification command succeeded, how many tests it ran, and how strong that evidence is.",
+      "state": "single",
+      "source": "aios/core/verification_strength.py::parse_test_counts",
+      "places": [
+        "aios/core/verification_strength.py::parse_test_counts",
+        "aios/core/verification_strength.py::derive_strength",
+        "aios/core/verifier.py::Verifier",
+        "aios/application/evidence/verification.py::VerificationAuthority"
+      ],
+      "guards": [
+        "tests/test_consistency_guards.py::test_a_verification_command_is_judged_one_way"
+      ],
+      "note": "Measured 2026-11-04 as 'three judges can disagree'. Read closer on 2026-11-09, it is two questions. This one, asked by the Verifier (the Testing queen, the tool agent) and the VerificationAuthority (maintenance), is decided on the exit code by both; the Verifier kept its own copy of the count parser, now the shared one. Maintenance asks it of the command the operator approved, so a test already failing blocks a repair: it fails closed, by design."
+    },
+    {
+      "id": "change-breaks-tests",
+      "fact": "Whether a change broke a test that passed before it.",
+      "state": "single",
+      "source": "aios/maintenance/sandbox_tests.py::run_change_tests",
       "places": [
         "aios/maintenance/sandbox_tests.py::run_change_tests",
-        "aios/application/evidence/verification.py::VerificationAuthority",
-        "aios/core/verifier.py::Verifier",
-        "aios/council/queens/testing.py::TestingQueen"
+        "tools/gagos_daily.py::run_change_tests"
       ],
-      "guards": [],
-      "note": "Three judges can disagree: the workshop's sandbox judges against the base (a test failing without the change is not blamed on it); the VerificationAuthority (maintenance) and the Verifier (the council's Testing queen) pass on exit code 0 alone."
+      "guards": [
+        "tests/test_consistency_guards.py::test_did_a_change_break_a_test_is_asked_one_way",
+        "tests/test_gagos_sandbox.py::test_a_test_that_fails_without_the_proposal_too_is_never_blamed"
+      ],
+      "note": "The workshop's question, judged against the base: a test failing without the change too is never blamed on it. One implementation, one caller."
     },
     {
       "id": "worker-engines",
       "fact": "How work is split among workers and run.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
         "aios/application/workers/foundry.py::WorkerFoundryAuthority",
+        "aios/application/workers/swarm_foundry.py::SwarmFoundry",
         "aios/council/council_orchestrator.py::WorkerFoundry",
-        "tools/gagos_daily.py::ThreadPoolExecutor",
-        "aios/agents/swarm.py::run_swarm",
-        "aios/application/turns/generate_pipeline.py::strategy_unavailable"
+        "aios/application/turns/generate_pipeline.py::make_agent",
+        "tools/gagos_daily.py::ThreadPoolExecutor"
       ],
-      "guards": [],
-      "note": "The Foundry is the one engine on paper and the council uses it. The workshop runs its writers in its own thread pool, and the swarm (the ant colony) is refused in production because it does not enter the Foundry."
+      "guards": [
+        "tests/test_swarm_foundry.py::test_an_acting_agent_is_built_only_by_the_turns_two_factories",
+        "tests/test_swarm_foundry.py::test_every_caste_leg_is_a_worker_the_foundry_admits",
+        "tests/test_consistency_guards.py::test_the_workshop_asks_the_clis_sealed_as_the_plan_client_does"
+      ],
+      "note": "Settled 2026-11-09 with the operator ('Swarm into the Foundry'). Four paths, each named and pinned: the swarm's caste legs are workers the Foundry admits (they act); the council's workers run in the backend Foundry; the operator's main turn runs its own tool agent, apart from the Foundry by his decision; the workshop's writers are sealed model calls through the one gateway, with no tools, so they do not act and need no Foundry. Every tool agent in production comes from the generate pipeline's two factories, so a tool agent built anywhere else fails the guard."
     },
     {
       "id": "one-model-gateway",
@@ -154,15 +205,16 @@
       "id": "cloud-client-construction",
       "fact": "Cloud clients are built only by the API's composition, never inline.",
       "state": "single",
-      "source": "aios/api/deps.py::get_plan_client",
+      "source": "aios/core/router.py::PROVIDERS",
       "places": [
+        "aios/core/router.py::PROVIDERS",
         "aios/api/deps.py::get_plan_client",
         "tests/architecture/test_intelligence_boundary.py::FORBIDDEN_CLASSES"
       ],
       "guards": [
         "tests/architecture/test_intelligence_boundary.py::test_no_direct_cloud_client_instantiation"
       ],
-      "note": ""
+      "note": "The forbidden classes are the registry's client classes (the hand-written set lacked VertexMaaSClient)."
     },
     {
       "id": "canonical-events",
@@ -229,130 +281,158 @@
     {
       "id": "router-cloud-task-names",
       "fact": "Which task classes may be named for cloud routing (AIOS_ROUTER_CLOUD_TASKS).",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
         "aios/security/limits.py::_VALID_ROUTER_TASKS",
-        "aios/config.py::_VALID_ROUTER_TASKS",
-        "aios/bootstrap.py::default_env_contents"
+        "aios/bootstrap.py::default_env_contents",
+        "tools/thesis_audit.py::shipped_cloud_tasks",
+        "tests/adversarial/test_cloud_privacy.py::shipped_cloud_tasks"
       ],
-      "guards": [],
-      "note": "They disagree today: the law (limits.py) accepts coding, reasoning, research, vision, long_context; config.py keeps a dead copy (coding, reasoning, general, fast) and the .env template tells the operator those, so 'general' or 'fast' is silently dropped. It fails closed. limits.py is frozen: the fix is the copy and the template."
+      "guards": [
+        "tests/test_consistency_guards.py::test_the_env_template_names_the_laws_cloud_task_classes",
+        "tests/test_consistency_guards.py::test_config_keeps_no_copy_of_the_law",
+        "tests/test_consistency_guards.py::test_the_shipped_default_is_read_from_the_law_itself"
+      ],
+      "note": "Fixed 2026-11-04: aios/config.py's dead copy (valid names and a default constant) is gone; the security test and the thesis audit read the law's default from aios/security/limits.py itself (they checked the copy, so the law's own default could have changed under a green test); the .env template names the law's classes. The law is frozen, so the template is pinned to it rather than derived."
     },
     {
       "id": "ollama-address",
       "fact": "Which setting names the Ollama address.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
         "aios/config.py::OLLAMA_HOST",
-        "aios/bootstrap.py::AIOS_OLLAMA_URL"
+        "aios/bootstrap.py::OLLAMA_HOST"
       ],
-      "guards": [],
-      "note": "The runtime reads OLLAMA_HOST; bootstrap checks and writes AIOS_OLLAMA_URL, which nothing else reads. The defaults agree."
+      "guards": [
+        "tests/test_consistency_guards.py::test_bootstrap_checks_the_ollama_address_the_runtime_reads"
+      ],
+      "note": "Fixed 2026-11-04: bootstrap checks and writes OLLAMA_HOST, the name the runtime reads. Bootstrap imports nothing of aios, so the name is pinned, not imported."
     },
     {
       "id": "rollback-dir-default",
-      "fact": "Where rollback checkpoints are kept when AIOS_ROLLBACK_DIR is unset.",
-      "state": "open",
-      "source": null,
+      "fact": "Where rollbacks and promotion checkpoints are kept: one setting per meaning.",
+      "state": "single",
+      "source": "aios/application/promotion/checkpoint.py::AIOS_CHECKPOINT_DIR",
       "places": [
-        "aios/api/deps.py::AIOS_ROLLBACK_DIR",
-        "aios/application/promotion/checkpoint.py::AIOS_ROLLBACK_DIR"
+        "aios/application/promotion/checkpoint.py::AIOS_CHECKPOINT_DIR",
+        "aios/config.py::ROLLBACK_DIR",
+        ".env.example::AIOS_CHECKPOINT_DIR"
       ],
-      "guards": [],
-      "note": "They disagree today: the API's composition uses DATA_DIR/checkpoints, the checkpoint module the system temp directory."
+      "guards": [
+        "tests/test_consistency_guards.py::test_rollbacks_and_checkpoints_each_have_their_own_setting"
+      ],
+      "note": "Settled 2026-11-09. AIOS_ROLLBACK_DIR named two things: the rollback engine's git directory (DATA_DIR/rollback) and the promotion checkpoints' store (else the system temp directory); set, both landed in one directory. The API's own resolver for it was dead code and is gone. Checkpoints read AIOS_CHECKPOINT_DIR now (same default); a checkpoint root must sit outside the project, which is why one default could never serve both. The operator's environment set neither."
     },
     {
       "id": "profile-default",
       "fact": "Which profile GAGOS runs as when AIOS_PROFILE is unset.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/config.py::profile",
       "places": [
+        "aios/config.py::profile",
         "aios/core/executor.py::AIOS_PROFILE",
-        "aios/api/deps.py::AIOS_PROFILE",
-        "aios/launcher.py::AIOS_PROFILE"
+        "aios/api/deps.py::profile",
+        "tools/daily_backend.py::AIOS_PROFILE"
       ],
-      "guards": [],
-      "note": "They disagree today: most readers default to development; the private executor service (deps.py) and the launcher default to production; tools/daily_backend.py sets neither."
+      "guards": [
+        "tests/test_consistency_guards.py::test_one_default_profile",
+        "tests/test_consistency_guards.py::test_the_operators_counter_runs_as_production"
+      ],
+      "note": "The operator's decision, 2026-11-09: unset means development (dev and test runs), and his daily backend says production, so every command on his counter crosses the private executor with isolation proof. Every reader but two goes through config.profile(); aios/core/executor.py is not edited by this work and its default is pinned to the one default; the launcher's default is what it launches. Live on his backend: it boots under production (health, readiness, executor, face); an approved command through the private executor was not exercised, since that needs his approval."
     },
     {
       "id": "workforce-provenance-db",
       "fact": "The file that holds the local workforce's provenance.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/config.py::LOCAL_WORKFORCE_PROVENANCE_DB_PATH",
       "places": [
-        "aios/config.py::aios_local_workforce_provenance",
-        "aios/launcher.py::local_workforce_provenance"
+        "aios/config.py::LOCAL_WORKFORCE_PROVENANCE_DB_PATH",
+        "aios/launcher.py::LOCAL_WORKFORCE_PROVENANCE_DB_PATH",
+        "tools/production_readiness.py::LOCAL_WORKFORCE_PROVENANCE_DB_PATH"
       ],
-      "guards": [],
-      "note": "They disagree today: the launcher's provenance command opens local_workforce_provenance.db, which nothing writes; the store is aios_local_workforce_provenance.db."
+      "guards": [
+        "tests/test_consistency_guards.py::test_a_store_file_name_has_one_home"
+      ],
+      "note": "Fixed 2026-11-04: the launcher's provenance command opened a file nothing writes, so every trace it read came back empty."
     },
     {
       "id": "maintenance-repairable-states",
       "fact": "From which states a maintenance finding can be repaired.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
-        "aios/domain/maintenance/lifecycle.py::VERIFICATION_FAILED",
-        "frontend/src/workbench/MaintenanceCenterPanel.jsx::MaintenanceRepairFlow"
+        "aios/domain/maintenance/lifecycle.py::REPAIRABLE_STATES",
+        "frontend/src/workbench/MaintenanceCenterPanel.jsx::REPAIRABLE_STATUSES"
       ],
-      "guards": [],
-      "note": "They disagree today: the backend allows OPEN, REOPENED and VERIFICATION_FAILED; the face offers repair only for OPEN."
+      "guards": [
+        "tests/test_consistency_guards.py::test_the_face_offers_repair_in_the_states_the_backend_repairs_from"
+      ],
+      "note": "Fixed 2026-11-04: the face offers repair for REOPENED and VERIFICATION_FAILED findings too, as the backend allows."
     },
     {
       "id": "skill-states",
       "fact": "The states a learned skill can be in.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
         "aios/domain/learning/skill_contracts.py::SkillState",
         "frontend/src/livingMirror/contracts.ts::skillStates"
       ],
-      "guards": [],
-      "note": "They disagree today: the face has a state the backend does not (qualified), and its parser throws on any state it does not know, so one new backend state blanks the Skill Library."
+      "guards": [
+        "tests/test_consistency_guards.py::test_the_faces_skill_states_are_the_backends"
+      ],
+      "note": "Fixed 2026-11-04: the face's list is the backend's SkillState, in order ('qualified', which the backend never sends, is gone). A new backend state fails the guard before it can blank the Skill Library."
     },
     {
       "id": "sandbox-image-tag",
       "fact": "The sandbox image for a set of requirements.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/maintenance/sandbox_tests.py::verify_image",
       "places": [
         "tools/daily_backend.py::verify_image",
         "aios/maintenance/sandbox_tests.py::verify_image"
       ],
-      "guards": [],
-      "note": "The same formula written twice. They agree today; the daily backend's test pins its own copy, not the sandbox's."
+      "guards": [
+        "tests/test_consistency_guards.py::test_the_daily_backend_names_the_sandboxs_image"
+      ],
+      "note": "One formula since 2026-11-04: the daily backend asks the sandbox. Still true: the tag hashes the checkout's bytes, so a Windows checkout (CRLF) and Linux (LF) name different images for one commit; consistent on any one machine."
     },
     {
       "id": "staged-work-dir",
       "fact": "Where staged maintenance work lives, for the backend and the executor that runs it.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
-        "aios/api/deps.py::staged_maintenance",
         "aios/security/scope_lock.py::staged_maintenance",
-        "tools/daily_backend.py::staged_maintenance"
+        "aios/api/deps.py::staged_maintenance",
+        "tools/daily_backend.py::staged_root"
       ],
-      "guards": [],
-      "note": "They agree only while AIOS_DATA_DIR is unset: the backend stages under DATA_DIR, the daily backend points the executor at the repo's data directory."
+      "guards": [
+        "tests/test_consistency_guards.py::test_the_executor_is_pointed_at_a_staging_root_the_scope_lock_pins"
+      ],
+      "note": "Fixed 2026-11-04: the daily backend points the executor at the backend's own DATA_DIR, and the guard asks the frozen scope lock whether it pins that root."
     },
     {
       "id": "gagos-ledger-path",
       "fact": "Where GAGOS's daily ledger is.",
-      "state": "open",
-      "source": null,
+      "state": "single",
+      "source": "aios/maintenance/daily_work.py::ledger_path",
       "places": [
-        "tools/gagos_daily.py::ledger",
-        "aios/api/routes/gagos_tasks.py::get_gagos_task_ledger"
+        "aios/maintenance/daily_work.py::ledger_path",
+        "tools/gagos_daily.py::ledger_path",
+        "aios/api/routes/gagos_tasks.py::ledger_path"
       ],
-      "guards": [],
-      "note": "They agree today (DATA_DIR/gagos_daily/ledger.db), written twice."
+      "guards": [
+        "tests/test_consistency_guards.py::test_the_workshop_and_the_counter_open_one_ledger"
+      ],
+      "note": ""
     },
     {
       "id": "counter-port",
       "fact": "The port the counter (the backend) answers on.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
         "aios/config.py::API_PORT",
@@ -361,26 +441,30 @@
         "frontend/src/config.js::RAW_BASE",
         "frontend/vite.config.js::AIOS_BASE"
       ],
-      "guards": [],
-      "note": "8000 everywhere today, as constants and literals; the face's two bases are pinned to each other, not to the backend."
+      "guards": [
+        "tests/test_consistency_guards.py::test_every_default_port_agrees"
+      ],
+      "note": "Pinned 2026-11-04, read from each place's source so the operator's environment cannot hide a disagreement; the face's port is in the counter's CORS default."
     },
     {
       "id": "executor-port",
       "fact": "The port the executor answers on.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
         "aios/config.py::AIOS_EXECUTOR_URL",
         "aios/executor_service.py::AIOS_EXECUTOR_PORT",
         "tools/daily_backend.py::EXECUTOR_PORT"
       ],
-      "guards": [],
-      "note": "8081 everywhere today, written three times."
+      "guards": [
+        "tests/test_consistency_guards.py::test_every_default_port_agrees"
+      ],
+      "note": ""
     },
     {
       "id": "plan-model-ids",
       "fact": "Which plan models are offered, and their names.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
         "tools/daily_backend.py::PLAN_CLAUDE",
@@ -391,20 +475,24 @@
         "tools/gagos_daily.py::MODEL_NAMES",
         "frontend/src/workbench/GagosChrome.jsx::CHAT_MODELS"
       ],
-      "guards": [],
-      "note": "They agree only when the backend is started by the daily backend: config's lists default to empty, so the face's SONNET and GPT choices fail anywhere else."
+      "guards": [
+        "tests/test_consistency_guards.py::test_the_plan_models_agree_across_the_counter_the_workshop_and_the_face"
+      ],
+      "note": "Pinned 2026-11-09: the workshop's writers are among the daily backend's plan models, the face's menu offers only those, and the report names each. aios/config.py offers none by default on purpose (cloud egress is opt-in), so the face's SONNET and GPT choices answer only on a counter the daily backend started."
     },
     {
       "id": "gagos-task-statuses",
       "fact": "A GAGOS task's statuses, in the backend and the face.",
-      "state": "open",
+      "state": "agreed",
       "source": null,
       "places": [
         "aios/maintenance/daily_work.py::TASK_STATUSES",
         "frontend/src/workbench/GagosTasksPanel.css::gagos-tasks__status--open"
       ],
-      "guards": [],
-      "note": "They agree today (open, taken, refused, cancelled); nothing ties them."
+      "guards": [
+        "tests/test_consistency_guards.py::test_every_task_status_has_its_face_style_and_no_other"
+      ],
+      "note": ""
     },
     {
       "id": "cloud-egress-law",
@@ -494,6 +582,94 @@
         "frontend/src/config.test.ts::config.js and aiosAdapter.ts resolve to the same default origin"
       ],
       "note": "The two clients are pinned to each other; the port itself is the counter-port row."
+    },
+    {
+      "id": "side-job-cloud-brain",
+      "fact": "Which cloud brain a side job uses when it needs any one: the council's dissent, CRAG's cloud source, the swarm's cloud burst.",
+      "state": "single",
+      "source": "aios/core/router_wiring.py::first_cloud_brain",
+      "places": [
+        "aios/core/router_wiring.py::first_cloud_brain",
+        "aios/council/gateway_reasoning.py::first_cloud_brain",
+        "aios/api/routes/chat.py::side_job_cloud",
+        "aios/application/turns/generate_pipeline.py::side_job_cloud"
+      ],
+      "guards": [
+        "tests/architecture/test_one_provider_registry.py::test_a_side_job_takes_the_first_configured_unrefused_cloud_brain",
+        "tests/architecture/test_one_provider_registry.py::test_every_side_job_takes_its_cloud_brain_one_way"
+      ],
+      "note": "One choice since 2026-11-09: the registry's first configured cloud brain whose model this account has not refused. The council's dissent walked the registry; CRAG took 'gemini or bedrock' (in the chat route and the generate pipeline alike) and the swarm's burst 'bedrock or gemini', blind to refusals. Each keeps its own switch (CRAG's cloud source and the swarm's burst are off by default); only which brain answers is shared."
+    },
+    {
+      "id": "brain-availability",
+      "fact": "Whether a brain (or one of its models) can serve right now.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "aios/core/model_availability.py::is_usage_limit_error",
+        "aios/core/model_availability.py::is_model_unavailable_error",
+        "aios/core/failover.py::is_model_unavailable_error",
+        "aios/maintenance/daily_work.py::resting_writers",
+        "aios/maintenance/daily_work.py::refused_writers"
+      ],
+      "guards": [
+        "tests/test_consistency_guards.py::test_a_usage_limit_is_neither_a_refusal_nor_one_models_absence",
+        "tests/test_consistency_guards.py::test_the_workshop_rests_a_writer_at_its_limit_and_queues_a_refused_one",
+        "tests/test_consistency_guards.py::test_the_workshop_classifies_failures_as_the_router_does",
+        "tests/test_gagos_workforce.py::test_a_writer_at_its_usage_limit_is_tried_beside_a_refused_one"
+      ],
+      "note": "Settled 2026-11-09. One classification of a failed call, in aios/core/model_availability.py: one model refused (remembered a day), a usage limit that lifts by itself (a plan's session or weekly limit, Codex's usageLimitExceeded), or anything else. The router and the workshop read failures through it and keep their own memory and policy: the router remembers a refused model and counts the rest toward its circuit breaker; the workshop queues a refused writer for one probe a batch and tries each writer at its limit on one finding every batch. Until then a plan writer at its session limit counted as refused and waited behind every writer AWS had refused. The stated reset time is not parsed: that needs the named time zone, and this Windows Python has no tzdata."
+    },
+    {
+      "id": "store-file-names",
+      "fact": "The file name of each database, wherever it is opened.",
+      "state": "single",
+      "source": "aios/config.py",
+      "places": [
+        "aios/config.py",
+        "aios/infrastructure/missions/sqlite_mission_repository.py::MISSIONS_DB_NAME",
+        "aios/application/read_models/projection.py::PORTRAIT_DB_NAME"
+      ],
+      "guards": [
+        "tests/test_consistency_guards.py::test_a_store_file_name_has_one_home"
+      ],
+      "note": "Measured and fixed 2026-11-04: missions.db was named four times, system_portrait.db twice, council_state.db twice and eleven tools rebuilt config's names by hand. Each name now has one home: config, or the module that owns the store. Scenario proofs' temporary stores and the standalone rebuild drill are named exceptions."
+    },
+    {
+      "id": "settings-readers",
+      "fact": "Each AIOS_* setting is read in one place, with one default.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "aios/config.py",
+        "aios/core/signing_keys.py::test_keys_allowed",
+        "aios/executor_service.py::AIOS_EXECUTOR_WORKSPACE_ROOT",
+        "tests/test_consistency_guards.py::SETTING_EXCEPTIONS"
+      ],
+      "guards": [
+        "tests/test_consistency_guards.py::test_a_setting_read_in_several_places_has_one_default",
+        "tests/test_consistency_guards.py::test_the_test_key_rule_is_written_once"
+      ],
+      "note": "Measured 2026-11-04: 18 of 196 AIOS_* settings read in more than one file. By 2026-11-09: the profile has one reader; the rule for test signing keys, spelled out in four modules (verification, promotion, checkpoint, API-token rotation), is written once (aios/core/signing_keys.py); every other setting read twice agrees on its default, or is named in SETTING_EXCEPTIONS with why it differs (the launcher's launch defaults, the executor's container root, legacy key names read in the same order). One exception is a real problem, tracked open: AIOS_ROLLBACK_DIR's two meanings (the rollback-dir-default row)."
+    },
+    {
+      "id": "swarm-workers-admitted",
+      "fact": "The ant colony's caste legs run only as workers the Worker Foundry admits.",
+      "state": "single",
+      "source": "aios/application/workers/swarm_foundry.py::SwarmFoundry",
+      "places": [
+        "aios/application/workers/swarm_foundry.py::SwarmFoundry",
+        "aios/agents/swarm.py::LegAdmission",
+        "aios/application/turns/generate_pipeline.py::get_swarm_foundry",
+        "aios/api/deps.py::get_swarm_foundry"
+      ],
+      "guards": [
+        "tests/test_swarm_foundry.py::test_every_caste_leg_is_a_worker_the_foundry_admits",
+        "tests/test_swarm_foundry.py::test_an_engaged_stop_refuses_the_next_leg_and_the_swarm_says_so",
+        "tests/test_documented_reachability.py::test_the_pipeline_runs_the_swarm_through_the_foundry",
+        "tests/e2e/test_swarm_strategy_is_gated.py::test_a_swarm_turn_runs_through_the_worker_foundry"
+      ],
+      "note": "From 2026-07-15 to 2026-11-09 production refused every swarm turn. Now each leg is admitted (the emergency stop at each admission, a bounded scheduler, its lifecycle on the cortex bus); worker legs run side by side on a cloud or plan brain (AIOS_SWARM_CLOUD_CONCURRENCY, 3) and one at a time on the local one. The role pass is still refused."
     }
   ]
 }

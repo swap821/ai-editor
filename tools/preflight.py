@@ -18,12 +18,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from aios import config
 from aios.core.llm import LLMError, OllamaClient
-
-PROVIDER_OLLAMA = "ollama"
-PROVIDER_BEDROCK = "bedrock"
-PROVIDER_GEMINI = "gemini"
-PROVIDER_OPENAI = "openai"
-PROVIDER_ANTHROPIC = "anthropic"
+from aios.core.router import (  # noqa: E402 - the router's one registry of brains
+    PROVIDER_ANTHROPIC,
+    PROVIDER_BEDROCK,
+    PROVIDER_GEMINI,
+    PROVIDER_OLLAMA,
+    PROVIDER_OPENAI,
+)
 
 _ROUND_TRIP_PROMPT = "reply with OK"
 

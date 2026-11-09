@@ -35,6 +35,7 @@ from aios.api.deps import (
     require_privileged_operator,
 )
 from aios.application.capabilities.authority import CapabilityAuthority
+from aios.core import router as brains
 from aios.core.autonomy import AutonomyLedger
 from aios.domain.identity.models import Principal
 from aios.core.metrics import CONTENT_TYPE_LATEST, generate_latest, get_collector
@@ -185,15 +186,12 @@ def _check_providers(ollama: Any) -> tuple[bool, dict[str, Any]]:
         local = {"available": False, "models": [], "detail": str(exc)[:200]}
 
     local_up = bool(local.get("available"))
+    # Every cloud brain the router's registry knows (2026-11-04: this list was
+    # the probe's own and lacked Vertex and the operator's plans).
     cloud_configured = sorted(
-        name
-        for name, enabled in (
-            ("bedrock", config.BEDROCK_ENABLED),
-            ("gemini", config.GEMINI_ENABLED),
-            ("openai", config.OPENAI_ENABLED),
-            ("anthropic", config.ANTHROPIC_ENABLED),
-        )
-        if enabled
+        spec.name
+        for spec in brains.cloud_providers()
+        if spec.enabled_setting and getattr(config, spec.enabled_setting, False)
     )
     return (local_up or bool(cloud_configured)), {
         "ok": local_up or bool(cloud_configured),
