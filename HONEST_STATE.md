@@ -1,9 +1,16 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-09 ("2026-11-09, the open PRs merged" below;
+**Last updated:** 2026-11-09 ("2026-11-09, GAGOS's last finding went to a writer that cannot answer" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-09, GAGOS's last finding went to a writer that cannot answer (master `bd8a75c9`, branch `fix/gagos-probe-takes-no-only-finding`)
+
+- **Found by the review loop.** From 12:54 to 19:51 UTC, GAGOS had one finding left (`frontend/src/workbench/MaintenanceCenterPanel.test.jsx`). Each hour it went to a Bedrock writer whose last call was refused, tried again to see if it answers. Bedrock refused every time, while the plans' writers (Claude, Codex) stood idle: eight hours, no attempt that could succeed.
+- **The cause.** `tools/gagos_daily.py` gives one finding a batch to a refused writer and one to each writer at a usage limit, taking them from the end of the batch. With one finding, that was the only one.
+- **Now** such a writer never takes the last finding a writer that answers could take. With two findings or more, it still gets one. With no writer that answers, it still gets the work.
+- **Test:** `test_a_refused_writer_never_takes_the_only_finding_from_one_that_answers`. Without the fix it fails, the finding going to the refused writer. The GAGOS test files pass: 286 passed, 14 skipped.
 
 ## 2026-11-09, the open PRs merged (master `c1cff3f3`, branch `evidence/after-604`)
 
