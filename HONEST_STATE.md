@@ -1,9 +1,27 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-09 ("2026-11-09, the ant colony runs through the Foundry" below;
+**Last updated:** 2026-11-09 ("2026-11-09, the open PRs merged" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-09, the open PRs merged (master `c1cff3f3`, branch `evidence/after-604`)
+
+- **The operator, 2026-11-09:** "plz honestly fx all oPen PRs and merged them sequnetially".
+- **Merged today:** #603, #601, #602 and #604.
+  - #603: GAGOS's Python is formatted as CI requires.
+  - #601: troika-three-text stays at 0.52.5. @react-three/drei 10.7.9 requires ^0.52.4, and 0.53.1 installed a second copy, which failed twelve caption tests. Dependabot now holds it until drei accepts 0.53.
+  - #602: jsdom 31. jsdom 31 substitutes custom properties and computes no style for a detached element, as browsers do. Three layout tests now assert the values the variables resolve to and attach their root. The code is unchanged.
+  - #604: cross-system consistency, the section below.
+- **#599 was superseded by #605.** Dependabot regenerated the Python group, again with pydantic 2.14.3 and its core left at 2.50.2, which pip cannot resolve. The core pin and the Dependabot ignore bound move to 2.50.4. #605 merges after this PR.
+- **#604 needed two test fixes after it was opened:**
+  - `tests/test_config.py` imported the copy of the cloud-task parser that #604 removed. It now tests the law's own parser.
+  - A maintenance-executor test assumed the old private default, production. It now asks for production, and still asserts the production executor has its client.
+- **Master went red after #604's squash merge.** The operator merged it while its final backend run was still in progress. Master's own run then failed exactly three tests, on macOS and Ubuntu, and nothing else: the tests that catch evidence citing a commit the squash discarded (`478b3c51`).
+- **This branch re-gathers that evidence at master's tip `c1cff3f3`**, without re-pointing it:
+  - every claimed organ passed, with Docker up;
+  - organ 33's live clerk run passed: qwen2.5:0.5b, 10 passed, 0 skipped;
+  - the three tests pass on it locally.
 
 ## 2026-11-09, the ant colony runs through the Foundry (branch `feat/swarm-in-foundry`, on `feat/consistency-guards`)
 
