@@ -216,17 +216,19 @@ resume yourself — say so if asked). Don't report a task done without evidence
   verified success). The cage verifies regardless of provider; RED stays blocked.
   Gemini = `AIOS_GEMINI_PROJECT` (Vertex AI / gcloud ADC, `pip install google-genai`);
   Bedrock = `AIOS_BEDROCK_REGION` + `AWS_BEARER_TOKEN_BEDROCK` (backend env only).
-  `AIOS_SWARM_CLOUD_BURST` is a separate worker-swarm egress switch, **also off by
-  default** (it defaulted true until 2026-08-04). It is not covered by
-  `AIOS_ROUTER_CLOUD_TASKS`, so enabling one does not enable the other — and
-  locking down one never closed the other. Each turn emits a `route` SSE frame →
-  the UI "active brain" badge.
+  `AIOS_SWARM_CLOUD_BURST` is the worker swarm's own egress switch, **also off by
+  default** (it defaulted true until 2026-08-04). Enabling it alone sends
+  nothing: since 2026-11-09 a burst leg also needs the same egress law, its task
+  class allowed by the router's gate. So locking down `AIOS_ROUTER_CLOUD_TASKS`
+  closes the burst too, and enabling it does not turn the burst on. Each turn
+  emits a `route` SSE frame → the UI "active brain" badge.
 - **Gated agent modes (always gated + audited):** `AIOS_EARNED_AUTONOMY` — **enabled by
   default** (`config.py` `_env_bool("AIOS_EARNED_AUTONOMY", True)`) but grants nothing until
   earned: a YELLOW action class auto-applies only after `AIOS_EARNED_AUTONOMY_MIN_SUCCESSES`
   consecutive verifier-backed successes, revoked on one failure — RED is never earnable. And
   `AIOS_SWARM_MAX_WORKERS` (ephemeral worker swarm: decompose → gated workers → synthesize;
-  swarm runs are per-request opt-in).
+  swarm runs are per-request opt-in; since 2026-11-09 every caste leg is a worker the
+  Worker Foundry admits, `aios/application/workers/swarm_foundry.py`).
 - **Frontend:** since the 2026-06-21 single-frontend collapse, the ONLY UI is **GAGOS — the
   points-being** at the clean root `/` (no `?ui=` params; the classic shell + all `?ui=` routes
   were deleted). Superbrain canon lives in the lab (`GAG demo/gag-orchestrator`) and is byte-synced
