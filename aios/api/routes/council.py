@@ -25,6 +25,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from aios import config
+from aios.infrastructure.missions.sqlite_mission_repository import (
+    MISSIONS_DB_NAME,
+)
 from aios.logging_config import get_logger
 from aios.application.action_broker import ActionBroker, PolicyBrokerError
 from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
@@ -747,7 +750,7 @@ def council_mission_detail(
         ) from exc
     authority: dict[str, Any] | None = None
     try:
-        authoritative = SqliteMissionRepository(runtime_root / "missions.db").get(
+        authoritative = SqliteMissionRepository(runtime_root / MISSIONS_DB_NAME).get(
             safe_id
         )
         authority = {
@@ -964,7 +967,7 @@ def council_approve(
         safe_id = _validate_council_mission_id(req.mission_id)
         try:
             mission_service = MissionService(
-                SqliteMissionRepository(runtime_root / "missions.db"),
+                SqliteMissionRepository(runtime_root / MISSIONS_DB_NAME),
                 export_dir=runtime_root / "mission_exports",
                 # Read-only here today, which is the ONLY reason this was
                 # harmless. One future call to create()/start_execution()
@@ -1062,7 +1065,7 @@ def council_reject(
         safe_id = _validate_council_mission_id(req.mission_id)
         try:
             mission_service = MissionService(
-                SqliteMissionRepository(runtime_root / "missions.db"),
+                SqliteMissionRepository(runtime_root / MISSIONS_DB_NAME),
                 export_dir=runtime_root / "mission_exports",
                 # Read-only here today, which is the ONLY reason this was
                 # harmless. One future call to create()/start_execution()

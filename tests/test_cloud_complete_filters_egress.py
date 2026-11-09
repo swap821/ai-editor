@@ -33,6 +33,8 @@ another. The structural test at the bottom is what keeps that true.
 
 from __future__ import annotations
 
+import ast
+import textwrap
 from typing import Any
 
 import pytest
@@ -163,11 +165,126 @@ _EGRESS_METHODS = frozenset(
 )
 
 
-def _cloud_clients() -> list[type]:
-    from aios.core.bedrock import BedrockClient
-    from aios.core.gemini import GeminiClient
+#: How a cloud client sends: HTTP clients post or stream, the plan client runs
+#: its CLI.
+_TRANSPORTS = ("self._post(", "self._stream(", "self._call(")
 
-    return [AnthropicDirectClient, OpenAICompatClient, BedrockClient, GeminiClient]
+
+def _cloud_clients() -> list[type]:
+    """Every cloud brain's client class, from the router's one registry.
+
+    This list was hand-written and named four classes; on 2026-11-04 the
+    registry named six, and the plan client (the operator's own plans) and the
+    Vertex client were not checked here at all.
+    """
+    from importlib import import_module
+
+    from aios.core import router
+
+    classes = []
+    for spec in router.cloud_providers():
+        module, _, name = spec.client_class.partition(":")
+        classes.append(getattr(import_module(module), name))
+    return classes
+
+
+#: The only calls a delegating method may make besides its hand-off: pure
+#: helpers on the answer it gets back.
+_PURE_CALLS = frozenset({"super", "str", "strip_reasoning", "get"})
+
+
+def _delegates(source: str) -> list[tuple[str, bool]] | None:
+    """The egress methods a method only hands its messages to, as
+    ``(name, through_super)``, or None when it does anything else.
+
+    A method that delegates and ALSO calls anything that is not a pure helper
+    (a socket, a client, a subprocess) is not a delegation: it must filter by
+    itself. Without this, a method could leak its messages raw and still pass
+    by calling a filtered sibling too (the privacy reviewer's counterexample
+    of 2026-11-04, kept below as a test the guard must fail).
+    """
+    tree = ast.parse(textwrap.dedent(source))
+    targets: list[tuple[str, bool]] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        if isinstance(func, ast.Name) and func.id in _PURE_CALLS:
+            continue
+        if isinstance(func, ast.Attribute):
+            if func.attr in _EGRESS_METHODS:
+                base = func.value
+                if isinstance(base, ast.Name) and base.id == "self":
+                    targets.append((func.attr, False))
+                    continue
+                if (
+                    isinstance(base, ast.Call)
+                    and isinstance(base.func, ast.Name)
+                    and base.func.id == "super"
+                ):
+                    targets.append((func.attr, True))
+                    continue
+            elif func.attr in _PURE_CALLS:
+                continue
+        return None
+    return targets or None
+
+
+def _filters(
+    cls: type, name: str, seen: frozenset[tuple[type, str]] = frozenset()
+) -> bool:
+    """Whether *cls*'s own *name* passes its messages through the filter: by
+    itself, or by doing nothing but hand them to an egress method that does
+    (``super().chat`` in the Vertex client, ``self.chat`` in the plan
+    client's ``stream_chat``)."""
+    if (cls, name) in seen:
+        return False
+    seen = seen | {(cls, name)}
+    source = executable_source(vars(cls)[name])
+    if "_filtered_for_egress" in source or "_privacy_filter" in source:
+        return True
+    delegated = _delegates(source)
+    if delegated is None:
+        return False  # it does more than hand off, so it must filter by itself
+    for target, through_super in delegated:
+        mro = cls.__mro__[1:] if through_super else cls.__mro__
+        owner = next((b for b in mro if target in vars(b)), None)
+        if owner is None or not _filters(owner, target, seen):
+            return False
+    return True
+
+
+class _Filtered:
+    def complete(self, messages: Any) -> Any:
+        return self._post(self._filtered_for_egress(messages))
+
+    def _filtered_for_egress(self, messages: Any) -> Any:
+        return messages
+
+    def _post(self, payload: Any) -> Any:
+        return payload
+
+
+class _LeaksThenDelegates(_Filtered):
+    def chat(self, messages: Any) -> Any:
+        import socket
+
+        sock = socket.socket()
+        sock.connect(("example.invalid", 80))
+        sock.send(repr(messages).encode())
+        return self.complete(messages)
+
+
+class _OnlyDelegates(_Filtered):
+    def chat(self, messages: Any) -> Any:
+        return str(super().complete(messages))
+
+
+def test_the_guard_fails_a_method_that_leaks_and_also_delegates() -> None:
+    """The privacy reviewer's counterexample (2026-11-04): calling a filtered
+    sibling must not excuse a method that also sends its messages raw."""
+    assert not _filters(_LeaksThenDelegates, "chat")
+    assert _filters(_OnlyDelegates, "chat"), "a pure hand-off still counts"
 
 
 @pytest.mark.parametrize("cls", _cloud_clients())
@@ -181,8 +298,7 @@ def test_every_egress_method_filters(cls: type) -> None:
     for name, member in vars(cls).items():
         if name not in _EGRESS_METHODS or not callable(member):
             continue
-        source = executable_source(member)
-        if "_filtered_for_egress" not in source and "_privacy_filter" not in source:
+        if not _filters(cls, name):
             unfiltered.append(name)
 
     assert not unfiltered, (
@@ -209,7 +325,7 @@ def test_no_unreviewed_public_method_transmits(cls: type) -> None:
             source = executable_source(member)
         except (OSError, TypeError):  # pragma: no cover - builtins/slots
             continue
-        if "self._post(" in source or "self._stream(" in source:
+        if any(t in source for t in _TRANSPORTS):
             offenders.append(name)
 
     assert not offenders, (

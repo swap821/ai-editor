@@ -14,7 +14,9 @@ from aios.api.deps import (
     get_maintenance_scan_repository,
     get_ollama_client,
     get_openai_client,
+    get_plan_client,
     get_skill_repository,
+    get_vertex_maas_client,
 )
 from aios.api.main import app
 from aios.domain.intelligence.repository import HiringRecord, HiringRecordRepository
@@ -222,6 +224,8 @@ def test_hiring_status_uses_injected_runtime_adapters() -> None:
     app.dependency_overrides[get_gemini_client] = lambda: object()
     app.dependency_overrides[get_openai_client] = lambda: None
     app.dependency_overrides[get_anthropic_client] = lambda: None
+    app.dependency_overrides[get_vertex_maas_client] = lambda: None
+    app.dependency_overrides[get_plan_client] = lambda: None
     try:
         with TestClient(app, client=("127.0.0.1", 12345)) as mounted:
             body = mounted.get("/api/v1/hiring/status").json()
@@ -230,10 +234,13 @@ def test_hiring_status_uses_injected_runtime_adapters() -> None:
 
     assert body["status"] == "available"
     assert body["source"] == "runtime_adapters"
+    # One row per brain in the router's registry, in its order.
     assert body["providers"] == [
         {"provider": "ollama", "configured": True, "availability": "available"},
-        {"provider": "bedrock", "configured": False, "availability": "unavailable"},
         {"provider": "gemini", "configured": True, "availability": "unknown"},
+        {"provider": "bedrock", "configured": False, "availability": "unavailable"},
         {"provider": "openai", "configured": False, "availability": "unavailable"},
         {"provider": "anthropic", "configured": False, "availability": "unavailable"},
+        {"provider": "vertexmaas", "configured": False, "availability": "unavailable"},
+        {"provider": "plan", "configured": False, "availability": "unavailable"},
     ]

@@ -71,14 +71,12 @@ def test_no_reachable_model_anywhere_is_not_ready(monkeypatch) -> None:
     a legitimate deployment. What is never ready is having no route at all.
     """
     from aios.api.routes import system as system_routes
+    from aios.core import router
 
-    for flag in (
-        "BEDROCK_ENABLED",
-        "GEMINI_ENABLED",
-        "OPENAI_ENABLED",
-        "ANTHROPIC_ENABLED",
-    ):
-        monkeypatch.setattr(system_routes.config, flag, False, raising=False)
+    for spec in router.cloud_providers():
+        monkeypatch.setattr(
+            system_routes.config, spec.enabled_setting, False, raising=False
+        )
 
     app.dependency_overrides[get_ollama_client] = _OllamaDown
     try:
@@ -108,10 +106,17 @@ def test_a_configured_cloud_provider_keeps_a_local_outage_ready(monkeypatch) -> 
     # green, and would have stopped catching a provider that reports itself
     # configured when it is not. Pinning the inputs keeps the exact-list check
     # and removes the env dependence instead.
-    monkeypatch.setattr(system_routes.config, "BEDROCK_ENABLED", True, raising=False)
-    monkeypatch.setattr(system_routes.config, "GEMINI_ENABLED", False, raising=False)
-    monkeypatch.setattr(system_routes.config, "OPENAI_ENABLED", False, raising=False)
-    monkeypatch.setattr(system_routes.config, "ANTHROPIC_ENABLED", False, raising=False)
+    from aios.core import router
+
+    # Every flag the router's registry names, so a brain added there is pinned
+    # here too rather than read from the machine.
+    for spec in router.cloud_providers():
+        monkeypatch.setattr(
+            system_routes.config,
+            spec.enabled_setting,
+            spec.name == "bedrock",
+            raising=False,
+        )
 
     app.dependency_overrides[get_ollama_client] = _OllamaDown
     try:

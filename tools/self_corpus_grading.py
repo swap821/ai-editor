@@ -43,6 +43,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from aios import config
 from aios.core.verification_strength import VerificationStrength
 from tools.self_corpus import Corpus, CorpusError, run_suite
 
@@ -68,7 +69,9 @@ def live_skill_library(memory_db: Path) -> "InstitutionalSkillAdapter":
     from aios.domain.learning.repository import SkillRepository
     from aios.memory.skills import SkillMemory
 
-    repository = SkillRepository(memory_db.with_name("aios_operational_state.db"))
+    repository = SkillRepository(
+        memory_db.with_name(config.OPERATIONAL_STATE_DB_PATH.name)
+    )
     return build_skills_slot(
         repository=repository,
         trails=SkillTrailIndex(repository.database),

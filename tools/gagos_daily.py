@@ -50,7 +50,6 @@ import argparse
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -69,6 +68,7 @@ from aios import config  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
     BEHAVIOUR_RULES,
     UNTESTED_BEHAVIOUR,
+    ledger_path,
     FIRST_RULES,
     MISSING_TEST,
     NO_MODEL,
@@ -137,8 +137,9 @@ from aios.maintenance.python_static import (  # noqa: E402
 
 # One derivation for the workshop and the counter (2026-11-03): how a Codex
 # session is sealed, and where the real Claude Code binary is.
-from aios.core.plan_cli import CODEX_ACTING_FEATURES  # noqa: E402
+from aios.core.plan_cli import CLAUDE_SEALED, CODEX_SEALED  # noqa: E402
 from aios.core.plan_cli import claude_executable as _claude_executable  # noqa: E402
+from aios.core.plan_cli import codex_executable as _codex_executable  # noqa: E402
 from aios.maintenance.sandbox_tests import (  # noqa: E402
     BROKE_PREFIX,
     PASSED,
@@ -289,7 +290,7 @@ def cmd_direct(args: argparse.Namespace) -> int:
 
 
 def ledger() -> DailyLedger:
-    return DailyLedger(config.DATA_DIR / "gagos_daily" / "ledger.db")
+    return DailyLedger(ledger_path())
 
 
 def _git(root: Path, *args: str) -> str:
@@ -869,12 +870,19 @@ def cmd_propose(args: argparse.Namespace) -> int:
         # one finding a batch, the longest refused first, until it answers: the
         # rest of the work goes to writers that answer.
         refused = led.refused_writers(workforce)
-        roster = tuple(m for m in workforce if m not in refused)
+        # A writer at its plan's usage limit is not refused: each such writer
+        # is tried on one finding a batch, so it rejoins when the limit lifts.
+        resting = led.resting_writers(workforce)
+        roster = tuple(m for m in workforce if m not in refused and m not in resting)
         probe = refused[0] if refused else None
         if refused:
             print(
                 f"  their last call was refused: {', '.join(refused)}; "
                 f"{probe} is tried on one finding"
+            )
+        if resting:
+            print(
+                f"  at a usage limit: {', '.join(resting)}; each is tried on one finding"
             )
     # Writers are compared within one rule, never across rules of different
     # difficulty (Codex's review of #580).
@@ -885,7 +893,12 @@ def cmd_propose(args: argparse.Namespace) -> int:
     for rule, idx in by_rule.items():
         for i, m in zip(idx, allocate(len(idx), led.model_outcomes(rule=rule), roster)):
             writers[i] = m
-    if probe and jobs:
+    if not args.model:
+        tried = [probe] if probe else []
+        tried += resting
+        for k, writer in enumerate(tried[: len(jobs)]):
+            writers[len(jobs) - 1 - k] = writer
+    elif probe and jobs:
         writers[-1] = probe
     # Not proposals: the findings no writer takes stay unattempted for a later
     # hour.
@@ -1105,27 +1118,20 @@ def codex_settings() -> dict[str, str]:
 def run_codex(
     prompt: str, *, model: str | None, timeout_s: float
 ) -> tuple[str, str, str]:
-    codex = shutil.which("codex")
+    # The plan client's lookup: a .cmd shim is refused, since cmd.exe would
+    # re-read its arguments (2026-11-04: this used shutil.which alone).
+    codex = _codex_executable()
     if codex is None:
-        raise ReviewUnavailable("the Codex CLI is not installed")
+        raise ReviewUnavailable(
+            "the Codex CLI is not installed (a .cmd shim is refused)"
+        )
     settings = codex_settings()
     model = model or settings.get("model")
     with tempfile.TemporaryDirectory(prefix="gagos-review-") as tmp:
         out = Path(tmp, "verdict.json")
         argv = [
             codex,
-            "exec",
-            "-s",
-            "read-only",
-            "--skip-git-repo-check",
-            "--ephemeral",
-            "--ignore-user-config",
-            "--ignore-rules",
-            *(
-                arg
-                for feature in CODEX_ACTING_FEATURES
-                for arg in ("--disable", feature)
-            ),
+            *CODEX_SEALED,
             "--output-schema",
             str(_schema_file(tmp)),
             "-o",
@@ -1180,18 +1186,7 @@ def run_claude(
     claude = _claude_executable()
     if claude is None:
         raise ReviewUnavailable("the Claude Code CLI is not installed")
-    argv = [
-        claude,
-        "-p",
-        "--output-format",
-        "json",
-        "--json-schema",
-        json.dumps(REVIEW_SCHEMA),
-        "--tools",
-        "",
-        "--no-session-persistence",
-        "--strict-mcp-config",
-    ]
+    argv = [claude, *CLAUDE_SEALED, "--json-schema", json.dumps(REVIEW_SCHEMA)]
     if model:
         argv += ["--model", model]
     with tempfile.TemporaryDirectory(prefix="gagos-review-") as tmp:

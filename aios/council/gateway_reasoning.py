@@ -19,6 +19,7 @@ from __future__ import annotations
 import uuid
 from typing import Any, Optional
 
+from aios.core import model_availability, router
 from aios.logging_config import get_logger
 
 _LOGGER = get_logger(__name__)
@@ -218,18 +219,20 @@ def build_dissent_llm_client(
 
     from aios.api import deps
 
-    for provider_name, getter in (
-        ("gemini", deps.get_gemini_client),
-        ("bedrock", deps.get_bedrock_client),
-        ("openai", deps.get_openai_client),
-        ("anthropic", deps.get_anthropic_client),
-    ):
+    # Every cloud brain in the router's registry, in its order (2026-11-04:
+    # this list was the council's own and lacked Vertex and the operator's
+    # plans). A model this account refused is skipped, as the router skips it.
+    from aios.core.router_wiring import first_cloud_brain
+
+    clients: dict[str, Any] = {}
+    for spec in router.cloud_providers():
         try:
-            client = getter()
+            clients[spec.name] = getattr(deps, spec.client_getter)()
         except Exception:  # noqa: BLE001 - a flaky provider lookup must not break wiring
             continue
-        if client is None:
-            continue
+    picked = first_cloud_brain(clients)
+    if picked is not None:
+        provider_name, client = picked
         model_id = str(getattr(client, "model", "unknown"))
         dissent_client = GatewayRoutedCouncilLLMClient(
             operator_identity_digest=credential_digest(operator_id),

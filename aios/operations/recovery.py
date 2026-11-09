@@ -17,7 +17,10 @@ from typing import Any
 
 from aios import config
 from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
-from aios.application.read_models.projection import IncrementalSystemProjection
+from aios.application.read_models.projection import (
+    PORTRAIT_DB_NAME,
+    IncrementalSystemProjection,
+)
 from aios.core.approvals import ApprovalStore
 from aios.infrastructure.capabilities.sqlite_store import CapabilityStore
 from aios.infrastructure.identity.sqlite_store import IdentityStore
@@ -396,7 +399,7 @@ def rebuild_projections(*, bus: CortexBus | None = None) -> int:
     """Recreate the derived portrait DB from the durable observation bus."""
     owned_bus = bus is None
     resolved_bus = bus or CortexBus()
-    projection_path = Path(resolved_bus.db_path).with_name("system_portrait.db")
+    projection_path = Path(resolved_bus.db_path).with_name(PORTRAIT_DB_NAME)
     for path in (
         projection_path,
         projection_path.with_suffix(".db-wal"),

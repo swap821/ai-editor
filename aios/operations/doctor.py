@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -351,9 +350,7 @@ def doctor_report(
     model_runtime_probe: Callable[[], tuple[bool, tuple[str, ...]]] | None = None,
 ) -> DoctorReport:
     """Return measured posture without starting models or changing projects."""
-    resolved_profile = (
-        (profile or os.getenv("AIOS_PROFILE", "development")).strip().lower()
-    )
+    resolved_profile = (profile or config.profile()).strip().lower()
     production = resolved_profile == "production"
     checks: list[DoctorCheck] = []
     data_writable = _writable(config.DATA_DIR)

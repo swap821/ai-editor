@@ -58,14 +58,14 @@ def _sha256(path: Path) -> str:
 
 
 def select(snapshot: Path, corpus: Path) -> dict:
+    from aios import config
     from aios.memory.mistake import MistakeMemory
 
+    name = config.MEMORY_DB_PATH.name
     tmp = Path(tempfile.mkdtemp(prefix="d13-select-"))
     try:
-        copy = tmp / "aios_memory.db"
-        src = sqlite3.connect(
-            f"file:{(snapshot / 'aios_memory.db').as_posix()}?mode=ro", uri=True
-        )
+        copy = tmp / name
+        src = sqlite3.connect(f"file:{(snapshot / name).as_posix()}?mode=ro", uri=True)
         dst = sqlite3.connect(copy)
         src.backup(dst)
         src.close()
@@ -104,7 +104,7 @@ def select(snapshot: Path, corpus: Path) -> dict:
     return {
         "rule": "PAYOFF_PREREGISTRATION.md D13: novel, not calibration, recall "
         "shows >= 1 lesson, none about the target itself",
-        "store_sha256": _sha256(snapshot / "aios_memory.db"),
+        "store_sha256": _sha256(snapshot / name),
         "corpus_targets": len(rows),
         "novel": sum(1 for r in rows if r["novel"]),
         "novel_shown_any": sum(

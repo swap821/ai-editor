@@ -25,7 +25,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -231,7 +230,7 @@ def _cmd_memory(args: argparse.Namespace) -> int:
 
 
 def _cmd_executor(args: argparse.Namespace) -> int:
-    profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+    profile = config.profile()
     if profile in {"production", "demo"}:
         from aios.application.executor.service import StructuredExecutorClient
 

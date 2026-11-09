@@ -549,7 +549,9 @@ def main(argv: list[str] | None = None) -> int:
         print("FAIL  no model in the ladder is usable")
         return 1
 
-    db = REPO_ROOT / "data" / "aios_memory.db"
+    from aios import config
+
+    db = REPO_ROOT / "data" / config.MEMORY_DB_PATH.name
     init_memory_db(db)
     # The live skill library (Phase 2 slice 2.4c-B): procedural_skills is
     # read-only history, and a ladder arc is evidence in the library.

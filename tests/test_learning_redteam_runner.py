@@ -114,7 +114,12 @@ class TestIsolation:
         self, tmp_path
     ) -> None:
         env = reel.child_environment(tmp_path)
-        for key in ("AIOS_DATA_DIR", "AIOS_SCOPE_ROOTS", "AIOS_ROLLBACK_DIR"):
+        for key in (
+            "AIOS_DATA_DIR",
+            "AIOS_SCOPE_ROOTS",
+            "AIOS_ROLLBACK_DIR",
+            "AIOS_CHECKPOINT_DIR",
+        ):
             assert Path(env[key]).resolve().is_relative_to(tmp_path.resolve()), key
         assert env["AIOS_CRAG"] == "0"
         assert env["HF_HUB_OFFLINE"] == "1"

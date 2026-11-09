@@ -61,8 +61,26 @@ _PROVIDER_WIDE = tuple(
     )
 )
 
+#: A usage limit on the operator's plan or account (2026-11-09): temporary,
+#: it lifts by itself, so it is neither one model's refusal nor an outage to
+#: wait out. The workshop and the router read failures through these same
+#: patterns: Claude Code's session and weekly limits, Codex's usageLimitExceeded.
+_USAGE_LIMIT = tuple(
+    re.compile(pattern, re.IGNORECASE)
+    for pattern in (
+        r"hit your (?:session|weekly|daily|usage|monthly) limit",
+        r"usage[ _]?limit[ _]?exceeded",
+    )
+)
+
 _unavailable: dict[tuple[str, str], float] = {}
 _lock = threading.Lock()
+
+
+def is_usage_limit_error(error: BaseException | str) -> bool:
+    """Is *error* a usage limit that lifts by itself (a plan's session limit)?"""
+    text = str(error)
+    return any(p.search(text) for p in _USAGE_LIMIT)
 
 
 def is_model_unavailable_error(error: BaseException | str) -> bool:

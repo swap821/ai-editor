@@ -548,7 +548,7 @@ def _fake_run(stdout="", stderr="", returncode=0, write=None, seen=None):
 
 def test_codex_reviews_read_only_and_its_model_is_recorded(monkeypatch) -> None:
     seen: list = []
-    monkeypatch.setattr(tool.shutil, "which", lambda name: "codex")
+    monkeypatch.setattr(tool, "_codex_executable", lambda: "codex")
     monkeypatch.setattr(
         tool,
         "codex_settings",
@@ -579,7 +579,7 @@ def test_codex_reviews_read_only_and_its_model_is_recorded(monkeypatch) -> None:
 
 
 def test_a_codex_failure_is_no_verdict(monkeypatch) -> None:
-    monkeypatch.setattr(tool.shutil, "which", lambda name: "codex")
+    monkeypatch.setattr(tool, "_codex_executable", lambda: "codex")
     monkeypatch.setattr(
         tool.subprocess,
         "run",

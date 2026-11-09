@@ -6,7 +6,7 @@ from typing import Mapping, Sequence
 from aios.application.models.privacy_broker import PrivacyBroker as ModelPrivacyBroker
 from aios.core import router
 from aios.domain.intelligence.contracts import HiringRequest, HiringDecision
-from aios.domain.intelligence.privacy import PrivacyBroker
+from aios.domain.intelligence.privacy import LOCAL_PROVIDERS, PrivacyBroker
 from aios.domain.privacy import ModelCallRequest, PrivacyDecision
 
 
@@ -30,24 +30,18 @@ class HiringBroker:
         self.privacy_broker = PrivacyBroker()
         self.model_privacy_broker = ModelPrivacyBroker()
 
-        # In a real system, these would be injected or fetched from a registry
-        # We simulate a basic capability mapping here to validate the contract
+        # What each brain is good for and what it costs, from the router's one
+        # registry (2026-11-04). This table was the broker's own: it knew five
+        # brains, not the operator's plans or Vertex, and priced openai high
+        # while the router priced it low.
         self._provider_capabilities: Mapping[str, list[str]] = {
-            "ollama": ["reasoning", "coding", "fast", "local"],
-            "bedrock": ["reasoning", "coding", "frontier"],
-            "gemini": ["reasoning", "coding", "frontier", "multimodal"],
-            "openai": ["reasoning", "coding", "frontier"],
-            "anthropic": ["reasoning", "coding", "frontier"],
+            p.name: list(p.skills) for p in router.PROVIDERS
         }
 
         self._cost_tiers: Mapping[str, int] = {"free": 0, "low": 1, "high": 2}
 
         self._provider_costs: Mapping[str, str] = {
-            "ollama": "free",
-            "bedrock": "high",
-            "gemini": "low",
-            "openai": "high",
-            "anthropic": "high",
+            p.name: p.cost for p in router.PROVIDERS
         }
 
     def evaluate_request(self, request: HiringRequest) -> HiringDecision:
@@ -74,7 +68,7 @@ class HiringBroker:
         # Determine human approval necessity
         human_approval_required = False
         if request.data_classification == "confidential" and any(
-            p not in ("ollama", "local") for p in affordable_providers
+            p not in LOCAL_PROVIDERS for p in affordable_providers
         ):
             human_approval_required = True
 
@@ -107,7 +101,7 @@ class HiringBroker:
             reason="Selected provider meets all constraints within budget.",
             redactions=[],
             external_data_scope=request.data_classification
-            if selected not in ("ollama", "local")
+            if selected not in LOCAL_PROVIDERS
             else "none",
             cost_limit=request.cost_budget,
             fallback_order=affordable_providers[1:],

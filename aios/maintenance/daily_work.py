@@ -46,6 +46,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
+from aios import config
+from aios.core.model_availability import is_usage_limit_error
 from aios.maintenance.frontend_static import Comment, StaticResult
 
 #: Rules whose fix does not change behaviour by nature: removing what is unused,
@@ -1642,6 +1644,11 @@ def _now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def ledger_path() -> Path:
+    """GAGOS's daily ledger, for the workshop and the counter alike."""
+    return Path(config.DATA_DIR) / "gagos_daily" / "ledger.db"
+
+
 class DailyLedger:
     """Every proposal and what happened to it. SQLite, one file."""
 
@@ -2196,8 +2203,31 @@ class DailyLedger:
             for p in last.values()
             if p["status"] == "refused"
             and (p["refusal"] or "").startswith("model call failed")
+            and not is_usage_limit_error(p["refusal"])
         ]
         return [p["model"] for p in sorted(failed, key=lambda p: p["created_at"])]
+
+    def resting_writers(self, models: Iterable[str]) -> list[str]:
+        """The writers among *models* whose most recent call hit a usage limit
+        (a plan's session or weekly limit), the longest resting first.
+
+        Not refused: a limit lifts by itself, so each is tried on one finding
+        a batch and rejoins the moment it answers. Until 2026-11-09 a limit
+        counted as a refusal, and the one probe a batch went to the longest
+        refused writer first, so a plan writer waited behind every writer AWS
+        had refused. Classified as the router classifies failures
+        (aios/core/model_availability.py)."""
+        wanted = set(models)
+        last: dict[str, dict] = {}
+        for p in self.proposals():
+            if p["model"] in wanted:
+                last[p["model"]] = p
+        resting = [
+            p
+            for p in last.values()
+            if p["status"] == "refused" and is_usage_limit_error(p["refusal"] or "")
+        ]
+        return [p["model"] for p in sorted(resting, key=lambda p: p["created_at"])]
 
     # tasks the operator writes
     def add_task(

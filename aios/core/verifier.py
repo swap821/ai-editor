@@ -15,20 +15,21 @@ FAIL, never a silent pass.
 
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
 from aios.core.executor import Executor
-from aios.core.verification_strength import VerificationStrength, derive_strength
+from aios.core.verification_strength import (
+    VerificationStrength,
+    derive_strength,
+    parse_test_counts,
+)
 
 #: Reflection hook: ``(command, error_output) -> optional lesson summary``. The
 #: same shape the agentic loop uses, so the verifier can drive reflection too.
 FailureHook = Callable[[str, str], Optional[dict[str, Any]]]
 
 #: pytest/jest-style summary fragments ("3 passed", "1 failed", "2 errors").
-_PASSED = re.compile(r"(\d+)\s+passed", re.IGNORECASE)
-_FAILED = re.compile(r"(\d+)\s+(?:failed|error|errors)", re.IGNORECASE)
 
 
 #: How much of a FAILING run's output to carry back to the caller.
@@ -65,16 +66,6 @@ class VerifierResult:
     mistake_id: Optional[int] = None
     #: Human-readable summary of the recorded lesson (empty when none).
     lesson_summary: str = ""
-
-
-def _parse_counts(output: str) -> tuple[int, int]:
-    """Extract ``(passed, failed)`` test counts from runner output (0 if absent)."""
-    passed = _PASSED.search(output)
-    failed = _FAILED.search(output)
-    return (
-        int(passed.group(1)) if passed else 0,
-        int(failed.group(1)) if failed else 0,
-    )
 
 
 #: Executor statuses that are GATE DECISIONS, not run failures — a RED security
@@ -141,7 +132,9 @@ class Verifier:
                 lesson_summary=_lesson_summary(lesson),
             )
 
-        passed_count, failed_count = _parse_counts(output)
+        # The one count parser the tool agent and the council use too: this
+        # module kept its own copy of the same regexes until 2026-11-09.
+        passed_count, failed_count = parse_test_counts(output)
         # Trust the runner's exit code as the authoritative pass/fail signal
         # (pytest/jest exit non-zero on failures); the parsed counts only enrich
         # the summary/delta, so an incidental "error" in a passing run's output

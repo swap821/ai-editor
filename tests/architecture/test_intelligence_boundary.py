@@ -54,15 +54,12 @@ ALLOWED_CLIENT_IMPORTERS = {
     "aios/operations/doctor.py",
 }
 
-# Provider adapter classes that should not be used directly.
-FORBIDDEN_CLASSES = {
-    "BedrockClient",
-    "GeminiClient",
-    "AnthropicDirectClient",
-    "OpenAICompatClient",
-    "PlanCliClient",
-    "OllamaClient",
-}
+# Provider adapter classes that should not be used directly: every brain's
+# client in the router's one registry (2026-11-04: this set was hand-written
+# and lacked VertexMaaSClient).
+from aios.core.router import PROVIDERS  # noqa: E402
+
+FORBIDDEN_CLASSES = {spec.client_class.partition(":")[2] for spec in PROVIDERS}
 
 
 def _iter_python_files(root_dir: str):

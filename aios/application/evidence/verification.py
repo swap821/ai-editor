@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from aios.core.signing_keys import test_keys_allowed
 from aios import config
 from aios.application.evidence.authority import EvidenceAuthority
 from aios.core.verification_strength import derive_strength
@@ -87,10 +88,8 @@ class VerificationAuthority:
             or os.environ.get("VERIFICATION_AUTHORITY_KEY")
             or getattr(config, "VERIFICATION_AUTHORITY_KEY", "")
         )
-        is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
-        allow_insecure = bool(os.environ.get("AIOS_TEST_SIGNING_KEYS_ALLOWED", ""))
         if not key:
-            if is_test or allow_insecure:
+            if test_keys_allowed():
                 return "test-verification-signing-key-placeholder-safe"
             raise RuntimeError(
                 "AIOS_VERIFICATION_AUTHORITY_KEY must be set to a secret of at least "
@@ -101,7 +100,7 @@ class VerificationAuthority:
                 f"AIOS_VERIFICATION_AUTHORITY_KEY is set to a known insecure default "
                 f"({key!r}). Provide a unique secret."
             )
-        if len(key) < 32 and not (is_test or allow_insecure):
+        if len(key) < 32 and not test_keys_allowed():
             raise RuntimeError(
                 "AIOS_VERIFICATION_AUTHORITY_KEY must be at least 32 characters."
             )

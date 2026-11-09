@@ -12,6 +12,14 @@ from aios.domain.missions.mission_repository import MissionRecord
 from aios.domain.missions.mission_state import MissionState
 from aios.domain.promotion import PromotionStatus
 
+#: The states a finding can be repaired from. The face offers the repair
+#: flow for exactly these (frontend/src/workbench/MaintenanceCenterPanel.jsx,
+#: REPAIRABLE_STATUSES); until 2026-11-04 it offered it for OPEN alone, so a
+#: REOPENED or VERIFICATION_FAILED finding could not be repaired from the face.
+REPAIRABLE_STATES: frozenset[str] = frozenset(
+    {"OPEN", "REOPENED", "VERIFICATION_FAILED"}
+)
+
 
 class SecurityViolationError(RuntimeError):
     """Raised when an actor attempts an unauthorized state transition."""
@@ -52,7 +60,7 @@ class MaintenanceLifecycleEngine:
         self, finding: MaintenanceFinding, mission_id: str
     ) -> MaintenanceFinding:
         """Bind one governed MissionService record to a durable finding."""
-        if finding.status not in {"OPEN", "REOPENED", "VERIFICATION_FAILED"}:
+        if finding.status not in REPAIRABLE_STATES:
             raise SecurityViolationError(
                 f"finding cannot create a repair mission from state {finding.status}"
             )

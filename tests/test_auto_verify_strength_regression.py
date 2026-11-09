@@ -26,7 +26,7 @@ from pathlib import Path
 from aios import config
 from aios.agents.tool_agent import build_auto_verify_command
 from aios.core.verification_strength import VerificationStrength, derive_strength
-from aios.core.verifier import _parse_counts
+from aios.core.verification_strength import parse_test_counts as _parse_counts
 
 _TRIVIAL_TEST = """\
 def test_trivially_true():

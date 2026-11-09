@@ -5,6 +5,7 @@ from __future__ import annotations
 import hmac
 import hashlib
 import json
+from aios.core.signing_keys import test_keys_allowed
 import os
 import shutil
 import tempfile
@@ -58,7 +59,12 @@ class RollbackReceipt(BaseModel):
 
 def _resolve_external_dir(project_root: Path, storage_root: Path | None = None) -> Path:
     proj_resolved = project_root.resolve()
-    env_dir = os.environ.get("AIOS_ROLLBACK_DIR")
+    # Promotion checkpoints have their own setting (2026-11-09). They read
+    # AIOS_ROLLBACK_DIR until then, which also names the rollback engine's git
+    # directory (config.ROLLBACK_DIR): unset, the two lived apart; set, both
+    # landed in one directory. A checkpoint root must sit outside the project,
+    # and the engine's default is inside it, so one default cannot serve both.
+    env_dir = os.environ.get("AIOS_CHECKPOINT_DIR")
     if storage_root is not None:
         rollback_root = storage_root.resolve()
     elif env_dir and env_dir.strip():
@@ -111,10 +117,8 @@ def _resolve_checkpoint_key(explicit: str | None) -> str:
         or os.environ.get("CHECKPOINT_AUTHORITY_KEY")
         or ""
     )
-    is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
-    allow_insecure = bool(os.environ.get("AIOS_TEST_SIGNING_KEYS_ALLOWED", ""))
     if not key:
-        if is_test or allow_insecure:
+        if test_keys_allowed():
             return _TEST_CHECKPOINT_KEY
         raise CheckpointError(
             "AIOS_CHECKPOINT_AUTHORITY_KEY must be set to a secret of at least "
@@ -124,7 +128,7 @@ def _resolve_checkpoint_key(explicit: str | None) -> str:
         raise CheckpointError(
             "AIOS_CHECKPOINT_AUTHORITY_KEY is a known public value; provide a unique secret"
         )
-    if len(key) < 32 and not (is_test or allow_insecure):
+    if len(key) < 32 and not test_keys_allowed():
         raise CheckpointError(
             "AIOS_CHECKPOINT_AUTHORITY_KEY must be at least 32 characters"
         )

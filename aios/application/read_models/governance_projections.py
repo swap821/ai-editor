@@ -26,6 +26,7 @@ from aios.application.read_models.provenance_projections import (
     project_privacy_audits,
     project_routing_decisions,
 )
+from aios.core import router
 from aios.core.approvals import ApprovedAction
 from aios.domain.capabilities.contracts import Capability
 from aios.domain.governance.constitution import ConstitutionSnapshotV1
@@ -177,16 +178,11 @@ def project_approval(
 
 
 #: The provider names any real production call site can report through
-#: ProviderHealthTracker (aios/core/failover.py, aios/core/router.py's own
-#: PROVIDER_* constants) -- a fixed, known set, not derived from the
-#: tracker's own internal state (which only knows what's been observed).
-KNOWN_PROVIDER_NAMES: tuple[str, ...] = (
-    "ollama",
-    "bedrock",
-    "gemini",
-    "openai",
-    "anthropic",
-)
+#: ProviderHealthTracker -- a fixed, known set, not derived from the
+#: tracker's own internal state (which only knows what's been observed). It
+#: is the router's one registry of brains (2026-11-04: this list was its own
+#: and lacked Vertex and the operator's plans).
+KNOWN_PROVIDER_NAMES: tuple[str, ...] = router.PROVIDER_NAMES
 
 
 def project_provider_health_list(

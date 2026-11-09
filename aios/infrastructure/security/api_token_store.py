@@ -45,6 +45,7 @@ import sqlite3
 from contextlib import closing
 from pathlib import Path
 
+from aios.core.signing_keys import test_keys_allowed
 from aios.domain.security.api_token import ApiTokenRotationState
 
 #: The environment variable holding the row-signing secret. Volatile by design.
@@ -78,15 +79,13 @@ def _resolve_rotation_key() -> str | None:
     authority uses is honoured, so suites need no real secret.
     """
     key = os.environ.get(ROTATION_KEY_ENV, "")
-    is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
-    allow_insecure = bool(os.environ.get("AIOS_TEST_SIGNING_KEYS_ALLOWED", ""))
     if not key:
-        if is_test or allow_insecure:
+        if test_keys_allowed():
             return "test-api-token-rotation-key-placeholder-safe"
         return None
     if key in _INSECURE_DEFAULT_KEYS:
         return None
-    if len(key) < _MIN_KEY_LENGTH and not (is_test or allow_insecure):
+    if len(key) < _MIN_KEY_LENGTH and not test_keys_allowed():
         return None
     return key
 

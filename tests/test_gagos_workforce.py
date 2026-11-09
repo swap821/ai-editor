@@ -298,6 +298,34 @@ def test_a_refused_writer_is_tried_on_one_finding_and_the_rest_goes_elsewhere(
     assert led.refused_writers(tool.WORKFORCE) == [], "it answered: it is back"
 
 
+def test_a_writer_at_its_usage_limit_is_tried_beside_a_refused_one(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A plan's session limit lifts by itself: the writer is tried each batch,
+    not queued behind the writers AWS refused (2026-11-09)."""
+    led, asked, args, _ids = _batch(tmp_path, monkeypatch, third=True)
+    _failed_call(led, "writer-a")
+    led.record_proposal(
+        dw.Finding(
+            rel="frontend/src/Elsewhere.jsx", rule=RULE, warnings=FINDING.warnings
+        ),
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="writer-b",
+        new_text=None,
+        verdict=None,
+        refusal="model call failed: LLMError: Claude Code exited 1: You've hit "
+        "your session limit · resets 3:10pm (Asia/Kolkata)",
+    )
+    assert tool.cmd_propose(args) == 0
+    assert sorted(asked) == ["writer-a", "writer-b"], (
+        "each tried once; the third finding waits for a writer that answers"
+    )
+    out = capsys.readouterr().out
+    assert "their last call was refused: writer-a" in out
+    assert "at a usage limit: writer-b" in out
+
+
 def test_the_operators_plan_takes_at_most_its_share_and_costs_no_aws(
     tmp_path, monkeypatch, capsys
 ) -> None:

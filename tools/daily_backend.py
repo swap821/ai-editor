@@ -19,6 +19,7 @@ AIOS_REPLAY_APPROVED_COMMANDS  1                                     2026-10-19
 AIOS_ROUTER_CLOUD_TASKS        reasoning,coding, or --cloud-tasks    2026-11-03
 AIOS_PLAN_CLAUDE_MODELS        claude-sonnet-5-5,claude-haiku-5-5    2026-11-03
 AIOS_PLAN_CODEX_MODELS         gpt-6.1-sol,gpt-6.1-terra,gpt-6-luna  2026-11-03
+AIOS_PROFILE                   production                            2026-11-09
 =============================  ====================================  ==========
 
 On 2026-11-03 the operator connected his own plans to the counter: "connect
@@ -61,7 +62,6 @@ or written; the state file names which were loaded.
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import os
 import secrets
@@ -99,10 +99,25 @@ _DETACHED = (0x00000008 | 0x00000200) if os.name == "nt" else 0
 _FACE_FLAGS = (0x08000000 | 0x00000200) if os.name == "nt" else 0
 
 
+def staged_root() -> Path:
+    """Where the backend stages maintenance work, so the executor accepts it.
+
+    The backend's own ``config.DATA_DIR`` (the scope lock pins this staging
+    root): until 2026-11-04 the executor was pointed at this checkout's
+    ``data`` directory whatever ``AIOS_DATA_DIR`` said, and every staged job
+    would have been refused had it been set.
+    """
+    from aios import config
+
+    return config.DATA_DIR / "staged_maintenance"
+
+
 def verify_image(repo: Path = REPO) -> str:
-    """The sandbox image for *repo*'s requirements (``Dockerfile.verify``)."""
-    digest = hashlib.sha256((repo / "requirements.txt").read_bytes()).hexdigest()
-    return f"aios-verify:{digest[:12]}"
+    """The sandbox image for *repo*'s requirements (``Dockerfile.verify``): the
+    sandbox's own formula, not a copy of it (2026-11-04)."""
+    from aios.maintenance.sandbox_tests import verify_image as image_for
+
+    return image_for((repo / "requirements.txt").read_bytes())
 
 
 #: The operator's plans at the counter (2026-11-03): see the table above.
@@ -132,6 +147,10 @@ def daily_settings(
         "AIOS_ROUTER_CLOUD_TASKS": cloud_tasks,
         "AIOS_PLAN_CLAUDE_MODELS": ",".join(PLAN_CLAUDE),
         "AIOS_PLAN_CODEX_MODELS": ",".join(PLAN_CODEX),
+        # The operator, 2026-11-09: his counter runs as production, so every
+        # command crosses the private executor with isolation proof. Unset,
+        # GAGOS is development (aios/config.py DEFAULT_PROFILE).
+        "AIOS_PROFILE": "production",
     }
 
 
@@ -420,7 +439,7 @@ def up(args: argparse.Namespace) -> int:
 
     executor_env = {
         **base,
-        "AIOS_EXECUTOR_WORKSPACE_ROOT": str(REPO / "data" / "staged_maintenance"),
+        "AIOS_EXECUTOR_WORKSPACE_ROOT": str(staged_root()),
         "AIOS_EXECUTOR_HOST": "127.0.0.1",
         "AIOS_EXECUTOR_PORT": str(EXECUTOR_PORT),
     }

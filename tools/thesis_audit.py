@@ -17,8 +17,6 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from aios import config
-
 
 DEFAULT_DOCS: tuple[str, ...] = (
     "README.md",
@@ -214,6 +212,40 @@ def _has_local_only_override(text: str) -> bool:
     )
 
 
+def shipped_cloud_tasks(root: Path = ROOT) -> tuple[str, ...]:
+    """The law's shipped default for ``AIOS_ROUTER_CLOUD_TASKS``, read from
+    ``aios/security/limits.py`` itself.
+
+    The frozen core cannot be edited to name its default, and importing it
+    yields the operator's environment, not what ships. So the default is read
+    from the source: the second argument of the call that assigns
+    ``ROUTER_CLOUD_TASKS``. Until 2026-11-04 the security test and this audit
+    checked a copy in ``aios/config.py`` that nothing tied to the law.
+    """
+    import ast
+
+    tree = ast.parse(
+        (root / "aios" / "security" / "limits.py").read_text(encoding="utf-8")
+    )
+    for node in ast.walk(tree):
+        if isinstance(node, ast.AnnAssign):
+            targets = [node.target]
+        elif isinstance(node, ast.Assign):
+            targets = list(node.targets)
+        else:
+            continue
+        if not any(
+            isinstance(t, ast.Name) and t.id == "ROUTER_CLOUD_TASKS" for t in targets
+        ):
+            continue
+        call = node.value
+        if isinstance(call, ast.Call) and len(call.args) >= 2:
+            return tuple(ast.literal_eval(call.args[1]))
+    raise LookupError(
+        "aios/security/limits.py no longer assigns ROUTER_CLOUD_TASKS from a default"
+    )
+
+
 def audit_cloud_routing_docs(
     docs: Mapping[str, str],
     *,
@@ -350,7 +382,7 @@ def audit_repo(root: Path) -> list[Finding]:
             docs[rel] = ""
     return audit_cloud_routing_docs(
         docs,
-        cloud_tasks_default=config._ROUTER_CLOUD_TASKS_DEFAULT,
+        cloud_tasks_default=shipped_cloud_tasks(root),
     ) + audit_post_v7_feature_docs(docs, root=root)
 
 

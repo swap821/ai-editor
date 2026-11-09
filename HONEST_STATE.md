@@ -1,9 +1,108 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-09 ("2026-11-09, GAGOS's Python formatted as CI requires"
-below; earlier sections keep the commit they were measured on). The whole story, from the first commit, is
+**Last updated:** 2026-11-09 ("2026-11-09, the ant colony runs through the Foundry" below;
+earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-09, the ant colony runs through the Foundry (branch `feat/swarm-in-foundry`, on `feat/consistency-guards`)
+
+- **The operator's question, 2026-11-04:** "can be multiple workers working that's y o made queens and ant-colony inspired workers are we honestly using those". They were not: from 2026-07-15 production refused every swarm turn (`strategy_unavailable`, "route it through WorkerFoundry before enabling"). His decision on 2026-11-09: "Swarm into the Foundry".
+- **Now a swarm turn runs, every caste leg a worker the Worker Foundry admits.** The legs are scout, decomposer, cloud broker, workers, quorum and synthesizer (`aios/application/workers/swarm_foundry.py`).
+  - The emergency stop is checked at each admission: an engaged stop refuses the next leg, and the swarm ends saying so.
+  - A bounded scheduler runs the legs, and each leg's lifecycle lands on the cortex bus: requested, admitted, started, completed or failed or awaiting approval, dissolved.
+  - The swarm runs inside the same governed turn wrapper (privacy target, receipt) as a single agent, so a leg's every tool stays behind the executor gate and the operator's approvals.
+- **Several workers at once.** Worker legs run side by side on a cloud or plan brain (`AIOS_SWARM_CLOUD_CONCURRENCY`, 3), and one at a time on the local brain: on a 16 GB laptop, parallel local legs fight over one model.
+- **A privacy fix in the newly reachable path.** A cloud-burst leg was given the turn's private recall, while the governed path strips recall from anything bound for the cloud. Such a leg now gets the operator's contract and no recall. Cloud burst stays off by default.
+- **Kept apart, and pinned:**
+  - the role pass is still refused;
+  - the operator's main turn runs its own tool agent outside the Foundry, by his choice;
+  - the workshop's writers are sealed model calls through the gateway with no tools, so they do not act.
+  - Every tool agent in production comes from the generate pipeline's two factories, so an agent built anywhere else fails a guard.
+- **Tests:**
+  - The swarm Foundry's own tests: each leg admitted, a stopped colony refused, three workers meeting at once, a paused leg awaiting approval.
+  - A real `/api/generate` swarm turn passes, with its legs admitted and nothing sent to the cloud with burst off.
+  - The reachability tests, written to fail if the gate went, were rewritten deliberately.
+  - 243 tests across the turn, architecture and gateway suites pass.
+- **Settings read twice** (2026-11-09).
+  - The rule for when a missing signing key may fall back to a test placeholder was spelled out in four modules (verification, promotion, checkpoint, API-token rotation). It is written once now, in `aios/core/signing_keys.py`.
+  - Every other setting read in several files agrees on its default, or is named with its reason (`SETTING_EXCEPTIONS`).
+- **The rollback setting.** `AIOS_ROLLBACK_DIR` named both the rollback engine's git directory and the promotion checkpoints' store; set, both landed in one directory. Checkpoints read their own `AIOS_CHECKPOINT_DIR` now, with the same default (the system temp directory). The operator's environment set neither, so nothing moves.
+- **Brain availability.** One classification of a failed call (`aios/core/model_availability.py`): a model refused, a usage limit that lifts by itself, or anything else. The router and the workshop read failures through it.
+  - A plan writer at its session or weekly limit is no longer "refused". It is tried on one finding every batch, instead of waiting behind every writer AWS refused.
+  - Its stated reset time is not parsed: that needs the named time zone, and this Windows Python has no tzdata.
+- **The register: 41 of 41 registered facts guarded (100%), from 12 of 35 on 2026-11-04.** Each guard was shown to fail on its drift.
+  - What 100% means: every fact the register names has one source, or a test that fails when its places disagree.
+  - What it does not mean: that GAGOS holds no other duplicate. A fact nobody registered is not measured. When one is found, it is added open and the score drops until it is guarded.
+  - Measured over the code. Most of it has not run on the operator's live backend, and the full backend suite runs only in CI here, where memory allows.
+- **What the two adversarial reviews found, fixed** (each pinned by a test in `tests/test_swarm_foundry.py`):
+  - **High.** Two legs that ran side by side and both paused for approval: only the first request reached the operator, and the other legs' work was dropped unsaid. The turn now names every leg still waiting, and its command, before it pauses; each asks again when the turn resumes.
+  - **High.** One hung leg could hold every slot of the process's swarm scheduler, so another turn's legs waited forever: no leg timeout was enforced. A leg now fails at its timeout (600 s) and frees its slot, and the process runs four turns' worth of legs. Its thread cannot be killed; it stops at its agent's own next check, as a single agent's would.
+  - **Medium.** A leg's own crash was reported as a refusal, unlogged, with the exception text unredacted. It now raises as a single agent's would. A real refusal is logged on the server and passes the secret scanner before it reaches the stream.
+  - **Cloud burst obeyed only its own switch,** past the one egress law every other cloud route obeys. It now needs the switch and the law (the router's own `policy_allows`) to let this task leave the machine.
+  - **Tests.** Each test Foundry is now closed, so none leaks its loop.
+- **Kept as it is, said plainly:**
+  - An approval is of a command, not of the leg that asked: approving one leg's command lets another leg in the same turn run the identical command. A single agent already may re-run an approved command in its turn, so the swarm does not widen what one approval permits; it spreads it across legs.
+  - A leg already running when the emergency stop engages stops at its agent's own next check, as a single agent does; the next leg is refused at admission.
+  - A cloud-burst leg (off by default, and now under the law) receives the turn's conversation, filtered by the cloud client's PrivacyFilter as every cloud call is, and no recalled memory.
+- **Not measured yet:** a live swarm turn on the operator's own backend. It needs his session, so it is his to try once merged.
+
+## 2026-11-09, consistency guards (branch `feat/consistency-guards`, on `feat/one-brain-registry`)
+
+- **The third step:** the facts that are not about brains or workers. Each disagreement found is fixed where one place can be the source, and pinned by a test where two places must stay separate. `tests/test_consistency_guards.py` holds the guards; each was shown to fail on its drift before being kept.
+- **Fixed:**
+  - **The cloud-task law.** The security test and the thesis audit checked a copy of the default in `aios/config.py`, while the law's own default in the frozen `limits.py` went unchecked: it could have changed under a green test. They now read the law itself (`tools/thesis_audit.shipped_cloud_tasks`, from its source). The dead copy is gone, and the `.env` template names the law's classes.
+  - **The Ollama address.** Bootstrap checks and writes `OLLAMA_HOST`, the name the runtime reads, not `AIOS_OLLAMA_URL`, which nothing read.
+  - **Store file names.** The launcher's provenance command opened a file nothing writes (every trace came back empty). `missions.db` was named four times, `system_portrait.db` and `council_state.db` twice each, and eleven tools rebuilt config's names. Each name now has one home.
+  - **The face's states.** It repairs REOPENED and VERIFICATION_FAILED findings too, as the backend allows. Its skill states are the backend's, so one new backend state can no longer blank the Skill Library.
+  - **The daily backend.** It asks the sandbox for the image name, and points the executor at the backend's own staging root, which the guard checks the frozen scope lock pins.
+  - **GAGOS's ledger path** is written once.
+  - **The CLIs.** The Claude Code and Codex commands are sealed once, in `plan_cli`, for the workshop and the counter. The workshop also found Codex with `shutil.which` alone, so it would have launched a `.cmd` shim the plan client refuses.
+- **Pinned:** the default ports of the counter, executor and face, read from each place's source; and GAGOS's task statuses against the face's styles.
+- **The profile, the operator's decision (2026-11-09).** `AIOS_PROFILE` was read in 8 files: development by default in most, production in the private executor service and the launcher, so one process held two profiles.
+  - Unset now means `development` for dev and test runs, through one reader, `config.profile()`. The daily backend says `production`, so every command on his counter crosses the private executor with isolation proof.
+  - `aios/core/executor.py` is not edited by this work: its default is pinned to the one default. The launcher's default stays production; it is the profile it launches, not the one it runs as.
+  - Live on his backend under production: the backend, executor and face boot and answer, and readiness passes. An approved command through the private executor was not exercised, since that needs his approval. Until this merges, a reboot brings his backend back as development (the watchdog runs master's `up`).
+- **Found, not fixed (open):**
+  - 18 of 196 `AIOS_*` settings were read in more than one file; `AIOS_PROFILE` is now settled, and the rest is its own step.
+  - `AIOS_ROLLBACK_DIR` and `AIOS_EXECUTOR_WORKSPACE_ROOT` each mean two different things.
+  - The sandbox image tag hashes the checkout's bytes, so a Windows (CRLF) and a Linux checkout name different images for one commit.
+- **The test judges were two questions** (2026-11-09).
+  - "Did this command succeed?" The Verifier and the VerificationAuthority both decide it on the exit code. The Verifier kept its own copy of the count parser; it now uses the shared one.
+  - "Did this change break a test that passed before?" Only the workshop's sandbox asks it, against the base.
+  - Maintenance asks the first of the command the operator approved, so a test already failing blocks a repair: it fails closed, by design.
+  - The register now counts them as the two facts they are, each guarded.
+- **A privacy fix** (2026-11-09).
+  - Three of five calls in the generate pipeline passed every brain's client but Vertex's. One of them set the turn's privacy target, so a turn served directly by Vertex (an explicit `vertexmaas.*` model) had its governed context compiled for a LOCAL brain, private recall included, before it went to Google.
+  - The chat route could not select a Vertex model at all.
+  - Every call now passes every client, and `test_a_call_that_names_one_brains_client_names_them_all` fails a production call that names one brain's client and not the others. It found the chat route's omission on its first run.
+- **Side jobs' cloud brain** (2026-11-09): the council's dissent, CRAG's cloud source and the swarm's cloud burst take one choice (`router_wiring.first_cloud_brain`): the registry's first configured cloud brain whose model this account has not refused. CRAG picked "gemini or bedrock" and the burst "bedrock or gemini", blind to refusals. Each keeps its own switch; both are off by default.
+- **The register: 36 of 40 facts guarded (90%), from 18 of 37.** Open:
+  - the worker engines (the one engine, next);
+  - brain availability;
+  - the rollback setting;
+  - settings read twice.
+- **Tests:**
+  - Related backend suites reached 92% with no failure before Claude Code stopped them for low memory; the rest is CI's.
+  - The 54 register and guard tests pass, as do the frontend's 26 tests for the two changed files and ESLint.
+  - While formatting, ruff's `--fix` also removed pre-existing unused imports in three files. Those are GAGOS's work, so they were put back.
+
+## 2026-11-04, one registry of brains (branch `feat/one-brain-registry`, on `feat/consistency-register`)
+
+- **The second step.** `aios/core/router.py::PROVIDERS` is the one registry of GAGOS's seven brains: name, cloud or local, price, skills, the setting that enables each, its client getter and its client class. Every list the measurement found now reads it:
+  - the failover's cloud and local sets, the privacy broker's local set;
+  - the hiring broker's skills and prices, and its local checks;
+  - the provider-health list, the readiness probe, the hiring service and its status route;
+  - the council's dissent reasoner, which now also skips a model the account refused, as the router does;
+  - the router's own prefixes and capabilities, `tools/preflight.py`'s constants.
+- **Behaviour that changes, on purpose:**
+  - a turn Vertex served outside failover is recorded as `vertexmaas`, not `ollama`: both directions of "name to client" read one mapping (`router_wiring.clients_by_provider`);
+  - the health list, the readiness probe, the hiring status and the hiring service know Vertex and the operator's plans;
+  - the hiring broker prices openai low, as the router always did;
+  - the council's dissent reasoner can use Vertex or a plan when no other cloud brain is configured, and passes over a refused model.
+- **Guards that derived their lists:** the privacy guard checks every cloud client the registry names (six; it checked four, without the plan and Vertex clients), and the boundary test's forbidden classes are the registry's (the hand-written set lacked `VertexMaaSClient`).
+- **The register: 18 of 37 facts guarded (49%), from 12 of 35.** (One new fact registered on the way: three notions of whether a brain can serve now.) Hand-written provider lists: 5, from 17, each named with its reason in `tests/architecture/test_one_provider_registry.py`. Its guards were each shown to fail on their drift (the Vertex label bug, the broker's own openai price, a new hand-written list) before being kept.
+- **Still open from this step:** CRAG's cloud source (gemini or bedrock) and the swarm's cloud burst (bedrock or gemini) pick by hand, the `side-job-cloud-brain` row; they belong to the one engine for workers.
 
 ## 2026-11-09, GAGOS's Python formatted as CI requires (branch `fix/gagos-formats-python`)
 

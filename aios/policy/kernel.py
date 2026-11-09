@@ -1610,7 +1610,7 @@ class PolicyKernelAuthority:
         and test profiles; it is never constructed by a production control
         plane.
         """
-        profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+        profile = config.profile()
         if profile in {"production", "demo"}:
             from aios.application.executor.service import (
                 private_executor_runner_from_config,
@@ -1627,7 +1627,7 @@ class PolicyKernelAuthority:
         Returns a warning string (host mode / unavailable container) or ``None``
         when the container backend is ready. Raises for an unknown backend.
         """
-        profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+        profile = config.profile()
         if profile in {"production", "demo"}:
             if not config.EXECUTOR_URL or not config.EXECUTOR_TOKEN:
                 return (

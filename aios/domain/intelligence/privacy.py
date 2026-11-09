@@ -1,9 +1,12 @@
 """Privacy boundary evaluation for the Hiring Broker."""
 
 from typing import Sequence
+
+from aios.core import router
 from aios.domain.intelligence.contracts import HiringRequest
 
-LOCAL_PROVIDERS = {"ollama", "local"}
+#: The local brains, from the router's one registry, and the generic "local".
+LOCAL_PROVIDERS = router.LOCAL_PROVIDER_NAMES | {"local"}
 
 
 class PrivacyBroker:

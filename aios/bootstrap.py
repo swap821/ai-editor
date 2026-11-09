@@ -147,7 +147,9 @@ def _check_ollama() -> BootstrapCheck:
             required=False,
         )
 
-    url = os.getenv("AIOS_OLLAMA_URL", "http://127.0.0.1:11434").rstrip("/")
+    # The name the runtime reads (aios/config.py OLLAMA_HOST): until 2026-11-04
+    # this checked AIOS_OLLAMA_URL, which nothing else read.
+    url = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434").rstrip("/")
     parsed = urllib.parse.urlparse(url)
     host = parsed.hostname or "127.0.0.1"
     port = parsed.port or 11434
@@ -339,12 +341,12 @@ def default_env_contents() -> str:
         "AIOS_DATA_DIR=./data\n"
         "\n"
         "# Local LLM routing (Ollama)\n"
-        "AIOS_OLLAMA_URL=http://127.0.0.1:11434\n"
+        "OLLAMA_HOST=http://127.0.0.1:11434\n"
         "AIOS_ROUTER_PREFER_LOCAL=true\n"
         "\n"
         "# Cloud egress: OFF by default. Nothing leaves this machine until you\n"
         "# name a task class here. Uncomment to opt in per class (valid names:\n"
-        "# coding, reasoning, general, fast). Cloud additionally requires real\n"
+        "# coding, long_context, reasoning, research, vision). Cloud additionally requires real\n"
         "# provider credentials, so naming a class alone does not enable egress.\n"
         "# AIOS_ROUTER_CLOUD_TASKS=reasoning,coding\n"
         "\n"

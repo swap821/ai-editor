@@ -1,23 +1,16 @@
 """Ephemeral worker swarm over the single supervised tool loop — ant-colony.
 
-DORMANT: NOTHING IN THE PRODUCT CAN REACH THIS TODAY.
------------------------------------------------------
-``generate_pipeline`` rejects the request before any of this runs::
-
-    if req.swarm or req.role_pass:
-        ... yield sse("error", {"code": "strategy_unavailable", ...}); return
-
-There is no flag that opens it -- the gate is unconditional. Everything below is
-built, tested, and unreachable from a live turn, and the downstream SSE branches
-that handle ``swarm_plan`` / ``caste_start`` / ``caste_end`` sit after a `return`
-that always fires.
-
-This banner exists because the alternative is worse: a fully-wired-looking
-subsystem with an invisible gate reads as implemented to anyone auditing the
-product, and this repository has spent months removing exactly that kind of
-claim. Dormant is an honest state; silently dead is not. Pinned by
-``tests/test_documented_reachability.py``, which fails if the gate is removed
-without this banner being rewritten.
+REACHABLE THROUGH THE WORKER FOUNDRY (2026-11-09).
+--------------------------------------------------
+From 2026-07-15 to 2026-11-09 ``generate_pipeline`` refused every swarm turn
+(``strategy_unavailable``: "route it through WorkerFoundry before enabling"),
+and this banner said it was dormant. A turn with ``swarm`` now runs here, and
+every caste leg is a worker the Foundry admits
+(:mod:`aios.application.workers.swarm_foundry`): the emergency stop is checked
+at each admission, the scheduler bounds the legs, and each leg's lifecycle lands
+on the cortex bus. ``role_pass`` is still refused. Pinned by
+``tests/test_documented_reachability.py``: if the Foundry route goes, this
+banner must be rewritten.
 
 
 The dynamic-fan-out generalization of the sequential role-pass
@@ -46,6 +39,7 @@ the loop's grant pre-apply landing approved writes first.
 
 from __future__ import annotations
 
+import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -54,6 +48,9 @@ from typing import Any, Callable, Iterator, Optional
 from aios import config
 from aios.agents.swarm_patterns import SwarmPatternMemory
 from aios.agents.tool_agent import STEP_LIMIT_TEXT
+from aios.security.secret_scanner import scan_and_redact
+
+logger = logging.getLogger(__name__)
 
 #: Caste tool subsets, enforced mechanically at ToolAgent._dispatch.
 DECOMPOSER_TOOLS = frozenset({"read_file", "read_directory", "plan"})
@@ -144,6 +141,15 @@ class _LegResult:
     stopped: bool
     fail_targets: dict[str, bool] = field(default_factory=dict)
 
+    @property
+    def status(self) -> str:
+        """How the leg ended, as the Worker Foundry records a worker."""
+        if not self.stopped:
+            return "completed"
+        if any(e.get("type") == "human_required" for e in self.events):
+            return "awaiting_approval"
+        return "failed"
+
 
 def _parse_subtasks(answer: str, *, limit: int) -> list[str]:
     """Extract numbered/bulleted subtask lines from the decomposer's answer.
@@ -209,13 +215,28 @@ def _run_quorum(
     subtask_index: int,
     subtask: str,
     results: list[_LegResult],
+    admit: Optional[LegAdmission] = None,
 ) -> _LegResult:
     """Run the QUORUM caste for one subtask's redundant replicas."""
     role = f"quorum-{subtask_index + 1}"
     note = _format_quorum_note(subtask, results)
     return _run_leg(
-        make_agent, shared, role, QUORUM_PROMPT, QUORUM_TOOLS, note=note, max_iters=4
+        make_agent,
+        shared,
+        role,
+        QUORUM_PROMPT,
+        QUORUM_TOOLS,
+        note=note,
+        max_iters=4,
+        admit=admit,
     )
+
+
+#: How a leg runs as an admitted worker: ``admit(role, tools, run)`` returns
+#: ``run()``'s result, or raises when the boundary refuses the leg (an
+#: emergency stop). Production passes the Worker Foundry's
+#: (aios/application/workers/swarm_foundry.py); tests may run legs directly.
+LegAdmission = Callable[[str, frozenset[str], Callable[[], "_LegResult"]], "_LegResult"]
 
 
 def _run_leg(
@@ -228,13 +249,86 @@ def _run_leg(
     max_iters: Optional[int] = None,
     subtask_index: Optional[int] = None,
     cloud_provider: Optional[str] = None,
+    admit: Optional[LegAdmission] = None,
 ) -> _LegResult:
     """Execute one caste leg and return its events + distilled handoff.
+
+    With *admit*, the leg runs as one worker the boundary admits; a leg it
+    refuses ends stopped, with an error event that says so.
 
     The leg is fully deterministic and state-local: it reads from ``shared`` but
     does NOT mutate it. The caller decides when (and whether) to deposit the
     distilled ``answer`` back into ``shared``.
     """
+    if admit is not None:
+        failed: list[BaseException] = []
+
+        def leg() -> _LegResult:
+            try:
+                return _run_leg_now(
+                    make_agent,
+                    shared,
+                    role,
+                    prompt,
+                    tools,
+                    note=note,
+                    max_iters=max_iters,
+                    subtask_index=subtask_index,
+                    cloud_provider=cloud_provider,
+                )
+            except BaseException as exc:
+                failed.append(exc)
+                raise
+
+        try:
+            return admit(role, tools, leg)
+        except Exception as exc:  # noqa: BLE001 - a leg's own failure is re-raised below
+            if failed and failed[0] is exc:
+                # The leg's own failure, raised as a single agent's would be
+                # (the correctness review of 2026-11-09: it was reported as a
+                # refusal, unredacted and unlogged).
+                raise
+            logger.warning("swarm leg %s was not run", role, exc_info=exc)
+            said = scan_and_redact(f"{type(exc).__name__}: {exc}").scrubbed
+            return _LegResult(
+                role=role,
+                events=[
+                    {
+                        "type": "error",
+                        "role": role,
+                        "code": "worker_refused",
+                        "text": f"the worker foundry did not run the {role} leg: {said}",
+                    }
+                ],
+                answer="",
+                wrote=False,
+                stopped=True,
+            )
+    return _run_leg_now(
+        make_agent,
+        shared,
+        role,
+        prompt,
+        tools,
+        note=note,
+        max_iters=max_iters,
+        subtask_index=subtask_index,
+        cloud_provider=cloud_provider,
+    )
+
+
+def _run_leg_now(
+    make_agent: AgentFactory,
+    shared: list[dict[str, Any]],
+    role: str,
+    prompt: str,
+    tools: frozenset[str],
+    note: Optional[str] = None,
+    max_iters: Optional[int] = None,
+    subtask_index: Optional[int] = None,
+    cloud_provider: Optional[str] = None,
+) -> _LegResult:
+    """One caste leg, run here and now."""
     state: dict[str, Any] = {
         "text": [],
         "fail_targets": {},
@@ -332,6 +426,7 @@ def run_swarm(
     cloud_burst: bool = config.SWARM_CLOUD_BURST_ENABLED,
     make_cloud_agent: Optional[AgentFactory] = None,
     cloud_provider: Optional[str] = None,
+    admit: Optional[LegAdmission] = None,
 ) -> Iterator[dict[str, Any]]:
     """Decompose -> dispatch ephemeral workers -> synthesize, yielding ``run``'s
     event vocabulary plus a ``role`` tag per leg.
@@ -377,6 +472,7 @@ def run_swarm(
                 SCOUT_TOOLS,
                 note=_format_recall(recalled),
                 max_iters=4,
+                admit=admit,
             )
             yield from scout.events
             if scout.stopped:
@@ -399,6 +495,7 @@ def run_swarm(
             DECOMPOSER_PROMPT,
             DECOMPOSER_TOOLS,
             max_iters=4,
+            admit=admit,
         )
         yield from decomposer.events
         if decomposer.stopped:
@@ -426,6 +523,7 @@ def run_swarm(
             CLOUD_BROKER_TOOLS,
             note=broker_note,
             max_iters=4,
+            admit=admit,
         )
         yield from broker.events
         if broker.stopped:
@@ -468,6 +566,7 @@ def run_swarm(
             note=note,
             subtask_index=index,
             cloud_provider=provider,
+            admit=admit,
         )
 
     if concurrency <= 1 or len(plan) <= 1:
@@ -482,7 +581,9 @@ def run_swarm(
                     return
                 results.append(result)
             if replicas > 1:
-                quorum = _run_quorum(make_agent, shared, index, subtask, results)
+                quorum = _run_quorum(
+                    make_agent, shared, index, subtask, results, admit=admit
+                )
                 yield from quorum.events
                 if quorum.stopped:
                     return
@@ -511,11 +612,22 @@ def run_swarm(
 
         for index, results in enumerate(grouped):
             for result in results:
-                yield from result.events
                 if result.stopped:
+                    # Several legs ran at once, so more than one may have
+                    # stopped. The turn ends at this one; say what else waits,
+                    # first, since the turn may not read past this leg's pause
+                    # (the safety review of 2026-11-09: a second leg's approval
+                    # request was dropped unsaid).
+                    notice = _also_stopped(grouped, result)
+                    if notice:
+                        yield {"type": "text", "role": "swarm", "text": notice}
+                    yield from result.events
                     return
+                yield from result.events
             if replicas > 1:
-                quorum = _run_quorum(make_agent, shared, index, plan[index], results)
+                quorum = _run_quorum(
+                    make_agent, shared, index, plan[index], results, admit=admit
+                )
                 yield from quorum.events
                 if quorum.stopped:
                     return
@@ -539,6 +651,7 @@ def run_swarm(
             SYNTHESIZER_PROMPT,
             SYNTHESIZER_TOOLS,
             max_iters=6,
+            admit=admit,
         )
         yield from synthesizer.events
         if synthesizer.stopped:
@@ -551,6 +664,36 @@ def run_swarm(
         }
 
     yield {"type": "done"}
+
+
+def _also_stopped(grouped: list[list[_LegResult]], first: _LegResult) -> str:
+    """What the legs that ran beside *first* still wait for, said plainly."""
+    waiting, others = [], 0
+    for results in grouped:
+        for result in results:
+            if result is first:
+                continue
+            asks = [e for e in result.events if e.get("type") == "human_required"]
+            if asks:
+                waiting.append(f"{result.role}: {asks[0].get('command', 'an action')}")
+            else:
+                others += 1
+    if not waiting and not others:
+        return ""
+    lines = [
+        "\n\nThe colony's legs ran side by side, and this turn pauses at the first request."
+    ]
+    if waiting:
+        lines.append(
+            "Also waiting for your approval, asked again when the turn resumes: "
+            + "; ".join(waiting)
+            + "."
+        )
+    if others:
+        lines.append(
+            f"{others} other leg(s) ran and will run again when the turn resumes."
+        )
+    return " ".join(lines)
 
 
 def _last_answer(shared: list[dict[str, Any]]) -> str:
