@@ -13,7 +13,6 @@ from aios.config import (
     _env_bool,
     _env_float,
     _env_int,
-    _env_router_tasks,
     startup_banner,
 )
 
@@ -110,6 +109,9 @@ class TestUnparseableEnvWarnings:
         assert "Unparseable AIOS env var" not in caplog.text
 
     def test_router_tasks_blank_env_means_local_only(self, monkeypatch):
+        # The law's own parser: aios/config.py keeps no copy of it (2026-11-04).
+        from aios.security.limits import _env_router_tasks
+
         name = _unique("ROUTER_TASKS")
         monkeypatch.setenv(name, "")
         assert _env_router_tasks(name, ("reasoning", "coding")) == ()
