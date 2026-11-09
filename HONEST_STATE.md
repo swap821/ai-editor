@@ -23,6 +23,17 @@ keep the commit they were measured on). The whole story, from the first commit, 
 - **A correction.** On 2026-11-04 I told the operator the ant-colony swarm runs when he switches swarm on. It does not: production refuses it (`generate_pipeline.py`: "route it through WorkerFoundry before enabling"). The swarm is switched off, not merely unused.
 - **Next:** one registry of brains, then one engine for all workers (the swarm entering the Foundry), then guards on the rest, each its own PR.
 
+## 2026-11-04, GAGOS's behaviour-changing warnings (branch `feat/gagos-self-complete`)
+
+- **The operator's request:** "I want GAGOS HONESTLY 100% complete itself". The warnings whose fix can change behaviour become GAGOS's own work: `react-hooks/set-state-in-effect` (17), `react-hooks/exhaustive-deps` (3), and ruff's `E402` (3), `E741` (5) and `F821` (1), 29 of the 75 counted on 2026-11-04.
+- **The bar is higher than for a lint fix.** The fix must still remove its warnings and add none.
+  - It may reach 12 lines from its warning, or anywhere in the file for a rename (E741).
+  - Its writer is told behaviour must not change and that tests will run.
+  - It reaches a reviewer only if the sandbox ran tests that exercise its file, and they passed. A fix with no such test is refused; when the sandbox cannot run, the fix waits, unreviewed.
+- **Left out:** `react-refresh/only-export-components` (10), since its fix moves exports into a new file, and a task changes files that exist; and one warning ESLint reports without a rule, not yet identified. (A first draft of this line said 11: a miscount, corrected the same day.)
+- **Tests:** `tests/test_gagos_self_complete.py`, 6 tests, 5 of which fail without the change; all 210 of GAGOS's tests pass.
+- **The full backend suite reached 92%** before Claude Code stopped it for low memory, with two failures. Both fail on master too, only because the operator's user-wide `AIOS_ROUTER_CLOUD_TASKS=reasoning,coding` reaches the tests, and both pass with it unset. CI runs the rest.
+
 ## 2026-11-04, D14 ready (branch `feat/gagos-d14`, off `evidence/after-591`)
 
 - **The operator's request:** "plz honestly do all than we will be ready for D14". Three things were still not done:
