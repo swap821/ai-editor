@@ -100,6 +100,13 @@ updates:
       # Lift when a release fixes the Omit-over-optional-union.
       - dependency-name: "@react-three/postprocessing"
         versions: [">3.0.4"]
+      # @react-three/drei 10.7.9 requires `troika-three-text ^0.52.4`. #601 moved
+      # the top-level copy to 0.53.1, so npm nested a second, 0.52 copy under
+      # drei: the caption glyph tests intercept the top-level copy while drei
+      # renders through its own, and twelve of them failed. One copy, drei's
+      # version, until drei accepts 0.53; lift then.
+      - dependency-name: "troika-three-text"
+        versions: [">=0.53.0"]
       # TypeScript 7 has no linting story yet. @typescript-eslint/eslint-plugin
       # 8.67.0 -- the LATEST release -- declares `typescript >=4.8.4 <6.1.0`, so
       # npm refuses the install outright:
