@@ -61,7 +61,9 @@ def _find_closest_context_window(
 
     for i in range(len(current_lines)):
         chunk = current_lines[i : i + window_size]
-        norm_chunk = " ".join(_normalize_line(l) for l in chunk if _normalize_line(l))
+        norm_chunk = " ".join(
+            _normalize_line(line) for line in chunk if _normalize_line(line)
+        )
         ratio = difflib.SequenceMatcher(None, norm_target, norm_chunk).ratio()
         if ratio > best_ratio:
             best_ratio = ratio
@@ -83,7 +85,7 @@ def _match_tier_2_normalized(
     if not old_lines or not current_lines:
         return []
 
-    norm_old = [_normalize_line(l) for l in old_lines]
+    norm_old = [_normalize_line(line) for line in old_lines]
     # Filter out empty leading/trailing lines for more resilient boundary alignment
     lead_trim = 0
     while lead_trim < len(norm_old) and not norm_old[lead_trim]:
@@ -101,7 +103,7 @@ def _match_tier_2_normalized(
 
     for i in range(len(current_lines) - window_len + 1):
         window = current_lines[i : i + window_len]
-        if [_normalize_line(l) for l in window] == active_norm_old:
+        if [_normalize_line(line) for line in window] == active_norm_old:
             matches.append((i, i + window_len))
 
     return matches
