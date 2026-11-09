@@ -139,6 +139,10 @@ describe('workspace dock clearance', () => {
     vi.spyOn(root.querySelector('.approval-actions')!, 'getBoundingClientRect').mockReturnValue({ height: 64 } as DOMRect);
     let frame: FrameRequestCallback | undefined;
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    // Attached, as the app's root always is: jsdom 31 computes no style for a
+    // detached element, as browsers do, so its borders read nothing.
+    document.body.append(root);
+    disposers.push(() => root.remove());
     const stop = installWorkspaceDockTracking(root);
     disposers.push(stop);
     frame?.(0);
@@ -155,6 +159,10 @@ describe('workspace dock clearance', () => {
     vi.spyOn(root.querySelector('.gagos-chat')!, 'getBoundingClientRect').mockReturnValue({ top: 340, height: 138 } as DOMRect);
     let frame: FrameRequestCallback | undefined;
     vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => { frame = callback; return 1; });
+    // Attached, as the app's root always is: jsdom 31 computes no style for a
+    // detached element, as browsers do, so its borders read nothing.
+    document.body.append(root);
+    disposers.push(() => root.remove());
     const stop = installWorkspaceDockTracking(root);
     disposers.push(stop);
     frame?.(0);

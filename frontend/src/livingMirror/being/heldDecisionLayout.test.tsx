@@ -27,13 +27,18 @@ it.each(['(min-width: 768px)', '(max-width: 767px)'])(
     </div>);
     const notice = view.getByRole('alert');
     const hostStyle = getComputedStyle(view.container.querySelector('.lm-app')!);
-    expect.soft(hostStyle.getPropertyValue('--lm-conversation-dock'), 'the reservation must come from the real matching producer, not this witness').toContain('--lm-workspace-dock-clearance');
+    // jsdom 31 substitutes custom properties, as browsers do (jsdom 30 did not,
+    // and this asserted the variable names). The witness sets only the measured
+    // clearance, 117px: the dock is 117px only if the real matching producer
+    // derived it from that clearance, since nothing else sets it.
+    expect.soft(hostStyle.getPropertyValue('--lm-conversation-dock').trim(), 'the reservation must come from the real matching producer, not this witness').toBe('117px');
     if (media === '(max-width: 767px)') {
       expect.soft(hostStyle.getPropertyValue('--lm-conversation-permission-presence'), 'the narrow maximum must have its body reservation dependency').not.toBe('');
     }
-    // This CSSOM does not substitute custom properties. Assert which measured
-    // owner the matched cascade selects; native bounds are checked separately.
-    expect(getComputedStyle(notice).bottom, 'Stop must use the conversation dock, not the unrelated work-side fallback').toContain('--lm-conversation-dock');
+    // The notice sits at the conversation dock (117px, from the clearance); the
+    // work-side rules and the dock's own fallbacks (358px, 312px) give other
+    // values. Native bounds are checked separately.
+    expect(getComputedStyle(notice).bottom, 'Stop must use the conversation dock, not the unrelated work-side fallback').toBe('117px');
     expect(notice.getAttribute('role')).toBe('alert');
     expect(view.queryByRole('alertdialog')).toBeNull();
     expect(view.queryByRole('button')).toBeNull();
