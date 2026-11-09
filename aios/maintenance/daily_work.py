@@ -84,6 +84,17 @@ _FENCE = re.compile(r"^```[^\n]*\n(.*?)^```[ \t]*$", re.DOTALL | re.MULTILINE)
 #: (:func:`aios.maintenance.python_static.import_refusal`).
 PYTHON_RULES: tuple[str, ...] = ("F401", "F841")
 
+
+def is_python_rule(rule: str) -> bool:
+    """Whether *rule* is ruff's (``F401``, ``E741``), not ESLint's.
+
+    By the code's shape, so a ruff rule added to any list is Python work:
+    until 2026-11-04 the batch scanned Python only when ``PYTHON_RULES``
+    was asked for, and a day narrowed to E741 alone scanned none.
+    """
+    return re.fullmatch(r"[A-Z]+[0-9]+", rule) is not None
+
+
 #: GAGOS's harder work on itself (2026-11-04, the operator: "I want GAGOS
 #: HONESTLY 100% complete itself"): warnings whose fix can change behaviour.
 #: Each fix must still remove its warnings and add none, and it reaches review
@@ -2380,6 +2391,7 @@ __all__ = [
     "PROPOSER_SYSTEM",
     "PYTHON_PROPOSER_SYSTEM",
     "PYTHON_RULES",
+    "is_python_rule",
     "ProposalRefused",
     "REQUIRED_REVIEWERS",
     "REVIEWERS",

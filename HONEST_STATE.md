@@ -1,9 +1,19 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-04 ("2026-11-04, consistency measured" below; earlier sections
-keep the commit they were measured on). The whole story, from the first commit, is
+**Last updated:** 2026-11-09 ("2026-11-09, GAGOS's Python formatted as CI requires"
+below; earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-09, GAGOS's Python formatted as CI requires (branch `fix/gagos-formats-python`)
+
+- **What stopped GAGOS for five days.** Its PR #598 (2026-11-04) held two correct E741 renames, the first fixes of its behaviour tier, and failed the required `format-gate`: one renamed line became too long. The workshop asked ruff what it warns about, never how it formats. While #598 stays open, GAGOS delivers nothing new.
+- **The fix.** A writer's Python text is formatted by the project's own ruff (`python_static.format_python_text`) before its checks, in a finding's fix and in a task's files alike. What is checked, tested in the sandbox, reviewed and delivered is the layout the gate accepts. Formatting changes layout only and keeps the file's line endings; a text ruff cannot format comes back as it was, for the parser's check.
+- **Found on the way.** The batch scanned Python only when `F401` or `F841` was among the day's rules, so a day narrowed to the behaviour tier's ruff rules (E402, E741, F821) scanned none. A rule is Python's now by its code's shape (`daily_work.is_python_rule`).
+- **Tests.** Three new ones, on #598's own case, fail without the change. 260 of GAGOS's tests pass, and the Bandit, format, mypy and dead-code gates pass.
+- **Since, the same day:**
+  - #598 got one layout-only formatting commit at the operator's word, passed its gate and was merged.
+  - Docker Desktop was started at his word, and the sandbox runs again.
 
 ## 2026-11-04, consistency measured (branch `feat/consistency-register`, off master `d7bd7ef0`)
 
