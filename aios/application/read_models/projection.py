@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 from aios.domain.read_models import MetricEnvelope, MetricStatus, SystemPortraitSnapshot
-from aios.runtime.cortex_bus import BusEvent, CortexBus, ConsumerReplayGap
+from aios.runtime.cortex_bus import BusEvent, CortexBus
 
 
 _SCHEMA = """
