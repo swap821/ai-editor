@@ -26,6 +26,7 @@ don't silently leave it looking current.
 
 | Date | File | Cluster |
 |---|---|---|
+| 2026-11-04 | CONSISTENCY_REGISTER.json | consistency (data; authority for `docs/architecture/CONSISTENCY_REGISTER.md`, scored by `scripts/consistency_audit.py`) |
 | 2026-07-10 | FULL_GREEN_AUDIT.md | audit |
 | 2026-07-09 | AUDIT.md | audit |
 | 2026-07-09 | GAGOS_ULTRA_PLAN.md | GAGOS plan |

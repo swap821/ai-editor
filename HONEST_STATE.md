@@ -11,9 +11,27 @@ below; earlier sections keep the commit they were measured on). The whole story,
 - **The fix.** A writer's Python text is formatted by the project's own ruff (`python_static.format_python_text`) before its checks, in a finding's fix and in a task's files alike. What is checked, tested in the sandbox, reviewed and delivered is the layout the gate accepts. Formatting changes layout only and keeps the file's line endings; a text ruff cannot format comes back as it was, for the parser's check.
 - **Found on the way.** The batch scanned Python only when `F401` or `F841` was among the day's rules, so a day narrowed to the behaviour tier's ruff rules (E402, E741, F821) scanned none. A rule is Python's now by its code's shape (`daily_work.is_python_rule`).
 - **Tests.** Three new ones, on #598's own case, fail without the change. 260 of GAGOS's tests pass, and the Bandit, format, mypy and dead-code gates pass.
-- **Not done here:**
-  - #598 itself still fails its gate; it needs one formatting commit or a close, which is the operator's call.
-  - Docker Desktop is not running on the laptop, so the sandbox cannot run, and GAGOS's behaviour-tier fix `gd-dbe6ac8b4f` waits.
+- **Since, the same day:**
+  - #598 got one layout-only formatting commit at the operator's word, passed its gate and was merged.
+  - Docker Desktop was started at his word, and the sandbox runs again.
+
+## 2026-11-04, consistency measured (branch `feat/consistency-register`, off master `d7bd7ef0`)
+
+- **The operator's request:** "I want u to make my cross-system consistency of my project 10/10 honestly 100%." This is the first of four steps: measure. Nothing in GAGOS behaves differently yet.
+- **The register.** `.aios/state/CONSISTENCY_REGISTER.json` lists the facts two or more parts of GAGOS rely on, every place each is derived, and whether a test fails when they drift. `scripts/consistency_audit.py` checks every claim (a row cannot claim a guard that is not a real test) and generates the status in `docs/architecture/CONSISTENCY_REGISTER.md`.
+- **The honest start: 12 of 35 registered facts guarded (34%).** The 12 are guards that already existed (the one gateway, the event vocabularies, the route registry, the one egress law, and so on). 100% will mean every *registered* fact is guarded; a fact nobody registered is not measured.
+- **Eleven disagree today, two agree only under conditions** (staged work while `AIOS_DATA_DIR` is unset, the plan models only when the daily backend starts the counter), **and two guards have drifted**: the privacy guard over cloud clients lists four by hand and lacks the plan client (which does filter), and the workshop's Codex test pins a hand-written subset of the sealing flags. Among the eleven:
+  - a turn served by Vertex outside failover is recorded as `ollama`, a local brain: `_provider_name` never checks the Vertex client;
+  - the provider-health list, the readiness probe, the hiring broker, the council's dissent reasoner and the swarm's cloud burst each keep their own shorter list of brains, none with the operator's plans;
+  - the hiring broker prices openai high, the router low;
+  - three judges of "did the tests pass" can disagree (the sandbox judges against the base, the other two on exit code alone);
+  - the `.env` template names cloud-task classes (`general`, `fast`) that the law silently drops;
+  - the launcher's provenance command reads a database file nothing writes;
+  - rollback checkpoints and the profile each have two defaults, and the Ollama address two setting names;
+  - the face cannot repair a REOPENED finding, and its skill states differ from the backend's.
+- **Seventeen hand-written lists of provider names** remain in `aios/` and `tools/`, counted by the same script.
+- **A correction.** On 2026-11-04 I told the operator the ant-colony swarm runs when he switches swarm on. It does not: production refuses it (`generate_pipeline.py`: "route it through WorkerFoundry before enabling"). The swarm is switched off, not merely unused.
+- **Next:** one registry of brains, then one engine for all workers (the swarm entering the Foundry), then guards on the rest, each its own PR.
 
 ## 2026-11-04, GAGOS's behaviour-changing warnings (branch `feat/gagos-self-complete`)
 
