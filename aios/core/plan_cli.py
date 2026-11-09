@@ -55,6 +55,33 @@ CODEX_ACTING_FEATURES = (
     "tool_suggest",
 )
 
+#: Claude Code, asked so it cannot act: one answer as JSON, no tools, nothing
+#: remembered, no MCP servers. The counter's plan client and the workshop's
+#: reviewer launch it with exactly these (2026-11-04: each wrote its own copy).
+CLAUDE_SEALED: tuple[str, ...] = (
+    "-p",
+    "--output-format",
+    "json",
+    "--tools",
+    "",
+    "--no-session-persistence",
+    "--strict-mcp-config",
+)
+
+#: Codex, asked so it cannot act: a read-only sandbox, nothing kept, none of the
+#: operator's config or rules, every feature that acts turned off. Shared the
+#: same way as :data:`CLAUDE_SEALED`.
+CODEX_SEALED: tuple[str, ...] = (
+    "exec",
+    "-s",
+    "read-only",
+    "--skip-git-repo-check",
+    "--ephemeral",
+    "--ignore-user-config",
+    "--ignore-rules",
+    *(arg for feature in CODEX_ACTING_FEATURES for arg in ("--disable", feature)),
+)
+
 #: The answer every tool-offering call is held to: what to say, and the tools
 #: to call with their arguments as a JSON object in a string (a free-form
 #: object is not allowed by strict structured output).
@@ -249,18 +276,7 @@ class PlanCliClient:
         model_calls.observe("plan", model, "chat")
         with tempfile.TemporaryDirectory(prefix="gagos-plan-") as tmp:
             if family(model) == "claude":
-                argv = [
-                    self.claude,
-                    "-p",
-                    "--output-format",
-                    "json",
-                    "--model",
-                    model,
-                    "--tools",
-                    "",
-                    "--no-session-persistence",
-                    "--strict-mcp-config",
-                ]
+                argv = [self.claude, *CLAUDE_SEALED, "--model", model]
                 if system:
                     argv += ["--system-prompt", system]
                 if schema:
@@ -280,14 +296,7 @@ class PlanCliClient:
             out = Path(tmp, "answer.txt")
             argv = [
                 self.codex,
-                "exec",
-                "-s",
-                "read-only",
-                "--skip-git-repo-check",
-                "--ephemeral",
-                "--ignore-user-config",
-                "--ignore-rules",
-                *(arg for f in CODEX_ACTING_FEATURES for arg in ("--disable", f)),
+                *CODEX_SEALED,
                 "-o",
                 str(out),
                 "-m",

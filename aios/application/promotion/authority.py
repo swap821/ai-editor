@@ -11,6 +11,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Protocol
 
+from aios.core.signing_keys import test_keys_allowed
 from aios import config
 from aios.application.evidence.verification import VerificationAuthority
 from aios.application.workspaces.staged import (
@@ -452,10 +453,8 @@ class PromotionAuthority:
             or os.environ.get("PROMOTION_AUTHORITY_KEY")
             or getattr(config, "PROMOTION_AUTHORITY_KEY", "")
         )
-        is_test = os.environ.get("AIOS_ENV", "").lower() in ("test", "testing", "ci")
-        allow_insecure = bool(os.environ.get("AIOS_TEST_SIGNING_KEYS_ALLOWED", ""))
         if not key:
-            if is_test or allow_insecure:
+            if test_keys_allowed():
                 return "test-promotion-signing-key-placeholder-safe"
             raise RuntimeError(
                 "AIOS_PROMOTION_AUTHORITY_KEY must be set to a secret of at least "
@@ -466,7 +465,7 @@ class PromotionAuthority:
                 f"AIOS_PROMOTION_AUTHORITY_KEY is set to a known insecure default "
                 f"({key!r}). Provide a unique secret."
             )
-        if len(key) < 32 and not (is_test or allow_insecure):
+        if len(key) < 32 and not test_keys_allowed():
             raise RuntimeError(
                 "AIOS_PROMOTION_AUTHORITY_KEY must be at least 32 characters."
             )

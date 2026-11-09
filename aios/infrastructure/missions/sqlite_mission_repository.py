@@ -17,6 +17,10 @@ from aios.domain.missions.mission_repository import (
 from aios.domain.missions.mission_state import MissionState, MissionTransition
 from aios.infrastructure.storage.migrations import apply_migrations
 
+#: The mission store's file name under a runtime root. The council's routes
+#: and its orchestrator wrote it four times until 2026-11-04.
+MISSIONS_DB_NAME = "missions.db"
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()

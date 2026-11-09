@@ -42,7 +42,7 @@ from typing import Any, Callable, Iterator, Optional
 
 from aios.application.models.health import ProviderHealthTracker
 from aios.application.models.privacy_audit import PrivacyAuditTracker
-from aios.core import model_availability
+from aios.core import model_availability, router
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter
 from aios.core.stream_protocol import StreamFinished
@@ -53,12 +53,13 @@ logger = logging.getLogger(__name__)
 #: turn; if it fails the failover falls back to a local provider.
 #: ``anthropic`` and ``plan`` were missing until 2026-11-03 (both reviewers of
 #: the operator's plans at the counter): a turn could try two clouds in a row.
-_CLOUD_PROVIDERS: frozenset[str] = frozenset(
-    {"bedrock", "gemini", "openai", "aws", "google", "vertex", "anthropic", "plan"}
-)
+#: Since 2026-11-04 the names come from the router's one registry of brains;
+#: only the aliases below are this layer's own.
+_CLOUD_ALIASES: frozenset[str] = frozenset({"aws", "google", "vertex"})
+_CLOUD_PROVIDERS: frozenset[str] = router.CLOUD_PROVIDER_NAMES | _CLOUD_ALIASES
 
 #: Provider names that are considered *local* providers.
-_LOCAL_PROVIDERS: frozenset[str] = frozenset({"ollama", "local"})
+_LOCAL_PROVIDERS: frozenset[str] = router.LOCAL_PROVIDER_NAMES | {"local"}
 
 #: A candidate is ``(chat_client, model_id, provider_name)``, best-first.
 Candidate = tuple[Any, str, str]

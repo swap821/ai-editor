@@ -327,6 +327,10 @@ class SystemProjectionConsumer:
                 return
 
 
+#: The derived portrait's file name, beside the cortex bus's database. The
+#: recovery that rebuilds it names it through this (2026-11-04).
+PORTRAIT_DB_NAME = "system_portrait.db"
+
 _PROJECTIONS: dict[str, IncrementalSystemProjection] = {}
 _PROJECTIONS_LOCK = threading.Lock()
 
@@ -337,7 +341,7 @@ def get_system_projection(db_path: str | Path) -> IncrementalSystemProjection:
         projection = _PROJECTIONS.get(key)
         if projection is None:
             projection = IncrementalSystemProjection(
-                Path(db_path).with_name("system_portrait.db")
+                Path(db_path).with_name(PORTRAIT_DB_NAME)
             )
             _PROJECTIONS[key] = projection
         return projection

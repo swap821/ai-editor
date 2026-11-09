@@ -6,9 +6,9 @@ in a way the wiring did not support:
 * ``aios/application/learning/service.py`` called itself the *canonical* skill
   flow while being reachable only from ``/api/v1/skills/*``. Every ordinary
   chat turn uses a different store entirely (``aios.memory.skills``).
-* ``aios/agents/swarm.py`` is complete and unreachable: ``generate_pipeline``
-  rejects ``req.swarm`` unconditionally before any of it runs, and the SSE
-  branches that handle its events sit after a ``return`` that always fires.
+* ``aios/agents/swarm.py`` was complete and unreachable: ``generate_pipeline``
+  rejected ``req.swarm`` unconditionally before any of it ran. Since 2026-11-09
+  it runs through the Worker Foundry, and its banner and these tests say so.
 
 Neither is a bug in the code. Both were bugs in what the code claimed, which is
 worse in one specific way: a reader auditing the product cannot tell a wired
@@ -103,32 +103,31 @@ class TestTheLearningServiceIsMissionScopedNotCanonical:
         assert "/api/v1/skills/" in text
 
 
-class TestTheSwarmIsDormantAndSaysSo:
-    def test_the_gate_that_makes_it_unreachable_still_exists(self) -> None:
-        """If this gate goes, the dormancy banner is a lie and must be rewritten."""
-        source = PIPELINE.read_text(encoding="utf-8")
-        assert "if req.swarm or req.role_pass:" in source
-        assert "strategy_unavailable" in source
+class TestTheSwarmRunsThroughTheFoundryAndSaysSo:
+    """Rewritten 2026-11-09, when the swarm entered the Worker Foundry: until
+    then this class pinned its dormancy (the gate, and a banner naming it)."""
 
-    def test_the_gate_is_unconditional(self) -> None:
-        """No flag opens it — that is why 'dormant' is accurate and not pessimism."""
+    def test_the_pipeline_runs_the_swarm_through_the_foundry(self) -> None:
         source = PIPELINE.read_text(encoding="utf-8")
-        gate = source.index("if req.swarm or req.role_pass:")
-        body = source[gate : gate + 700]
-        assert "strategy_unavailable" in body
-        assert "return" in body
-        assert "SWARM_ENABLED" not in body, (
-            "a flag now guards the gate, so the swarm is conditionally reachable "
-            "and its docstring must stop saying nothing can reach it"
+        assert "if req.swarm or req.role_pass:" not in source
+        assert "get_swarm_foundry()" in source and "admit=lambda" in source, (
+            "the swarm runs, so it must run as Foundry-admitted legs"
         )
 
-    def test_the_module_declares_its_dormancy(self) -> None:
+    def test_the_role_pass_is_still_refused_unconditionally(self) -> None:
+        source = PIPELINE.read_text(encoding="utf-8")
+        gate = source.index("if req.role_pass:")
+        body = source[gate : gate + 900]
+        assert "strategy_unavailable" in body and "return" in body
+
+    def test_the_module_says_how_it_is_reached(self) -> None:
         head = SWARM.read_text(encoding="utf-8")[:1600]
-        assert "DORMANT" in head
-        assert "strategy_unavailable" in head, (
-            "the banner must name the gate, so a reader can check the claim "
+        assert "REACHABLE THROUGH THE WORKER FOUNDRY" in head
+        assert "swarm_foundry" in head, (
+            "the banner must name the boundary, so a reader can check the claim "
             "instead of trusting it"
         )
+        assert "NOTHING IN THE PRODUCT CAN REACH THIS" not in head
 
 
 class TestTheseChecksCanActuallyFail:

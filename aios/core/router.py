@@ -72,19 +72,6 @@ PROVIDER_VERTEX_MAAS = "vertexmaas"
 #: through Codex (:mod:`aios.core.plan_cli`). CLOUD, gated like any other.
 PROVIDER_PLAN = "plan"
 
-#: UI model-id prefixes (``ollama.qwen2.5-coder:7b`` etc.). The router's chosen
-#: model is a BARE id/tag; :func:`route_model_id` re-attaches the prefix for the
-#: selector/UI, mirroring ``_resolve_local_model`` in the API layer.
-_PREFIX = {
-    PROVIDER_OLLAMA: "ollama.",
-    PROVIDER_BEDROCK: "bedrock.",
-    PROVIDER_GEMINI: "gemini.",
-    PROVIDER_OPENAI: "openai.",
-    PROVIDER_ANTHROPIC: "anthropic.",
-    PROVIDER_VERTEX_MAAS: "vertexmaas.",
-    PROVIDER_PLAN: "plan.",
-}
-
 # --- Privacy + cost tags -----------------------------------------------------
 PRIVACY_LOCAL = "local"
 PRIVACY_CLOUD = "cloud"
@@ -94,18 +81,154 @@ COST_LOW = "low"
 COST_HIGH = "high"
 _COST_ORDER = {COST_FREE: 0, COST_LOW: 1, COST_HIGH: 2}
 
-#: Coarse capability ceiling per provider kind (a frontier cloud model out-reasons
-#: a 7B local one). Used only to RANK *already-allowed* candidates — it can never
-#: open a gate the policy closed.
-_DEFAULT_CAPABILITY = {
-    PROVIDER_OLLAMA: 100,
-    PROVIDER_BEDROCK: 300,
-    PROVIDER_GEMINI: 300,
-    PROVIDER_OPENAI: 300,
-    PROVIDER_ANTHROPIC: 300,
-    PROVIDER_VERTEX_MAAS: 300,
-    PROVIDER_PLAN: 300,
-}
+
+# --- The one registry of brains ---------------------------------------------
+@dataclass(frozen=True)
+class ProviderSpec:
+    """One brain GAGOS can route to, as every layer must see it.
+
+    The single source for which brains exist, which are cloud, what they cost,
+    what they are good for and how their clients are found (2026-11-04, the
+    consistency register's provider rows). Before it, the failover, the
+    privacy broker, the hiring broker and its route, the provider-health list,
+    the readiness probe and the council's dissent reasoner each kept their own
+    list, and on 2026-11-04 five of them lacked the operator's plans, one
+    priced openai differently and one recorded a Vertex turn as ``ollama``.
+    """
+
+    name: str
+    privacy: str
+    #: What a call costs: ``free``, ``low`` or ``high``.
+    cost: str
+    #: Coarse capability ceiling (a frontier cloud model out-reasons a 7B local
+    #: one). Used only to RANK *already-allowed* candidates; it can never open a
+    #: gate the policy closed.
+    capability: int
+    #: What the hiring broker may hire it for.
+    skills: tuple[str, ...]
+    #: The :mod:`aios.config` flag that says it is configured (None: always).
+    enabled_setting: Optional[str]
+    #: The :mod:`aios.api.deps` function that builds its client.
+    client_getter: str
+    #: ``module:Class`` of its client, for the guards that check every client.
+    client_class: str
+
+    @property
+    def prefix(self) -> str:
+        """Its UI model-id prefix (``ollama.qwen2.5-coder:7b``)."""
+        return f"{self.name}."
+
+    @property
+    def is_cloud(self) -> bool:
+        return self.privacy == PRIVACY_CLOUD
+
+
+_FRONTIER = ("reasoning", "coding", "frontier")
+
+#: Every brain, in the order a side job that needs any cloud brain prefers
+#: them (gemini first, as the council's dissent reasoner always has).
+PROVIDERS: tuple[ProviderSpec, ...] = (
+    ProviderSpec(
+        PROVIDER_OLLAMA,
+        PRIVACY_LOCAL,
+        COST_FREE,
+        100,
+        ("reasoning", "coding", "fast", "local"),
+        None,
+        "get_ollama_client",
+        "aios.core.llm:OllamaClient",
+    ),
+    ProviderSpec(
+        PROVIDER_GEMINI,
+        PRIVACY_CLOUD,
+        COST_LOW,
+        300,
+        (*_FRONTIER, "multimodal"),
+        "GEMINI_ENABLED",
+        "get_gemini_client",
+        "aios.core.gemini:GeminiClient",
+    ),
+    ProviderSpec(
+        PROVIDER_BEDROCK,
+        PRIVACY_CLOUD,
+        COST_HIGH,
+        300,
+        _FRONTIER,
+        "BEDROCK_ENABLED",
+        "get_bedrock_client",
+        "aios.core.bedrock:BedrockClient",
+    ),
+    ProviderSpec(
+        PROVIDER_OPENAI,
+        PRIVACY_CLOUD,
+        COST_LOW,
+        300,
+        _FRONTIER,
+        "OPENAI_ENABLED",
+        "get_openai_client",
+        "aios.core.openai_compat:OpenAICompatClient",
+    ),
+    ProviderSpec(
+        PROVIDER_ANTHROPIC,
+        PRIVACY_CLOUD,
+        COST_HIGH,
+        300,
+        _FRONTIER,
+        "ANTHROPIC_ENABLED",
+        "get_anthropic_client",
+        "aios.core.anthropic_direct:AnthropicDirectClient",
+    ),
+    ProviderSpec(
+        PROVIDER_VERTEX_MAAS,
+        PRIVACY_CLOUD,
+        COST_LOW,
+        300,
+        _FRONTIER,
+        "VERTEX_MAAS_ENABLED",
+        "get_vertex_maas_client",
+        "aios.core.vertex_maas:VertexMaaSClient",
+    ),
+    # LOW: the operator's flat plans, not a bill per call.
+    ProviderSpec(
+        PROVIDER_PLAN,
+        PRIVACY_CLOUD,
+        COST_LOW,
+        300,
+        _FRONTIER,
+        "PLAN_ENABLED",
+        "get_plan_client",
+        "aios.core.plan_cli:PlanCliClient",
+    ),
+)
+
+#: Every brain's name, in registry order.
+PROVIDER_NAMES: tuple[str, ...] = tuple(p.name for p in PROVIDERS)
+CLOUD_PROVIDER_NAMES: frozenset[str] = frozenset(
+    p.name for p in PROVIDERS if p.is_cloud
+)
+LOCAL_PROVIDER_NAMES: frozenset[str] = frozenset(
+    p.name for p in PROVIDERS if not p.is_cloud
+)
+_SPECS: dict[str, ProviderSpec] = {p.name: p for p in PROVIDERS}
+
+
+def provider_spec(name: str) -> ProviderSpec:
+    """The registry's entry for *name*; a :class:`KeyError` for a brain it lacks."""
+    return _SPECS[name]
+
+
+def cloud_providers() -> tuple[ProviderSpec, ...]:
+    """The cloud brains, in registry order."""
+    return tuple(p for p in PROVIDERS if p.is_cloud)
+
+
+#: UI model-id prefixes (``ollama.qwen2.5-coder:7b`` etc.). The router's chosen
+#: model is a BARE id/tag; :func:`route_model_id` re-attaches the prefix for the
+#: selector/UI, mirroring ``_resolve_local_model`` in the API layer.
+_PREFIX = {p.name: p.prefix for p in PROVIDERS}
+
+#: Coarse capability ceiling per provider kind, from the registry.
+_DEFAULT_CAPABILITY = {p.name: p.capability for p in PROVIDERS}
 #: Tie-bias that makes a local provider win over an equally-capable cloud one when
 #: the policy allows both (local-first preference). Small on purpose: genuine
 #: capability/evidence gaps can still escalate to cloud for an opted-in task.

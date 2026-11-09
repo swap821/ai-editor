@@ -413,9 +413,10 @@ def clerk_admitted_model(world: World) -> Gate:
         LocalJobProfile,
         LocalJobRequest,
     )
+    from aios import config
     from aios.domain.local_workforce.registry import LocalWorkforceRegistry
 
-    db = world.data_dir / "aios_memory.db"
+    db = world.data_dir / config.MEMORY_DB_PATH.name
     if not db.is_file():
         return Gate(
             "clerk", "admitted_model", FAIL, "no memory database, so no clerk registry"
@@ -461,7 +462,9 @@ def clerk_admitted_model(world: World) -> Gate:
 
 
 def clerk_real_jobs(world: World) -> Gate:
-    db = world.data_dir / "aios_local_workforce_provenance.db"
+    from aios import config
+
+    db = world.data_dir / config.LOCAL_WORKFORCE_PROVENANCE_DB_PATH.name
     if not db.is_file():
         return Gate(
             "clerk",
@@ -710,12 +713,13 @@ _ADMITTED_TO_OWNER = "another principal"
 
 def animal_usefulness(world: World) -> Gate:
     """Does what the animal learned reach a live turn, and did it help?"""
+    from aios import config
     from tools.learning_payoff import gate_census
 
     census = gate_census(
         _OWNS_NOTHING,
-        db=world.data_dir / "aios_memory.db",
-        library_db=world.data_dir / "aios_operational_state.db",
+        db=world.data_dir / config.MEMORY_DB_PATH.name,
+        library_db=world.data_dir / config.OPERATIONAL_STATE_DB_PATH.name,
     )
     candidates = census["candidates"]
     reach = {

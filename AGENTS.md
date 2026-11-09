@@ -197,7 +197,13 @@ resume yourself — say so if asked). Don't report a task done without evidence
   a model load, and `AIOS_INTERPRET_ALIGNMENT` adds one local completion per
   generated turn (the advisory alignment frame); set any to `false` on tight runs.
 - **Cross-provider router (`aios/core/router.py`):** `Auto` routes by task across
-  local Ollama + (policy-permitted) AWS Bedrock + Google Gemini. The privacy
+  local Ollama + (policy-permitted) cloud brains: AWS Bedrock, Google Gemini,
+  OpenAI-compatible, Anthropic direct, Vertex MaaS and the operator's own plans
+  (Claude Code and Codex). **Which brains exist is written once**, in
+  `router.PROVIDERS` (name, cloud or local, price, skills, the setting that
+  enables it, its client): every other layer derives from it, and
+  `tests/architecture/test_one_provider_registry.py` fails on a hand-written list
+  (`docs/architecture/CONSISTENCY_REGISTER.md`, 2026-11-04). The privacy
   boundary is operator-owned and deterministic — `AIOS_ROUTER_CLOUD_TASKS` (which
   task classes may leave the machine; **cloud egress is off by default** — the set
   ships empty, so `auto` is local-only until you opt in per class, e.g.

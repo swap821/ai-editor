@@ -469,7 +469,9 @@ def prepare_generate_state(context: TurnContext, runtime: RuntimeDeps) -> None:
         turn_id=context.turn_id,
         principal=principal,
         local_provider=runtime.llm_client,
-        cloud_provider=runtime.gemini or runtime.bedrock,
+        # The registry's first configured cloud brain (2026-11-09: "gemini
+        # or bedrock" here, a different pick in each side job).
+        cloud_provider=(_side_job_cloud(runtime) or (None, None))[1],
         context_store=runtime.extra["representative_context_store"],
         emergency_stop=runtime.extra["emergency_stop"],
     )
@@ -532,6 +534,88 @@ from aios.application.governance.emergency_stop import (
 from aios.application.governance.emergency_stop import (
     record_turn_incomplete_if_revoked as _record_turn_incomplete_if_revoked,
 )
+
+
+def _swarm_events(
+    make_agent: Any,
+    messages: list[dict[str, Any]],
+    *,
+    cloud_factory: Any,
+    cloud_provider: Optional[str],
+    target: str,
+    swarm_patterns: Any,
+    task: str,
+) -> Iterator[dict[str, Any]]:
+    """The ant colony for one governed turn, each caste leg a worker the Worker
+    Foundry admits (aios/application/workers/swarm_foundry.py).
+
+    Worker legs run side by side on a cloud or plan brain
+    (``SWARM_CLOUD_CONCURRENCY``) and one at a time on the local one.
+    """
+    from aios import config
+    from aios.agents.swarm import run_swarm
+    from aios.api.deps import get_swarm_foundry
+    from aios.core import router
+    from aios.core.model_selector import _normalise_task
+    from aios.core.router_wiring import _router_policy
+
+    foundry = get_swarm_foundry()
+    mission = foundry.mission()
+    concurrency = (
+        max(config.SWARM_WORKER_CONCURRENCY, config.SWARM_CLOUD_CONCURRENCY)
+        if target == "cloud"
+        else config.SWARM_WORKER_CONCURRENCY
+    )
+    # Cloud burst needs its own switch AND the one egress law (constitution
+    # within the runtime profile, aios/policy/egress.py) to let this task leave
+    # the machine, decided by the router's own gate. Until 2026-11-09 its
+    # switch alone sent a leg to the cloud, past the law every other cloud
+    # route obeys (the safety review of the swarm's Foundry route).
+    burst = False
+    if (
+        config.SWARM_CLOUD_BURST_ENABLED
+        and cloud_factory is not None
+        and cloud_provider
+    ):
+        spec = router.provider_spec(cloud_provider)
+        burst = router.policy_allows(
+            _router_policy(),
+            _normalise_task(task),
+            router.Provider(
+                name=spec.name,
+                privacy=spec.privacy,
+                cost=spec.cost,
+                available=True,
+                models=(),
+            ),
+        )
+    return run_swarm(
+        make_agent,
+        messages,
+        worker_concurrency=concurrency,
+        pattern_memory=swarm_patterns,
+        cloud_burst=burst,
+        make_cloud_agent=cloud_factory,
+        cloud_provider=cloud_provider,
+        admit=lambda role, tools, run: foundry.admit(
+            mission, role, run, allowed_tools=tuple(tools)
+        ),
+    )
+
+
+def _side_job_cloud(runtime: RuntimeDeps) -> Optional[tuple[str, Any]]:
+    """The cloud brain a side job of this turn uses, as every side job takes it
+    (:func:`aios.core.router_wiring.first_cloud_brain`)."""
+    from aios.core.router_wiring import side_job_cloud
+
+    return side_job_cloud(
+        runtime.llm_client,
+        runtime.bedrock,
+        runtime.gemini,
+        openai=runtime.openai_client,
+        anthropic=runtime.anthropic_client,
+        vertex_maas=runtime.vertex_maas_client,
+    )
 
 
 def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]:
@@ -623,6 +707,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             model,
             openai=openai_client,
             anthropic=anthropic_client,
+            vertex_maas=runtime.vertex_maas_client,
         )
         telemetry.record_run(
             session_id=session_id,
@@ -655,6 +740,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
             model,
             openai=openai_client,
             anthropic=anthropic_client,
+            vertex_maas=runtime.vertex_maas_client,
         )
         if (p, m) == announced_route:
             return None  # unchanged since the last announcement — don't repeat
@@ -1132,27 +1218,31 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         # Reusing the injected clients keeps swarm burst on the same governed
         # provider boundary as the primary turn and keeps tests able to replace
         # the provider without reaching into this application pipeline.
-        if runtime.bedrock is not None and config.BEDROCK_ENABLED:
-            cloud_client = runtime.bedrock
-            cloud_provider = "bedrock"
-            cloud_model = config.BEDROCK_MODEL
-        elif runtime.gemini is not None and config.GEMINI_ENABLED:
-            cloud_client = runtime.gemini
-            cloud_provider = "gemini"
-            cloud_model = config.GEMINI_MODEL
+        # The registry's first configured cloud brain, as every side job
+        # takes it (2026-11-09: this was "bedrock or gemini").
+        picked = _side_job_cloud(runtime)
+        if picked is not None:
+            cloud_provider, cloud_client = picked
+            cloud_model = str(getattr(cloud_client, "model", "") or "")
 
     def make_cloud_agent(**overrides: Any) -> ToolAgent:
         if cloud_client is None:
             raise RuntimeError(
                 "Cloud burst requested but no cloud provider is configured"
             )
+        # A cloud leg sends what it is given to a cloud brain: no recalled
+        # memory unless the caller passes it (2026-11-09: this gave every
+        # cloud leg the turn's private recall, while the governed path strips
+        # recall from anything bound for the cloud).
+        cloud_memory_context = overrides.pop("memory_context", None)
+        cloud_governance = overrides.pop("governance_context", guidance_context)
         return ToolAgent(
             cloud_client,
             executor,
             model=cloud_model,
             session_id=session_id,
-            memory_context=memory_context,
-            governance_context=guidance_context,
+            memory_context=cloud_memory_context,
+            governance_context=cloud_governance,
             principal=principal_id,
             on_failure=_make_failure_hook(reflector, session_id),
             confirm_lesson=_make_confirm_hook(
@@ -1560,8 +1650,8 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 )
             except Exception as exc:  # noqa: BLE001 - outcome evidence is best-effort
                 logger.warning("Failed to record lesson outcomes", exc_info=exc)
-        # Also dormant: `swarm_plan` can never be set while the strategy gate
-        # above stands, so this swarm-pattern write is unreachable in production.
+        # A swarm turn's plan, recorded so a later swarm can follow its trail
+        # (reachable since 2026-11-09: the swarm runs through the Foundry).
         if swarm_plan:
             try:
                 swarm_patterns.record_attempt(
@@ -1580,8 +1670,10 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
         except Exception as exc:  # noqa: BLE001 - unmatched/invalid curriculum is harmless
             logger.warning("Failed to record curriculum match", exc_info=exc)
 
-    if req.swarm or req.role_pass:
-        requested_strategy = "swarm" if req.swarm else "role_pass"
+    if req.role_pass:
+        # The swarm runs through the Worker Foundry since 2026-11-09 (below);
+        # the role pass has no Foundry route yet and stays refused.
+        requested_strategy = "role_pass"
         _record_telemetry(telemetry.OUTCOME_ABORTED)
         yield sse(
             "error",
@@ -1605,6 +1697,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 model,
                 openai=openai_client,
                 anthropic=anthropic_client,
+                # Without it a turn Vertex served was named ollama, so its
+                # context was compiled for a LOCAL target (2026-11-09).
+                vertex_maas=runtime.vertex_maas_client,
             )
             gateway_target = "local" if provider == router.PROVIDER_OLLAMA else "cloud"
         else:
@@ -1644,6 +1739,28 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                     + rendered_context
                 )
                 governed_messages = chat_messages
+            if req.swarm:
+                return _swarm_events(
+                    lambda **overrides: make_agent(
+                        memory_context=governed_recall,
+                        governance_context=governance,
+                        **overrides,
+                    ),
+                    governed_messages,
+                    cloud_factory=(
+                        (
+                            lambda **overrides: make_cloud_agent(
+                                governance_context=rendered_context, **overrides
+                            )
+                        )
+                        if cloud_client is not None
+                        else None
+                    ),
+                    cloud_provider=cloud_provider,
+                    target=gateway_target,
+                    swarm_patterns=swarm_patterns,
+                    task=task,
+                )
             return make_agent(
                 memory_context=governed_recall, governance_context=governance
             ).run(governed_messages)
@@ -1911,14 +2028,9 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 _dispatch_path = telemetry.DISPATCH_PLAYBOOK
             yield sse(kind, ev)
         elif kind == "swarm_plan":
-            # DORMANT. The ant-colony cannot emit this today: `if req.swarm or
-            # req.role_pass:` above returns `strategy_unavailable` before any
-            # swarm runs, unconditionally, with no flag that opens it. This
-            # branch and the caste_start/caste_end one below are therefore
-            # unreachable from a live turn -- kept so the path is whole if the
-            # gate is ever lifted, labelled so it does not read as implemented.
-            # See the banner in aios/agents/swarm.py; both are pinned by
-            # tests/test_documented_reachability.py.
+            # The ant-colony's plan (reachable since 2026-11-09, when the swarm
+            # entered the Worker Foundry; until then a gate above refused every
+            # swarm turn and this branch was dormant).
             #
             # Plan event from the ant-colony; used internally for pattern
             # recording and also surfaced to the UI so the HUD can render it.

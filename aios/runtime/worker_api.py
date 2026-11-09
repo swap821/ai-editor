@@ -224,7 +224,7 @@ class WorkerRuntime:
         #     yields a non-zero result, NEVER a silent host fallback.
         runner = self._command_runner
         backend = config.APPROVED_EXECUTION_BACKEND
-        profile = os.environ.get("AIOS_PROFILE", "development").strip().lower()
+        profile = config.profile()
         if runner is None and profile in {"production", "demo"}:
             # Worker-side verification is part of the production control-plane
             # boundary.  The private client refuses missing service/auth or an

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -63,6 +62,7 @@ from aios.domain.promotion import PromotionRequest, PromotionResult, PromotionSt
 from aios.application.workers.foundry import WorkerFoundry
 from aios.application.workspaces import StagedWorkspaceManager
 from aios.infrastructure.missions.sqlite_mission_repository import (
+    MISSIONS_DB_NAME,
     SqliteMissionRepository,
 )
 from aios.infrastructure.missions.transition_journal_store import (
@@ -168,9 +168,7 @@ class QueenCouncilAuthority:
         self.spawner = spawner or WorkerSpawner(
             runtime_root=self.runtime_root, bus=self.bus
         )
-        if workspace_manager is None and os.getenv(
-            "AIOS_PROFILE", "development"
-        ).strip().lower() in {
+        if workspace_manager is None and config.profile() in {
             "production",
             "demo",
         }:
@@ -183,9 +181,7 @@ class QueenCouncilAuthority:
         self.verification_authority = verification_authority or VerificationAuthority(
             self.evidence_authority
         )
-        production_profile = os.getenv(
-            "AIOS_PROFILE", "development"
-        ).strip().lower() in {
+        production_profile = config.profile() in {
             "production",
             "demo",
         }
@@ -295,7 +291,7 @@ class QueenCouncilAuthority:
         # SQLite store under the runtime root so every orchestrator instance owns
         # its own mission authority unless one is injected.
         self.mission_service = mission_service or MissionService(
-            SqliteMissionRepository(self.runtime_root / "missions.db"),
+            SqliteMissionRepository(self.runtime_root / MISSIONS_DB_NAME),
             export_dir=self.runtime_root / "mission_exports",
             workspace_manager=self.workspace_manager,
             emergency_stop=self.emergency_stop,
@@ -705,7 +701,7 @@ class QueenCouncilAuthority:
                 "executor_policy": worker_run.contract.metadata.get(
                     "executor_policy", "default"
                 ),
-                "profile": os.getenv("AIOS_PROFILE", "development"),
+                "profile": config.profile(),
             }
         )
         commands = worker_run.ledger.verification.get("commands", [])

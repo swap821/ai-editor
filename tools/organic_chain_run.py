@@ -113,6 +113,7 @@ from tools.reverse_engineer_gagos import (  # noqa: E402
     run_self_check,
     tier_verdict,
 )
+from aios import config  # noqa: E402
 from aios.agents.reflection_agent import ReflectionAgent  # noqa: E402
 from aios.core.cerebellum import Cerebellum  # noqa: E402
 from aios.memory.db import get_connection, init_memory_db  # noqa: E402
@@ -129,7 +130,7 @@ from tools.self_corpus_targets import practice_targets  # noqa: E402
 
 TRAIL = REPO_ROOT / ".aios" / "audit" / "organic-chain-runs.jsonl"
 WORKTREE = REPO_ROOT.parent / "ai-editor-selfcorpus"
-DB = REPO_ROOT / "data" / "aios_memory.db"
+DB = REPO_ROOT / "data" / config.MEMORY_DB_PATH.name
 
 
 @dataclass

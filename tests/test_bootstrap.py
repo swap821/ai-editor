@@ -146,7 +146,7 @@ class TestRunBootstrap:
         (project_root / ".env").write_text("AIOS_API_TOKEN=" + "x" * 32 + "\n")
         monkeypatch.setenv("AIOS_API_HOST", "127.0.0.1")
         monkeypatch.setenv(
-            "AIOS_OLLAMA_URL", "http://127.0.0.1:9"
+            "OLLAMA_HOST", "http://127.0.0.1:9"
         )  # unreachable port is fine if skipped
         monkeypatch.setenv("AIOS_BOOTSTRAP_SKIP_OLLAMA", "1")
 

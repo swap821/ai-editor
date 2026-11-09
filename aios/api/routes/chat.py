@@ -76,6 +76,7 @@ from aios.core.router_wiring import (
     _AUTO_IDS,
     _active_route,
     _select_chat_client,
+    side_job_cloud,
 )
 from aios.domain.identity.models import Principal
 from aios.memory.compaction import MemoryCompactor
@@ -235,7 +236,19 @@ def chat(
         turn_id=ctx.turn_id,
         principal=principal,
         local_provider=client,
-        cloud_provider=gemini or bedrock,
+        # The registry's first configured cloud brain (2026-11-09: "gemini
+        # or bedrock" here, a different pick in each side job).
+        cloud_provider=(
+            side_job_cloud(
+                client,
+                bedrock,
+                gemini,
+                openai=openai_client,
+                anthropic=anthropic_client,
+                vertex_maas=vertex_maas_client,
+            )
+            or (None, None)
+        )[1],
         context_store=representative_context_store,
         emergency_stop=emergency_stop,
     )
@@ -264,6 +277,9 @@ def chat(
                     gemini=gemini,
                     openai=openai_client,
                     anthropic=anthropic_client,
+                    # Without it /api/v1/chat could not select a Vertex model
+                    # that /api/generate serves (2026-11-09).
+                    vertex_maas=vertex_maas_client,
                     task=selected_task,
                     data_classification=ctx.data_classification,
                     # The route picker's model call passes the gateway, as
