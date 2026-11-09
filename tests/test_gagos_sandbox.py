@@ -9,6 +9,7 @@ real one by tests/test_gagos_sandbox_containment.py.
 
 from __future__ import annotations
 
+import re
 import subprocess
 from pathlib import Path
 from types import SimpleNamespace
@@ -408,6 +409,67 @@ def test_without_the_web_image_the_step_says_how_to_build_it(webproject) -> None
     assert st.web_image(LOCK) in verdict.summary
     assert "docker build -f Dockerfile.verify-web" in verdict.summary
     assert "package-lock.sha256=" in verdict.summary
+
+
+def _dockerignore_excludes(path: str, patterns: list[str]) -> bool:
+    """Docker's rule, for plain paths: a pattern that matches the path or one
+    of its parent directories excludes it, a ``!`` pattern brings it back, and
+    the last pattern that matches decides."""
+
+    def regex(pattern: str) -> re.Pattern[str]:
+        out, i = "", 0
+        while i < len(pattern):
+            if pattern.startswith("**/", i):
+                out, i = out + "(?:.*/)?", i + 3
+            elif pattern.startswith("**", i):
+                out, i = out + ".*", i + 2
+            else:
+                ch = pattern[i]
+                out += {"*": "[^/]*", "?": "[^/]"}.get(ch, re.escape(ch))
+                i += 1
+        return re.compile(out)
+
+    parts = path.split("/")
+    prefixes = ["/".join(parts[:n]) for n in range(1, len(parts) + 1)]
+    excluded = False
+    for raw in patterns:
+        keep = raw.startswith("!")
+        pattern = raw[1:].strip().strip("/") if keep else raw.strip().strip("/")
+        if any(regex(pattern).fullmatch(prefix) for prefix in prefixes):
+            excluded = not keep
+    return excluded
+
+
+def test_the_web_build_hint_has_the_files_its_dockerfile_copies() -> None:
+    """The command the step prints builds from the repository root, and BuildKit
+    reads ``Dockerfile.verify-web.dockerignore`` in place of ``.dockerignore``
+    when it exists. Found 2026-11-09: the root one excludes ``frontend/``, so
+    the printed command failed at its first COPY."""
+    repo = Path(__file__).resolve().parents[1]
+    hint = st.web_build_hint(LOCK)
+    assert "-f Dockerfile.verify-web " in hint and hint.endswith(" .")
+    ignore = repo / "Dockerfile.verify-web.dockerignore"
+    if not ignore.exists():
+        ignore = repo / ".dockerignore"
+    patterns = [
+        line.strip()
+        for line in ignore.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    copied = [
+        source
+        for line in (repo / "Dockerfile.verify-web")
+        .read_text(encoding="utf-8")
+        .splitlines()
+        if line.startswith("COPY ") and "--from" not in line
+        for source in line.split()[1:-1]
+    ]
+    assert copied, "Dockerfile.verify-web copies nothing: this test reads it wrong"
+    for source in copied:
+        assert (repo / source).is_file(), source
+        assert not _dockerignore_excludes(source, patterns), (
+            f"{ignore.name} keeps {source} out of the build context"
+        )
 
 
 def test_frontend_tests_that_never_finish_are_not_blamed_on_either(webproject) -> None:

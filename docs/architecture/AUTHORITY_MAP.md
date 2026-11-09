@@ -15,6 +15,7 @@
 | Edit files | `actions.py` + `security/gateway.py` | Policy Kernel YELLOW | approval flow exists |
 | Execute commands | `actions.py` + gateway + approval | Policy Kernel YELLOW/RED | subprocess currently |
 | Network egress | config + router flags | Policy Kernel RED | cloud routing gated |
+| Spawn workers | Worker Foundry admission (`aios/application/workers/foundry.py`) + emergency stop | unchanged | since 2026-11-09 the swarm's caste legs too (`swarm_foundry.py`); a swarm leg's cloud burst obeys the same egress law as the router |
 | Secret handling | `secret_scanner.py` | frozen core | never weaken |
 | Self-modification | `scope_lock.py` + frozen core | T4 RED + human review | §VIII process |
 

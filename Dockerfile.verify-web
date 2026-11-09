@@ -16,6 +16,10 @@
 #     --label package-lock.sha256=<sha256 of frontend/package-lock.json> \
 #     -t aios-verify-web:<first 12 of that sha256> .
 #
+# from the repository root. The root .dockerignore excludes frontend/; BuildKit
+# reads Dockerfile.verify-web.dockerignore in its place, which keeps the
+# context to the three files copied below (2026-11-09).
+#
 # See docs/operations/WORK_SCOPE.md.
 FROM node:24-bookworm-slim
 

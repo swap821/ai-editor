@@ -1,9 +1,41 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-09 ("2026-11-09, the open PRs merged" below;
+**Last updated:** 2026-11-09 ("2026-11-09, the leftovers, and the plan against what shipped" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-09, the leftovers, and the plan against what shipped (master `bd8a75c9`, branch `fix/verify-web-build-context`)
+
+- **The operator, 2026-11-09:** "plz honestly do all ... and is honestly everything done to plan?"
+- **The web sandbox image builds as documented.** The root `.dockerignore` excludes `frontend/`, so the command the sandbox prints when `aios-verify-web` is missing failed at its first COPY. `Dockerfile.verify-web.dockerignore`, which BuildKit reads in its place, keeps the context to the three files copied. Built from the root with it: the same eleven layers as the image in use. A new register fact, `web-image-build-context` (42 of 42), is guarded by a test that fails without the file.
+- **The whole backend suite ran locally**, on master plus this branch, in six chunks: 8924 tests, 8874 passed, 50 skipped, 0 failed.
+  - The one failure seen earlier today is not reproduced. That run was killed by its timeout and only its last character, an `F`, was kept, so which test failed is not known. It ran on `c1cff3f3`, before #605, #607 and #608.
+  - **Fixed on the way:** the operator's user-wide `AIOS_ROUTER_CLOUD_TASKS` made two tests of the local-only default fail on his laptop and nowhere else. `tests/conftest.py` no longer lets the suite inherit it.
+- **Not done: the face's packages.** `frontend/node_modules` still holds jsdom 30.1.3 and vite 8.3.5 (the lock has 31.0.0 and 8.3.6). Stopping the running dev server was refused by Claude Code's safety classifier, so it waits for the operator.
+- **The plan (`staged-napping-micali`) against what shipped.**
+  - Shipped as planned:
+    - the register and its audit;
+    - one registry of brains (it lives in `aios/core/router.py` `PROVIDERS`, not a new `providers.py`) and its agreement test;
+    - the swarm through the Worker Foundry;
+    - guards on statuses, image tags, ports, the ledger path, plan model ids and privacy on every cloud egress path;
+    - organ evidence re-gathered at master.
+  - Shipped differently, each recorded in the register:
+    - Model labels are pinned by an agreement test, not drawn from one table.
+    - No test asserts 100%, so a new fact can be registered as open.
+    - "Did the tests pass" turned out to be two questions, each with one rule. So the Testing queen and maintenance do not call the workshop's `run_change_tests`.
+  - Not done:
+    - **The workshop's writers are not Foundry workers.** The plan said they would be. They were kept apart because they are sealed calls with no tools, so they do not act. That was Claude's judgement, not the operator's decision. His decision covered the swarm.
+    - **No shared review schema.** The Critique queen and the workshop's reviewer were to share one; they do not. Read closer, they answer different questions: the queen is a rule over the Testing queen's verdict, and the reviewer is a model judging a code change.
+    - **`AIOS_SWARM_CLOUD_BURST` is not retired.** The plan retired it after measuring the burst live, which has not happened. Since #604 it is a second opt-in on top of the egress law, which is stricter, not looser.
+    - **None of the plan's live checks ran on the operator's backend:**
+      - a coding turn reaching a plan brain;
+      - the council's dissent offered a plan brain;
+      - a swarm turn with workers side by side;
+      - the face's task panel showing every status.
+
+      The image-tag agreement is the exception: `daily_backend.py check` passes. The swarm turn needs his session.
+  - **Docs:** `SUBSYSTEM_REGISTRY.md`, `AUTHORITY_MAP.md` and AGENTS.md §XI now describe the registry, the swarm's Foundry route and the burst's two gates. `CURRENT_RUNTIME_MAP.md` keeps its dated baseline and gains a pointer. The two `activeCastes` stores are documented, and whether a swarm turn reaches both is to be observed live.
 
 ## 2026-11-09, the open PRs merged (master `c1cff3f3`, branch `evidence/after-604`)
 

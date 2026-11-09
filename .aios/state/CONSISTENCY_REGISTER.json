@@ -400,6 +400,20 @@
       "note": "One formula since 2026-11-04: the daily backend asks the sandbox. Still true: the tag hashes the checkout's bytes, so a Windows checkout (CRLF) and Linux (LF) name different images for one commit; consistent on any one machine."
     },
     {
+      "id": "web-image-build-context",
+      "fact": "The frontend sandbox image's build command sends the files its Dockerfile copies.",
+      "state": "agreed",
+      "places": [
+        "Dockerfile.verify-web",
+        "Dockerfile.verify-web.dockerignore",
+        "aios/maintenance/sandbox_tests.py::web_build_hint"
+      ],
+      "guards": [
+        "tests/test_gagos_sandbox.py::test_the_web_build_hint_has_the_files_its_dockerfile_copies"
+      ],
+      "note": "Found 2026-11-09: the root .dockerignore excludes frontend/, so the command the sandbox printed failed at its first COPY. A per-Dockerfile ignore file, which BuildKit reads in place of the root one, keeps the context to the three files copied."
+    },
+    {
       "id": "staged-work-dir",
       "fact": "Where staged maintenance work lives, for the backend and the executor that runs it.",
       "state": "agreed",

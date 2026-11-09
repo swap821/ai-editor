@@ -1,0 +1,10 @@
+# The build context of Dockerfile.verify-web. BuildKit reads this file in place
+# of the root .dockerignore, which excludes frontend/: with that one, the
+# documented build (and the command the sandbox prints when the image is
+# missing, aios/maintenance/sandbox_tests.py web_build_hint) failed at its first
+# COPY (found 2026-11-09). The image copies these three files and nothing else.
+# Guarded by tests/test_gagos_sandbox.py.
+*
+!frontend/package.json
+!frontend/package-lock.json
+!tools/verify_web_run.sh
