@@ -189,6 +189,12 @@ _TEST_DATA_DIR_PATH = _TEST_TMP_ROOT / f"aios-test-data-{uuid4().hex[:8]}"
 _TEST_DATA_DIR_PATH.mkdir(parents=True, exist_ok=False)
 os.environ["AIOS_DATA_DIR"] = str(_TEST_DATA_DIR_PATH)
 
+# The suite measures the shipped defaults, so the operator's own user-wide
+# AIOS_ROUTER_CLOUD_TASKS (his cloud-first routing) is not inherited: with it,
+# the two tests of the local-only default failed on his laptop and nowhere else
+# (2026-11-09). A test that needs cloud tasks sets them itself.
+os.environ.pop("AIOS_ROUTER_CLOUD_TASKS", None)
+
 
 def _session_learning_key() -> None:
     """A throwaway LIVE learning key for this session, pinned in a session file.

@@ -18,6 +18,11 @@
 >
 > Machine-readable organ status is `.aios/state/ORGAN_GREEN_LEDGER.json`,
 > never this file.
+>
+> **Since this baseline (2026-11-09):** `aios/core/router.py` `PROVIDERS` is
+> the one registry of brains, and the worker swarm runs through the Worker
+> Foundry (`aios/application/workers/swarm_foundry.py`); see
+> `SUBSYSTEM_REGISTRY.md` and `CONSISTENCY_REGISTER.md`.
 
 ## Backend Runtime
 
