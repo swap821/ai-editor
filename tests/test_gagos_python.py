@@ -236,3 +236,72 @@ def test_delivery_checks_python_with_the_tests_that_import_it(
     message = _git(work, "log", "-1", "--format=%B")
     assert message.startswith(f"GAGOS: fix F401 in {PY_REL}")
     assert "it compiles, and the tests that import it pass" in message
+
+
+#: #598 (2026-11-04) failed the required format gate on exactly this: a correct
+#: rename (E741) made an indented line too long.
+E741_REL = "tools/surgery.py"
+E741_BEFORE = (
+    "def _normalize_line(text):\n"
+    "    return text.strip()\n\n\n"
+    "def norm(chunk):\n"
+    "    for _ in range(1):\n"
+    '        norm_chunk = " ".join(_normalize_line(l) for l in chunk if _normalize_line(l))\n'
+    "    return norm_chunk\n"
+)
+E741_AFTER = E741_BEFORE.replace("(l)", "(line)").replace("for l in", "for line in")
+
+
+def test_a_python_text_is_given_the_layout_the_format_gate_accepts(tmp_path) -> None:
+    root = _py_repo(tmp_path, {E741_REL: E741_BEFORE})
+    assert ps.format_python_text(root, E741_REL, E741_BEFORE) == E741_BEFORE
+    formatted = ps.format_python_text(root, E741_REL, E741_AFTER)
+    assert max(map(len, E741_AFTER.splitlines())) > 88
+    assert max(map(len, formatted.splitlines())) <= 88
+    crlf = E741_AFTER.replace("\n", "\r\n")
+    expected = formatted.replace("\n", "\r\n")
+    assert ps.format_python_text(root, E741_REL, crlf) == expected
+    broken = "def where(:\n"
+    assert ps.format_python_text(root, E741_REL, broken) == broken, (
+        "the parser names it"
+    )
+
+
+def test_a_batch_records_a_python_fix_as_the_format_gate_wants_it(
+    tmp_path, monkeypatch
+) -> None:
+    root = _py_repo(tmp_path, {E741_REL: E741_BEFORE})
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(tool, "check_texts", lambda r, texts, **kw: {})
+    monkeypatch.setattr(ps, "organ_entrypoints", lambda r: frozenset())
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (True, ""))
+    monkeypatch.setattr(
+        tool,
+        "governed_completer",
+        lambda model, region: (
+            lambda prompt, system, request_id: f"```python\n{E741_AFTER}```"
+        ),
+    )
+    args = SimpleNamespace(
+        project=str(root),
+        budget=5,
+        model="m",
+        region="r",
+        rules=["E741"],
+        dry_run=False,
+    )
+    assert tool.cmd_propose(args) == 0
+    [p] = led.proposals()
+    assert p["status"] == "proposed", p.get("refusal")
+    assert p["new_text"] == ps.format_python_text(root, E741_REL, E741_AFTER)
+    assert p["new_text"] != E741_AFTER, "the writer's long line was not delivered as is"
+
+
+def test_every_ruff_rule_the_workshop_takes_is_python_work() -> None:
+    """A day narrowed to E741 alone scanned no Python until 2026-11-04: the
+    batch knew Python only by PYTHON_RULES, and the behaviour tier's ruff
+    rules were not among them."""
+    for rule in tool.WORK_RULES:
+        expected = rule in dw.PYTHON_RULES or rule in ("E402", "E741", "F821")
+        assert dw.is_python_rule(rule) is expected, rule

@@ -148,6 +148,37 @@ def _ruff(project_root: Path, rel: str, text: str, *extra: str) -> list[dict]:
         raise StaticCheckUnavailable(f"ruff's output is not JSON: {exc}") from exc
 
 
+def format_python_text(project_root: Path, rel: str, text: str) -> str:
+    """*text* as the project's own ruff formats it: the layout CI requires.
+
+    The workshop asked ruff what it warns about but never how it formats, and
+    on 2026-11-04 GAGOS's PR #598 failed the required format gate: a correct
+    rename (E741) made one line too long. A writer's Python text is formatted
+    before its checks, so what is checked, tested and reviewed is what the gate
+    accepts. Formatting changes layout only, and keeps the file's line endings;
+    a text ruff cannot format (a syntax error) comes back as it was, for the
+    parser's check to name.
+    """
+    try:
+        proc = _run(
+            [
+                sys.executable,
+                "-m",
+                "ruff",
+                "format",
+                "--force-exclude",
+                "--stdin-filename",
+                rel,
+                "-",
+            ],
+            project_root,
+            text,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise StaticCheckUnavailable(f"ruff could not run: {exc}") from exc
+    return proc.stdout if proc.returncode == 0 and proc.stdout else text
+
+
 def _messages(raw: list[dict]) -> tuple[LintMessage, ...]:
     out = []
     for m in raw:

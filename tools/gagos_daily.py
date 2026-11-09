@@ -74,6 +74,7 @@ from aios.maintenance.daily_work import (  # noqa: E402
     NO_MODEL,
     UNSHOWABLE,
     PYTHON_RULES,
+    is_python_rule,
     MASK_TOKEN,
     MAX_TASK_TOTAL_CHARS,
     REVIEW_SCHEMA,
@@ -130,6 +131,7 @@ from aios.maintenance.python_static import (  # noqa: E402
     PYTHON_SCOPE,
     check_python_texts,
     editable_python_files,
+    format_python_text,
     import_refusal,
 )
 
@@ -638,6 +640,9 @@ def record_task_files(
     for i, new_text in changed.items():
         rel, text, _masked, _mapping, _facts = parts[i]
         try:
+            if is_python(rel):
+                # The layout the required format gate accepts (2026-11-04).
+                new_text = changed[i] = format_python_text(root, rel, new_text)
             check = check_python_texts if is_python(rel) else check_texts
             with lint:
                 before = check(root, {rel: text}, inline_off=True)[rel]
@@ -719,7 +724,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     except StaticCheckUnavailable as exc:
         print(f"refused: {exc}")
         return 2
-    if any(r in PYTHON_RULES for r in rules):
+    if any(is_python_rule(r) for r in rules):
         # Its backend and itself; unavailable, the frontend's work goes on.
         try:
             py_texts = {
@@ -986,6 +991,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
             print(f"  {pid} {f.rel} ({model}): refused: {exc}")
             return
         try:
+            if is_python(f.rel):
+                # The layout the required format gate accepts (2026-11-04).
+                new_text = format_python_text(root, f.rel, new_text)
             # Both texts once more, each also with inline configuration off,
             # so what disable comments hide can be compared (static_verdict).
             check = check_python_texts if is_python(f.rel) else check_texts
