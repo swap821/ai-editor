@@ -1117,9 +1117,13 @@ and no path.
 - **Credit.** When a proposal that was shown entries is decided, each entry shown
   gains one helpful (accepted) or one harmful (not). An entry with harmful at
   least 3 and at least twice helpful plus one is retired.
-- **Seed.** Before the first batch, the reflector reads the proposals the ledger
-  has decided so far (84 on 2026-11-11), once per rule. They are not in the
-  analysis.
+- **Seed.** The reflector first reads the proposals the ledger has decided so far
+  (84 on 2026-11-11), once per rule, at most 3 rules a batch so the operator's
+  plan is not spent in one hour; a rule's playbook exists before any of its
+  proposals can enter the analysis (see Population). The seed proposals are not
+  in the analysis.
+- **Pace.** At most 3 rules are reflected on per batch, the rules waiting longest
+  first. A reflection whose call fails changes nothing and is tried next batch.
 
 **Randomisation.** A finding's arm is fixed by SHA-256 of
 `d15|<path>|<rule>|<base digest>`: first byte even, ON (its writer is shown the
