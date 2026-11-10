@@ -45,6 +45,7 @@ import dataclasses
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
+from typing import Any
 
 from aios import config
 from aios.core.model_availability import is_usage_limit_error
@@ -457,9 +458,11 @@ def proposal_prompt(
     prior_refusals: Sequence[str] = (),
     masked: bool = False,
     facts: Sequence[str] = (),
+    playbook: Sequence[Mapping[str, str]] = (),
 ) -> str:
     """The proposer's prompt. It names the file, never its path: paths do not
-    leave the machine."""
+    leave the machine. *playbook*: D15's entries for the rule, for a finding in
+    its ON arm."""
     lines = [
         f"File: {Path(finding.rel).name}",
         f"Rule: {finding.rule}",
@@ -494,6 +497,7 @@ def proposal_prompt(
             "Do not repeat them:",
             *(f"  - {reason}" for reason in prior_refusals),
         ]
+    lines += playbook_lines(playbook)
     lines += ["", "The file:", "```", text, "```"]
     return "\n".join(lines)
 
@@ -1231,6 +1235,7 @@ def first_test_prompt(
     prior_refusals: Sequence[str] = (),
     masked: bool = False,
     facts: Sequence[str] = (),
+    playbook: Sequence[Mapping[str, str]] = (),
 ) -> str:
     """The test writer's prompt: the module, its test's name and, when one is
     near, another test of this codebase for its conventions. Names, never
@@ -1259,6 +1264,7 @@ def first_test_prompt(
             "Earlier tests were refused for these reasons. Do not repeat them:",
             *(f"  - {reason}" for reason in prior_refusals),
         ]
+    lines += playbook_lines(playbook)
     if example:
         lines += [
             "",
@@ -1547,6 +1553,24 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TEXT NOT NULL,
     also TEXT NOT NULL DEFAULT '[]'
 );
+CREATE TABLE IF NOT EXISTS playbook (
+    entry_id TEXT PRIMARY KEY,
+    rule TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    text TEXT NOT NULL,
+    sources TEXT NOT NULL DEFAULT '[]',
+    helpful INTEGER NOT NULL DEFAULT 0,
+    harmful INTEGER NOT NULL DEFAULT 0,
+    status TEXT NOT NULL DEFAULT 'active',
+    retired_reason TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reflections (
+    rule TEXT PRIMARY KEY,
+    decided_seen INTEGER NOT NULL,
+    reflected_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS claims (
     rel TEXT PRIMARY KEY,
     holder TEXT NOT NULL,
@@ -1638,6 +1662,165 @@ STATUSES = (
 )
 
 
+# --------------------------------------------------------------------- D15: a playbook per rule
+#
+# docs/learning/PAYOFF_PREREGISTRATION.md D15 (2026-11-11). Each rule GAGOS works
+# on keeps a short playbook of strategies and pitfalls, learned by a reflector
+# from its own reviewers' verdicts, curated here without a model, credited by
+# later outcomes, and shown to the writers of findings in the ON arm only.
+
+#: The two arms, and the arm of the operator's tasks (not randomised).
+ARM_ON, ARM_OFF = "on", "off"
+#: Active entries a rule's playbook holds at most.
+PLAYBOOK_MAX_ACTIVE = 8
+#: The longest entry, in characters.
+PLAYBOOK_ENTRY_CHARS = 240
+#: Entries one reflection may add.
+PLAYBOOK_ADDS_PER_REFLECTION = 3
+#: Proposals per side (accepted, not accepted) a reflection reads.
+REFLECT_PER_SIDE = 6
+#: Rules reflected on per batch, the longest waiting first.
+REFLECTIONS_PER_BATCH = 3
+#: Entry kinds.
+PLAYBOOK_KINDS = ("strategy", "pitfall")
+#: Supply (D15): a finding never accepted may be tried again, at most this many
+#: model-answered attempts in all, the last this long before.
+MAX_ATTEMPTS = 3
+RETRY_AFTER_HOURS = 24
+#: An entry this harmful is retired: harmful at least 3, and at least twice
+#: helpful plus one.
+RETIRE_HARMFUL_AT = 3
+
+_PATHLIKE = re.compile(r"[\/]|\b[\w.-]+\.(?:py|jsx?|tsx?|json|md|css|ya?ml|toml)\b")
+_WORD = re.compile(r"[a-z0-9]+")
+
+
+def d15_arm(rel: str, rule: str, base_digest: str) -> str:
+    """A finding's arm, fixed by its path, rule and base (D15): ON when the
+    first byte of SHA-256 of ``d15|<path>|<rule>|<base digest>`` is even."""
+    first = hashlib.sha256(f"d15|{rel}|{rule}|{base_digest}".encode("utf-8")).digest()[
+        0
+    ]
+    return ARM_ON if first % 2 == 0 else ARM_OFF
+
+
+def outcome_of(p: Mapping[str, Any]) -> int | None:
+    """One proposal's outcome, the one rule for the writers' records and D15:
+    1 accepted (accepted, committed or delivered); 0 rejected by a reviewer,
+    failed by the delivery checks, or refused for what the model wrote; None
+    when nothing was decided (a failed call, no model asked, still awaiting,
+    or stale)."""
+    if p.get("model") == NO_MODEL:
+        return None
+    status, refusal = p.get("status"), p.get("refusal") or ""
+    if status in ("accepted", "committed", "delivered"):
+        return 1
+    if status in ("rejected", "failed") or (
+        status == "refused" and not refusal.startswith("model call failed")
+    ):
+        return 0
+    return None
+
+
+def playbook_lines(entries: Sequence[Mapping[str, str]]) -> list[str]:
+    """The writer's prompt section for a rule's playbook (D15's ON arm)."""
+    if not entries:
+        return []
+    return [
+        "",
+        "What GAGOS has learned about this rule from its reviewers' earlier "
+        "verdicts (strategies to follow, pitfalls to avoid):",
+        *(f"  - [{e['kind']}] {e['text']}" for e in entries),
+    ]
+
+
+def _words(text: str) -> set[str]:
+    return set(_WORD.findall(text.lower()))
+
+
+def entry_refusal(kind: str, text: str) -> str | None:
+    """Why a proposed playbook entry is not kept, or None."""
+    if kind not in PLAYBOOK_KINDS:
+        return f"kind {kind!r} is not one of {PLAYBOOK_KINDS}"
+    if not text or len(text) > PLAYBOOK_ENTRY_CHARS:
+        return f"entries are 1 to {PLAYBOOK_ENTRY_CHARS} characters"
+    if _PATHLIKE.search(text):
+        return "an entry names no file and no path"
+    return None
+
+
+def repeats(text: str, others: Iterable[str]) -> bool:
+    """Whether *text* says what one of *others* says: most of its words again."""
+    mine = _words(text)
+    for other in others:
+        theirs = _words(other)
+        if mine and theirs and len(mine & theirs) / len(mine | theirs) >= 0.8:
+            return True
+    return False
+
+
+#: What the reflector is told (D15). Tool-less and sealed, like the writers.
+REFLECTOR_SYSTEM = (
+    "You keep a short playbook for one kind of code change that an automated "
+    "workshop makes to its own repository. You read why earlier changes of this "
+    "kind were accepted or not by their reviewer, their tests and their checks, "
+    "and you write general strategies to follow and pitfalls to avoid: advice "
+    "that would make the next change of this kind accepted. Never name a file, a "
+    "path, a function or a variable; write about the kind of change, not about "
+    "one case. Each entry is one sentence of at most "
+    f"{PLAYBOOK_ENTRY_CHARS} characters. Reply with ONE JSON object and nothing "
+    'else: {"add": [{"kind": "strategy" or "pitfall", "text": "..."}], '
+    '"retire": ["<id of an entry the evidence shows is wrong or useless>"]}. '
+    f"Add at most {PLAYBOOK_ADDS_PER_REFLECTION}; add nothing that repeats an "
+    "entry already kept."
+)
+
+
+def reflection_prompt(
+    rule: str,
+    entries: Sequence[Mapping[str, Any]],
+    accepted: Sequence[str],
+    not_accepted: Sequence[str],
+) -> str:
+    """The reflector's prompt: the rule, its playbook, and the reasons behind
+    recent outcomes on each side (no code)."""
+    lines = [f"The kind of change: {rule}", "", "The playbook kept so far:"]
+    lines += [
+        f"  - {e['entry_id']} [{e['kind']}] {e['text']} "
+        f"(helped {e['helpful']}, harmed {e['harmful']})"
+        for e in entries
+    ] or ["  (empty)"]
+    lines += ["", "Accepted changes, and why:"]
+    lines += [f"  - {r}" for r in accepted] or ["  (none yet)"]
+    lines += ["", "Changes not accepted, and why:"]
+    lines += [f"  - {r}" for r in not_accepted] or ["  (none yet)"]
+    return "\n".join(lines)
+
+
+class ReflectionRefused(ValueError):
+    """A reflector's answer that is not the object it was asked for."""
+
+
+def parse_reflection(raw: str) -> tuple[list[tuple[str, str]], list[str]]:
+    """``(adds, retires)`` from the reflector's answer: adds as (kind, text)."""
+    start, end = raw.find("{"), raw.rfind("}")
+    if start < 0 or end <= start:
+        raise ReflectionRefused("no JSON object in the reflector's answer")
+    try:
+        value = json.loads(raw[start : end + 1])
+    except ValueError as exc:
+        raise ReflectionRefused(f"the reflector's answer is not JSON: {exc}") from exc
+    if not isinstance(value, dict):
+        raise ReflectionRefused("the reflector's answer is not an object")
+    adds = [
+        (str(a.get("kind", "")).strip().lower(), str(a.get("text", "")).strip())
+        for a in value.get("add") or []
+        if isinstance(a, dict)
+    ][:PLAYBOOK_ADDS_PER_REFLECTION]
+    retires = [str(r) for r in value.get("retire") or [] if isinstance(r, str)]
+    return adds, retires
+
+
 #: How long a claim on a file lives: a batch that has not released its claims
 #: by then died holding them (the hourly job's own limit is three hours).
 CLAIM_TTL_S = 3 * 3600
@@ -1670,6 +1853,19 @@ class DailyLedger:
             # The council's advisory word on a proposal's tests (2026-11-10).
             if "prescreen" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN prescreen TEXT")
+            # D15 (2026-11-11): the proposal's arm, the playbook entries its
+            # writer was shown, how many were active, and whether they were
+            # credited with its outcome.
+            if "arm" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN arm TEXT")
+            if "playbook_seen" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN playbook_seen TEXT")
+            if "playbook_active" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN playbook_active INTEGER")
+            if "credited" not in have:
+                db.execute(
+                    "ALTER TABLE proposals ADD COLUMN credited INTEGER NOT NULL DEFAULT 0"
+                )
             # A task over several files records one proposal per file, grouped.
             if "group_id" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN group_id TEXT")
@@ -1703,9 +1899,14 @@ class DailyLedger:
         day: str | None = None,
         facts: Sequence[str] = (),
         group_id: str | None = None,
+        arm: str | None = None,
+        playbook_seen: Sequence[str] = (),
+        playbook_active: int = 0,
     ) -> str:
         """*group_id*: the task whose several files this proposal is one of;
-        the group is tested, reviewed and delivered together."""
+        the group is tested, reviewed and delivered together. *arm*,
+        *playbook_seen* and *playbook_active*: D15's record (the finding's arm,
+        the entries its writer was shown, how many were active)."""
         proposal_id = f"gd-{uuid.uuid4().hex[:10]}"
         passed = verdict is not None and verdict.passed and refusal is None
         reason = refusal or (None if passed else (verdict.reason if verdict else None))
@@ -1724,8 +1925,9 @@ class DailyLedger:
             db.execute(
                 "INSERT INTO proposals (proposal_id, day, created_at, rel, rule, "
                 "warnings, base_digest, base_commit, base_text, model, status, "
-                "refusal, new_text, new_digest, diff, changed_lines, facts, group_id) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "refusal, new_text, new_digest, diff, changed_lines, facts, group_id, "
+                "arm, playbook_seen, playbook_active) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     proposal_id,
                     day or datetime.now(timezone.utc).date().isoformat(),
@@ -1745,6 +1947,9 @@ class DailyLedger:
                     verdict.changed_lines if verdict else None,
                     json.dumps(list(facts)),
                     group_id,
+                    arm,
+                    json.dumps(list(playbook_seen)),
+                    int(playbook_active),
                 ),
             )
         return proposal_id
@@ -2268,16 +2473,10 @@ class DailyLedger:
         a proposal no model was asked for, decides nothing."""
         out: dict[str, list[int]] = {}
         for p in self.proposals():
-            if p["model"] == NO_MODEL or (rule and p["rule"] != rule):
+            if rule and p["rule"] != rule:
                 continue
-            status, refusal = p["status"], p["refusal"] or ""
-            if status in ("accepted", "committed", "delivered"):
-                won = 1
-            elif status in ("rejected", "failed") or (
-                status == "refused" and not refusal.startswith("model call failed")
-            ):
-                won = 0
-            else:
+            won = outcome_of(p)
+            if won is None:
                 continue
             tally = out.setdefault(p["model"], [0, 0])
             tally[0] += won
@@ -2498,6 +2697,200 @@ class DailyLedger:
                 )
                 if r["pr_url"] in wanted
             }
+
+    # D15: supply, the playbook, credit and the population
+    def may_attempt(self, rel: str, rule: str, base_digest: str) -> bool:
+        """Whether a writer may take this finding now (D15's supply): never
+        attempted on this base, or never accepted, with fewer than
+        :data:`MAX_ATTEMPTS` model-answered attempts, none still awaiting a
+        decision, and the last at least :data:`RETRY_AFTER_HOURS` before."""
+        with self._db() as db:
+            rows = [
+                dict(r)
+                for r in db.execute(
+                    "SELECT model, status, refusal, created_at FROM proposals "
+                    "WHERE rel = ? AND rule = ? AND base_digest = ?",
+                    (rel, rule, base_digest),
+                )
+            ]
+        answered = [
+            r
+            for r in rows
+            if not (
+                r["status"] == "refused"
+                and (r["refusal"] or "").startswith("model call failed")
+            )
+        ]
+        if not answered:
+            return True
+        if any(outcome_of(r) == 1 for r in answered) or any(
+            r["status"] in ("proposed", "accepted", "committed") for r in answered
+        ):
+            return False
+        if len(answered) >= MAX_ATTEMPTS:
+            return False
+        last = max(datetime.fromisoformat(r["created_at"]) for r in answered)
+        return datetime.now(timezone.utc) - last >= timedelta(hours=RETRY_AFTER_HOURS)
+
+    def playbook(self, rule: str, *, active_only: bool = True) -> list[dict]:
+        """A rule's playbook entries, oldest first."""
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT * FROM playbook WHERE rule = ? ORDER BY created_at, entry_id",
+                (rule,),
+            ).fetchall()
+        return [
+            {**dict(r), "sources": json.loads(r["sources"] or "[]")}
+            for r in rows
+            if not active_only or r["status"] == "active"
+        ]
+
+    def add_playbook_entries(
+        self, rule: str, entries: Iterable[tuple[str, str]], *, sources: Sequence[str]
+    ) -> tuple[list[str], list[str]]:
+        """The curator (no model): each (kind, text) is kept whole unless it is
+        malformed, names a path, or repeats an active entry; past
+        :data:`PLAYBOOK_MAX_ACTIVE`, the lowest-scoring active entry is retired.
+        Nothing is ever rewritten. Returns (ids added, reasons dropped)."""
+        added, dropped = [], []
+        active = self.playbook(rule)
+        for kind, text in list(entries)[:PLAYBOOK_ADDS_PER_REFLECTION]:
+            why = entry_refusal(kind, text)
+            if why is None and repeats(text, [e["text"] for e in active]):
+                why = "it repeats an entry already kept"
+            if why:
+                dropped.append(f"{text[:60]!r}: {why}")
+                continue
+            entry_id = f"pb-{uuid.uuid4().hex[:8]}"
+            now = _now()
+            with self._db() as db:
+                db.execute(
+                    "INSERT INTO playbook (entry_id, rule, kind, text, sources, "
+                    "created_at, updated_at) VALUES (?,?,?,?,?,?,?)",
+                    (entry_id, rule, kind, text, json.dumps(list(sources)), now, now),
+                )
+            added.append(entry_id)
+            active = self.playbook(rule)
+        while len(active) > PLAYBOOK_MAX_ACTIVE:
+            worst = min(
+                active, key=lambda e: (e["helpful"] - e["harmful"], e["created_at"])
+            )
+            self.retire_playbook_entry(
+                worst["entry_id"],
+                f"over {PLAYBOOK_MAX_ACTIVE} active: the lowest score",
+            )
+            active = self.playbook(rule)
+        return added, dropped
+
+    def retire_playbook_entry(self, entry_id: str, reason: str) -> bool:
+        with self._db() as db:
+            return (
+                db.execute(
+                    "UPDATE playbook SET status = 'retired', retired_reason = ?, "
+                    "updated_at = ? WHERE entry_id = ? AND status = 'active'",
+                    (reason, _now(), entry_id),
+                ).rowcount
+                == 1
+            )
+
+    def settle_playbook_credit(self) -> int:
+        """Credit each decided ON-arm proposal's outcome to the entries its
+        writer was shown, once; retire an entry harmful at least
+        :data:`RETIRE_HARMFUL_AT` times and at least twice helpful plus one.
+        Returns how many proposals were credited."""
+        credited = 0
+        for p in self.proposals():
+            if p.get("arm") != ARM_ON or p.get("credited"):
+                continue
+            seen = json.loads(p.get("playbook_seen") or "[]")
+            won = outcome_of(p)
+            if not seen or won is None:
+                continue
+            with self._db() as db:
+                for entry_id in seen:
+                    if won:
+                        db.execute(
+                            "UPDATE playbook SET helpful = helpful + 1, updated_at = ? "
+                            "WHERE entry_id = ?",
+                            (_now(), entry_id),
+                        )
+                    else:
+                        db.execute(
+                            "UPDATE playbook SET harmful = harmful + 1, updated_at = ? "
+                            "WHERE entry_id = ?",
+                            (_now(), entry_id),
+                        )
+                db.execute(
+                    "UPDATE proposals SET credited = 1 WHERE proposal_id = ?",
+                    (p["proposal_id"],),
+                )
+            credited += 1
+        with self._db() as db:
+            harmful = db.execute(
+                "SELECT entry_id FROM playbook WHERE status = 'active' AND "
+                "harmful >= ? AND harmful >= 2 * (helpful + 1)",
+                (RETIRE_HARMFUL_AT,),
+            ).fetchall()
+        for row in harmful:
+            self.retire_playbook_entry(row["entry_id"], "harmed more than it helped")
+        return credited
+
+    def decided_for(self, rule: str) -> list[dict]:
+        """A rule's decided proposals, newest first, each with ``outcome`` and
+        its reviewers' verdicts."""
+        out = []
+        for p in sorted(
+            (p for p in self.proposals() if p["rule"] == rule),
+            key=lambda p: p["created_at"],
+            reverse=True,
+        ):
+            won = outcome_of(p)
+            if won is None:
+                continue
+            out.append({**p, "outcome": won, "reviews": self.reviews(p["proposal_id"])})
+        return out
+
+    def rules_awaiting_reflection(self) -> list[str]:
+        """Rules with a proposal decided since their last reflection, the
+        longest waiting first (never reflected on, first of all). The
+        operator's tasks have no playbook."""
+        counts: dict[str, int] = {}
+        for p in self.proposals():
+            if p["rule"] == TASK_RULE or outcome_of(p) is None:
+                continue
+            counts[p["rule"]] = counts.get(p["rule"], 0) + 1
+        with self._db() as db:
+            seen = {
+                r["rule"]: (r["decided_seen"], r["reflected_at"])
+                for r in db.execute("SELECT * FROM reflections")
+            }
+        waiting = [rule for rule, n in counts.items() if n > seen.get(rule, (0, ""))[0]]
+        return sorted(waiting, key=lambda rule: (seen.get(rule, (0, ""))[1], rule))
+
+    def mark_reflected(self, rule: str) -> None:
+        decided = sum(
+            1
+            for p in self.proposals()
+            if p["rule"] == rule and outcome_of(p) is not None
+        )
+        with self._db() as db:
+            db.execute(
+                "INSERT INTO reflections VALUES (?,?,?) ON CONFLICT(rule) DO UPDATE "
+                "SET decided_seen = excluded.decided_seen, "
+                "reflected_at = excluded.reflected_at",
+                (rule, decided, _now()),
+            )
+
+    def d15_population(self) -> list[dict]:
+        """D15's analysis population: decided proposals with an arm (not tasks),
+        whose rule had at least one active entry when they were assigned."""
+        return [
+            {**p, "outcome": outcome_of(p)}
+            for p in self.proposals()
+            if p.get("arm") in (ARM_ON, ARM_OFF)
+            and (p.get("playbook_active") or 0) >= 1
+            and outcome_of(p) is not None
+        ]
 
 
 __all__ = [

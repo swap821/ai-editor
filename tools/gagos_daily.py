@@ -32,6 +32,13 @@ day can stop anywhere and resume, and every outcome is in the ledger
             measured on master before asking any model -- warnings, those in
             and out of GAGOS's rules, frontend modules with no test, test files
             that can skip, organs green -- the latest against the first hour.
+  reflect   D15 (2026-11-11, docs/learning/PAYOFF_PREREGISTRATION.md): settle the
+            playbook's credit, then reflect on up to three rules with new
+            verdicts: a strong model reads why their proposals were and were not
+            accepted (reasons, never code) and the curator keeps its general
+            strategies and pitfalls. Run by `daily` after the reviews.
+  d15       D15's decided counts per arm; `--final` runs its one pre-registered
+            analysis (H1, H1c with Holm, harm), only at the stopping rule.
   task      the operator's own work (2026-11-03): ``task add --file REL TEXT``
             queues a change in his words on one file, or on up to four more
             (``--also REL``, repeatable); propose takes open tasks before any
@@ -73,6 +80,15 @@ from aios import config  # noqa: E402
 from aios.core import cloud_spend  # noqa: E402
 from aios.domain.reviews import queen_review  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
+    ARM_ON,
+    ARM_OFF,
+    REFLECT_PER_SIDE,
+    REFLECTIONS_PER_BATCH,
+    REFLECTOR_SYSTEM,
+    ReflectionRefused,
+    d15_arm,
+    parse_reflection,
+    reflection_prompt,
     BEHAVIOUR_RULES,
     UNTESTED_BEHAVIOUR,
     ledger_path,
@@ -787,8 +803,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
         [
             f
             for f in candidates
-            if f.rel not in busy
-            and not led.attempted(f.rel, f.rule, digest(base_of(f)))
+            if f.rel not in busy and led.may_attempt(f.rel, f.rule, digest(base_of(f)))
         ]
     )
     if busy:
@@ -844,6 +859,11 @@ def cmd_propose(args: argparse.Namespace) -> int:
         text = base_of(f)
         known = notes if is_python(f.rel) else facts
         common = dict(base_text=text, base_commit=head, facts=known)
+        # D15: the finding's arm is fixed by its path, rule and base; the ON
+        # arm's writer is shown the rule's playbook, the OFF arm's is not.
+        arm = d15_arm(f.rel, f.rule, digest(text))
+        active = led.playbook(f.rule)
+        shown = active if arm == ARM_ON else []
         if len(text) > MAX_FILE_CHARS:
             led.record_proposal(
                 f,
@@ -879,12 +899,23 @@ def cmd_propose(args: argparse.Namespace) -> int:
                 prior_refusals=refusals,
                 masked=bool(mapping),
                 facts=known,
+                playbook=shown,
             )
         else:
             system = proposer_system(f.rel)
             prompt = proposal_prompt(
-                f, masked, prior_refusals=refusals, masked=bool(mapping), facts=known
+                f,
+                masked,
+                prior_refusals=refusals,
+                masked=bool(mapping),
+                facts=known,
+                playbook=shown,
             )
+        common.update(
+            arm=arm,
+            playbook_seen=[e["entry_id"] for e in shown],
+            playbook_active=len(active),
+        )
         altered = would_be_altered(prompt, system)
         if altered:
             led.record_proposal(
@@ -2442,6 +2473,10 @@ def report(
         f"- batches blocked (days until 2026-11-02, hours since): {len(blocked)}",
         "- merged and reverted are not tracked automatically yet; read them from master.",
         "",
+        "**D15** (a playbook per rule; counts only until the stopping rule): "
+        + ", ".join(f"{arm.upper()} {n}" for arm, n in d15_counts(led).items())
+        + " decided in the population",
+        "",
         "**Completion** (GAGOS's own measures each hour on master; `score` prints "
         "them):",
         *score_lines(led.measures()),
@@ -2535,6 +2570,168 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(f"wrote {args.out}")
     else:
         print(text)
+    return 0
+
+
+# --------------------------------------------------------------------- D15: the reflector
+
+#: The reflector's model (D15): Claude Sonnet through Claude Code on the
+#: operator's plan, through the one gateway, sealed and tool-less.
+REFLECTOR = CLAUDE_WRITERS[0]
+
+
+def reflection_evidence(rows: list[dict]) -> tuple[list[str], list[str]]:
+    """Why a rule's recent proposals were or were not accepted, newest first,
+    up to :data:`REFLECT_PER_SIDE` a side: reviewer reasons, check refusals and
+    sandbox summaries, never code, scrubbed for egress."""
+    accepted: list[str] = []
+    other: list[str] = []
+    for p in rows:
+        side = accepted if p["outcome"] else other
+        if len(side) >= REFLECT_PER_SIDE:
+            continue
+        said = [f"reviewer: {rv['reason']}" for rv in (p.get("reviews") or {}).values()]
+        if p.get("refusal"):
+            said.append(f"refused: {p['refusal']}")
+        if p.get("sandbox"):
+            said.append(f"tests: {SandboxVerdict.from_json(p['sandbox']).summary}")
+        if said:
+            side.append(egress_redact(" | ".join(said))[:600])
+    return accepted, other
+
+
+def reflect(led: DailyLedger, rule: str, complete) -> str:
+    """One reflection on *rule* (D15): the reflector reads its playbook and the
+    reasons behind recent outcomes, and the curator keeps what it may. Marked
+    reflected only when it ran; a failed call changes nothing."""
+    accepted, other = reflection_evidence(led.decided_for(rule))
+    entries = led.playbook(rule)
+    prompt = reflection_prompt(rule, entries, accepted, other)
+    altered = would_be_altered(prompt, REFLECTOR_SYSTEM)
+    if altered:
+        led.mark_reflected(rule)
+        return f"{rule}: not sent, {altered}"
+    try:
+        raw = complete(prompt, REFLECTOR_SYSTEM, f"gagos:{_slot()}:reflect:{rule}")
+        adds, retires = parse_reflection(raw)
+    except ReflectionRefused as exc:
+        led.mark_reflected(rule)
+        return f"{rule}: {exc}"
+    except Exception as exc:  # the call failed: tried again next batch
+        return f"{rule}: the reflector's call failed, tried next batch: {exc}"[:300]
+    # An entry the privacy filter would alter would keep its ON arm's writers
+    # from being asked at all: it is not kept.
+    keep = [(k, t) for k, t in adds if would_be_altered(t, "") is None]
+    added, _ = led.add_playbook_entries(
+        rule,
+        keep,
+        sources=[
+            p["proposal_id"] for p in led.decided_for(rule)[: 2 * REFLECT_PER_SIDE]
+        ],
+    )
+    known = {e["entry_id"] for e in entries}
+    retired = [
+        r
+        for r in retires
+        if r in known and led.retire_playbook_entry(r, "the reflector")
+    ]
+    led.mark_reflected(rule)
+    return (
+        f"{rule}: {len(added)} added, {len(retired)} retired, "
+        f"{len(adds) - len(added)} not kept"
+    )
+
+
+def cmd_reflect(args: argparse.Namespace) -> int:
+    """D15's reflections for this batch: at most :data:`REFLECTIONS_PER_BATCH`
+    rules, the longest waiting first; then the credit is settled."""
+    led = ledger()
+    credited = led.settle_playbook_credit()
+    if credited:
+        print(f"  D15: {credited} proposal(s) credited to the entries they were shown")
+    waiting = led.rules_awaiting_reflection()[
+        : getattr(args, "limit", None) or REFLECTIONS_PER_BATCH
+    ]
+    if not waiting:
+        print("  D15: no rule awaits a reflection")
+        return 0
+    allowed, why = cloud_coding_allowed()
+    if not allowed:
+        print(f"  D15: no reflection, the egress law refuses the cloud ({why})")
+        return 0
+    complete = governed_completer(
+        REFLECTOR, getattr(args, "region", None) or config.BEDROCK_REGION
+    )
+    for rule in waiting:
+        print(f"  D15 reflection, {reflect(led, rule, complete)}")
+    return 0
+
+
+def d15_counts(led: DailyLedger) -> dict[str, int]:
+    """Decided proposals in D15's population, per arm (counts only)."""
+    population = led.d15_population()
+    return {
+        arm: sum(1 for p in population if p["arm"] == arm) for arm in (ARM_ON, ARM_OFF)
+    }
+
+
+#: D15's stopping rule: this many decided proposals in the population, or this
+#: many days after the first batch.
+D15_STOP_N = 240
+D15_STOP_DAYS = 30
+
+
+def d15_analysis(population: list[dict]) -> dict:
+    """D15's one analysis (H1, H1c, harm), as pre-registered."""
+    from scipy.stats import fisher_exact
+
+    def table(rows, key):
+        on = [key(r) for r in rows if r["arm"] == ARM_ON]
+        off = [key(r) for r in rows if r["arm"] == ARM_OFF]
+        return [[sum(on), len(on) - sum(on)], [sum(off), len(off) - sum(off)]], on, off
+
+    t1, on, off = table(population, lambda r: r["outcome"])
+    findings: dict[tuple, dict] = {}
+    for r in population:
+        k = (r["rel"], r["rule"], r["base_digest"])
+        findings.setdefault(k, {"arm": r["arm"], "outcome": 0})
+        findings[k]["outcome"] |= r["outcome"]
+    t2, _, _ = table(list(findings.values()), lambda r: r["outcome"])
+    p1 = fisher_exact(t1, alternative="greater").pvalue
+    p2 = fisher_exact(t2, alternative="greater").pvalue
+    harm = fisher_exact(t1, alternative="less").pvalue
+    ordered = sorted([("H1", p1), ("H1c", p2)], key=lambda x: x[1])
+    holm, running = {}, 0.0
+    for i, (name, pv) in enumerate(ordered):
+        running = max(running, min(1.0, (len(ordered) - i) * pv))
+        holm[name] = running
+
+    def rate(xs: list[int]) -> float | None:
+        return sum(xs) / len(xs) if xs else None
+
+    return {
+        "on": {"n": len(on), "accepted": sum(on), "rate": rate(on)},
+        "off": {"n": len(off), "accepted": sum(off), "rate": rate(off)},
+        "H1": {"p": p1, "holm": holm["H1"], "met": holm["H1"] < 0.05},
+        "H1c": {
+            "p": p2,
+            "holm": holm["H1c"],
+            "met": holm["H1c"] < 0.05,
+            "findings": len(findings),
+        },
+        "harm": {"p": harm, "seen": harm < 0.05},
+    }
+
+
+def cmd_d15(args: argparse.Namespace) -> int:
+    """D15's counts; with --final, its one analysis (only at the stopping rule)."""
+    led = ledger()
+    counts = d15_counts(led)
+    print(f"D15 decided in the population: ON {counts[ARM_ON]}, OFF {counts[ARM_OFF]}")
+    if not args.final:
+        print("  (rates and tests are computed once, at the stopping rule: --final)")
+        return 0
+    print(json.dumps(d15_analysis(led.d15_population()), indent=2))
     return 0
 
 
@@ -2860,6 +3057,8 @@ def cmd_daily(args: argparse.Namespace) -> int:
         )
     for pid in led.resettle():
         print(f"  {pid}: decided by the reviews already recorded")
+    # D15: credit the decided proposals, then reflect on rules with new verdicts.
+    cmd_reflect(argparse.Namespace(region=args.region, limit=None))
     cmd_clerk(argparse.Namespace())
     if not held:
         cmd_deliver(
@@ -3049,6 +3248,20 @@ def main(argv: list[str] | None = None) -> int:
         "score", help="how complete GAGOS is by its own measures, first hour to latest"
     )
     s.set_defaults(func=cmd_score)
+
+    rf = sub.add_parser(
+        "reflect", help="D15: reflect on the rules with new verdicts, and settle credit"
+    )
+    rf.add_argument("--limit", type=int, default=None)
+    rf.add_argument(
+        "--region",
+        default=os.environ.get("AIOS_BEDROCK_REGION") or config.BEDROCK_REGION,
+    )
+    rf.set_defaults(func=cmd_reflect)
+
+    d15 = sub.add_parser("d15", help="D15's counts; --final runs its one analysis")
+    d15.add_argument("--final", action="store_true")
+    d15.set_defaults(func=cmd_d15)
 
     args = parser.parse_args(argv)
     return int(args.func(args))
