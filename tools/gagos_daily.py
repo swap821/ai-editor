@@ -70,6 +70,7 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from aios import config  # noqa: E402
+from aios.core import cloud_spend  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
     BEHAVIOUR_RULES,
     UNTESTED_BEHAVIOUR,
@@ -225,13 +226,16 @@ EXPLORE = 5
 
 #: The operator, 2026-11-02: "$100 a month for AWS". Every Bedrock call holds
 #: its worst case against the UTC month's total first, and makes no call past it.
-MONTHLY_AWS_USD = 100.0
-#: A deliberately high estimate for every writer, USD per million tokens
-#: (input, output), with tokens over-counted at 3 characters each. The spend is
-#: estimated from what was sent and received, never read from AWS's bill, so
-#: it is pitched to over-state the bill.
-PRICE_PER_MTOK = (1.00, 4.00)
-CHARS_PER_TOKEN = 3
+#: One setting with the gateway's ceiling over every metered call
+#: (AIOS_CLOUD_MONTHLY_USD, 2026-11-10), which also holds this workshop's calls.
+MONTHLY_AWS_USD = config.CLOUD_MONTHLY_USD
+#: A deliberately high price for every writer, USD per million tokens (input,
+#: output), and characters over-counted as tokens at 3 each where a provider
+#: reports no tokens: one source with the gateway's ceiling
+#: (aios/core/cloud_spend.py). Since 2026-11-10 a call is settled from the
+#: tokens its provider reports; the price is still not AWS's bill.
+PRICE_PER_MTOK = cloud_spend.PRICE_PER_MTOK
+CHARS_PER_TOKEN = cloud_spend.CHARS_PER_TOKEN
 
 
 def _month() -> str:
@@ -1014,6 +1018,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             return
         started = time.monotonic()
+        cloud_spend.forget_last_usage()
         try:
             raw = completers[model](prompt, system, f"gagos:{slot}:spend-{hold}")
         except (
@@ -1034,9 +1039,17 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  {pid} {f.rel} ({model}): model call failed: {exc}")
             return
+        # What the provider reported the call used, where it reported it
+        # (2026-11-10); the character estimate only where it did not.
+        used = cloud_spend.last_usage()
+        reported = used is not None and used.get("model") == model
         led.settle_spend(
             hold,
-            usd=estimate_usd(chars_in, len(raw)) if on_aws else 0.0,
+            usd=(
+                (float(used["usd"]) if reported else estimate_usd(chars_in, len(raw)))
+                if on_aws
+                else 0.0
+            ),
             chars_in=chars_in,
             chars_out=len(raw),
         )
@@ -2384,7 +2397,7 @@ def report(
     month = _month()
     spent = led.month_spend(month)
     out += [
-        f"**The workforce** (AWS {month}, estimated high: "
+        f"**The workforce** (AWS {month}, from the tokens reported, priced high: "
         f"${sum(spent.values()):.2f} of the operator's ${MONTHLY_AWS_USD:.0f}):",
         *(
             f"- {model_name(m)}: {w} accepted of {d} decided; "

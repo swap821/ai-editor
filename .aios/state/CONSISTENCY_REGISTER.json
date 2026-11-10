@@ -615,7 +615,25 @@
         "tests/architecture/test_one_provider_registry.py::test_a_side_job_takes_the_first_configured_unrefused_cloud_brain",
         "tests/architecture/test_one_provider_registry.py::test_every_side_job_takes_its_cloud_brain_one_way"
       ],
-      "note": "One choice since 2026-11-09: the registry's first configured cloud brain whose model this account has not refused. The council's dissent walked the registry; CRAG took 'gemini or bedrock' (in the chat route and the generate pipeline alike) and the swarm's burst 'bedrock or gemini', blind to refusals. Each keeps its own switch (CRAG's cloud source and the swarm's burst are off by default); only which brain answers is shared."
+      "note": "One choice since 2026-11-09: the registry's first configured cloud brain whose model this account has not refused. The council's dissent walked the registry; CRAG took 'gemini or bedrock' (in the chat route and the generate pipeline alike) and the swarm's burst 'bedrock or gemini', blind to refusals. CRAG keeps its own switch (off by default); the swarm's burst has none since 2026-11-10 (the runtime profile's swarm_cloud_burst and the egress law decide); only which brain answers is shared."
+    },
+    {
+      "id": "cloud-spend",
+      "fact": "What a metered cloud call costs, and the month's ceiling over all of them.",
+      "state": "single",
+      "source": "aios/core/cloud_spend.py::PRICE_PER_MTOK",
+      "places": [
+        "aios/core/cloud_spend.py::PRICE_PER_MTOK",
+        "aios/config.py::CLOUD_MONTHLY_USD",
+        "aios/core/model_calls.py::ensure_under_ceiling",
+        "tools/gagos_daily.py::MONTHLY_AWS_USD",
+        "tools/gagos_daily.py::PRICE_PER_MTOK"
+      ],
+      "guards": [
+        "tests/test_cloud_spend.py::test_at_the_ceiling_a_metered_call_is_refused_before_it_leaves",
+        "tests/test_gagos_daily.py::test_a_writers_spend_is_settled_from_the_tokens_its_provider_reported"
+      ],
+      "note": "Found 2026-11-10 (the operator: 'plz honestly do all 1-5'; Codex's design conditions of 2026-11-02): only GAGOS's workshop held a ceiling, over its own calls, priced by its own constants, and the gateway discarded the tokens providers report. Now one price and one ceiling: cloud_spend owns the price, config the ceiling (AIOS_CLOUD_MONTHLY_USD, default 100), the workshop reads both, and model_calls.observe refuses a metered call past the ceiling whatever its entrance."
     },
     {
       "id": "brain-availability",

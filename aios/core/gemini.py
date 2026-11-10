@@ -36,7 +36,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
-from aios.core import model_calls
+from aios.core import cloud_spend, model_calls
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 from aios.core.provider_retry import call_with_backoff, stream_with_backoff
@@ -358,6 +358,22 @@ def _warn_if_truncated(candidate: Any, response: Any) -> None:
         return
 
 
+def _gemini_tokens(response: Any) -> Optional[tuple[int, int]]:
+    """(input, output) tokens a Gemini response or stream chunk reports, or
+    None. Thinking is billed as output, so it is counted as output."""
+    usage = getattr(response, "usage_metadata", None)
+    if usage is None:
+        return None
+    try:
+        prompt = int(getattr(usage, "prompt_token_count", 0) or 0)
+        out = int(getattr(usage, "candidates_token_count", 0) or 0) + int(
+            getattr(usage, "thoughts_token_count", 0) or 0
+        )
+    except (TypeError, ValueError):
+        return None
+    return (prompt, out) if prompt or out else None
+
+
 def _parse_output(response: Any) -> dict[str, Any]:
     """Map a Gemini response back to the agent's Ollama-style assistant message.
 
@@ -564,6 +580,9 @@ class GeminiClient:
                 f"Gemini generate_content failed for '{model or self.model}': {scrubbed}"
             ) from exc
 
+        found = _gemini_tokens(response)
+        if found is not None:
+            cloud_spend.record_usage("gemini", model or self.model, *found)
         result = _parse_output(response)
         # --- Validate response structure before returning to the agent. ---
         self._privacy_filter.validate_response(result)
@@ -608,10 +627,15 @@ class GeminiClient:
             # bounded by emission: safe to re-issue while no chunk has escaped.
             yield from stream_with_backoff(
                 lambda: _stream_text_from_gemini(
-                    self._client.models.generate_content_stream(
-                        model=model or self.model,
-                        contents=contents,
-                        config=gen_config,
+                    cloud_spend.counted_stream(
+                        self._client.models.generate_content_stream(
+                            model=model or self.model,
+                            contents=contents,
+                            config=gen_config,
+                        ),
+                        "gemini",
+                        model or self.model,
+                        _gemini_tokens,
                     )
                 ),
                 on_retry=lambda n, exc, d: logger.warning(
@@ -672,10 +696,15 @@ class GeminiClient:
             # 2026-09-02 while a creation-only wrapper watched it go past.
             yield from stream_with_backoff(
                 lambda: _stream_from_gemini(
-                    self._client.models.generate_content_stream(
-                        model=model or self.model,
-                        contents=contents,
-                        config=gen_config,
+                    cloud_spend.counted_stream(
+                        self._client.models.generate_content_stream(
+                            model=model or self.model,
+                            contents=contents,
+                            config=gen_config,
+                        ),
+                        "gemini",
+                        model or self.model,
+                        _gemini_tokens,
                     )
                 ),
                 on_retry=lambda n, exc, d: logger.warning(

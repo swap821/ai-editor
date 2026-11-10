@@ -78,24 +78,23 @@ class TestCouncilReasoningFailClosed:
 class TestCloudBurstFailClosed:
     """Cloud burst is off by default, and inert even when switched on."""
 
-    def test_cloud_burst_flag_is_off(self) -> None:
-        # Flipped 2026-08-04: this asserted True until the egress defaults were
-        # closed. Burst is an opt-in egress path, not a wonder organ.
-        assert config.SWARM_CLOUD_BURST_ENABLED is False
+    def test_cloud_burst_is_the_profiles_and_off_by_default(self) -> None:
+        # Flipped 2026-08-04 (off by default); 2026-11-10 the switch was retired
+        # and the runtime profile decides, with the egress law.
+        from aios.runtime import profiles
+
+        assert not hasattr(config, "SWARM_CLOUD_BURST_ENABLED")
+        default = profiles.RUNTIME_PROFILES[profiles.default_profile_name()]
+        assert default.swarm_cloud_burst is False
 
     def test_no_cloud_client_without_credentials(self) -> None:
-        # The second guard, which held even while the flag defaulted on: the
-        # burst only fires when BOTH the flag is set AND a cloud client is
-        # constructed — which requires BEDROCK_ENABLED or GEMINI_ENABLED
-        # (themselves dependent on AWS/GCP credentials). Asserted here with the
-        # flag forced ON, so this proves the credential guard independently
-        # rather than passing for free on the new default.
+        # The second guard: the burst only fires when a cloud client is
+        # constructed, which requires BEDROCK_ENABLED or GEMINI_ENABLED
+        # (themselves dependent on AWS/GCP credentials).
         with (
-            patch.object(config, "SWARM_CLOUD_BURST_ENABLED", True),
             patch.object(config, "BEDROCK_ENABLED", False),
             patch.object(config, "GEMINI_ENABLED", False),
         ):
-            assert config.SWARM_CLOUD_BURST_ENABLED
             assert not config.BEDROCK_ENABLED
             assert not config.GEMINI_ENABLED
 

@@ -32,7 +32,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
-from aios.core import model_calls
+from aios.core import cloud_spend, model_calls
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 
@@ -121,6 +121,18 @@ def _parse_output(message: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _tokens(usage: Any) -> Optional[tuple[int, int]]:
+    """(input, output) tokens from an OpenAI-style ``usage`` block, or None."""
+    if not isinstance(usage, dict):
+        return None
+    try:
+        return int(usage.get("prompt_tokens") or 0), int(
+            usage.get("completion_tokens") or 0
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 class OpenAICompatClient:
     """:class:`~aios.agents.tool_agent.ChatClient` backed by an OpenAI-compatible API.
 
@@ -169,7 +181,13 @@ class OpenAICompatClient:
         model_calls.observe(self.CALL_PROVIDER, str(payload.get("model", "")), "chat")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
-                return json.loads(response.read().decode("utf-8"))
+                body = json.loads(response.read().decode("utf-8"))
+                found = _tokens(body.get("usage") if isinstance(body, dict) else None)
+                if found is not None:
+                    cloud_spend.record_usage(
+                        self.CALL_PROVIDER, str(payload.get("model", "")), *found
+                    )
+                return body
         except urllib.error.HTTPError as exc:
             detail = ""
             try:
@@ -323,6 +341,10 @@ class OpenAICompatClient:
         model_calls.observe(
             self.CALL_PROVIDER, str(payload.get("model", "")), "stream_chat"
         )
+        # The tokens, if the endpoint reports them in a closing chunk; if not,
+        # the characters sent and received, recorded as an estimate.
+        seen: list[Optional[tuple[int, int]]] = [None]
+        chars = [len(json.dumps(payload.get("messages") or [])), 0]
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 for raw_line in response:
@@ -336,12 +358,16 @@ class OpenAICompatClient:
                         chunk = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+                    found = _tokens(chunk.get("usage"))
+                    if found is not None:
+                        seen[0] = found
                     choices = chunk.get("choices") or []
                     if not choices:
                         continue
                     delta = (choices[0] or {}).get("delta") or {}
                     piece = delta.get("content")
                     if piece:
+                        chars[1] += len(str(piece))
                         yield str(piece)
         except urllib.error.HTTPError as exc:
             detail = ""
@@ -359,3 +385,9 @@ class OpenAICompatClient:
             raise LLMError(
                 f"OpenAI-compatible stream to {self.base_url} failed: {scrubbed}"
             ) from exc
+        finally:
+            name = str(payload.get("model", ""))
+            if seen[0] is not None:
+                cloud_spend.record_usage(self.CALL_PROVIDER, name, *seen[0])
+            elif chars[1]:
+                cloud_spend.record_estimated(self.CALL_PROVIDER, name, *chars)

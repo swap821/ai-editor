@@ -307,12 +307,12 @@ def audit_cloud_routing_docs(
                     )
                 )
 
-        if path in SWARM_EGRESS_DOCS and "AIOS_SWARM_CLOUD_BURST" not in text:
+        if path in SWARM_EGRESS_DOCS and "swarm_cloud_burst" not in text:
             findings.append(
                 Finding(
                     path=path,
                     code="swarm-cloud-burst-undocumented",
-                    message="document must disclose AIOS_SWARM_CLOUD_BURST as a separate egress control",
+                    message="document must disclose that the swarm's cloud burst follows the runtime profile's swarm_cloud_burst (AIOS_SWARM_CLOUD_BURST is retired)",
                 )
             )
     return findings

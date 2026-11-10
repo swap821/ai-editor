@@ -35,7 +35,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
-from aios.core import model_calls
+from aios.core import cloud_spend, model_calls
 from aios.core.llm import LLMError
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
 
@@ -159,6 +159,37 @@ def _parse_output(body: dict[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _with_usage(body: Any, model: str) -> Any:
+    """Record the tokens the Messages API reports for a call (2026-11-10)."""
+    usage = body.get("usage") if isinstance(body, dict) else None
+    if isinstance(usage, dict):
+        try:
+            cloud_spend.record_usage(
+                "anthropic",
+                model,
+                int(usage.get("input_tokens") or 0),
+                int(usage.get("output_tokens") or 0),
+            )
+        except (TypeError, ValueError):
+            pass
+    return body
+
+
+def _note_stream_usage(event: Any, seen: list[int]) -> None:
+    """A stream's tokens: ``message_start`` carries the input's, each
+    ``message_delta`` the output's so far."""
+    try:
+        if event.get("type") == "message_start":
+            usage = (event.get("message") or {}).get("usage") or {}
+            seen[0] = max(seen[0], int(usage.get("input_tokens") or 0))
+            seen[1] = max(seen[1], int(usage.get("output_tokens") or 0))
+        elif event.get("type") == "message_delta":
+            usage = event.get("usage") or {}
+            seen[1] = max(seen[1], int(usage.get("output_tokens") or 0))
+    except (AttributeError, TypeError, ValueError):
+        return
+
+
 class AnthropicDirectClient:
     """:class:`~aios.agents.tool_agent.ChatClient` backed by Anthropic's Messages API."""
 
@@ -199,7 +230,10 @@ class AnthropicDirectClient:
         model_calls.observe("anthropic", str(payload.get("model", "")), "chat")
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
-                return json.loads(response.read().decode("utf-8"))
+                return _with_usage(
+                    json.loads(response.read().decode("utf-8")),
+                    str(payload.get("model", "")),
+                )
         except urllib.error.HTTPError as exc:
             detail = ""
             try:
@@ -361,6 +395,7 @@ class AnthropicDirectClient:
             method="POST",
         )
         model_calls.observe("anthropic", str(payload.get("model", "")), "stream_chat")
+        seen = [0, 0]
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_s) as response:
                 for raw_line in response:
@@ -374,6 +409,7 @@ class AnthropicDirectClient:
                         event = json.loads(data)
                     except json.JSONDecodeError:
                         continue
+                    _note_stream_usage(event, seen)
                     if event.get("type") != "content_block_delta":
                         continue
                     delta = event.get("delta") or {}
@@ -395,3 +431,8 @@ class AnthropicDirectClient:
         except (urllib.error.URLError, TimeoutError, OSError) as exc:
             scrubbed = scrub_exception(exc)
             raise LLMError(f"Anthropic Messages API stream failed: {scrubbed}") from exc
+        finally:
+            if seen[0] or seen[1]:
+                cloud_spend.record_usage(
+                    "anthropic", str(payload.get("model", "")), seen[0], seen[1]
+                )

@@ -1305,3 +1305,25 @@ def test_a_claimed_file_is_in_flight(tmp_path) -> None:
     led = dw.DailyLedger(tmp_path / "l.db")
     assert led.claim_files([REL], "batch:another")
     assert REL in tool.in_flight(led, [])
+
+
+def test_a_writers_spend_is_settled_from_the_tokens_its_provider_reported(
+    tmp_path, monkeypatch
+) -> None:
+    """2026-11-10: the workshop's own ceiling settles each call from the tokens
+    the provider reported (cloud_spend), not from its character estimate."""
+    from aios.core import cloud_spend
+
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+
+    def completer(model, region):
+        def complete(prompt, system, request_id):
+            cloud_spend.record_usage("bedrock", model, 1_000_000, 0)  # $1.00
+            return f"```jsx\n{AFTER}```"
+
+        return complete
+
+    monkeypatch.setattr(tool, "governed_completer", completer)
+    assert tool.cmd_propose(args) == 0
+    assert led.month_spend(tool._month()) == {"m": pytest.approx(1.0)}

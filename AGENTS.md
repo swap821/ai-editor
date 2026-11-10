@@ -216,12 +216,17 @@ resume yourself — say so if asked). Don't report a task done without evidence
   verified success). The cage verifies regardless of provider; RED stays blocked.
   Gemini = `AIOS_GEMINI_PROJECT` (Vertex AI / gcloud ADC, `pip install google-genai`);
   Bedrock = `AIOS_BEDROCK_REGION` + `AWS_BEARER_TOKEN_BEDROCK` (backend env only).
-  `AIOS_SWARM_CLOUD_BURST` is the worker swarm's own egress switch, **also off by
-  default** (it defaulted true until 2026-08-04). Enabling it alone sends
-  nothing: since 2026-11-09 a burst leg also needs the same egress law, its task
-  class allowed by the router's gate. So locking down `AIOS_ROUTER_CLOUD_TASKS`
-  closes the burst too, and enabling it does not turn the burst on. Each turn
-  emits a `route` SSE frame → the UI "active brain" badge.
+  The worker swarm's cloud burst has **no switch of its own since 2026-11-10**
+  (`AIOS_SWARM_CLOUD_BURST`, on by default until 2026-08-04 and then off, is
+  retired and ignored). A burst leg needs the active runtime profile's
+  `swarm_cloud_burst` (only `autonomous` allows it) AND the egress law for its
+  task class, decided by the router's gate. So locking down
+  `AIOS_ROUTER_CLOUD_TASKS` closes the burst too. `AIOS_CLOUD_MONTHLY_USD`
+  (default 100, the operator's 2026-11-02 word) is the ceiling over every
+  metered cloud call: `aios/core/cloud_spend.py` records the tokens each
+  provider reports and `model_calls.observe` refuses a metered call once the
+  month reaches it, so failover moves to the next brain. Each turn emits a
+  `route` SSE frame → the UI "active brain" badge.
 - **Gated agent modes (always gated + audited):** `AIOS_EARNED_AUTONOMY` — **enabled by
   default** (`config.py` `_env_bool("AIOS_EARNED_AUTONOMY", True)`) but grants nothing until
   earned: a YELLOW action class auto-applies only after `AIOS_EARNED_AUTONOMY_MIN_SUCCESSES`

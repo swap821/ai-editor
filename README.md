@@ -909,10 +909,12 @@ AIOS_ROUTER_CLOUD_TASKS=""
 AIOS_SWARM_MAX_WORKERS=4
 AIOS_COUNCIL_MAX_CONCURRENT_WORKERS=4
 
-# Swarm cloud burst is a separate egress control from AIOS_ROUTER_CLOUD_TASKS
-# above and is NOT covered by it. Also off by default (it defaulted to enabled
-# until 2026-08-04); set it true only to allow swarm subtasks to burst to cloud.
-AIOS_SWARM_CLOUD_BURST=false
+# Swarm cloud burst follows the same law since 2026-11-10: the runtime profile's
+# swarm_cloud_burst (only AIOS_RUNTIME_PROFILE=autonomous allows it) AND the
+# subtask's class named in AIOS_ROUTER_CLOUD_TASKS above. Its own switch,
+# AIOS_SWARM_CLOUD_BURST, is retired and ignored.
+# The ceiling over every metered cloud call, USD per month (refused past it).
+AIOS_CLOUD_MONTHLY_USD=100
 
 # Execution boundary
 AIOS_APPROVED_EXECUTION_BACKEND=container

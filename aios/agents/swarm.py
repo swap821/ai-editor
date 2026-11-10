@@ -423,7 +423,7 @@ def run_swarm(
     redundancy: int = config.SWARM_REDUNDANCY,
     pattern_memory: Optional[SwarmPatternMemory] = None,
     enable_scout: bool = True,
-    cloud_burst: bool = config.SWARM_CLOUD_BURST_ENABLED,
+    cloud_burst: bool = False,
     make_cloud_agent: Optional[AgentFactory] = None,
     cloud_provider: Optional[str] = None,
     admit: Optional[LegAdmission] = None,

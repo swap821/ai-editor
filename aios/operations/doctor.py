@@ -41,6 +41,14 @@ class DoctorReport:
         }
 
 
+def _profile_allows_cloud_burst() -> bool:
+    """The active runtime profile's word on the swarm's cloud burst, the one
+    place it is decided since AIOS_SWARM_CLOUD_BURST was retired (2026-11-10)."""
+    from aios.application.turns.generate_pipeline import profile_allows_cloud_burst
+
+    return profile_allows_cloud_burst()
+
+
 def _check(
     name: str,
     passed: bool,
@@ -439,7 +447,7 @@ def doctor_report(
         name
         for name, enabled in (
             ("earned_autonomy", config.EARNED_AUTONOMY_ENABLED and not production),
-            ("cloud_burst", config.SWARM_CLOUD_BURST_ENABLED and not production),
+            ("cloud_burst", _profile_allows_cloud_burst() and not production),
             ("self_consistency", config.SELF_CONSISTENCY),
             ("documentation_routes", config.ENABLE_DOCS),
         )
