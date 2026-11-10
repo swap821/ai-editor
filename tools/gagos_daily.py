@@ -896,7 +896,12 @@ def cmd_propose(args: argparse.Namespace) -> int:
     if not args.model:
         tried = [probe] if probe else []
         tried += resting
-        for k, writer in enumerate(tried[: len(jobs)]):
+        # A writer that may not answer never takes the last finding a writer
+        # that answers could: found 2026-11-09, when one finding was left and
+        # went to a refused Bedrock writer for seven runs in a row while the
+        # plans' writers stood idle.
+        spare = len(jobs) - 1 if roster else len(jobs)
+        for k, writer in enumerate(tried[: max(0, spare)]):
             writers[len(jobs) - 1 - k] = writer
     elif probe and jobs:
         writers[-1] = probe

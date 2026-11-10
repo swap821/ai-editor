@@ -757,6 +757,47 @@ def test_propose_records_a_checked_proposal_and_never_repeats_it(
     )
 
 
+def test_a_refused_writer_never_takes_the_only_finding_from_one_that_answers(
+    tmp_path, monkeypatch
+) -> None:
+    """2026-11-09: one finding was left, and each hour it went to the refused
+    Bedrock writer being tried again, while the plans' writers stood idle."""
+    from aios.core import bedrock
+
+    root = _repo(tmp_path / "project")
+    led = dw.DailyLedger(tmp_path / "l.db")
+    refused = tool.BEDROCK_WRITERS[0]
+    monkeypatch.setattr(led, "refused_writers", lambda models: [refused])
+    monkeypatch.setattr(led, "resting_writers", lambda models: [])
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(bedrock, "credentials_available", lambda region: True)
+    monkeypatch.setattr(
+        tool,
+        "check_texts",
+        lambda r, texts, **kw: {
+            k: _result() if v == AFTER else _result(_warn(RULE))
+            for k, v in texts.items()
+        },
+    )
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (True, ""))
+    asked: list[str] = []
+
+    def completer(model, region):
+        def complete(prompt, system, request_id):
+            asked.append(model)
+            return f"```jsx\n{AFTER}```"
+
+        return complete
+
+    monkeypatch.setattr(tool, "governed_completer", completer)
+    args = SimpleNamespace(
+        project=str(root), budget=2, model=None, region="r", rules=[RULE], dry_run=False
+    )
+    assert tool.cmd_propose(args) == 0
+    assert len(asked) == 1 and asked[0] != refused, asked
+    assert asked[0] in tool.WORKFORCE
+
+
 # --------------------------------------------------------------------- deliver
 
 
