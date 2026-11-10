@@ -1011,3 +1011,148 @@ def test_an_ordinary_change_can_be_shown_to_the_reviewers() -> None:
     assert "Panel.jsx" in prompt and "frontend/src/workbench" not in prompt
     assert tool.would_be_altered(prompt, "") is None
     assert verdict.passed
+
+
+# --------------------------------------------------------------------- completion
+
+
+def _measured_repo(tmp_path: Path) -> Path:
+    """A project with one untested module, a Python test and a frontend test
+    that can skip, and an organ ledger of one green organ in two."""
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "master")
+    _git(root, "config", "user.email", "t@example.com")
+    _git(root, "config", "user.name", "t")
+    _git(root, "config", "core.autocrlf", "false")
+    files = {
+        REL: BEFORE,
+        "frontend/src/workbench/Other.test.jsx": "it.skip('later', () => {});\n",
+        "tests/test_slow.py": "import pytest\n\n\n@pytest.mark.skip(reason='x')\ndef test_x():\n    pass\n",
+        "tests/test_fine.py": "def test_y():\n    assert True\n",
+        ".aios/state/ORGAN_GREEN_LEDGER.json": json.dumps(
+            [{"status": "green"}, {"status": "yellow"}]
+        ),
+    }
+    for rel, text in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(text.encode())
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+    return root
+
+
+def test_each_batch_measures_how_complete_gagos_is_before_any_model(
+    tmp_path, monkeypatch
+) -> None:
+    """The completion scoreboard (2026-11-10): measured on master before the
+    egress law is asked, so an hour the cloud is refused is measured too."""
+    root = _measured_repo(tmp_path)
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(
+        tool,
+        "check_texts",
+        lambda r, texts, **kw: {
+            k: _result(_warn(RULE), _warn("react-hooks/exhaustive-deps", line=4))
+            if k == REL
+            else _result()
+            for k in texts
+        },
+    )
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (False, "no cloud"))
+    monkeypatch.setattr(
+        tool, "governed_completer", lambda *a: pytest.fail("no model may be asked")
+    )
+    args = SimpleNamespace(
+        project=str(root), budget=2, model="m", region="r", rules=[RULE], dry_run=True
+    )
+    assert tool.cmd_propose(args) == 0
+    assert led.measures() == [], "a dry run records nothing"
+    args.dry_run = False
+    assert tool.cmd_propose(args) == 2
+    [row] = led.measures()
+    assert row["head"] == _git(root, "rev-parse", "HEAD")
+    assert row["values"] == {
+        "warnings": 2,
+        "in_reach": 1,
+        "waiting": 1,
+        "untested": 1,
+        "can_skip": 2,
+        "organs_green": 1,
+        "organs": 2,
+        "python": 0,
+    }
+    assert tool.cmd_propose(args) == 2 and len(led.measures()) == 1, (
+        "one measure an hour: a second run in the same hour replaces it"
+    )
+
+
+def test_an_organ_count_is_never_guessed(tmp_path) -> None:
+    assert tool.organ_counts(tmp_path) is None
+    state = tmp_path / ".aios" / "state"
+    state.mkdir(parents=True)
+    (state / "ORGAN_GREEN_LEDGER.json").write_text("{broken", encoding="utf-8")
+    assert tool.organ_counts(tmp_path) is None
+    measured = tool.completion_measures(
+        tmp_path, {}, tool.Counter(), (RULE,), python_checked=True
+    )
+    assert "organs" not in measured and "organs_green" not in measured
+
+
+def test_the_scoreboard_shows_the_latest_against_the_first_hour(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    assert tool.score_lines(led.measures()) == [
+        "- not measured yet: GAGOS's next hourly batch records the first"
+    ]
+    base = {"warnings": 70, "in_reach": 40, "waiting": 30, "untested": 20}
+    led.record_measures(
+        "2026-11-10T04",
+        "a" * 40,
+        {**base, "organs_green": 51, "organs": 59, "python": 1},
+    )
+    led.record_measures(
+        "2026-11-10T05",
+        "b" * 40,
+        {**base, "warnings": 69, "organs_green": 51, "organs": 59, "python": 1},
+    )
+    led.record_measures(
+        "2026-11-10T06",
+        "c" * 40,
+        {
+            **base,
+            "warnings": 60,
+            "untested": 22,
+            "organs_green": 52,
+            "organs": 59,
+            "python": 0,
+        },
+    )
+    lines = tool.score_lines(led.measures())
+    text = "\n".join(lines)
+    assert "measured 3 time(s): first 2026-11-10T04 at `aaaaaaaaaaaa`" in lines[0]
+    assert (
+        "warnings the checks find in GAGOS's editable files: 60 (first 70, -10, better); the hour before: 69"
+        in text
+    )
+    assert "frontend modules with no test beside them: 22 (first 20, +2, worse)" in text
+    assert "organs green in the organ ledger: 52 (first 51, +1, better)" in text
+    assert "organs in the organ ledger: 59 (first 59, +0)" in text
+    assert (
+        "test files with a skip in them (a skip may be conditional): not measured"
+        in text
+    )
+    assert "the Python checks did not run in the latest hour" in text
+    assert "**Completion**" in tool.report(led) and lines[1] in tool.report(led)
+
+
+def test_the_score_command_prints_the_scoreboard(tmp_path, monkeypatch, capsys) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    led.record_measures("2026-11-10T04", "a" * 40, {"warnings": 3, "python": 1})
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    assert tool.main(["score"]) == 0
+    out = capsys.readouterr().out
+    assert (
+        "GAGOS's completion" in out
+        and "warnings the checks find in GAGOS's editable files: 3" in out
+    )

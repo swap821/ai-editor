@@ -1,9 +1,25 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-09 ("2026-11-09, GAGOS's last finding went to a writer that cannot answer" below;
+**Last updated:** 2026-11-10 ("2026-11-10, GAGOS's completion scoreboard" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-10, GAGOS's completion scoreboard (master `fe27925c`, branch `feat/gagos-scoreboard`)
+
+- **Why.** The operator said yes to it on 2026-11-03, and it was never built: his cross-system consistency request came next and the scoreboard was left. Going back over the whole session on 2026-11-10 found it, with the other items not done; he asked for all of them.
+- **What it measures.** Each hourly batch, on master and before any model is asked (an hour the cloud is refused is measured too):
+  - the warnings the checks find, split into the rules GAGOS works on and those whose fix can change behaviour or span files;
+  - frontend modules with no test beside them;
+  - test files with a skip in them (a skip may be conditional, such as Docker or a model being absent);
+  - organs green out of the organ ledger.
+  - Whether the Python checks ran is recorded too, so a count without them is known as one. An organ count that cannot be read is left out, never guessed.
+- **Where.** A `measures` table in GAGOS's ledger, one row an hour. `python tools/gagos_daily.py score` prints the latest against the first hour and the hour before. The daily report has a "Completion" section.
+- **What it is not.** It describes; it is not a test and has no target. The first row is the first hour after this merges, not GAGOS's beginning.
+- **Tests:** four in `tests/test_gagos_daily.py`. The workshop's test files pass: 316 passed, 6 skipped.
+- **On the laptop the same day (not in git):**
+  - 113 old git worktrees, mine from finished work and Codex's from September and October, were removed, with the operator's word. Before that, each one's uncommitted changes were saved as patches in `C:\Users\kumar\worktree-archive-2026-11-10` (25 MB, with a `MANIFEST.json`), and the three heads on no branch were kept as `archive/wt-*` branches. Free disk went from 37 GB to 66 GB. Kept: the main checkout, `C:\gdw` (GAGOS's hourly job), `C:\oc\ai-editor-selfcorpus` and `work\ai-editor`.
+  - `data/services/gagos_quiet.py` now checks a quiet marker's process by its start time as well as its id. Windows reuses ids, so a stale marker could have kept GAGOS aside for as long as an unrelated process with the same id lived.
 
 ## 2026-11-09, GAGOS's last finding went to a writer that cannot answer (master `bd8a75c9`, branch `fix/gagos-probe-takes-no-only-finding`)
 

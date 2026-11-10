@@ -28,6 +28,10 @@ day can stop anywhere and resume, and every outcome is in the ledger
             judges it. --open-pr pushes and opens one PR. The operator merges;
             CI gates.
   report    the day's work and D14's running numbers, as Markdown.
+  score     the completion scoreboard (2026-11-10): what each hour's batch
+            measured on master before asking any model -- warnings, those in
+            and out of GAGOS's rules, frontend modules with no test, test files
+            that can skip, organs green -- the latest against the first hour.
   task      the operator's own work (2026-11-03): ``task add --file REL TEXT``
             queues a change in his words on one file, or on up to four more
             (``--also REL``, repeatable); propose takes open tasks before any
@@ -725,6 +729,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     except StaticCheckUnavailable as exc:
         print(f"refused: {exc}")
         return 2
+    python_checked = False
     if any(is_python_rule(r) for r in rules):
         # Its backend and itself; unavailable, the frontend's work goes on.
         try:
@@ -734,6 +739,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             }
             results.update(check_python_texts(root, py_texts))
             texts.update(py_texts)
+            python_checked = True
         except (StaticCheckUnavailable, subprocess.CalledProcessError) as exc:
             print(f"Python work skipped this batch: {exc}")
     every = Counter(m.rule for r in results.values() for m in r.warnings())
@@ -773,6 +779,13 @@ def cmd_propose(args: argparse.Namespace) -> int:
         for f in work[: args.budget]:
             print(f"  would propose: {f.rule} in {f.rel} ({len(f.warnings)})")
         return 0
+    # Measured here, on master and before any model: whether the cloud may be
+    # asked this hour or not, the scoreboard has its hour.
+    led.record_measures(
+        _slot(),
+        head,
+        completion_measures(root, texts, every, rules, python_checked=python_checked),
+    )
     allowed, why = cloud_coding_allowed()
     if not allowed:
         print(
@@ -2300,6 +2313,10 @@ def report(
         f"- batches blocked (days until 2026-11-02, hours since): {len(blocked)}",
         "- merged and reverted are not tracked automatically yet; read them from master.",
         "",
+        "**Completion** (GAGOS's own measures each hour on master; `score` prints "
+        "them):",
+        *score_lines(led.measures()),
+        "",
     ]
     out += task_section(led, s)
     month = _month()
@@ -2383,6 +2400,135 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(f"wrote {args.out}")
     else:
         print(text)
+    return 0
+
+
+# --------------------------------------------------------------------- completion
+
+#: GAGOS's completion scoreboard (the operator said yes on 2026-11-03; built
+#: 2026-11-10): each hour's batch measures, on master, how far GAGOS is from
+#: complete by its own measures. Name -> (what it counts, +1 when more is
+#: better, -1 when fewer is, 0 when neither).
+MEASURES: dict[str, tuple[str, int]] = {
+    "warnings": ("warnings the checks find in GAGOS's editable files", -1),
+    "in_reach": ("of them, of the rules GAGOS works on", -1),
+    "waiting": ("of them, of rules whose fix can change behaviour or spans files", -1),
+    "untested": ("frontend modules with no test beside them", -1),
+    "can_skip": ("test files with a skip in them (a skip may be conditional)", -1),
+    "organs_green": ("organs green in the organ ledger", 1),
+    "organs": ("organs in the organ ledger", 0),
+}
+#: A skip in a test file, Python's or the frontend's.
+_SKIP_MARK = re.compile(
+    r"\bpytest\.mark\.skip(?:if)?\b|\bpytest\.skip\(|"
+    r"\b(?:it|test|describe)\.(?:skip|skipIf|todo)\("
+)
+_FRONTEND_TEST = re.compile(r"\.(?:test|spec)\.[jt]sx?$")
+
+
+def skipping_test_files(root: Path) -> list[str]:
+    """Test files that can skip: the backend's ``tests/test_*.py`` and the
+    frontend's ``*.test.*``/``*.spec.*`` under ``frontend/src``."""
+    found = [
+        *sorted((root / "tests").rglob("test_*.py")),
+        *sorted(
+            p
+            for p in (root / "frontend" / "src").rglob("*")
+            if p.is_file() and _FRONTEND_TEST.search(p.name)
+        ),
+    ]
+    return [
+        p.relative_to(root).as_posix()
+        for p in found
+        if _SKIP_MARK.search(p.read_text(encoding="utf-8", errors="replace"))
+    ]
+
+
+def organ_counts(root: Path) -> tuple[int, int] | None:
+    """(green, all) from the organ ledger at *root*, or None when it cannot be
+    read: an organ count is never guessed."""
+    try:
+        organs = json.loads(
+            (root / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    except (OSError, ValueError):
+        return None
+    if not isinstance(organs, list):
+        return None
+    rows = [o for o in organs if isinstance(o, dict)]
+    return sum(1 for o in rows if o.get("status") == "green"), len(rows)
+
+
+def completion_measures(
+    root: Path,
+    texts: dict[str, str],
+    every: Counter,
+    rules: tuple[str, ...] | list[str],
+    *,
+    python_checked: bool,
+) -> dict[str, int]:
+    """This hour's measures at *root*. *every* counts the checks' warnings by
+    rule; *rules* are the rules GAGOS works on this hour. ``python`` records
+    whether the Python checks ran, so a count without them is known as one."""
+    warnings = sum(every.values())
+    in_reach = sum(n for rule, n in every.items() if rule in rules)
+    out = {
+        "warnings": warnings,
+        "in_reach": in_reach,
+        "waiting": warnings - in_reach,
+        "untested": len(missing_tests(texts, lambda rel: (root / rel).exists())),
+        "can_skip": len(skipping_test_files(root)),
+        "python": int(python_checked),
+    }
+    organs = organ_counts(root)
+    if organs:
+        out["organs_green"], out["organs"] = organs
+    return out
+
+
+def score_lines(rows: list[dict]) -> list[str]:
+    """The scoreboard: each measure now, against the first hour and the hour
+    before."""
+    if not rows:
+        return ["- not measured yet: GAGOS's next hourly batch records the first"]
+    first, latest = rows[0], rows[-1]
+    before = rows[-2] if len(rows) > 1 else None
+    out = [
+        f"- measured {len(rows)} time(s): first {first['slot']} at "
+        f"`{first['head'][:12]}`, latest {latest['slot']} at `{latest['head'][:12]}`"
+    ]
+    for name, (what, better) in MEASURES.items():
+        now = latest["values"].get(name)
+        if now is None:
+            out.append(f"- {what}: not measured")
+            continue
+        line = f"- {what}: {now}"
+        then = first["values"].get(name)
+        if before is not None and then is not None:
+            change = now - then
+            trend = (
+                ""
+                if change == 0 or better == 0
+                else (", better" if (change > 0) == (better > 0) else ", worse")
+            )
+            line += f" (first {then}, {change:+d}{trend})"
+            last = before["values"].get(name)
+            if last is not None and last != now:
+                line += f"; the hour before: {last}"
+        out.append(line)
+    if not latest["values"].get("python"):
+        out.append(
+            "- the Python checks did not run in the latest hour: its warnings are "
+            "the frontend's alone"
+        )
+    return out
+
+
+def cmd_score(args: argparse.Namespace) -> int:
+    print("GAGOS's completion, by its own measures each hour on master:")
+    print("\n".join(score_lines(ledger().measures())))
     return 0
 
 
@@ -2762,6 +2908,11 @@ def main(argv: list[str] | None = None) -> int:
     o.add_argument("--day", default=None)
     o.add_argument("--out", default=None)
     o.set_defaults(func=cmd_report)
+
+    s = sub.add_parser(
+        "score", help="how complete GAGOS is by its own measures, first hour to latest"
+    )
+    s.set_defaults(func=cmd_score)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

@@ -1559,6 +1559,12 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TEXT NOT NULL,
     also TEXT NOT NULL DEFAULT '[]'
 );
+CREATE TABLE IF NOT EXISTS measures (
+    slot TEXT PRIMARY KEY,
+    head TEXT NOT NULL,
+    measured_at TEXT NOT NULL,
+    data TEXT NOT NULL
+);
 """
 
 #: A task the operator wrote (2026-11-03, asked for "bigger work" in GAGOS's
@@ -2103,6 +2109,33 @@ class DailyLedger:
     def days(self) -> list[dict]:
         with self._db() as db:
             return [dict(r) for r in db.execute("SELECT * FROM days ORDER BY day")]
+
+    def record_measures(self, slot: str, head: str, values: Mapping[str, int]) -> None:
+        """How complete GAGOS measured itself in this hour's batch, on master at
+        *head* (the completion scoreboard, 2026-11-10). A second measure in the
+        same hour replaces the first."""
+        with self._db() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO measures VALUES (?,?,?,?)",
+                (slot, head, _now(), json.dumps(dict(values), sort_keys=True)),
+            )
+
+    def measures(self) -> list[dict]:
+        """Every hour's measures, oldest first: ``slot``, ``head``,
+        ``measured_at`` and ``values`` (measure name -> count)."""
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT slot, head, measured_at, data FROM measures ORDER BY slot"
+            ).fetchall()
+        return [
+            {
+                "slot": r["slot"],
+                "head": r["head"],
+                "measured_at": r["measured_at"],
+                "values": json.loads(r["data"]),
+            }
+            for r in rows
+        ]
 
     def pr_urls(self) -> list[str]:
         """Every PR a delivery opened, newest first (whether still open is
