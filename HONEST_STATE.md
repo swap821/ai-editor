@@ -1,9 +1,28 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-10 ("2026-11-10, GAGOS's writers through the Foundry" below;
+**Last updated:** 2026-11-10 ("2026-11-10, cloud spend measured and bounded" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-10, cloud spend measured and bounded; the swarm's burst follows the profile; one review vocabulary and the council's pre-screen (master `fe27925c`, branch `feat/gagos-scoreboard`)
+
+The rest of the operator's "plz honestly do all 1-5", from Codex's design conditions of 2026-11-02 and the consistency plan.
+
+- **Actual usage.** Until now the gateway discarded the tokens providers report, and GAGOS's spend was a character-count estimate. Each metered adapter now records the tokens its provider reports, for a call and for a stream, in `<data>/cloud_spend/<UTC month>.jsonl` (`aios/core/cloud_spend.py`; no prompt, no output):
+  - Bedrock (a Converse response's `usage`, a stream's closing `metadata`);
+  - Gemini (its `usage_metadata`, thinking counted as output);
+  - Anthropic (`usage`, and a stream's `message_start` and `message_delta`);
+  - OpenAI-compatible and Vertex (`usage`; a stream that reports none is recorded from its characters, marked `estimated`).
+  - The dollars are still not the bill: one deliberately high price for every metered model ($1 in, $4 out per million tokens), the workshop's since 2026-11-02, now one source.
+- **One ceiling over every metered call.** `model_calls.observe`, which every adapter calls before a request leaves, refuses a metered call once this UTC month's recorded spend reaches `AIOS_CLOUD_MONTHLY_USD` (default 100, the operator's word of 2026-11-02), whatever its entrance. The refusal is recorded (`refused_for: spend ceiling`) and is an `LLMError`, so a turn's failover moves on, the local brain last. The local brain and his plans are never metered. The ceiling is checked before each call against calls already recorded, so the calls in flight when it is reached can pass it, by cents at GAGOS's sizes: a bound, not a hard cap (AWS Budgets is delayed too).
+- **The workshop** settles each writer's spend from the reported tokens and reads the one price and the one ceiling; its report says so.
+- **The swarm's burst.** `AIOS_SWARM_CLOUD_BURST` is retired and ignored (config warns once if it is set). A burst leg needs the active runtime profile's `swarm_cloud_burst` AND the egress law for its task. The profile field existed and was never read; only `autonomous` allows it, so the operator's `operator` profile, which sends reasoning and coding to the cloud, still sends no swarm leg there. Retiring the switch without the profile would have widened that profile; it was not done. Not yet measured live: a swarm turn on his backend is still his to run.
+- **One review vocabulary.** `aios/domain/reviews.py` holds the schema a deciding reviewer answers in, the one parser, and the one mapping of a council queen's verdict onto accept, defer or reject (an unknown word is defer, never consent). The workshop reads them.
+- **The council's pre-screen.** After each proposal's sandbox run, the council's Critique queen (deterministic, no model, nothing leaves the machine) says whether the pass was earned: did a test runner assert behaviour, and did what ran exercise the change. Its word is on the proposal, in the reviewer's evidence and in the report; it decides nothing (Codex: "advisory and cannot replace dual review or grant authority").
+- **Register:** `cloud-spend` and `review-vocabulary` rows; 44 of 44 guarded. AGENTS.md §XI, README, `DATA_OWNERSHIP.md`, `AUTHORITY_MAP.md`, the env template and the thesis audit say what changed.
+- **Tests:** `tests/test_cloud_spend.py` (8), `tests/test_review_vocabulary.py` (3), two more in `tests/test_gagos_sandbox.py`, one in `tests/test_gagos_daily.py`, and six that pinned the old switch now pin the profile. Every test file touching the providers, the ledger or failover: 2032 passed, 1 skipped; the swarm, profiles, doctor, audit and workshop files: 2092 passed, 11 skipped; architecture and register: 214 passed with the organ currency test failing until the re-gather below.
+- **Organs.** The changes reach organ 32's (`model_calls.py`, `generate_pipeline.py`), 50's (the four adapters), 53's and 54's (`doctor.py`) entrypoints; their evidence is re-gathered at this branch's tip, and again on master after the merge.
 
 ## 2026-11-10, GAGOS's writers through the Foundry, and its files claimed (master `fe27925c`, branch `feat/gagos-scoreboard`)
 
