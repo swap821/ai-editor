@@ -724,6 +724,34 @@
         "tests/e2e/test_swarm_strategy_is_gated.py::test_a_swarm_turn_runs_through_the_worker_foundry"
       ],
       "note": "From 2026-07-15 to 2026-11-09 production refused every swarm turn. Now each leg is admitted (the emergency stop at each admission, a bounded scheduler, its lifecycle on the cortex bus); worker legs run side by side on a cloud or plan brain (AIOS_SWARM_CLOUD_CONCURRENCY, 3) and one at a time on the local one. The role pass is still refused."
+    },
+    {
+      "id": "stop-predicate",
+      "fact": "Whether an emergency stop control permits work to go on (absence refuses, an engaged or unreadable latch denies).",
+      "state": "single",
+      "source": "aios/core/autonomy.py::stop_permits_autonomy",
+      "places": [
+        "aios/core/autonomy.py::stop_permits_autonomy",
+        "aios/core/replay_writes.py::_stop_permits_writing"
+      ],
+      "guards": [
+        "tests/test_stop_absence_refuses.py::test_the_write_path_and_autonomy_share_one_stop_predicate"
+      ],
+      "note": "Found 2026-11-10 by Fable's review of the whole codebase: replay_writes carried a twin with the same body. It is now an alias of the one predicate."
+    },
+    {
+      "id": "tool-pins",
+      "fact": "Which version of a tool CI installs, where requirements.txt also pins it.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "requirements.txt",
+        ".github/workflows/ci.yml"
+      ],
+      "guards": [
+        "tests/test_consistency_guards.py::test_a_tool_ci_pins_is_pinned_as_the_lock_pins_it"
+      ],
+      "note": "Found 2026-11-10 by Fable's review of the whole codebase: CI installed mypy 2.3.1 over the lock's 2.4.1. The workflow keeps its own pins (the Bandit gate requires one there); the guard holds every such pin to the lock's."
     }
   ]
 }
