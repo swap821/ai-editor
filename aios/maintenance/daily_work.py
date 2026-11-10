@@ -48,6 +48,8 @@ from pathlib import Path, PurePosixPath
 
 from aios import config
 from aios.core.model_availability import is_usage_limit_error
+from aios.domain.reviews import REVIEW_SCHEMA as _REVIEW_SCHEMA
+from aios.domain.reviews import parse_review as _parse_review
 from aios.maintenance.frontend_static import Comment, StaticResult
 
 #: Rules whose fix does not change behaviour by nature: removing what is unused,
@@ -1317,15 +1319,9 @@ def first_test_verdict(
 
 # --------------------------------------------------------------------- reviewing
 
-REVIEW_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "verdict": {"type": "string", "enum": ["accept", "reject"]},
-        "reason": {"type": "string"},
-    },
-    "required": ["verdict", "reason"],
-    "additionalProperties": False,
-}
+#: The schema a reviewer answers in: one for the workshop and the council
+#: (aios/domain/reviews.py, 2026-11-10).
+REVIEW_SCHEMA = _REVIEW_SCHEMA
 
 
 def review_prompt(
@@ -1458,16 +1454,8 @@ def first_test_review_prompt(
     )
 
 
-def parse_review(raw: object) -> tuple[str, str]:
-    """``(verdict, reason)`` from a reviewer's structured output, or
-    ``ValueError`` when it is not one."""
-    value = json.loads(raw) if isinstance(raw, str) else raw
-    if not isinstance(value, dict):
-        raise ValueError("review is not an object")
-    verdict, reason = value.get("verdict"), value.get("reason")
-    if verdict not in ("accept", "reject") or not isinstance(reason, str):
-        raise ValueError(f"review has no valid verdict: {value!r}"[:300])
-    return verdict, reason.strip()
+#: A reviewer's structured output, read the one way (aios/domain/reviews.py).
+parse_review = _parse_review
 
 
 # --------------------------------------------------------------------- the ledger
@@ -1679,6 +1667,9 @@ class DailyLedger:
                 db.execute("ALTER TABLE proposals ADD COLUMN facts TEXT")
             if "sandbox" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN sandbox TEXT")
+            # The council's advisory word on a proposal's tests (2026-11-10).
+            if "prescreen" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN prescreen TEXT")
             # A task over several files records one proposal per file, grouped.
             if "group_id" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN group_id TEXT")
@@ -1934,6 +1925,16 @@ class DailyLedger:
                     "WHERE proposal_id = ? AND status = 'proposed'",
                     (refusal, proposal_id),
                 )
+
+    def record_prescreen(self, proposal_id: str, prescreen: str) -> None:
+        """The council's advisory pre-screen of a proposal's tests, as JSON
+        (``queen``, ``verdict`` in the review vocabulary, ``reason``). It
+        decides nothing: the proposal's status is the reviewers'."""
+        with self._db() as db:
+            db.execute(
+                "UPDATE proposals SET prescreen = ? WHERE proposal_id = ?",
+                (prescreen, proposal_id),
+            )
 
     def awaiting_tests(self) -> list[dict]:
         """Proposals awaiting review whose tests have not run in the sandbox."""

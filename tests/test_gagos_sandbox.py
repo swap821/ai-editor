@@ -12,6 +12,7 @@ from __future__ import annotations
 import re
 import subprocess
 from pathlib import Path
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -757,3 +758,55 @@ def test_a_test_name_the_privacy_filter_hides_does_not_hide_the_change(
     prompt = tool.review_evidence(p, finding)
     assert "195 tests in 2 files pass" in prompt
     assert "test_get_executor_and_rollback_engine_return_real_instances" not in prompt
+
+
+def test_the_councils_critique_queen_pre_screens_each_tested_proposal(
+    tmp_path, monkeypatch
+) -> None:
+    """Codex's design conditions (2026-11-02): a council pre-screen, advisory.
+    The Critique queen says whether the pass was earned; the reviewer and the
+    report read it; the proposal's status stays the reviewers' to decide."""
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(tool, "BaseTrees", _Trees)
+    verdicts = iter(
+        [
+            st.SandboxVerdict(
+                st.PASSED, "4 tests in 1 files pass", ("tests/test_x.py",)
+            ),
+            st.SandboxVerdict(st.UNTESTED, "no test imports aios/y.py"),
+        ]
+    )
+    monkeypatch.setattr(st, "run_proposal_tests", lambda trees, **kw: next(verdicts))
+    _python_proposal(led, "aios/x.py")
+    _python_proposal(led, "aios/y.py")
+    assert tool.cmd_test(SimpleNamespace(project=str(tmp_path), again=None)) == 0
+    by = {p["rel"]: p for p in led.proposals()}
+    assert {p["status"] for p in by.values()} == {"proposed"}, "it decides nothing"
+    earned = json.loads(by["aios/x.py"]["prescreen"])
+    hollow = json.loads(by["aios/y.py"]["prescreen"])
+    assert earned["queen"] == "critique" and earned["verdict"] == "accept"
+    assert hollow["verdict"] == "defer" and "NONE" in hollow["reason"]
+    finding = dw.Finding(rel="aios/y.py", rule="F401", warnings=((1, 1, "x"),))
+    prompt = tool.review_evidence(by["aios/y.py"], finding)
+    assert "Critique queen" in prompt and "advisory; it decides nothing" in prompt
+    assert "the council's Critique queen (advisory): **defer**" in tool.report(led)
+
+
+def test_a_proposal_the_sandbox_refused_gets_no_pre_screen(
+    tmp_path, monkeypatch
+) -> None:
+    led = dw.DailyLedger(tmp_path / "ledger.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(tool, "BaseTrees", _Trees)
+    monkeypatch.setattr(
+        st,
+        "run_proposal_tests",
+        lambda trees, **kw: st.SandboxVerdict(
+            st.BROKE, "1 test(s) break", ("tests/test_x.py",), ("tests/test_x.py::t",)
+        ),
+    )
+    _python_proposal(led)
+    assert tool.cmd_test(SimpleNamespace(project=str(tmp_path), again=None)) == 0
+    [p] = led.proposals()
+    assert p["status"] == "refused" and p["prescreen"] is None

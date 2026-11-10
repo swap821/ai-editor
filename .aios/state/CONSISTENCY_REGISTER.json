@@ -188,6 +188,25 @@
       "note": "Settled 2026-11-09 with the operator ('Swarm into the Foundry'). Four paths, each named and pinned: the swarm's caste legs are workers the Foundry admits (they act); the council's workers run in the backend Foundry; the operator's main turn runs its own tool agent, apart from the Foundry by his decision; the workshop's writers are sealed model calls through the one gateway, with no tools; since 2026-11-10 (the operator: 'plz honestly do all 1-5') each is also a worker the Foundry admits, under his emergency stop at admission, WRITERS_AT_ONCE at a time, its lifecycle on the bus. Every tool agent in production comes from the generate pipeline's two factories, so a tool agent built anywhere else fails the guard."
     },
     {
+      "id": "review-vocabulary",
+      "fact": "How a review of a change is answered: the workshop reviewer's verdict and a council queen's, in one vocabulary.",
+      "state": "single",
+      "source": "aios/domain/reviews.py::REVIEW_SCHEMA",
+      "places": [
+        "aios/domain/reviews.py::REVIEW_SCHEMA",
+        "aios/domain/reviews.py::queen_review",
+        "aios/maintenance/daily_work.py::REVIEW_SCHEMA",
+        "aios/maintenance/daily_work.py::parse_review",
+        "tools/gagos_daily.py::council_prescreen"
+      ],
+      "guards": [
+        "tests/test_review_vocabulary.py::test_the_workshop_reads_the_one_schema_and_parser",
+        "tests/test_review_vocabulary.py::test_a_queens_verdict_maps_onto_the_same_words",
+        "tests/test_gagos_sandbox.py::test_the_councils_critique_queen_pre_screens_each_tested_proposal"
+      ],
+      "note": "Settled 2026-11-10 (the operator: 'plz honestly do all 1-5'; the consistency plan's one review schema, and Codex's council pre-screen of 2026-11-02). The Critique queen and the workshop's reviewer ask different questions, so neither replaces the other; they share one schema, one parser and one mapping of a queen's verdict onto accept, defer or reject. The queen now pre-screens every tested GAGOS proposal, advisory: the reviewer and the operator read its word, and it decides nothing."
+    },
+    {
       "id": "one-model-gateway",
       "fact": "Every production model call goes through the one gateway.",
       "state": "single",

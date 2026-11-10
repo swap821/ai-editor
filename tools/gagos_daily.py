@@ -71,6 +71,7 @@ if str(REPO) not in sys.path:
 
 from aios import config  # noqa: E402
 from aios.core import cloud_spend  # noqa: E402
+from aios.domain.reviews import queen_review  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
     BEHAVIOUR_RULES,
     UNTESTED_BEHAVIOUR,
@@ -1420,6 +1421,13 @@ def _review_notes(prompt: str, p: dict, mapping, added) -> str:
         prompt += "\n\n" + egress_redact(
             SandboxVerdict.from_json(p["sandbox"]).for_reviewer()
         )
+    if p.get("prescreen"):
+        word = json.loads(p["prescreen"])
+        prompt += "\n\n" + egress_redact(
+            "The council's Critique queen, a deterministic check of whether the "
+            "tests' pass was earned (advisory; it decides nothing), says "
+            f"{word.get('verdict')}: {word.get('reason')}"
+        )
     altered = would_be_altered(prompt, "")
     if altered:
         raise MaskingFailed(f"{UNSHOWABLE}: {altered}")
@@ -1600,7 +1608,53 @@ def cmd_test(args: argparse.Namespace) -> int:
                 f"{verdict.outcome.upper()}: {verdict.summary} "
                 f"({verdict.seconds:.0f}s)"
             )
+            if refusal is None:
+                word = council_prescreen(unit, verdict)
+                for m in unit:
+                    led.record_prescreen(m["proposal_id"], json.dumps(word))
+                print(f"    the council's Critique queen (advisory): {word['verdict']}")
     return 0
+
+
+def council_prescreen(unit: list[dict], verdict: SandboxVerdict) -> dict[str, str]:
+    """The council's Critique queen on a proposal's tests, before any reviewer
+    reads it (Codex's design conditions, 2026-11-02: a council pre-screen,
+    advisory; built 2026-11-10). Deterministic, no model, nothing leaves the
+    machine: was the pass earned -- did a test runner assert behaviour, and did
+    what ran exercise the change? Its word is in the review vocabulary
+    (aios/domain/reviews.py) and is shown to the reviewer and the operator; it
+    decides nothing."""
+    from aios.council.queens.critique import CritiqueQueen
+    from aios.runtime.contracts import MissionContract, QueenVerdict
+
+    rels = [m["rel"] for m in unit]
+    ran = verdict.outcome == PASSED and bool(verdict.tests)
+    testing = QueenVerdict(
+        queen="testing",
+        verdict="allow",
+        risk="GREEN" if ran else "YELLOW",
+        reason=verdict.summary,
+        metadata={"verification_strength": "STRONG" if ran else "NONE"},
+    )
+    contract = MissionContract(
+        mission_id=f"gagos-{unit[0]['proposal_id']}",
+        goal="a proposal of GAGOS's workshop",
+        worker_type="code",
+        created_by="gagos",
+        workspace_root=".",
+        allowed_files=rels,
+        # What ran, and why it was chosen: the sandbox runs the tests that
+        # import the changed files (and a new test, itself).
+        verification_commands=(
+            [f"the tests that exercise {', '.join(rels)}: " + ", ".join(verdict.tests)]
+            if ran
+            else []
+        ),
+    )
+    word, reason = queen_review(
+        CritiqueQueen().review(contract=contract, testing_verdict=testing)
+    )
+    return {"queen": "critique", "verdict": word, "reason": reason}
 
 
 # --------------------------------------------------------------------- deliver
@@ -2430,6 +2484,12 @@ def report(
             tests = SandboxVerdict.from_json(p["sandbox"])
             out.append(
                 f"- tests in the sandbox: **{tests.outcome}**: {s(tests.summary)}"
+            )
+        if p.get("prescreen"):
+            word = json.loads(p["prescreen"])
+            out.append(
+                f"- the council's Critique queen (advisory): **{word.get('verdict')}**: "
+                f"{s(str(word.get('reason') or ''))}"
             )
         for r in REVIEW_ORDER:
             if r in reviews:
