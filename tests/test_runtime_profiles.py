@@ -236,7 +236,9 @@ def test_default_profile_matches_default_config_cloud_tasks():
     """
     profile = profiles.RUNTIME_PROFILES[profiles.default_profile_name()]
     assert set(profile.router_cloud_tasks) == set(config.ROUTER_CLOUD_TASKS) == set()
-    assert profile.swarm_cloud_burst is config.SWARM_CLOUD_BURST_ENABLED is False
+    # One layer decides the swarm's burst since 2026-11-10: the profile.
+    assert profile.swarm_cloud_burst is False
+    assert not hasattr(config, "SWARM_CLOUD_BURST_ENABLED")
 
 
 def test_cloud_enabled_profiles_are_opt_in_by_name():

@@ -1011,3 +1011,319 @@ def test_an_ordinary_change_can_be_shown_to_the_reviewers() -> None:
     assert "Panel.jsx" in prompt and "frontend/src/workbench" not in prompt
     assert tool.would_be_altered(prompt, "") is None
     assert verdict.passed
+
+
+# --------------------------------------------------------------------- completion
+
+
+def _measured_repo(tmp_path: Path) -> Path:
+    """A project with one untested module, a Python test and a frontend test
+    that can skip, and an organ ledger of one green organ in two."""
+    root = tmp_path / "project"
+    root.mkdir()
+    _git(root, "init", "-q", "-b", "master")
+    _git(root, "config", "user.email", "t@example.com")
+    _git(root, "config", "user.name", "t")
+    _git(root, "config", "core.autocrlf", "false")
+    files = {
+        REL: BEFORE,
+        "frontend/src/workbench/Other.test.jsx": "it.skip('later', () => {});\n",
+        "tests/test_slow.py": "import pytest\n\n\n@pytest.mark.skip(reason='x')\ndef test_x():\n    pass\n",
+        "tests/test_fine.py": "def test_y():\n    assert True\n",
+        ".aios/state/ORGAN_GREEN_LEDGER.json": json.dumps(
+            [{"status": "green"}, {"status": "yellow"}]
+        ),
+    }
+    for rel, text in files.items():
+        (root / rel).parent.mkdir(parents=True, exist_ok=True)
+        (root / rel).write_bytes(text.encode())
+    _git(root, "add", "-A")
+    _git(root, "commit", "-q", "-m", "base")
+    return root
+
+
+def test_each_batch_measures_how_complete_gagos_is_before_any_model(
+    tmp_path, monkeypatch
+) -> None:
+    """The completion scoreboard (2026-11-10): measured on master before the
+    egress law is asked, so an hour the cloud is refused is measured too."""
+    root = _measured_repo(tmp_path)
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(
+        tool,
+        "check_texts",
+        lambda r, texts, **kw: {
+            k: _result(_warn(RULE), _warn("react-hooks/exhaustive-deps", line=4))
+            if k == REL
+            else _result()
+            for k in texts
+        },
+    )
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (False, "no cloud"))
+    monkeypatch.setattr(
+        tool, "governed_completer", lambda *a: pytest.fail("no model may be asked")
+    )
+    args = SimpleNamespace(
+        project=str(root), budget=2, model="m", region="r", rules=[RULE], dry_run=True
+    )
+    assert tool.cmd_propose(args) == 0
+    assert led.measures() == [], "a dry run records nothing"
+    args.dry_run = False
+    assert tool.cmd_propose(args) == 2
+    [row] = led.measures()
+    assert row["head"] == _git(root, "rev-parse", "HEAD")
+    assert row["values"] == {
+        "warnings": 2,
+        "in_reach": 1,
+        "waiting": 1,
+        "untested": 1,
+        "can_skip": 2,
+        "organs_green": 1,
+        "organs": 2,
+        "python": 0,
+    }
+    assert tool.cmd_propose(args) == 2 and len(led.measures()) == 1, (
+        "one measure an hour: a second run in the same hour replaces it"
+    )
+
+
+def test_an_organ_count_is_never_guessed(tmp_path) -> None:
+    assert tool.organ_counts(tmp_path) is None
+    state = tmp_path / ".aios" / "state"
+    state.mkdir(parents=True)
+    (state / "ORGAN_GREEN_LEDGER.json").write_text("{broken", encoding="utf-8")
+    assert tool.organ_counts(tmp_path) is None
+    measured = tool.completion_measures(
+        tmp_path, {}, tool.Counter(), (RULE,), python_checked=True
+    )
+    assert "organs" not in measured and "organs_green" not in measured
+
+
+def test_the_scoreboard_shows_the_latest_against_the_first_hour(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    assert tool.score_lines(led.measures()) == [
+        "- not measured yet: GAGOS's next hourly batch records the first"
+    ]
+    base = {"warnings": 70, "in_reach": 40, "waiting": 30, "untested": 20}
+    led.record_measures(
+        "2026-11-10T04",
+        "a" * 40,
+        {**base, "organs_green": 51, "organs": 59, "python": 1},
+    )
+    led.record_measures(
+        "2026-11-10T05",
+        "b" * 40,
+        {**base, "warnings": 69, "organs_green": 51, "organs": 59, "python": 1},
+    )
+    led.record_measures(
+        "2026-11-10T06",
+        "c" * 40,
+        {
+            **base,
+            "warnings": 60,
+            "untested": 22,
+            "organs_green": 52,
+            "organs": 59,
+            "python": 0,
+        },
+    )
+    lines = tool.score_lines(led.measures())
+    text = "\n".join(lines)
+    assert "measured 3 time(s): first 2026-11-10T04 at `aaaaaaaaaaaa`" in lines[0]
+    assert (
+        "warnings the checks find in GAGOS's editable files: 60 (first 70, -10, better); the hour before: 69"
+        in text
+    )
+    assert "frontend modules with no test beside them: 22 (first 20, +2, worse)" in text
+    assert "organs green in the organ ledger: 52 (first 51, +1, better)" in text
+    assert "organs in the organ ledger: 59 (first 59, +0)" in text
+    assert (
+        "test files with a skip in them (a skip may be conditional): not measured"
+        in text
+    )
+    assert "the Python checks did not run in the latest hour" in text
+    assert "**Completion**" in tool.report(led) and lines[1] in tool.report(led)
+
+
+def test_the_score_command_prints_the_scoreboard(tmp_path, monkeypatch, capsys) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    led.record_measures("2026-11-10T04", "a" * 40, {"warnings": 3, "python": 1})
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    assert tool.main(["score"]) == 0
+    out = capsys.readouterr().out
+    assert (
+        "GAGOS's completion" in out
+        and "warnings the checks find in GAGOS's editable files: 3" in out
+    )
+
+
+# --------------------------------------------------------------------- claims and the Foundry
+
+
+def test_files_are_claimed_all_or_none_and_a_dead_batchs_claim_lapses(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    assert led.claim_files(["a.jsx", "b.jsx"], "batch:1")
+    assert led.claim_files(["a.jsx"], "batch:1"), (
+        "a holder may claim again what it holds"
+    )
+    assert not led.claim_files(["b.jsx", "c.jsx"], "batch:2"), (
+        "one held file refuses all"
+    )
+    assert led.claimed_files() == {"a.jsx", "b.jsx"}, "c.jsx was not claimed either"
+    assert led.release_claims("batch:1") == 2 and led.claimed_files() == set()
+    assert led.claim_files(["b.jsx", "c.jsx"], "batch:2")
+    import sqlite3
+
+    with sqlite3.connect(tmp_path / "l.db") as db:
+        db.execute("UPDATE claims SET claimed_at = '2000-01-01T00:00:00+00:00'")
+    assert led.claimed_files() == set(), "a claim older than a batch can live lapses"
+    assert led.claim_files(["c.jsx"], "batch:3")
+
+
+def test_two_ledgers_racing_for_a_file_never_both_win(tmp_path) -> None:
+    """Atomic across processes: two ledgers on one file, as two batches would be."""
+    import threading
+
+    wins: list[str] = []
+    start = threading.Barrier(8)
+
+    def race(holder: str) -> None:
+        led = dw.DailyLedger(tmp_path / "l.db")
+        start.wait()
+        if led.claim_files(["a.jsx"], holder):
+            wins.append(holder)
+
+    dw.DailyLedger(tmp_path / "l.db")
+    threads = [threading.Thread(target=race, args=(f"b{i}",)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(wins) == 1
+
+
+def _propose_setup(tmp_path, monkeypatch, asked):
+    root = _repo(tmp_path / "project")
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(
+        tool,
+        "check_texts",
+        lambda r, texts, **kw: {
+            k: _result() if v == AFTER else _result(_warn(RULE))
+            for k, v in texts.items()
+        },
+    )
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (True, ""))
+
+    def completer(model, region):
+        def complete(prompt, system, request_id):
+            asked.append(model)
+            return f"```jsx\n{AFTER}```"
+
+        return complete
+
+    monkeypatch.setattr(tool, "governed_completer", completer)
+    args = SimpleNamespace(
+        project=str(root), budget=2, model="m", region="r", rules=[RULE], dry_run=False
+    )
+    return led, args
+
+
+class _Stop:
+    def __init__(self, error=None) -> None:
+        self.error = error
+
+    def assert_operational(self) -> None:
+        if self.error is not None:
+            raise self.error
+
+
+class _Bus:
+    def __init__(self) -> None:
+        self.events: list = []
+
+    def append(self, event) -> None:
+        self.events.append(event)
+
+
+def test_a_batchs_writers_are_workers_the_foundry_admits(tmp_path, monkeypatch) -> None:
+    from aios.application.workers.workshop_foundry import WorkshopFoundry
+
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    bus = _Bus()
+    monkeypatch.setattr(
+        tool,
+        "writers_foundry",
+        lambda: WorkshopFoundry(emergency_stop=_Stop(), bus=bus, writers_at_once=2),
+    )
+    assert tool.cmd_propose(args) == 0
+    assert asked == ["m"] and len(led.proposals()) == 1
+    kinds = [e.event_type for e in bus.events]
+    assert kinds[0] == "worker.requested" and kinds[-1] == "worker.dissolved"
+    assert "worker.completed" in kinds
+    assert {e.payload["scope"]["files"][0] for e in bus.events} == {REL}
+    assert led.claimed_files() == set(), "the batch releases its claims"
+
+
+def test_an_engaged_emergency_stop_asks_no_writer(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    from aios.application.governance.emergency_stop import EmergencyStopError
+    from aios.application.workers.workshop_foundry import WorkshopFoundry
+
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    stop = _Stop(
+        EmergencyStopError("emergency stop is engaged; side effects are disabled")
+    )
+    monkeypatch.setattr(
+        tool, "writers_foundry", lambda: WorkshopFoundry(emergency_stop=stop)
+    )
+    assert tool.cmd_propose(args) == 0
+    assert asked == [] and led.proposals() == [], "the finding stays for a later hour"
+    assert "not admitted: emergency stop is engaged" in capsys.readouterr().out
+    assert led.claimed_files() == set()
+
+
+def test_a_file_another_batch_claimed_is_left_alone(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    assert led.claim_files([REL], "batch:another")
+    assert tool.cmd_propose(args) == 0
+    assert asked == [] and led.proposals() == []
+    assert led.claimed_files() == {REL}, "another batch's claim is not ours to release"
+    led.release_claims("batch:another")
+    assert tool.cmd_propose(args) == 0 and asked == ["m"]
+
+
+def test_a_claimed_file_is_in_flight(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    assert led.claim_files([REL], "batch:another")
+    assert REL in tool.in_flight(led, [])
+
+
+def test_a_writers_spend_is_settled_from_the_tokens_its_provider_reported(
+    tmp_path, monkeypatch
+) -> None:
+    """2026-11-10: the workshop's own ceiling settles each call from the tokens
+    the provider reported (cloud_spend), not from its character estimate."""
+    from aios.core import cloud_spend
+
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+
+    def completer(model, region):
+        def complete(prompt, system, request_id):
+            cloud_spend.record_usage("bedrock", model, 1_000_000, 0)  # $1.00
+            return f"```jsx\n{AFTER}```"
+
+        return complete
+
+    monkeypatch.setattr(tool, "governed_completer", completer)
+    assert tool.cmd_propose(args) == 0
+    assert led.month_spend(tool._month()) == {"m": pytest.approx(1.0)}

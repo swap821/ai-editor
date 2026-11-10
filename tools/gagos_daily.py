@@ -28,6 +28,10 @@ day can stop anywhere and resume, and every outcome is in the ledger
             judges it. --open-pr pushes and opens one PR. The operator merges;
             CI gates.
   report    the day's work and D14's running numbers, as Markdown.
+  score     the completion scoreboard (2026-11-10): what each hour's batch
+            measured on master before asking any model -- warnings, those in
+            and out of GAGOS's rules, frontend modules with no test, test files
+            that can skip, organs green -- the latest against the first hour.
   task      the operator's own work (2026-11-03): ``task add --file REL TEXT``
             queues a change in his words on one file, or on up to four more
             (``--also REL``, repeatable); propose takes open tasks before any
@@ -47,6 +51,7 @@ identity and constitution, and is recorded in his model-call ledger.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -55,8 +60,8 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -65,6 +70,8 @@ if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
 from aios import config  # noqa: E402
+from aios.core import cloud_spend  # noqa: E402
+from aios.domain.reviews import queen_review  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
     BEHAVIOUR_RULES,
     UNTESTED_BEHAVIOUR,
@@ -137,6 +144,11 @@ from aios.maintenance.python_static import (  # noqa: E402
 
 # One derivation for the workshop and the counter (2026-11-03): how a Codex
 # session is sealed, and where the real Claude Code binary is.
+from aios.application.governance.emergency_stop import EmergencyStopError  # noqa: E402
+from aios.application.workers.workshop_foundry import (  # noqa: E402
+    WorkshopFoundry,
+    WriterLeg,
+)
 from aios.core.plan_cli import CLAUDE_SEALED, CODEX_SEALED  # noqa: E402
 from aios.core.plan_cli import claude_executable as _claude_executable  # noqa: E402
 from aios.core.plan_cli import codex_executable as _codex_executable  # noqa: E402
@@ -215,13 +227,16 @@ EXPLORE = 5
 
 #: The operator, 2026-11-02: "$100 a month for AWS". Every Bedrock call holds
 #: its worst case against the UTC month's total first, and makes no call past it.
-MONTHLY_AWS_USD = 100.0
-#: A deliberately high estimate for every writer, USD per million tokens
-#: (input, output), with tokens over-counted at 3 characters each. The spend is
-#: estimated from what was sent and received, never read from AWS's bill, so
-#: it is pitched to over-state the bill.
-PRICE_PER_MTOK = (1.00, 4.00)
-CHARS_PER_TOKEN = 3
+#: One setting with the gateway's ceiling over every metered call
+#: (AIOS_CLOUD_MONTHLY_USD, 2026-11-10), which also holds this workshop's calls.
+MONTHLY_AWS_USD = config.CLOUD_MONTHLY_USD
+#: A deliberately high price for every writer, USD per million tokens (input,
+#: output), and characters over-counted as tokens at 3 each where a provider
+#: reports no tokens: one source with the gateway's ceiling
+#: (aios/core/cloud_spend.py). Since 2026-11-10 a call is settled from the
+#: tokens its provider reports; the price is still not AWS's bill.
+PRICE_PER_MTOK = cloud_spend.PRICE_PER_MTOK
+CHARS_PER_TOKEN = cloud_spend.CHARS_PER_TOKEN
 
 
 def _month() -> str:
@@ -701,6 +716,26 @@ def record_task_files(
     )
 
 
+def job_files(job: tuple) -> list[str]:
+    """The files one batch job writes: a task's several, or its finding's one."""
+    parts = job[8]
+    return [part[0] for part in parts] if parts else [job[0].rel]
+
+
+def writers_foundry() -> WorkshopFoundry:
+    """The Worker Foundry the batch's writers are admitted by: under the
+    operator's durable emergency stop (the one the gateway already obeys) and on
+    the cortex bus's outbox, which the backend reads."""
+    from aios.api.deps import get_emergency_stop
+    from aios.runtime.cortex_bus import CortexBus
+
+    return WorkshopFoundry(
+        emergency_stop=get_emergency_stop(),
+        bus=CortexBus() if config.CORTEX_BUS else None,
+        writers_at_once=WRITERS_AT_ONCE,
+    )
+
+
 def cmd_propose(args: argparse.Namespace) -> int:
     root = Path(args.project).resolve()
     led = ledger()
@@ -725,6 +760,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     except StaticCheckUnavailable as exc:
         print(f"refused: {exc}")
         return 2
+    python_checked = False
     if any(is_python_rule(r) for r in rules):
         # Its backend and itself; unavailable, the frontend's work goes on.
         try:
@@ -734,6 +770,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             }
             results.update(check_python_texts(root, py_texts))
             texts.update(py_texts)
+            python_checked = True
         except (StaticCheckUnavailable, subprocess.CalledProcessError) as exc:
             print(f"Python work skipped this batch: {exc}")
     every = Counter(m.rule for r in results.values() for m in r.warnings())
@@ -773,6 +810,13 @@ def cmd_propose(args: argparse.Namespace) -> int:
         for f in work[: args.budget]:
             print(f"  would propose: {f.rule} in {f.rel} ({len(f.warnings)})")
         return 0
+    # Measured here, on master and before any model: whether the cloud may be
+    # asked this hour or not, the scoreboard has its hour.
+    led.record_measures(
+        _slot(),
+        head,
+        completion_measures(root, texts, every, rules, python_checked=python_checked),
+    )
     allowed, why = cloud_coding_allowed()
     if not allowed:
         print(
@@ -925,8 +969,24 @@ def cmd_propose(args: argparse.Namespace) -> int:
         [j for j, m in zip(jobs, writers) if m],
         [m for m in writers if m],
     )
-    completers = {m: governed_completer(m, args.region) for m in dict.fromkeys(writers)}
     month, slot, lint = _month(), _slot(), threading.Lock()
+    # Each job's files are claimed before any writer is asked, all of a job's
+    # or none, durably and across processes: two batches running at once (an
+    # hourly one and one started by hand) never write the same file
+    # (Codex's design conditions, 2026-11-02; built 2026-11-10).
+    holder = f"batch:{slot}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
+    claimed = [
+        (job, model)
+        for job, model in zip(jobs, writers)
+        if led.claim_files(job_files(job), holder)
+    ]
+    if len(claimed) < len(jobs):
+        print(
+            f"  {len(jobs) - len(claimed)} finding(s) left alone: another batch "
+            "has claimed their files"
+        )
+    jobs, writers = [j for j, _ in claimed], [m for _, m in claimed]
+    completers = {m: governed_completer(m, args.region) for m in dict.fromkeys(writers)}
 
     def attempt(n: int, job: tuple, model: str) -> None:
         f, text, masked, mapping, prompt, system, common, task_id, parts = job
@@ -959,6 +1019,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             return
         started = time.monotonic()
+        cloud_spend.forget_last_usage()
         try:
             raw = completers[model](prompt, system, f"gagos:{slot}:spend-{hold}")
         except (
@@ -979,9 +1040,17 @@ def cmd_propose(args: argparse.Namespace) -> int:
             )
             print(f"  {pid} {f.rel} ({model}): model call failed: {exc}")
             return
+        # What the provider reported the call used, where it reported it
+        # (2026-11-10); the character estimate only where it did not.
+        used = cloud_spend.last_usage()
+        reported = used is not None and used.get("model") == model
         led.settle_spend(
             hold,
-            usd=estimate_usd(chars_in, len(raw)) if on_aws else 0.0,
+            usd=(
+                (float(used["usd"]) if reported else estimate_usd(chars_in, len(raw)))
+                if on_aws
+                else 0.0
+            ),
             chars_in=chars_in,
             chars_out=len(raw),
         )
@@ -1058,12 +1127,32 @@ def cmd_propose(args: argparse.Namespace) -> int:
             f"  {len(jobs)} finding(s) to {len(set(writers))} writer(s): "
             + ", ".join(f"{m} {writers.count(m)}" for m in dict.fromkeys(writers))
         )
-    with ThreadPoolExecutor(max_workers=WRITERS_AT_ONCE) as pool:
-        for done in [
-            pool.submit(attempt, n, job, model)
-            for n, (job, model) in enumerate(zip(jobs, writers), 1)
-        ]:
-            done.result()
+    # Each writer is a worker the Worker Foundry admits (the consistency plan's
+    # "one engine for work", 2026-11-10): the operator's emergency stop at
+    # admission, WRITERS_AT_ONCE at a time, its lifecycle on the cortex bus.
+    try:
+        outcomes = writers_foundry().run_batch(
+            f"gagos-{slot}",
+            [
+                WriterLeg(
+                    model,
+                    tuple(job_files(job)),
+                    functools.partial(attempt, n, job, model),
+                )
+                for n, (job, model) in enumerate(zip(jobs, writers), 1)
+            ],
+        )
+    finally:
+        led.release_claims(holder)
+    stopped = [o for o in outcomes if isinstance(o, EmergencyStopError)]
+    if stopped:
+        print(
+            f"  {len(stopped)} writer(s) not admitted: {stopped[0]}; their findings "
+            "stay for a later hour"
+        )
+    failed = [o for o in outcomes if o is not None and o not in stopped]
+    if failed:
+        raise failed[0]
     return 0
 
 
@@ -1332,6 +1421,13 @@ def _review_notes(prompt: str, p: dict, mapping, added) -> str:
         prompt += "\n\n" + egress_redact(
             SandboxVerdict.from_json(p["sandbox"]).for_reviewer()
         )
+    if p.get("prescreen"):
+        word = json.loads(p["prescreen"])
+        prompt += "\n\n" + egress_redact(
+            "The council's Critique queen, a deterministic check of whether the "
+            "tests' pass was earned (advisory; it decides nothing), says "
+            f"{word.get('verdict')}: {word.get('reason')}"
+        )
     altered = would_be_altered(prompt, "")
     if altered:
         raise MaskingFailed(f"{UNSHOWABLE}: {altered}")
@@ -1512,7 +1608,53 @@ def cmd_test(args: argparse.Namespace) -> int:
                 f"{verdict.outcome.upper()}: {verdict.summary} "
                 f"({verdict.seconds:.0f}s)"
             )
+            if refusal is None:
+                word = council_prescreen(unit, verdict)
+                for m in unit:
+                    led.record_prescreen(m["proposal_id"], json.dumps(word))
+                print(f"    the council's Critique queen (advisory): {word['verdict']}")
     return 0
+
+
+def council_prescreen(unit: list[dict], verdict: SandboxVerdict) -> dict[str, str]:
+    """The council's Critique queen on a proposal's tests, before any reviewer
+    reads it (Codex's design conditions, 2026-11-02: a council pre-screen,
+    advisory; built 2026-11-10). Deterministic, no model, nothing leaves the
+    machine: was the pass earned -- did a test runner assert behaviour, and did
+    what ran exercise the change? Its word is in the review vocabulary
+    (aios/domain/reviews.py) and is shown to the reviewer and the operator; it
+    decides nothing."""
+    from aios.council.queens.critique import CritiqueQueen
+    from aios.runtime.contracts import MissionContract, QueenVerdict
+
+    rels = [m["rel"] for m in unit]
+    ran = verdict.outcome == PASSED and bool(verdict.tests)
+    testing = QueenVerdict(
+        queen="testing",
+        verdict="allow",
+        risk="GREEN" if ran else "YELLOW",
+        reason=verdict.summary,
+        metadata={"verification_strength": "STRONG" if ran else "NONE"},
+    )
+    contract = MissionContract(
+        mission_id=f"gagos-{unit[0]['proposal_id']}",
+        goal="a proposal of GAGOS's workshop",
+        worker_type="code",
+        created_by="gagos",
+        workspace_root=".",
+        allowed_files=rels,
+        # What ran, and why it was chosen: the sandbox runs the tests that
+        # import the changed files (and a new test, itself).
+        verification_commands=(
+            [f"the tests that exercise {', '.join(rels)}: " + ", ".join(verdict.tests)]
+            if ran
+            else []
+        ),
+    )
+    word, reason = queen_review(
+        CritiqueQueen().review(contract=contract, testing_verdict=testing)
+    )
+    return {"queen": "critique", "verdict": word, "reason": reason}
 
 
 # --------------------------------------------------------------------- deliver
@@ -2300,12 +2442,16 @@ def report(
         f"- batches blocked (days until 2026-11-02, hours since): {len(blocked)}",
         "- merged and reverted are not tracked automatically yet; read them from master.",
         "",
+        "**Completion** (GAGOS's own measures each hour on master; `score` prints "
+        "them):",
+        *score_lines(led.measures()),
+        "",
     ]
     out += task_section(led, s)
     month = _month()
     spent = led.month_spend(month)
     out += [
-        f"**The workforce** (AWS {month}, estimated high: "
+        f"**The workforce** (AWS {month}, from the tokens reported, priced high: "
         f"${sum(spent.values()):.2f} of the operator's ${MONTHLY_AWS_USD:.0f}):",
         *(
             f"- {model_name(m)}: {w} accepted of {d} decided; "
@@ -2338,6 +2484,12 @@ def report(
             tests = SandboxVerdict.from_json(p["sandbox"])
             out.append(
                 f"- tests in the sandbox: **{tests.outcome}**: {s(tests.summary)}"
+            )
+        if p.get("prescreen"):
+            word = json.loads(p["prescreen"])
+            out.append(
+                f"- the council's Critique queen (advisory): **{word.get('verdict')}**: "
+                f"{s(str(word.get('reason') or ''))}"
             )
         for r in REVIEW_ORDER:
             if r in reviews:
@@ -2383,6 +2535,135 @@ def cmd_report(args: argparse.Namespace) -> int:
         print(f"wrote {args.out}")
     else:
         print(text)
+    return 0
+
+
+# --------------------------------------------------------------------- completion
+
+#: GAGOS's completion scoreboard (the operator said yes on 2026-11-03; built
+#: 2026-11-10): each hour's batch measures, on master, how far GAGOS is from
+#: complete by its own measures. Name -> (what it counts, +1 when more is
+#: better, -1 when fewer is, 0 when neither).
+MEASURES: dict[str, tuple[str, int]] = {
+    "warnings": ("warnings the checks find in GAGOS's editable files", -1),
+    "in_reach": ("of them, of the rules GAGOS works on", -1),
+    "waiting": ("of them, of rules whose fix can change behaviour or spans files", -1),
+    "untested": ("frontend modules with no test beside them", -1),
+    "can_skip": ("test files with a skip in them (a skip may be conditional)", -1),
+    "organs_green": ("organs green in the organ ledger", 1),
+    "organs": ("organs in the organ ledger", 0),
+}
+#: A skip in a test file, Python's or the frontend's.
+_SKIP_MARK = re.compile(
+    r"\bpytest\.mark\.skip(?:if)?\b|\bpytest\.skip\(|"
+    r"\b(?:it|test|describe)\.(?:skip|skipIf|todo)\("
+)
+_FRONTEND_TEST = re.compile(r"\.(?:test|spec)\.[jt]sx?$")
+
+
+def skipping_test_files(root: Path) -> list[str]:
+    """Test files that can skip: the backend's ``tests/test_*.py`` and the
+    frontend's ``*.test.*``/``*.spec.*`` under ``frontend/src``."""
+    found = [
+        *sorted((root / "tests").rglob("test_*.py")),
+        *sorted(
+            p
+            for p in (root / "frontend" / "src").rglob("*")
+            if p.is_file() and _FRONTEND_TEST.search(p.name)
+        ),
+    ]
+    return [
+        p.relative_to(root).as_posix()
+        for p in found
+        if _SKIP_MARK.search(p.read_text(encoding="utf-8", errors="replace"))
+    ]
+
+
+def organ_counts(root: Path) -> tuple[int, int] | None:
+    """(green, all) from the organ ledger at *root*, or None when it cannot be
+    read: an organ count is never guessed."""
+    try:
+        organs = json.loads(
+            (root / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json").read_text(
+                encoding="utf-8"
+            )
+        )
+    except (OSError, ValueError):
+        return None
+    if not isinstance(organs, list):
+        return None
+    rows = [o for o in organs if isinstance(o, dict)]
+    return sum(1 for o in rows if o.get("status") == "green"), len(rows)
+
+
+def completion_measures(
+    root: Path,
+    texts: dict[str, str],
+    every: Counter,
+    rules: tuple[str, ...] | list[str],
+    *,
+    python_checked: bool,
+) -> dict[str, int]:
+    """This hour's measures at *root*. *every* counts the checks' warnings by
+    rule; *rules* are the rules GAGOS works on this hour. ``python`` records
+    whether the Python checks ran, so a count without them is known as one."""
+    warnings = sum(every.values())
+    in_reach = sum(n for rule, n in every.items() if rule in rules)
+    out = {
+        "warnings": warnings,
+        "in_reach": in_reach,
+        "waiting": warnings - in_reach,
+        "untested": len(missing_tests(texts, lambda rel: (root / rel).exists())),
+        "can_skip": len(skipping_test_files(root)),
+        "python": int(python_checked),
+    }
+    organs = organ_counts(root)
+    if organs:
+        out["organs_green"], out["organs"] = organs
+    return out
+
+
+def score_lines(rows: list[dict]) -> list[str]:
+    """The scoreboard: each measure now, against the first hour and the hour
+    before."""
+    if not rows:
+        return ["- not measured yet: GAGOS's next hourly batch records the first"]
+    first, latest = rows[0], rows[-1]
+    before = rows[-2] if len(rows) > 1 else None
+    out = [
+        f"- measured {len(rows)} time(s): first {first['slot']} at "
+        f"`{first['head'][:12]}`, latest {latest['slot']} at `{latest['head'][:12]}`"
+    ]
+    for name, (what, better) in MEASURES.items():
+        now = latest["values"].get(name)
+        if now is None:
+            out.append(f"- {what}: not measured")
+            continue
+        line = f"- {what}: {now}"
+        then = first["values"].get(name)
+        if before is not None and then is not None:
+            change = now - then
+            trend = (
+                ""
+                if change == 0 or better == 0
+                else (", better" if (change > 0) == (better > 0) else ", worse")
+            )
+            line += f" (first {then}, {change:+d}{trend})"
+            last = before["values"].get(name)
+            if last is not None and last != now:
+                line += f"; the hour before: {last}"
+        out.append(line)
+    if not latest["values"].get("python"):
+        out.append(
+            "- the Python checks did not run in the latest hour: its warnings are "
+            "the frontend's alone"
+        )
+    return out
+
+
+def cmd_score(args: argparse.Namespace) -> int:
+    print("GAGOS's completion, by its own measures each hour on master:")
+    print("\n".join(score_lines(ledger().measures())))
     return 0
 
 
@@ -2495,13 +2776,14 @@ def in_flight(led: DailyLedger, open_prs: list[str]) -> set[str]:
     """Files GAGOS's unmerged work touches: under review, accepted, committed
     but unpublished, or in a PR not yet merged or closed. A new proposal on
     one would go stale against GAGOS's own change, so a batch leaves them
-    alone until that work merges or is turned down."""
+    alone until that work merges or is turned down. Files another batch has
+    claimed and not yet released are left alone too."""
     busy = {
         p["rel"]
         for p in led.proposals()
         if p["status"] in ("proposed", "accepted", "committed")
     }
-    return busy | led.rels_in_prs(open_prs)
+    return busy | led.rels_in_prs(open_prs) | led.claimed_files()
 
 
 def _pr_state(url: str) -> str:
@@ -2762,6 +3044,11 @@ def main(argv: list[str] | None = None) -> int:
     o.add_argument("--day", default=None)
     o.add_argument("--out", default=None)
     o.set_defaults(func=cmd_report)
+
+    s = sub.add_parser(
+        "score", help="how complete GAGOS is by its own measures, first hour to latest"
+    )
+    s.set_defaults(func=cmd_score)
 
     args = parser.parse_args(argv)
     return int(args.func(args))

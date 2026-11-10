@@ -81,4 +81,11 @@ def test_boundary_crossing_arms_stay_opt_in() -> None:
     # for the same reason (2026-08-04). They are independent switches: locking
     # down one must not be mistaken for closing the other.
     assert config.ROUTER_CLOUD_TASKS == ()
-    assert config.SWARM_CLOUD_BURST_ENABLED is False
+    # The swarm's burst has no switch of its own since 2026-11-10: the default
+    # runtime profile allows none.
+    from aios.runtime import profiles
+
+    assert (
+        profiles.RUNTIME_PROFILES[profiles.default_profile_name()].swarm_cloud_burst
+        is False
+    )

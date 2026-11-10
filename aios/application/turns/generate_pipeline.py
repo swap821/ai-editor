@@ -536,6 +536,19 @@ from aios.application.governance.emergency_stop import (
 )
 
 
+def profile_allows_cloud_burst() -> bool:
+    """The active runtime profile's word on the swarm's cloud burst
+    (``swarm_cloud_burst`` in ``aios/runtime/profiles.json``: only the
+    ``autonomous`` profile allows it). Part of the one law since 2026-11-10;
+    an unreadable profile allows nothing."""
+    try:
+        from aios.api.deps import get_policy_kernel
+
+        return bool(get_policy_kernel().active_runtime_profile().swarm_cloud_burst)
+    except Exception:  # noqa: BLE001 - fail closed: no profile, no burst
+        return False
+
+
 def _swarm_events(
     make_agent: Any,
     messages: list[dict[str, Any]],
@@ -566,17 +579,16 @@ def _swarm_events(
         if target == "cloud"
         else config.SWARM_WORKER_CONCURRENCY
     )
-    # Cloud burst needs its own switch AND the one egress law (constitution
-    # within the runtime profile, aios/policy/egress.py) to let this task leave
-    # the machine, decided by the router's own gate. Until 2026-11-09 its
-    # switch alone sent a leg to the cloud, past the law every other cloud
-    # route obeys (the safety review of the swarm's Foundry route).
+    # Cloud burst is decided by the one law alone (2026-11-10): the active
+    # runtime profile must allow the swarm's burst, and the egress law
+    # (constitution within that profile, aios/policy/egress.py) must let this
+    # task leave the machine, decided by the router's own gate. Until
+    # 2026-11-09 a switch of its own (AIOS_SWARM_CLOUD_BURST) alone sent a leg
+    # to the cloud; until 2026-11-10 that switch was still needed beside the
+    # law, while the profile's own word on the burst was reported and never
+    # read. The switch is retired; the profile decides.
     burst = False
-    if (
-        config.SWARM_CLOUD_BURST_ENABLED
-        and cloud_factory is not None
-        and cloud_provider
-    ):
+    if cloud_factory is not None and cloud_provider and profile_allows_cloud_burst():
         spec = router.provider_spec(cloud_provider)
         burst = router.policy_allows(
             _router_policy(),
@@ -1213,7 +1225,7 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
     cloud_client: Optional[Any] = None
     cloud_provider: Optional[str] = None
     cloud_model: Optional[str] = None
-    if req.swarm and config.SWARM_CLOUD_BURST_ENABLED:
+    if req.swarm and profile_allows_cloud_burst():
         # Provider construction belongs to the API dependency composition.
         # Reusing the injected clients keeps swarm burst on the same governed
         # provider boundary as the primary turn and keeps tests able to replace

@@ -378,14 +378,19 @@ SWARM_WORKER_CONCURRENCY: Final[int] = _env_int("AIOS_SWARM_WORKER_CONCURRENCY",
 #: contend for the same memory and model.
 SWARM_CLOUD_CONCURRENCY: Final[int] = _env_int("AIOS_SWARM_CLOUD_CONCURRENCY", 3)
 SWARM_REDUNDANCY: Final[int] = _env_int("AIOS_SWARM_REDUNDANCY", 1)
-# Second, independent egress path: swarm subtasks bursting to a cloud provider.
-# OFF by default as of 2026-08-04 (was True). It is deliberately separate from
-# AIOS_ROUTER_CLOUD_TASKS, which means an operator who correctly locks down the
-# router could still egress here — the exact hole named in
-# .aios/state/GAGOS_REMAINING_INVENTORY.md and planned as Phase C2
-# ("SWARM_CLOUD_BURST -> flip local for the daemon"). Both switches now start
-# closed, so locking down one no longer leaves the other open.
-SWARM_CLOUD_BURST_ENABLED: Final[bool] = _env_bool("AIOS_SWARM_CLOUD_BURST", False)
+# AIOS_SWARM_CLOUD_BURST is retired (2026-11-10). It was a second egress path
+# beside the router's (on by default until 2026-08-04, then off; since
+# 2026-11-09 needed beside the egress law). The swarm's cloud burst now follows
+# the one law alone: the active runtime profile's ``swarm_cloud_burst`` and
+# the egress law for the leg's task (aios/application/turns/generate_pipeline.py
+# ``profile_allows_cloud_burst``). Setting the variable does nothing; config
+# says so once, below.
+if os.getenv("AIOS_SWARM_CLOUD_BURST") not in (None, ""):
+    logging.getLogger(__name__).warning(
+        "AIOS_SWARM_CLOUD_BURST is retired (2026-11-10) and ignored: the swarm's "
+        "cloud burst follows the active runtime profile (swarm_cloud_burst) and "
+        "the egress law"
+    )
 SWARM_WORKER_BACKEND: Final[str] = _env_str("AIOS_SWARM_WORKER_BACKEND", "auto")
 SWARM_PHEROMONE_FIDELITY: Final[str] = _env_str("AIOS_SWARM_PHEROMONE_FIDELITY", "fast")
 SWARM_CONFLICT_STRATEGY: Final[str] = _env_str("AIOS_SWARM_CONFLICT_STRATEGY", "merge")
@@ -679,6 +684,11 @@ CLOUD_CODING_HISTORY_WINDOW: Final[int] = _env_int(
 ROUTER_CLOUD_TASKS: Final[tuple[str, ...]] = _limits.ROUTER_CLOUD_TASKS
 ROUTER_PREFER_LOCAL: Final[bool] = _env_bool("AIOS_ROUTER_PREFER_LOCAL", True)
 ROUTER_MAX_COST: Final[str] = _env_str("AIOS_ROUTER_MAX_COST", "high").strip().lower()
+#: The ceiling, USD per UTC month, over every metered cloud call whatever its
+#: entrance (2026-11-10; the operator, 2026-11-02: "$100 a month for AWS").
+#: aios.core.model_calls refuses a metered call once aios.core.cloud_spend has
+#: recorded this much this month; the local brain and his plans are not metered.
+CLOUD_MONTHLY_USD: Final[float] = max(0.0, _env_float("AIOS_CLOUD_MONTHLY_USD", 100.0))
 ROUTER_LLM_PICK: Final[bool] = _env_bool("AIOS_ROUTER_LLM_PICK", True)
 #: Guardrails — defined in aios/security/limits.py, behind the freeze: whether
 #: a model call that passed no Organ 32 entrance is refused before it leaves
@@ -983,7 +993,6 @@ __all__ = [
     "SWARM_MAX_WORKERS",
     "SWARM_WORKER_CONCURRENCY",
     "SWARM_REDUNDANCY",
-    "SWARM_CLOUD_BURST_ENABLED",
     "SWARM_WORKER_BACKEND",
     "SWARM_PHEROMONE_FIDELITY",
     "SWARM_CONFLICT_STRATEGY",
@@ -1029,6 +1038,7 @@ __all__ = [
     "OFFLINE_MODE",
     "ALLOW_NETWORK_FETCH",
     "BEDROCK_REGION",
+    "CLOUD_MONTHLY_USD",
     "BEDROCK_MODEL",
     "BEDROCK_MAX_TOKENS",
     "BEDROCK_ENABLED",

@@ -268,7 +268,9 @@ def _prune(directory: Path, now: datetime) -> None:
 def observe(provider: str, model: str, method: str) -> None:
     """Record one model request about to leave the process, and refuse it
     (:class:`UngatedModelCall`) when it is production and came through no
-    entrance, while enforcing."""
+    entrance, while enforcing; or (:class:`~aios.core.cloud_spend.
+    CloudSpendCeilingReached`) when it is metered and this month's cloud spend
+    has reached the operator's ceiling."""
     now = datetime.now(timezone.utc)
     entrance = _ENTRANCE.get()
     # The whole stack decides whether the call is production; the record
@@ -278,6 +280,16 @@ def observe(provider: str, model: str, method: str) -> None:
     site = stack[0] if stack else "outside-repo"
     production = judged_stack(full)
     refused = entrance is None and production and enforcing()
+    # The month's ceiling over every metered call, whatever its entrance
+    # (aios/core/cloud_spend.py, 2026-11-10).
+    over: Optional[Exception] = None
+    if not refused:
+        from aios.core.cloud_spend import CloudSpendCeilingReached, ensure_under_ceiling
+
+        try:
+            ensure_under_ceiling(provider, model)
+        except CloudSpendCeilingReached as exc:
+            over = exc
     record: dict[str, Any] = {
         "ts": now.isoformat(),
         "provider": provider,
@@ -291,9 +303,15 @@ def observe(provider: str, model: str, method: str) -> None:
     }
     if refused:
         record["refused"] = True
+    if over is not None:
+        record["refused"] = True
+        record["refused_for"] = "spend ceiling"
     with _LOCK:
         _COUNTS[(provider, model, method, entrance, site)] += 1
         _append(record, now)
+    if over is not None:
+        _LOGGER.warning("model call refused: %s", over)
+        raise over
     if refused:
         _LOGGER.error(
             "model call refused: %s asked %s for a model through no gateway "

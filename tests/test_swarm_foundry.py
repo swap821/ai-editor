@@ -259,15 +259,19 @@ def test_every_leg_that_paused_beside_another_is_named(colony) -> None:
 
 
 def test_cloud_burst_obeys_the_one_egress_law(monkeypatch) -> None:
-    """Burst needs its own switch AND the law: with no task allowed to leave
-    the machine, no leg goes to the cloud whatever the switch says."""
-    from aios import config
+    """Burst needs the runtime profile's word AND the law: with no task allowed
+    to leave the machine, no leg goes to the cloud whatever the profile says;
+    with a profile that allows no burst, none goes whatever the law allows
+    (2026-11-10: the profile replaced AIOS_SWARM_CLOUD_BURST)."""
     from aios.agents import swarm as swarm_module
     from aios.application.turns import generate_pipeline
     from aios.core import router, router_wiring
 
     seen: dict = {}
-    monkeypatch.setattr(config, "SWARM_CLOUD_BURST_ENABLED", True)
+    allows = [True]
+    monkeypatch.setattr(
+        generate_pipeline, "profile_allows_cloud_burst", lambda: allows[0]
+    )
     monkeypatch.setattr(
         swarm_module, "run_swarm", lambda *a, **kw: seen.update(kw) or iter(())
     )
@@ -292,3 +296,16 @@ def test_cloud_burst_obeys_the_one_egress_law(monkeypatch) -> None:
             )
         )
         assert seen["cloud_burst"] is expected, law
+    allows[0] = False
+    list(
+        generate_pipeline._swarm_events(
+            lambda **o: None,
+            [],
+            cloud_factory=lambda **o: None,
+            cloud_provider="gemini",
+            target="local",
+            swarm_patterns=None,
+            task="coding",
+        )
+    )
+    assert seen["cloud_burst"] is False, "a profile that allows no burst"

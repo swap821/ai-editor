@@ -249,7 +249,13 @@ def test_cloud_burst_stays_off_by_default(client: TestClient) -> None:
     because a default flip is a one-character change with a cloud-egress blast
     radius.
     """
-    assert config_mod.SWARM_CLOUD_BURST_ENABLED is False, (
-        "AIOS_SWARM_CLOUD_BURST now defaults to on; cloud burst must remain an "
-        "explicit opt-in"
+    from aios.runtime import profiles
+
+    assert not hasattr(config_mod, "SWARM_CLOUD_BURST_ENABLED"), (
+        "AIOS_SWARM_CLOUD_BURST was retired on 2026-11-10: the profile decides"
+    )
+    default = profiles.RUNTIME_PROFILES[profiles.default_profile_name()]
+    assert default.swarm_cloud_burst is False, (
+        "the default runtime profile now allows the burst; it must remain an "
+        "explicit opt-in (the autonomous profile)"
     )

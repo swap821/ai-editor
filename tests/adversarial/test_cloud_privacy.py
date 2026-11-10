@@ -204,15 +204,20 @@ class TestRouterCloudPolicy:
         )
 
     def test_swarm_cloud_burst_default_is_off(self):
-        """TC-SEC-512c: the second egress path must also start closed.
+        """TC-SEC-512c: the swarm's burst starts closed.
 
-        Swarm cloud burst is independent of AIOS_ROUTER_CLOUD_TASKS, so an operator
-        who locks down the router alone could still egress through a swarm subtask.
-        Both switches now default off; this case exists so the two cannot drift
-        apart again."""
-        assert config.SWARM_CLOUD_BURST_ENABLED is False, (
-            "swarm cloud burst is a separate egress path and must be opt-in"
-        )
+        Since 2026-11-10 it has no switch of its own (AIOS_SWARM_CLOUD_BURST is
+        retired): the runtime profile decides, with the egress law. The profile
+        you get without choosing one allows no burst, and every built-in
+        profile that sends no task to the cloud allows none either."""
+        from aios.runtime import profiles
+
+        assert not hasattr(config, "SWARM_CLOUD_BURST_ENABLED")
+        default = profiles.RUNTIME_PROFILES[profiles.default_profile_name()]
+        assert default.swarm_cloud_burst is False
+        for profile in profiles.RUNTIME_PROFILES.values():
+            if not profile.router_cloud_tasks:
+                assert profile.swarm_cloud_burst is False, profile.name
 
     def test_cloud_requires_configured_provider(self):
         """TC-SEC-512b: the real privacy guarantee — even with cloud tasks enabled,

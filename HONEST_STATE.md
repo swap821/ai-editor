@@ -1,9 +1,61 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-09 ("2026-11-09, GAGOS's last finding went to a writer that cannot answer" below;
+**Last updated:** 2026-11-10 ("2026-11-10, cloud spend measured and bounded" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-10, cloud spend measured and bounded; the swarm's burst follows the profile; one review vocabulary and the council's pre-screen (master `fe27925c`, branch `feat/gagos-scoreboard`)
+
+The rest of the operator's "plz honestly do all 1-5", from Codex's design conditions of 2026-11-02 and the consistency plan.
+
+- **Actual usage.** Until now the gateway discarded the tokens providers report, and GAGOS's spend was a character-count estimate. Each metered adapter now records the tokens its provider reports, for a call and for a stream, in `<data>/cloud_spend/<UTC month>.jsonl` (`aios/core/cloud_spend.py`; no prompt, no output):
+  - Bedrock (a Converse response's `usage`, a stream's closing `metadata`);
+  - Gemini (its `usage_metadata`, thinking counted as output);
+  - Anthropic (`usage`, and a stream's `message_start` and `message_delta`);
+  - OpenAI-compatible and Vertex (`usage`; a stream that reports none is recorded from its characters, marked `estimated`).
+  - The dollars are still not the bill: one deliberately high price for every metered model ($1 in, $4 out per million tokens), the workshop's since 2026-11-02, now one source.
+- **One ceiling over every metered call.** `model_calls.observe`, which every adapter calls before a request leaves, refuses a metered call once this UTC month's recorded spend reaches `AIOS_CLOUD_MONTHLY_USD` (default 100, the operator's word of 2026-11-02), whatever its entrance. The refusal is recorded (`refused_for: spend ceiling`) and is an `LLMError`, so a turn's failover moves on, the local brain last. The local brain and his plans are never metered. The ceiling is checked before each call against calls already recorded, so the calls in flight when it is reached can pass it, by cents at GAGOS's sizes: a bound, not a hard cap (AWS Budgets is delayed too).
+- **The workshop** settles each writer's spend from the reported tokens and reads the one price and the one ceiling; its report says so.
+- **The swarm's burst.** `AIOS_SWARM_CLOUD_BURST` is retired and ignored (config warns once if it is set). A burst leg needs the active runtime profile's `swarm_cloud_burst` AND the egress law for its task. The profile field existed and was never read; only `autonomous` allows it, so the operator's `operator` profile, which sends reasoning and coding to the cloud, still sends no swarm leg there. Retiring the switch without the profile would have widened that profile; it was not done. Not yet measured live: a swarm turn on his backend is still his to run.
+- **One review vocabulary.** `aios/domain/reviews.py` holds the schema a deciding reviewer answers in, the one parser, and the one mapping of a council queen's verdict onto accept, defer or reject (an unknown word is defer, never consent). The workshop reads them.
+- **The council's pre-screen.** After each proposal's sandbox run, the council's Critique queen (deterministic, no model, nothing leaves the machine) says whether the pass was earned: did a test runner assert behaviour, and did what ran exercise the change. Its word is on the proposal, in the reviewer's evidence and in the report; it decides nothing (Codex: "advisory and cannot replace dual review or grant authority").
+- **Register:** `cloud-spend` and `review-vocabulary` rows; 44 of 44 guarded. AGENTS.md §XI, README, `DATA_OWNERSHIP.md`, `AUTHORITY_MAP.md`, the env template and the thesis audit say what changed.
+- **Tests:** `tests/test_cloud_spend.py` (8), `tests/test_review_vocabulary.py` (3), two more in `tests/test_gagos_sandbox.py`, one in `tests/test_gagos_daily.py`, and six that pinned the old switch now pin the profile. Every test file touching the providers, the ledger or failover: 2032 passed, 1 skipped; the swarm, profiles, doctor, audit and workshop files: 2092 passed, 11 skipped; architecture and register: 214 passed with the organ currency test failing until the re-gather below.
+- **Organs.** The changes reach organ 32's (`model_calls.py`, `generate_pipeline.py`), 50's (the four adapters), 53's and 54's (`doctor.py`) entrypoints; their evidence is re-gathered at this branch's tip, and again on master after the merge.
+
+## 2026-11-10, GAGOS's writers through the Foundry, and its files claimed (master `fe27925c`, branch `feat/gagos-scoreboard`)
+
+- **Why.** Two items from the same audit, at the operator's word ("plz honestly do all 1-5"):
+  - the consistency plan's "one engine for work" left the workshop's writers on a thread pool of their own, by Claude's judgement (they are tool-less calls), recorded on 2026-11-09 as not done;
+  - Codex's design conditions of 2026-11-02 asked for durable, atomic claims on the files a batch writes.
+- **The writers.** Each writer of a batch is now a worker the Worker Foundry admits (`aios/application/workers/workshop_foundry.py`, as the swarm's legs are):
+  - the operator's emergency stop is checked at admission; an engaged stop admits no writer, and the findings stay for a later hour;
+  - the scheduler runs `WRITERS_AT_ONCE` (2) at a time;
+  - each writer's lifecycle (requested, admitted, started, completed or failed, dissolved) is appended to the cortex bus's outbox, which the backend reads, named by the writer and its files;
+  - one writer's failure never stops the others; a writer past 30 minutes fails and frees its slot.
+  - What a writer does is unchanged: one governed call through the one gateway, which already obeyed the stop, then the unattended checks.
+- **The claims.** Before any writer is asked, each job's files are claimed in GAGOS's ledger (a `claims` table), all of a job's or none, in one immediate transaction. A file another batch holds is left alone; claims are released when the batch ends, and lapse after three hours (a batch that died). Before, only the hourly run claimed its hour; a run started by hand could write the same file as the hourly one.
+- **Not built, because it was built already.** The going-over of the session on 2026-11-10 listed "a confined test runner" as not built. That was wrong: GAGOS's sandbox step (#582, and the frontend's in D14) runs each proposal's tests before review in the executor's container with no network, read-only, all capabilities dropped, memory, CPU and time bounded and no host environment, and `tests/test_gagos_sandbox.py` with `tests/test_gagos_sandbox_containment.py` pin that and that it catches a broken test.
+- **Register.** `worker-engines` now names the workshop's Foundry route and two more guards; 42 of 42 still guarded. `SUBSYSTEM_REGISTRY.md` and `AUTHORITY_MAP.md` describe it.
+- **Tests:** `tests/test_workshop_foundry.py` (5) and six more in `tests/test_gagos_daily.py`. Every test file that uses the workshop, its ledger or a Foundry: 723 passed, 7 skipped. The architecture, register, gateway, Bandit and currency tests: 122 passed.
+
+## 2026-11-10, GAGOS's completion scoreboard (master `fe27925c`, branch `feat/gagos-scoreboard`)
+
+- **Why.** The operator said yes to it on 2026-11-03, and it was never built: his cross-system consistency request came next and the scoreboard was left. Going back over the whole session on 2026-11-10 found it, with the other items not done; he asked for all of them.
+- **What it measures.** Each hourly batch, on master and before any model is asked (an hour the cloud is refused is measured too):
+  - the warnings the checks find, split into the rules GAGOS works on and those whose fix can change behaviour or span files;
+  - frontend modules with no test beside them;
+  - test files with a skip in them (a skip may be conditional, such as Docker or a model being absent);
+  - organs green out of the organ ledger.
+  - Whether the Python checks ran is recorded too, so a count without them is known as one. An organ count that cannot be read is left out, never guessed.
+- **Where.** A `measures` table in GAGOS's ledger, one row an hour. `python tools/gagos_daily.py score` prints the latest against the first hour and the hour before. The daily report has a "Completion" section.
+- **What it is not.** It describes; it is not a test and has no target. The first row is the first hour after this merges, not GAGOS's beginning.
+- **Tests:** four in `tests/test_gagos_daily.py`. The workshop's test files pass: 316 passed, 6 skipped.
+- **On the laptop the same day (not in git):**
+  - 113 old git worktrees, mine from finished work and Codex's from September and October, were removed, with the operator's word. Before that, each one's uncommitted changes were saved as patches in `C:\Users\kumar\worktree-archive-2026-11-10` (25 MB, with a `MANIFEST.json`), and the three heads on no branch were kept as `archive/wt-*` branches. Free disk went from 37 GB to 66 GB. Kept: the main checkout, `C:\gdw` (GAGOS's hourly job), `C:\oc\ai-editor-selfcorpus` and `work\ai-editor`.
+  - **The removal broke the main checkout's frontend packages.** Many of those worktrees' `frontend/node_modules` were junctions to the main checkout's, and deleting the worktrees followed them: 105 of the 354 packages in `frontend/node_modules` were deleted, with Vite's dependency cache. This was already written down as a step to take first (remove the junction with `rmdir`), and it was not taken. Tracked files, `data/` and the venv were not touched. GAGOS's 03:50 UTC batch then refused, its ESLint failing to load. The operator stopped his dev server; `npm ci` reinstalled every package from the lock file (308 required, none missing; jsdom 31.0.0, vite 8.3.6, as #601, #602 and #607 pinned, which his face had not had yet); `daily_backend.py up` restarted the face; a dry run of GAGOS's batch found its 69 warnings again.
+  - `data/services/gagos_quiet.py` now checks a quiet marker's process by its start time as well as its id. Windows reuses ids, so a stale marker could have kept GAGOS aside for as long as an unrelated process with the same id lived.
 
 ## 2026-11-09, GAGOS's last finding went to a writer that cannot answer (master `bd8a75c9`, branch `fix/gagos-probe-takes-no-only-finding`)
 

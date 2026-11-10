@@ -43,11 +43,13 @@ from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 import dataclasses
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
 from aios import config
 from aios.core.model_availability import is_usage_limit_error
+from aios.domain.reviews import REVIEW_SCHEMA as _REVIEW_SCHEMA
+from aios.domain.reviews import parse_review as _parse_review
 from aios.maintenance.frontend_static import Comment, StaticResult
 
 #: Rules whose fix does not change behaviour by nature: removing what is unused,
@@ -1317,15 +1319,9 @@ def first_test_verdict(
 
 # --------------------------------------------------------------------- reviewing
 
-REVIEW_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "verdict": {"type": "string", "enum": ["accept", "reject"]},
-        "reason": {"type": "string"},
-    },
-    "required": ["verdict", "reason"],
-    "additionalProperties": False,
-}
+#: The schema a reviewer answers in: one for the workshop and the council
+#: (aios/domain/reviews.py, 2026-11-10).
+REVIEW_SCHEMA = _REVIEW_SCHEMA
 
 
 def review_prompt(
@@ -1458,16 +1454,8 @@ def first_test_review_prompt(
     )
 
 
-def parse_review(raw: object) -> tuple[str, str]:
-    """``(verdict, reason)`` from a reviewer's structured output, or
-    ``ValueError`` when it is not one."""
-    value = json.loads(raw) if isinstance(raw, str) else raw
-    if not isinstance(value, dict):
-        raise ValueError("review is not an object")
-    verdict, reason = value.get("verdict"), value.get("reason")
-    if verdict not in ("accept", "reject") or not isinstance(reason, str):
-        raise ValueError(f"review has no valid verdict: {value!r}"[:300])
-    return verdict, reason.strip()
+#: A reviewer's structured output, read the one way (aios/domain/reviews.py).
+parse_review = _parse_review
 
 
 # --------------------------------------------------------------------- the ledger
@@ -1559,6 +1547,17 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TEXT NOT NULL,
     also TEXT NOT NULL DEFAULT '[]'
 );
+CREATE TABLE IF NOT EXISTS claims (
+    rel TEXT PRIMARY KEY,
+    holder TEXT NOT NULL,
+    claimed_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS measures (
+    slot TEXT PRIMARY KEY,
+    head TEXT NOT NULL,
+    measured_at TEXT NOT NULL,
+    data TEXT NOT NULL
+);
 """
 
 #: A task the operator wrote (2026-11-03, asked for "bigger work" in GAGOS's
@@ -1639,6 +1638,11 @@ STATUSES = (
 )
 
 
+#: How long a claim on a file lives: a batch that has not released its claims
+#: by then died holding them (the hourly job's own limit is three hours).
+CLAIM_TTL_S = 3 * 3600
+
+
 def _now() -> str:
     # Microseconds: refusal reasons are ordered by time, and seconds tie.
     return datetime.now(timezone.utc).isoformat()
@@ -1663,6 +1667,9 @@ class DailyLedger:
                 db.execute("ALTER TABLE proposals ADD COLUMN facts TEXT")
             if "sandbox" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN sandbox TEXT")
+            # The council's advisory word on a proposal's tests (2026-11-10).
+            if "prescreen" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN prescreen TEXT")
             # A task over several files records one proposal per file, grouped.
             if "group_id" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN group_id TEXT")
@@ -1919,6 +1926,16 @@ class DailyLedger:
                     (refusal, proposal_id),
                 )
 
+    def record_prescreen(self, proposal_id: str, prescreen: str) -> None:
+        """The council's advisory pre-screen of a proposal's tests, as JSON
+        (``queen``, ``verdict`` in the review vocabulary, ``reason``). It
+        decides nothing: the proposal's status is the reviewers'."""
+        with self._db() as db:
+            db.execute(
+                "UPDATE proposals SET prescreen = ? WHERE proposal_id = ?",
+                (prescreen, proposal_id),
+            )
+
     def awaiting_tests(self) -> list[dict]:
         """Proposals awaiting review whose tests have not run in the sandbox."""
         with self._db() as db:
@@ -1971,6 +1988,57 @@ class DailyLedger:
             return True
         finally:
             db.close()
+
+    def claim_files(self, rels: Iterable[str], holder: str) -> bool:
+        """Claim every file in *rels* for *holder*, all or none, atomically
+        across processes (Codex's design conditions, 2026-11-02: durable atomic
+        claims; built 2026-11-10). False when any of them is claimed by another
+        holder whose claim is still live. A holder may claim again what it
+        holds."""
+        wanted = sorted(set(rels))
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=CLAIM_TTL_S)
+        ).isoformat()
+        db = self._db()
+        db.isolation_level = None  # this transaction is managed by hand
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            # A claim older than a batch can live is a batch that died with it.
+            db.execute("DELETE FROM claims WHERE claimed_at < ?", (cutoff,))
+            for rel in wanted:
+                row = db.execute(
+                    "SELECT holder FROM claims WHERE rel = ?", (rel,)
+                ).fetchone()
+                if row is not None and row["holder"] != holder:
+                    db.execute("ROLLBACK")
+                    return False
+            now = _now()
+            db.executemany(
+                "INSERT OR REPLACE INTO claims VALUES (?, ?, ?)",
+                [(rel, holder, now) for rel in wanted],
+            )
+            db.execute("COMMIT")
+            return True
+        finally:
+            db.close()
+
+    def release_claims(self, holder: str) -> int:
+        """Release every file *holder* claimed; how many."""
+        with self._db() as db:
+            return db.execute("DELETE FROM claims WHERE holder = ?", (holder,)).rowcount
+
+    def claimed_files(self) -> set[str]:
+        """Files a live claim holds, whoever holds it."""
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=CLAIM_TTL_S)
+        ).isoformat()
+        with self._db() as db:
+            return {
+                r["rel"]
+                for r in db.execute(
+                    "SELECT rel FROM claims WHERE claimed_at >= ?", (cutoff,)
+                )
+            }
 
     # reads
     def proposals(
@@ -2103,6 +2171,33 @@ class DailyLedger:
     def days(self) -> list[dict]:
         with self._db() as db:
             return [dict(r) for r in db.execute("SELECT * FROM days ORDER BY day")]
+
+    def record_measures(self, slot: str, head: str, values: Mapping[str, int]) -> None:
+        """How complete GAGOS measured itself in this hour's batch, on master at
+        *head* (the completion scoreboard, 2026-11-10). A second measure in the
+        same hour replaces the first."""
+        with self._db() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO measures VALUES (?,?,?,?)",
+                (slot, head, _now(), json.dumps(dict(values), sort_keys=True)),
+            )
+
+    def measures(self) -> list[dict]:
+        """Every hour's measures, oldest first: ``slot``, ``head``,
+        ``measured_at`` and ``values`` (measure name -> count)."""
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT slot, head, measured_at, data FROM measures ORDER BY slot"
+            ).fetchall()
+        return [
+            {
+                "slot": r["slot"],
+                "head": r["head"],
+                "measured_at": r["measured_at"],
+                "values": json.loads(r["data"]),
+            }
+            for r in rows
+        ]
 
     def pr_urls(self) -> list[str]:
         """Every PR a delivery opened, newest first (whether still open is

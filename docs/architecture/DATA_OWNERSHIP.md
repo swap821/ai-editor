@@ -23,7 +23,8 @@
 ## Egress Policy
 
 - `AIOS_ROUTER_CLOUD_TASKS` controls which task classes may leave the machine.
-- `AIOS_SWARM_CLOUD_BURST` controls worker swarm egress.
+- The runtime profile's `swarm_cloud_burst`, with the egress law, controls worker swarm egress (`AIOS_SWARM_CLOUD_BURST` retired 2026-11-10).
+- `AIOS_CLOUD_MONTHLY_USD` bounds every metered cloud call; `<data>/cloud_spend/<UTC month>.jsonl` (owner `aios/core/cloud_spend.py`) records each call's tokens and estimated cost, no prompt or output.
 - Default: some tasks may route to cloud; operator may set to `""` for local-only.
 
 ## Privacy Boundaries

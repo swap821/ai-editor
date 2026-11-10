@@ -31,7 +31,7 @@ from typing import Any, Iterator, Optional
 
 from aios import config
 from aios.application.models.privacy_audit import PrivacyAuditTracker
-from aios.core import model_calls
+from aios.core import cloud_spend, model_calls
 from aios.core.llm import LLMError
 from aios.core.stream_protocol import StreamFinished
 from aios.core.privacy_filter import PrivacyFilter, scrub_exception
@@ -227,6 +227,40 @@ def _parse_output(message: dict[str, Any]) -> dict[str, Any]:
     if tool_calls:
         result["tool_calls"] = tool_calls
     return result
+
+
+def _tokens(usage: Any) -> Optional[tuple[int, int]]:
+    """(input, output) tokens from a Converse ``usage`` block, or None."""
+    if not isinstance(usage, dict):
+        return None
+    try:
+        return int(usage.get("inputTokens") or 0), int(usage.get("outputTokens") or 0)
+    except (TypeError, ValueError):
+        return None
+
+
+def _with_usage(response: Any, model: str) -> Any:
+    """Record the tokens AWS reports for a call (2026-11-10, cloud_spend): a
+    Converse response's ``usage``, or a stream's closing ``metadata`` event."""
+    if not isinstance(response, dict):
+        return response
+    if "stream" in response:
+        counted = dict(response)
+        counted["stream"] = cloud_spend.counted_stream(
+            response["stream"] or [],
+            "bedrock",
+            model,
+            lambda event: (
+                _tokens((event.get("metadata") or {}).get("usage"))
+                if isinstance(event, dict)
+                else None
+            ),
+        )
+        return counted
+    found = _tokens(response.get("usage"))
+    if found is not None:
+        cloud_spend.record_usage("bedrock", model, *found)
+    return response
 
 
 def _stream_text_from_converse(response: dict[str, Any]) -> Iterator[str]:
@@ -425,13 +459,15 @@ class BedrockClient:
         if model in _NO_TEMPERATURE:
             config_block.pop("temperature", None)
         try:
-            return call(**kwargs)
+            response = call(**kwargs)
         except Exception as exc:  # noqa: BLE001 - re-raised unless it is that one refusal
             if "temperature" in config_block and _TEMPERATURE_REJECTED.search(str(exc)):
                 _NO_TEMPERATURE.add(model)
                 config_block.pop("temperature", None)
-                return call(**kwargs)
-            raise
+                response = call(**kwargs)
+            else:
+                raise
+        return _with_usage(response, model)
 
     def chat(
         self,

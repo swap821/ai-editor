@@ -173,16 +173,38 @@
       "places": [
         "aios/application/workers/foundry.py::WorkerFoundryAuthority",
         "aios/application/workers/swarm_foundry.py::SwarmFoundry",
+        "aios/application/workers/workshop_foundry.py::WorkshopFoundry",
         "aios/council/council_orchestrator.py::WorkerFoundry",
         "aios/application/turns/generate_pipeline.py::make_agent",
-        "tools/gagos_daily.py::ThreadPoolExecutor"
+        "tools/gagos_daily.py::writers_foundry"
       ],
       "guards": [
         "tests/test_swarm_foundry.py::test_an_acting_agent_is_built_only_by_the_turns_two_factories",
         "tests/test_swarm_foundry.py::test_every_caste_leg_is_a_worker_the_foundry_admits",
-        "tests/test_consistency_guards.py::test_the_workshop_asks_the_clis_sealed_as_the_plan_client_does"
+        "tests/test_consistency_guards.py::test_the_workshop_asks_the_clis_sealed_as_the_plan_client_does",
+        "tests/test_gagos_daily.py::test_a_batchs_writers_are_workers_the_foundry_admits",
+        "tests/test_workshop_foundry.py::test_an_engaged_stop_admits_no_writer"
       ],
-      "note": "Settled 2026-11-09 with the operator ('Swarm into the Foundry'). Four paths, each named and pinned: the swarm's caste legs are workers the Foundry admits (they act); the council's workers run in the backend Foundry; the operator's main turn runs its own tool agent, apart from the Foundry by his decision; the workshop's writers are sealed model calls through the one gateway, with no tools, so they do not act and need no Foundry. Every tool agent in production comes from the generate pipeline's two factories, so a tool agent built anywhere else fails the guard."
+      "note": "Settled 2026-11-09 with the operator ('Swarm into the Foundry'). Four paths, each named and pinned: the swarm's caste legs are workers the Foundry admits (they act); the council's workers run in the backend Foundry; the operator's main turn runs its own tool agent, apart from the Foundry by his decision; the workshop's writers are sealed model calls through the one gateway, with no tools; since 2026-11-10 (the operator: 'plz honestly do all 1-5') each is also a worker the Foundry admits, under his emergency stop at admission, WRITERS_AT_ONCE at a time, its lifecycle on the bus. Every tool agent in production comes from the generate pipeline's two factories, so a tool agent built anywhere else fails the guard."
+    },
+    {
+      "id": "review-vocabulary",
+      "fact": "How a review of a change is answered: the workshop reviewer's verdict and a council queen's, in one vocabulary.",
+      "state": "single",
+      "source": "aios/domain/reviews.py::REVIEW_SCHEMA",
+      "places": [
+        "aios/domain/reviews.py::REVIEW_SCHEMA",
+        "aios/domain/reviews.py::queen_review",
+        "aios/maintenance/daily_work.py::REVIEW_SCHEMA",
+        "aios/maintenance/daily_work.py::parse_review",
+        "tools/gagos_daily.py::council_prescreen"
+      ],
+      "guards": [
+        "tests/test_review_vocabulary.py::test_the_workshop_reads_the_one_schema_and_parser",
+        "tests/test_review_vocabulary.py::test_a_queens_verdict_maps_onto_the_same_words",
+        "tests/test_gagos_sandbox.py::test_the_councils_critique_queen_pre_screens_each_tested_proposal"
+      ],
+      "note": "Settled 2026-11-10 (the operator: 'plz honestly do all 1-5'; the consistency plan's one review schema, and Codex's council pre-screen of 2026-11-02). The Critique queen and the workshop's reviewer ask different questions, so neither replaces the other; they share one schema, one parser and one mapping of a queen's verdict onto accept, defer or reject. The queen now pre-screens every tested GAGOS proposal, advisory: the reviewer and the operator read its word, and it decides nothing."
     },
     {
       "id": "one-model-gateway",
@@ -612,7 +634,25 @@
         "tests/architecture/test_one_provider_registry.py::test_a_side_job_takes_the_first_configured_unrefused_cloud_brain",
         "tests/architecture/test_one_provider_registry.py::test_every_side_job_takes_its_cloud_brain_one_way"
       ],
-      "note": "One choice since 2026-11-09: the registry's first configured cloud brain whose model this account has not refused. The council's dissent walked the registry; CRAG took 'gemini or bedrock' (in the chat route and the generate pipeline alike) and the swarm's burst 'bedrock or gemini', blind to refusals. Each keeps its own switch (CRAG's cloud source and the swarm's burst are off by default); only which brain answers is shared."
+      "note": "One choice since 2026-11-09: the registry's first configured cloud brain whose model this account has not refused. The council's dissent walked the registry; CRAG took 'gemini or bedrock' (in the chat route and the generate pipeline alike) and the swarm's burst 'bedrock or gemini', blind to refusals. CRAG keeps its own switch (off by default); the swarm's burst has none since 2026-11-10 (the runtime profile's swarm_cloud_burst and the egress law decide); only which brain answers is shared."
+    },
+    {
+      "id": "cloud-spend",
+      "fact": "What a metered cloud call costs, and the month's ceiling over all of them.",
+      "state": "single",
+      "source": "aios/core/cloud_spend.py::PRICE_PER_MTOK",
+      "places": [
+        "aios/core/cloud_spend.py::PRICE_PER_MTOK",
+        "aios/config.py::CLOUD_MONTHLY_USD",
+        "aios/core/model_calls.py::ensure_under_ceiling",
+        "tools/gagos_daily.py::MONTHLY_AWS_USD",
+        "tools/gagos_daily.py::PRICE_PER_MTOK"
+      ],
+      "guards": [
+        "tests/test_cloud_spend.py::test_at_the_ceiling_a_metered_call_is_refused_before_it_leaves",
+        "tests/test_gagos_daily.py::test_a_writers_spend_is_settled_from_the_tokens_its_provider_reported"
+      ],
+      "note": "Found 2026-11-10 (the operator: 'plz honestly do all 1-5'; Codex's design conditions of 2026-11-02): only GAGOS's workshop held a ceiling, over its own calls, priced by its own constants, and the gateway discarded the tokens providers report. Now one price and one ceiling: cloud_spend owns the price, config the ceiling (AIOS_CLOUD_MONTHLY_USD, default 100), the workshop reads both, and model_calls.observe refuses a metered call past the ceiling whatever its entrance."
     },
     {
       "id": "brain-availability",
