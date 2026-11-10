@@ -43,7 +43,7 @@ from collections import Counter
 from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 import dataclasses
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path, PurePosixPath
 
 from aios import config
@@ -1559,6 +1559,11 @@ CREATE TABLE IF NOT EXISTS tasks (
     updated_at TEXT NOT NULL,
     also TEXT NOT NULL DEFAULT '[]'
 );
+CREATE TABLE IF NOT EXISTS claims (
+    rel TEXT PRIMARY KEY,
+    holder TEXT NOT NULL,
+    claimed_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS measures (
     slot TEXT PRIMARY KEY,
     head TEXT NOT NULL,
@@ -1643,6 +1648,11 @@ STATUSES = (
     "stale",
     "failed",
 )
+
+
+#: How long a claim on a file lives: a batch that has not released its claims
+#: by then died holding them (the hourly job's own limit is three hours).
+CLAIM_TTL_S = 3 * 3600
 
 
 def _now() -> str:
@@ -1977,6 +1987,57 @@ class DailyLedger:
             return True
         finally:
             db.close()
+
+    def claim_files(self, rels: Iterable[str], holder: str) -> bool:
+        """Claim every file in *rels* for *holder*, all or none, atomically
+        across processes (Codex's design conditions, 2026-11-02: durable atomic
+        claims; built 2026-11-10). False when any of them is claimed by another
+        holder whose claim is still live. A holder may claim again what it
+        holds."""
+        wanted = sorted(set(rels))
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=CLAIM_TTL_S)
+        ).isoformat()
+        db = self._db()
+        db.isolation_level = None  # this transaction is managed by hand
+        try:
+            db.execute("BEGIN IMMEDIATE")
+            # A claim older than a batch can live is a batch that died with it.
+            db.execute("DELETE FROM claims WHERE claimed_at < ?", (cutoff,))
+            for rel in wanted:
+                row = db.execute(
+                    "SELECT holder FROM claims WHERE rel = ?", (rel,)
+                ).fetchone()
+                if row is not None and row["holder"] != holder:
+                    db.execute("ROLLBACK")
+                    return False
+            now = _now()
+            db.executemany(
+                "INSERT OR REPLACE INTO claims VALUES (?, ?, ?)",
+                [(rel, holder, now) for rel in wanted],
+            )
+            db.execute("COMMIT")
+            return True
+        finally:
+            db.close()
+
+    def release_claims(self, holder: str) -> int:
+        """Release every file *holder* claimed; how many."""
+        with self._db() as db:
+            return db.execute("DELETE FROM claims WHERE holder = ?", (holder,)).rowcount
+
+    def claimed_files(self) -> set[str]:
+        """Files a live claim holds, whoever holds it."""
+        cutoff = (
+            datetime.now(timezone.utc) - timedelta(seconds=CLAIM_TTL_S)
+        ).isoformat()
+        with self._db() as db:
+            return {
+                r["rel"]
+                for r in db.execute(
+                    "SELECT rel FROM claims WHERE claimed_at >= ?", (cutoff,)
+                )
+            }
 
     # reads
     def proposals(

@@ -1,9 +1,25 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-10 ("2026-11-10, GAGOS's completion scoreboard" below;
+**Last updated:** 2026-11-10 ("2026-11-10, GAGOS's writers through the Foundry" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-10, GAGOS's writers through the Foundry, and its files claimed (master `fe27925c`, branch `feat/gagos-scoreboard`)
+
+- **Why.** Two items from the same audit, at the operator's word ("plz honestly do all 1-5"):
+  - the consistency plan's "one engine for work" left the workshop's writers on a thread pool of their own, by Claude's judgement (they are tool-less calls), recorded on 2026-11-09 as not done;
+  - Codex's design conditions of 2026-11-02 asked for durable, atomic claims on the files a batch writes.
+- **The writers.** Each writer of a batch is now a worker the Worker Foundry admits (`aios/application/workers/workshop_foundry.py`, as the swarm's legs are):
+  - the operator's emergency stop is checked at admission; an engaged stop admits no writer, and the findings stay for a later hour;
+  - the scheduler runs `WRITERS_AT_ONCE` (2) at a time;
+  - each writer's lifecycle (requested, admitted, started, completed or failed, dissolved) is appended to the cortex bus's outbox, which the backend reads, named by the writer and its files;
+  - one writer's failure never stops the others; a writer past 30 minutes fails and frees its slot.
+  - What a writer does is unchanged: one governed call through the one gateway, which already obeyed the stop, then the unattended checks.
+- **The claims.** Before any writer is asked, each job's files are claimed in GAGOS's ledger (a `claims` table), all of a job's or none, in one immediate transaction. A file another batch holds is left alone; claims are released when the batch ends, and lapse after three hours (a batch that died). Before, only the hourly run claimed its hour; a run started by hand could write the same file as the hourly one.
+- **Not built, because it was built already.** The going-over of the session on 2026-11-10 listed "a confined test runner" as not built. That was wrong: GAGOS's sandbox step (#582, and the frontend's in D14) runs each proposal's tests before review in the executor's container with no network, read-only, all capabilities dropped, memory, CPU and time bounded and no host environment, and `tests/test_gagos_sandbox.py` with `tests/test_gagos_sandbox_containment.py` pin that and that it catches a broken test.
+- **Register.** `worker-engines` now names the workshop's Foundry route and two more guards; 42 of 42 still guarded. `SUBSYSTEM_REGISTRY.md` and `AUTHORITY_MAP.md` describe it.
+- **Tests:** `tests/test_workshop_foundry.py` (5) and six more in `tests/test_gagos_daily.py`. Every test file that uses the workshop, its ledger or a Foundry: 723 passed, 7 skipped. The architecture, register, gateway, Bandit and currency tests: 122 passed.
 
 ## 2026-11-10, GAGOS's completion scoreboard (master `fe27925c`, branch `feat/gagos-scoreboard`)
 

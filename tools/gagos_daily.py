@@ -51,6 +51,7 @@ identity and constitution, and is recorded in his model-call ledger.
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import re
@@ -59,8 +60,8 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -141,6 +142,11 @@ from aios.maintenance.python_static import (  # noqa: E402
 
 # One derivation for the workshop and the counter (2026-11-03): how a Codex
 # session is sealed, and where the real Claude Code binary is.
+from aios.application.governance.emergency_stop import EmergencyStopError  # noqa: E402
+from aios.application.workers.workshop_foundry import (  # noqa: E402
+    WorkshopFoundry,
+    WriterLeg,
+)
 from aios.core.plan_cli import CLAUDE_SEALED, CODEX_SEALED  # noqa: E402
 from aios.core.plan_cli import claude_executable as _claude_executable  # noqa: E402
 from aios.core.plan_cli import codex_executable as _codex_executable  # noqa: E402
@@ -705,6 +711,26 @@ def record_task_files(
     )
 
 
+def job_files(job: tuple) -> list[str]:
+    """The files one batch job writes: a task's several, or its finding's one."""
+    parts = job[8]
+    return [part[0] for part in parts] if parts else [job[0].rel]
+
+
+def writers_foundry() -> WorkshopFoundry:
+    """The Worker Foundry the batch's writers are admitted by: under the
+    operator's durable emergency stop (the one the gateway already obeys) and on
+    the cortex bus's outbox, which the backend reads."""
+    from aios.api.deps import get_emergency_stop
+    from aios.runtime.cortex_bus import CortexBus
+
+    return WorkshopFoundry(
+        emergency_stop=get_emergency_stop(),
+        bus=CortexBus() if config.CORTEX_BUS else None,
+        writers_at_once=WRITERS_AT_ONCE,
+    )
+
+
 def cmd_propose(args: argparse.Namespace) -> int:
     root = Path(args.project).resolve()
     led = ledger()
@@ -938,8 +964,24 @@ def cmd_propose(args: argparse.Namespace) -> int:
         [j for j, m in zip(jobs, writers) if m],
         [m for m in writers if m],
     )
-    completers = {m: governed_completer(m, args.region) for m in dict.fromkeys(writers)}
     month, slot, lint = _month(), _slot(), threading.Lock()
+    # Each job's files are claimed before any writer is asked, all of a job's
+    # or none, durably and across processes: two batches running at once (an
+    # hourly one and one started by hand) never write the same file
+    # (Codex's design conditions, 2026-11-02; built 2026-11-10).
+    holder = f"batch:{slot}:{os.getpid()}:{uuid.uuid4().hex[:8]}"
+    claimed = [
+        (job, model)
+        for job, model in zip(jobs, writers)
+        if led.claim_files(job_files(job), holder)
+    ]
+    if len(claimed) < len(jobs):
+        print(
+            f"  {len(jobs) - len(claimed)} finding(s) left alone: another batch "
+            "has claimed their files"
+        )
+    jobs, writers = [j for j, _ in claimed], [m for _, m in claimed]
+    completers = {m: governed_completer(m, args.region) for m in dict.fromkeys(writers)}
 
     def attempt(n: int, job: tuple, model: str) -> None:
         f, text, masked, mapping, prompt, system, common, task_id, parts = job
@@ -1071,12 +1113,32 @@ def cmd_propose(args: argparse.Namespace) -> int:
             f"  {len(jobs)} finding(s) to {len(set(writers))} writer(s): "
             + ", ".join(f"{m} {writers.count(m)}" for m in dict.fromkeys(writers))
         )
-    with ThreadPoolExecutor(max_workers=WRITERS_AT_ONCE) as pool:
-        for done in [
-            pool.submit(attempt, n, job, model)
-            for n, (job, model) in enumerate(zip(jobs, writers), 1)
-        ]:
-            done.result()
+    # Each writer is a worker the Worker Foundry admits (the consistency plan's
+    # "one engine for work", 2026-11-10): the operator's emergency stop at
+    # admission, WRITERS_AT_ONCE at a time, its lifecycle on the cortex bus.
+    try:
+        outcomes = writers_foundry().run_batch(
+            f"gagos-{slot}",
+            [
+                WriterLeg(
+                    model,
+                    tuple(job_files(job)),
+                    functools.partial(attempt, n, job, model),
+                )
+                for n, (job, model) in enumerate(zip(jobs, writers), 1)
+            ],
+        )
+    finally:
+        led.release_claims(holder)
+    stopped = [o for o in outcomes if isinstance(o, EmergencyStopError)]
+    if stopped:
+        print(
+            f"  {len(stopped)} writer(s) not admitted: {stopped[0]}; their findings "
+            "stay for a later hour"
+        )
+    failed = [o for o in outcomes if o is not None and o not in stopped]
+    if failed:
+        raise failed[0]
     return 0
 
 
@@ -2641,13 +2703,14 @@ def in_flight(led: DailyLedger, open_prs: list[str]) -> set[str]:
     """Files GAGOS's unmerged work touches: under review, accepted, committed
     but unpublished, or in a PR not yet merged or closed. A new proposal on
     one would go stale against GAGOS's own change, so a batch leaves them
-    alone until that work merges or is turned down."""
+    alone until that work merges or is turned down. Files another batch has
+    claimed and not yet released are left alone too."""
     busy = {
         p["rel"]
         for p in led.proposals()
         if p["status"] in ("proposed", "accepted", "committed")
     }
-    return busy | led.rels_in_prs(open_prs)
+    return busy | led.rels_in_prs(open_prs) | led.claimed_files()
 
 
 def _pr_state(url: str) -> str:

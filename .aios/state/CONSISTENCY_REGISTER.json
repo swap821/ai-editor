@@ -173,16 +173,19 @@
       "places": [
         "aios/application/workers/foundry.py::WorkerFoundryAuthority",
         "aios/application/workers/swarm_foundry.py::SwarmFoundry",
+        "aios/application/workers/workshop_foundry.py::WorkshopFoundry",
         "aios/council/council_orchestrator.py::WorkerFoundry",
         "aios/application/turns/generate_pipeline.py::make_agent",
-        "tools/gagos_daily.py::ThreadPoolExecutor"
+        "tools/gagos_daily.py::writers_foundry"
       ],
       "guards": [
         "tests/test_swarm_foundry.py::test_an_acting_agent_is_built_only_by_the_turns_two_factories",
         "tests/test_swarm_foundry.py::test_every_caste_leg_is_a_worker_the_foundry_admits",
-        "tests/test_consistency_guards.py::test_the_workshop_asks_the_clis_sealed_as_the_plan_client_does"
+        "tests/test_consistency_guards.py::test_the_workshop_asks_the_clis_sealed_as_the_plan_client_does",
+        "tests/test_gagos_daily.py::test_a_batchs_writers_are_workers_the_foundry_admits",
+        "tests/test_workshop_foundry.py::test_an_engaged_stop_admits_no_writer"
       ],
-      "note": "Settled 2026-11-09 with the operator ('Swarm into the Foundry'). Four paths, each named and pinned: the swarm's caste legs are workers the Foundry admits (they act); the council's workers run in the backend Foundry; the operator's main turn runs its own tool agent, apart from the Foundry by his decision; the workshop's writers are sealed model calls through the one gateway, with no tools, so they do not act and need no Foundry. Every tool agent in production comes from the generate pipeline's two factories, so a tool agent built anywhere else fails the guard."
+      "note": "Settled 2026-11-09 with the operator ('Swarm into the Foundry'). Four paths, each named and pinned: the swarm's caste legs are workers the Foundry admits (they act); the council's workers run in the backend Foundry; the operator's main turn runs its own tool agent, apart from the Foundry by his decision; the workshop's writers are sealed model calls through the one gateway, with no tools; since 2026-11-10 (the operator: 'plz honestly do all 1-5') each is also a worker the Foundry admits, under his emergency stop at admission, WRITERS_AT_ONCE at a time, its lifecycle on the bus. Every tool agent in production comes from the generate pipeline's two factories, so a tool agent built anywhere else fails the guard."
     },
     {
       "id": "one-model-gateway",

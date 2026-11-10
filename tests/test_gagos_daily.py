@@ -1156,3 +1156,152 @@ def test_the_score_command_prints_the_scoreboard(tmp_path, monkeypatch, capsys) 
         "GAGOS's completion" in out
         and "warnings the checks find in GAGOS's editable files: 3" in out
     )
+
+
+# --------------------------------------------------------------------- claims and the Foundry
+
+
+def test_files_are_claimed_all_or_none_and_a_dead_batchs_claim_lapses(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    assert led.claim_files(["a.jsx", "b.jsx"], "batch:1")
+    assert led.claim_files(["a.jsx"], "batch:1"), (
+        "a holder may claim again what it holds"
+    )
+    assert not led.claim_files(["b.jsx", "c.jsx"], "batch:2"), (
+        "one held file refuses all"
+    )
+    assert led.claimed_files() == {"a.jsx", "b.jsx"}, "c.jsx was not claimed either"
+    assert led.release_claims("batch:1") == 2 and led.claimed_files() == set()
+    assert led.claim_files(["b.jsx", "c.jsx"], "batch:2")
+    import sqlite3
+
+    with sqlite3.connect(tmp_path / "l.db") as db:
+        db.execute("UPDATE claims SET claimed_at = '2000-01-01T00:00:00+00:00'")
+    assert led.claimed_files() == set(), "a claim older than a batch can live lapses"
+    assert led.claim_files(["c.jsx"], "batch:3")
+
+
+def test_two_ledgers_racing_for_a_file_never_both_win(tmp_path) -> None:
+    """Atomic across processes: two ledgers on one file, as two batches would be."""
+    import threading
+
+    wins: list[str] = []
+    start = threading.Barrier(8)
+
+    def race(holder: str) -> None:
+        led = dw.DailyLedger(tmp_path / "l.db")
+        start.wait()
+        if led.claim_files(["a.jsx"], holder):
+            wins.append(holder)
+
+    dw.DailyLedger(tmp_path / "l.db")
+    threads = [threading.Thread(target=race, args=(f"b{i}",)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert len(wins) == 1
+
+
+def _propose_setup(tmp_path, monkeypatch, asked):
+    root = _repo(tmp_path / "project")
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    monkeypatch.setattr(
+        tool,
+        "check_texts",
+        lambda r, texts, **kw: {
+            k: _result() if v == AFTER else _result(_warn(RULE))
+            for k, v in texts.items()
+        },
+    )
+    monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (True, ""))
+
+    def completer(model, region):
+        def complete(prompt, system, request_id):
+            asked.append(model)
+            return f"```jsx\n{AFTER}```"
+
+        return complete
+
+    monkeypatch.setattr(tool, "governed_completer", completer)
+    args = SimpleNamespace(
+        project=str(root), budget=2, model="m", region="r", rules=[RULE], dry_run=False
+    )
+    return led, args
+
+
+class _Stop:
+    def __init__(self, error=None) -> None:
+        self.error = error
+
+    def assert_operational(self) -> None:
+        if self.error is not None:
+            raise self.error
+
+
+class _Bus:
+    def __init__(self) -> None:
+        self.events: list = []
+
+    def append(self, event) -> None:
+        self.events.append(event)
+
+
+def test_a_batchs_writers_are_workers_the_foundry_admits(tmp_path, monkeypatch) -> None:
+    from aios.application.workers.workshop_foundry import WorkshopFoundry
+
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    bus = _Bus()
+    monkeypatch.setattr(
+        tool,
+        "writers_foundry",
+        lambda: WorkshopFoundry(emergency_stop=_Stop(), bus=bus, writers_at_once=2),
+    )
+    assert tool.cmd_propose(args) == 0
+    assert asked == ["m"] and len(led.proposals()) == 1
+    kinds = [e.event_type for e in bus.events]
+    assert kinds[0] == "worker.requested" and kinds[-1] == "worker.dissolved"
+    assert "worker.completed" in kinds
+    assert {e.payload["scope"]["files"][0] for e in bus.events} == {REL}
+    assert led.claimed_files() == set(), "the batch releases its claims"
+
+
+def test_an_engaged_emergency_stop_asks_no_writer(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    from aios.application.governance.emergency_stop import EmergencyStopError
+    from aios.application.workers.workshop_foundry import WorkshopFoundry
+
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    stop = _Stop(
+        EmergencyStopError("emergency stop is engaged; side effects are disabled")
+    )
+    monkeypatch.setattr(
+        tool, "writers_foundry", lambda: WorkshopFoundry(emergency_stop=stop)
+    )
+    assert tool.cmd_propose(args) == 0
+    assert asked == [] and led.proposals() == [], "the finding stays for a later hour"
+    assert "not admitted: emergency stop is engaged" in capsys.readouterr().out
+    assert led.claimed_files() == set()
+
+
+def test_a_file_another_batch_claimed_is_left_alone(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    assert led.claim_files([REL], "batch:another")
+    assert tool.cmd_propose(args) == 0
+    assert asked == [] and led.proposals() == []
+    assert led.claimed_files() == {REL}, "another batch's claim is not ours to release"
+    led.release_claims("batch:another")
+    assert tool.cmd_propose(args) == 0 and asked == ["m"]
+
+
+def test_a_claimed_file_is_in_flight(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    assert led.claim_files([REL], "batch:another")
+    assert REL in tool.in_flight(led, [])
