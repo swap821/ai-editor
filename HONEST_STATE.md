@@ -1,9 +1,14 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-10 ("2026-11-10, cloud spend measured and bounded" below;
+**Last updated:** 2026-11-10 ("2026-11-10, #611 merged; its organ evidence on master" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-10, #611 merged; its organ evidence on master (master `307f8abf`, branch `evidence/after-611`)
+
+- The operator merged #611 as squash `307f8abf`, which orphaned the branch tip its evidence was gathered at (`44cfc20c`). `phase4_live_evidence.py --tip 307f8abf` passed every claimed organ, Docker available; attached, the organ doc and the release manifest rebuilt. The organ ledger, currency and manifest tests: 323 passed, 1 skipped. The expected cost of a squash merge, as #606 after #604.
+- The daily backend still runs `bd8a75c9`, the main checkout's code; #609, #610 and #611 reach it when the operator's checkout is updated and the backend restarted. GAGOS's hourly job runs master's code by itself.
 
 ## 2026-11-10, cloud spend measured and bounded; the swarm's burst follows the profile; one review vocabulary and the council's pre-screen (master `fe27925c`, branch `feat/gagos-scoreboard`)
 
