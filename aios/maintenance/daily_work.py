@@ -1749,6 +1749,10 @@ def task_path(rel: str) -> str:
     return raw
 
 
+#: A proposal that creates a file, or deletes one (2026-11-11, the crew); an
+#: edit records no op.
+OP_CREATE, OP_DELETE = "create", "delete"
+
 #: Proposal statuses. ``refused`` = failed the unattended checks or the model
 #: gave no usable answer; ``proposed`` = awaiting reviews; ``accepted`` = both
 #: reviewers accepted; ``rejected`` = a reviewer rejected; ``committed`` = on a
@@ -2002,6 +2006,11 @@ class DailyLedger:
             # A task over several files records one proposal per file, grouped.
             if "group_id" not in have:
                 db.execute("ALTER TABLE proposals ADD COLUMN group_id TEXT")
+            # A crew's change may create or delete a file (2026-11-11): NULL is
+            # an edit, else "create" (base text empty) or "delete" (new text
+            # empty).
+            if "op" not in have:
+                db.execute("ALTER TABLE proposals ADD COLUMN op TEXT")
             task_cols = {r["name"] for r in db.execute("PRAGMA table_info(tasks)")}
             if "also" not in task_cols:
                 db.execute(
@@ -2035,11 +2044,20 @@ class DailyLedger:
         arm: str | None = None,
         playbook_seen: Sequence[str] = (),
         playbook_active: int = 0,
+        op: str | None = None,
     ) -> str:
         """*group_id*: the task whose several files this proposal is one of;
         the group is tested, reviewed and delivered together. *arm*,
         *playbook_seen* and *playbook_active*: D15's record (the finding's arm,
-        the entries its writer was shown, how many were active)."""
+        the entries its writer was shown, how many were active). *op*: None for
+        an edit, :data:`OP_CREATE` (its *base_text* is empty) or
+        :data:`OP_DELETE` (its *new_text* is empty)."""
+        if op not in (None, OP_CREATE, OP_DELETE):
+            raise ValueError(f"unknown proposal op: {op!r}")
+        if op == OP_DELETE and new_text not in (None, ""):
+            raise ValueError("a deletion's new text is empty")
+        if op == OP_CREATE and base_text:
+            raise ValueError("a new file has no base text")
         proposal_id = f"gd-{uuid.uuid4().hex[:10]}"
         passed = verdict is not None and verdict.passed and refusal is None
         reason = refusal or (None if passed else (verdict.reason if verdict else None))
@@ -2059,8 +2077,8 @@ class DailyLedger:
                 "INSERT INTO proposals (proposal_id, day, created_at, rel, rule, "
                 "warnings, base_digest, base_commit, base_text, model, status, "
                 "refusal, new_text, new_digest, diff, changed_lines, facts, group_id, "
-                "arm, playbook_seen, playbook_active) "
-                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                "arm, playbook_seen, playbook_active, op) "
+                "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     proposal_id,
                     day or datetime.now(timezone.utc).date().isoformat(),
@@ -2083,6 +2101,7 @@ class DailyLedger:
                     arm,
                     json.dumps(list(playbook_seen)),
                     int(playbook_active),
+                    op,
                 ),
             )
         return proposal_id
@@ -3052,6 +3071,8 @@ __all__ = [
     "MAX_TEST_LINES",
     "MISSING_TEST",
     "NO_MODEL",
+    "OP_CREATE",
+    "OP_DELETE",
     "UNSHOWABLE",
     "MaskingFailed",
     "PROPOSER_SYSTEM",

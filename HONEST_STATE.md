@@ -1,9 +1,29 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, a task's writer answers with edits" below;
+**Last updated:** 2026-11-11 ("2026-11-11, GAGOS gets a crew" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, GAGOS gets a crew: a lead and parallel sub-agents, like Codex or ultracode (master `23b1c4bd`, branch `feat/gagos-crew`)
+
+- **The operator's words:** "Make GAGOS work same like codex (multi-sub agents) working ... Same like u do work on ultra code and I think GAGOS is capable of that". For the agents' tools he chose "Files + sandboxed tests (Recommended)". This opens, on purpose, the seal Codex asked for in #566, where the writers had no tools.
+- **What was built:**
+  - **The masked copy** (`aios/maintenance/crew_workspace.py`): each agent works in a copy of the base commit's tracked files under the task's scopes, masked as the workshop masks what it sends. Placeholders are numbered once across the copy, so one can move between files. Unmaskable files are left out. Changes, new files and deletions are read back and restored.
+  - **`run_tests`** (`tools/gagos_crew_mcp.py`): an MCP server, the agent's only GAGOS tool. It restores the agent's changes from a state file kept outside the copy, runs them in the sealed sandbox (tests and `tsc`), and answers masked again.
+  - **Deletions in the sandbox:** it now removes a deleted file while tests run, and the type check catches broken imports.
+  - **The agents** (`aios/maintenance/crew_agents.py`): a read-only lead returns a structured plan of at most 6 sub-tasks with no shared files. Workers get Read/Grep/Glob/Edit/Write plus `run_tests` and nothing else: no shell, no web, no other MCP server. Prompts go on stdin.
+  - **The crew command** (`tools/gagos_crew.py`): the lead, then the workers through the Worker Foundry. A worker that touched files outside its sub-task stops the change. The result is recorded as one group of proposals; the ledger records create and delete (`op`), the reviewer is told, and delivery applies, stages and checks staleness for each.
+  - **Running it:** off until `AIOS_GAGOS_CREW=1`; the hour's sandbox, review and delivery then carry the group.
+- **Measured live:**
+  - **Claude Code's limits:** a Claude Code agent with file tools edited its copy and was refused reading a canary outside it.
+  - **`run_tests` over MCP:** a Haiku agent called `run_tests` and got the sandbox's verdict back.
+  - **The lead:** a Haiku lead returned a valid plan through `--json-schema`.
+  - **Two Windows defects found by these tests and fixed:** `cmd.exe` cuts `claude.CMD`'s arguments at a line break. That truncated the lead's prompt; the prompt now goes on stdin.
+  - **Codex agent mode is untested;** its plan was at its limit until 11-12 17:12.
+- **The first real crew run** was on removing the unmounted `SuperbrainHUD`. Claude Code stopped it for low memory: 1.6 GB free of 15.4. By then the lead had planned one sub-task, and the worker had created `lib/cognitiveMode.ts` with the type exactly as the HUD declared it, repointed the three importers (the 100,000-character LEGACY scene among them), and started its sandbox run. Not yet a complete live proof.
+- **A finding for the operator.** The privacy filter's entropy rule masks long identifiers as possible secrets: about 7,900 placeholders in 516 of 603 frontend files (one file: 156 against 1 real credential). Writers and agents work on code whose names are hidden. Changing this is the operator's call.
+- **Tests:** 48 new, among them create/delete delivery, deletions in the sandbox, the MCP protocol, the plan checks and the crew run with stand-in agents. Workshop set: 437 passed, 8 skipped. Bandit +4, read and budgeted (subprocess with fixed arguments and no shell); B607 fixed.
 
 ## 2026-11-11, a task's writer answers with edits (master `a79a4030`, branch `feat/gagos-task-edits`)
 

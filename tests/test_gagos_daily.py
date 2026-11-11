@@ -1671,3 +1671,146 @@ def test_writers_run_at_once_as_memory_allows() -> None:
     assert tool.writers_at_once(tool.SPARE_MB + tool.WRITER_MB * 2 + 1) == 2
     assert tool.writers_at_once(100) == 1
     assert tool.PLAN_PROPOSALS_PER_BATCH <= tool.BATCH_PROPOSALS <= tool.REVIEW_LIMIT
+
+
+# --------------------------------------------------------------------- create and delete (2026-11-11)
+
+NEW_REL = "frontend/src/workbench/Fresh.jsx"
+OLD_REL = "frontend/src/workbench/Old.jsx"
+OLD_TEXT = "export const old = 1;\n"
+NEW_TEXT = "export const fresh = 1;\n"
+
+
+def _crew_unit(led, seed):
+    """A task over three files: edit Panel.jsx, create Fresh.jsx, delete
+    Old.jsx; every file accepted by both reviewers."""
+    tid = led.add_task(
+        REL, "split and tidy", said_by="operator", also=[NEW_REL, OLD_REL]
+    )
+    common = dict(base_commit="c" * 40, model="m", group_id=tid)
+    ok = dw.StaticVerdict(True, "ok", 1)
+    ids = [
+        led.record_proposal(
+            dw.Finding(REL, dw.TASK_RULE, ()),
+            base_text=BEFORE,
+            new_text=AFTER,
+            verdict=ok,
+            **common,
+        ),
+        led.record_proposal(
+            dw.Finding(NEW_REL, dw.TASK_RULE, ()),
+            base_text="",
+            new_text=NEW_TEXT,
+            verdict=ok,
+            op=dw.OP_CREATE,
+            **common,
+        ),
+        led.record_proposal(
+            dw.Finding(OLD_REL, dw.TASK_RULE, ()),
+            base_text=OLD_TEXT,
+            new_text="",
+            verdict=ok,
+            op=dw.OP_DELETE,
+            **common,
+        ),
+    ]
+    for pid in ids:
+        for who, model in (("codex", "gpt"), ("claude", "opus")):
+            led.record_review(pid, who, model=model, verdict="accept", reason="fine")
+    return tid, ids
+
+
+def _seed_old(seed):
+    (seed / OLD_REL).write_bytes(OLD_TEXT.encode())
+    _git(seed, "add", "-A")
+    _git(seed, "commit", "-qm", "old file")
+    _git(seed, "push", "-q", "origin", "master")
+
+
+def test_a_task_that_creates_and_deletes_files_is_one_commit(
+    tmp_path, monkeypatch, origin_and_worktree
+) -> None:
+    seed, work = origin_and_worktree
+    _seed_old(seed)
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    from aios.application.promotion import smoke
+
+    checked: list = []
+    monkeypatch.setattr(
+        smoke, "frontend_smoke", lambda root, paths, **kw: checked.append(paths) or None
+    )
+    _tid, ids = _crew_unit(led, seed)
+    assert tool.cmd_deliver(_deliver_args(work)) == 0
+    assert {p["status"] for p in led.proposals()} == {"committed"}
+    assert (work / REL).read_text(encoding="utf-8") == AFTER
+    assert (work / NEW_REL).read_text(encoding="utf-8") == NEW_TEXT
+    assert not (work / OLD_REL).exists()
+    shown = _git(work, "show", "--name-status", "--format=", "HEAD").splitlines()
+    assert sorted(shown) == sorted([f"M\t{REL}", f"A\t{NEW_REL}", f"D\t{OLD_REL}"])
+    assert [str(p).replace("\\", "/").endswith(OLD_REL) for p in checked[0]] == [
+        False,
+        False,
+    ]
+
+
+def test_a_new_file_that_appeared_on_master_meanwhile_is_stale(
+    tmp_path, monkeypatch, origin_and_worktree
+) -> None:
+    seed, work = origin_and_worktree
+    _seed_old(seed)
+    (seed / NEW_REL).write_bytes(b"export const someone = 'else';\n")
+    _git(seed, "add", "-A")
+    _git(seed, "commit", "-qm", "someone made it first")
+    _git(seed, "push", "-q", "origin", "master")
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    _crew_unit(led, seed)
+    assert tool.cmd_deliver(_deliver_args(work)) == 0
+    assert {p["status"] for p in led.proposals()} == {"stale"}
+    assert (work / OLD_REL).exists(), "nothing of a stale unit is applied"
+
+
+def test_a_deleted_file_that_changed_on_master_is_stale(
+    tmp_path, monkeypatch, origin_and_worktree
+) -> None:
+    seed, work = origin_and_worktree
+    _seed_old(seed)
+    (seed / OLD_REL).write_bytes(b"export const old = 2;\n")
+    _git(seed, "commit", "-qam", "old changed")
+    _git(seed, "push", "-q", "origin", "master")
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    _crew_unit(led, seed)
+    assert tool.cmd_deliver(_deliver_args(work)) == 0
+    assert {p["status"] for p in led.proposals()} == {"stale"}
+
+
+def test_an_op_the_ledger_does_not_know_is_refused(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    common = dict(base_commit="c" * 40, model="m", verdict=None)
+    with pytest.raises(ValueError, match="unknown proposal op"):
+        led.record_proposal(
+            FINDING, base_text=BEFORE, new_text=AFTER, op="rename", **common
+        )
+    with pytest.raises(ValueError, match="new file has no base"):
+        led.record_proposal(
+            FINDING, base_text=BEFORE, new_text=AFTER, op=dw.OP_CREATE, **common
+        )
+    with pytest.raises(ValueError, match="deletion's new text is empty"):
+        led.record_proposal(
+            FINDING, base_text=BEFORE, new_text=AFTER, op=dw.OP_DELETE, **common
+        )
+
+
+def test_the_reviewer_is_told_a_file_is_created_or_deleted(
+    tmp_path, monkeypatch
+) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    _tid, ids = _crew_unit(led, None)
+    first = next(p for p in led.proposals() if p["proposal_id"] == ids[0])
+    prompt, _hidden, _added = tool._group_evidence(first, [])
+    assert "This change creates the file." in prompt
+    assert "This change deletes the file." in prompt
+    assert prompt.count("This change") == 2, "the edit needs no such note"
