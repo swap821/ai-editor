@@ -658,7 +658,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pip-licenses "ruff==${{ env.RUFF_VERSION }}" bandit==1.9.4 mypy==2.3.1
+          # Each pin here equals requirements.txt's (tests/test_consistency_guards.py
+          # holds them together): until 2026-11-10 this line re-pinned mypy to
+          # 2.3.1 over the lock's 2.4.1.
+          pip install pip-licenses "ruff==${{ env.RUFF_VERSION }}" bandit==1.9.4 mypy==2.4.1
 
       - name: Tracked-source secret scan
         run: python scripts/security_scan.py

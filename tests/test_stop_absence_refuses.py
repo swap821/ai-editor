@@ -738,3 +738,13 @@ def test_there_is_one_implementation_of_the_fail_closed_rule() -> None:
         assert len(set(outcomes)) == 1, (
             f"the three entrances disagree on {value!r}: {outcomes}"
         )
+
+
+def test_the_write_path_and_autonomy_share_one_stop_predicate() -> None:
+    """2026-11-10, a review of the whole codebase: ``replay_writes`` carried a
+    twin of ``stop_permits_autonomy`` with the same body. Two copies of the
+    rule that decides whether a stop halts work can drift apart (this one once
+    skipped an absent stop); now there is one."""
+    from aios.core import autonomy, replay_writes
+
+    assert replay_writes._stop_permits_writing is autonomy.stop_permits_autonomy

@@ -2,12 +2,12 @@
 
 ## Supported Versions
 
-This project is pre-1.0. Only the latest commit on `main` receives security
+This project is pre-1.0. Only the latest commit on `master` receives security
 fixes. There are no backported patch branches.
 
 | Branch | Supported |
 | ------ | --------- |
-| `main` (latest) | Yes |
+| `master` (latest) | Yes |
 | Anything else | No |
 
 ## Reporting a Vulnerability
@@ -33,8 +33,10 @@ AIOS enforces defense-in-depth across multiple layers:
 - **Scope lock** (`aios/security/scope_lock.py`): File-system access is
   confined to the declared workspace. Path traversal is rejected at the gateway.
 - **Approval-gated execution** (`aios/core/approvals.py`): Destructive or
-  elevated actions require an explicit human approval token (HMAC-signed,
-  single-use, session-bound) before they can proceed.
+  elevated actions require an explicit human approval token before they can
+  proceed: a random token the server issues, single-use, expiring and bound to
+  its session, stored only as its SHA-256 digest and consumed in one atomic
+  delete (no HMAC; corrected 2026-11-10).
 
 ### Tamper-Evident Audit Chain
 
@@ -55,8 +57,11 @@ AIOS enforces defense-in-depth across multiple layers:
 ### LLM Safety
 
 - **Prompt-injection shield** (`aios/security/injection_shield.py`): **user
-  input only** — the chat message and the voice transcript. These are the only
-  two call sites of `_check_prompt_injection` (`aios/api/main.py:1215`, `:1456`),
+  input only** — the chat route's and the generate route's user text (a voice
+  transcript arrives as one of them) and a council mission's goal. These are the
+  three call sites of `_check_prompt_injection` (`aios/api/routes/chat.py`,
+  `aios/api/routes/generate.py`, `aios/api/routes/council.py`; until 2026-11-10
+  this cited two lines of `aios/api/main.py` that moved in the monolith split),
   and `classify()` / `is_injection()` appear nowhere outside `aios/security/*`
   and those handlers.
 
