@@ -1628,3 +1628,13 @@ def test_a_finding_waits_until_its_rule_has_been_reflected_on(
 def test_a_rule_with_no_verdict_does_not_wait(tmp_path) -> None:
     led = dw.DailyLedger(tmp_path / "l.db")
     assert not led.awaits_first_reflection(RULE), "nothing to reflect on: no wait"
+
+
+def test_writers_run_at_once_as_memory_allows() -> None:
+    """2026-11-11: up to WRITERS_AT_ONCE writers, fewer when memory is short,
+    never none."""
+    plenty = tool.SPARE_MB + tool.WRITER_MB * (tool.WRITERS_AT_ONCE + 5)
+    assert tool.writers_at_once(plenty) == tool.WRITERS_AT_ONCE
+    assert tool.writers_at_once(tool.SPARE_MB + tool.WRITER_MB * 2 + 1) == 2
+    assert tool.writers_at_once(100) == 1
+    assert tool.PLAN_PROPOSALS_PER_BATCH <= tool.BATCH_PROPOSALS <= tool.REVIEW_LIMIT

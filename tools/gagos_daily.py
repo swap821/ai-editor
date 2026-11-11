@@ -190,10 +190,11 @@ MAX_OUTPUT_TOKENS = 12_000
 #: use several SONNET AND HAIKU AGENTS", through his plan). Each answered a live
 #: call on his plan that day.
 CLAUDE_WRITERS = ("claude-sonnet-5-5", "claude-haiku-5-5")
-#: His plan's usage is shared with his own sessions and with the chief
-#: reviewer's, so at most this many findings a batch go to the Claude writers;
-#: the rest wait for a later hour.
-PLAN_PROPOSALS_PER_BATCH = 4
+#: At most this many findings a batch go to the Claude writers; the rest wait
+#: for a later hour. 4 until 2026-11-11, when the operator raised it: "I have a
+#: good plan of Claude don't worry use as many sonnet and haiku models
+#: simultaneously at same time (multi-agent)".
+PLAN_PROPOSALS_PER_BATCH = 16
 #: GAGOS's Codex writers: the two GPT models the operator named, through Codex
 #: on his OpenAI plan (2026-11-03: "use its models also like GPT 6.1 terra or
 #: GPT 6 Luna ... like using sonnet and haiku"). Each answered a sealed call
@@ -233,10 +234,17 @@ WORK_RULES = (*FIRST_RULES, *PYTHON_RULES, *BEHAVIOUR_RULES, MISSING_TEST)
 #: when one this short sits beside the module and needs no masking.
 MAX_EXAMPLE_CHARS = 6_000
 
-#: Model calls in flight at once: Codex's starting point (2026-11-02), to be
-#: raised from measured capacity, not a quota. The ESLint checks run one at a
+#: Model calls in flight at most: Codex's starting point was 2 (2026-11-02);
+#: raised to 4 on 2026-11-11 at the operator's word, from measured capacity:
+#: each writer is a Claude Code or Codex process of about 0.4 to 0.6 GB, and the
+#: laptop had about 3 GB free beside the backend and the sandbox's VM. Fewer run
+#: when less is free (writers_at_once). The ESLint checks still run one at a
 #: time, so a batch never holds more than one lint's memory.
-WRITERS_AT_ONCE = 2
+WRITERS_AT_ONCE = 4
+#: Memory a writer process is given room for, and memory left to everything
+#: else, in MB (writers_at_once).
+WRITER_MB = 600
+SPARE_MB = 1200
 #: A writer is tried on this many decided proposals before its record steers
 #: how much work it gets.
 EXPLORE = 5
@@ -748,8 +756,23 @@ def writers_foundry() -> WorkshopFoundry:
     return WorkshopFoundry(
         emergency_stop=get_emergency_stop(),
         bus=CortexBus() if config.CORTEX_BUS else None,
-        writers_at_once=WRITERS_AT_ONCE,
+        writers_at_once=writers_at_once(),
     )
+
+
+def writers_at_once(free_mb: float | None = None) -> int:
+    """How many writers run at once now: :data:`WRITERS_AT_ONCE`, fewer when
+    the laptop has less free memory than they and :data:`SPARE_MB` need, and
+    never fewer than one (2026-11-11)."""
+    if free_mb is None:
+        try:
+            import psutil
+
+            free_mb = psutil.virtual_memory().available / 2**20
+        except Exception:  # unknown: the configured bound stands
+            return WRITERS_AT_ONCE
+    room = int((free_mb - SPARE_MB) // WRITER_MB)
+    return max(1, min(WRITERS_AT_ONCE, room))
 
 
 def cmd_propose(args: argparse.Namespace) -> int:
@@ -2964,11 +2987,12 @@ def cmd_clerk(args: argparse.Namespace) -> int:
 #: ran one batch of 2 a day: the hourly interval Codex and Claude Code agreed
 #: was meant for their own review loop, not for GAGOS's work. The operator
 #: corrected it: "GAGOS will work 24/7 continously". It now runs a batch every
-#: hour; 10 is the review limit below, so one review pass covers a batch.
-BATCH_PROPOSALS = 10
+#: hour; one review pass covers a batch. 10 until 2026-11-11, raised with the
+#: Claude writers' share at the operator's word.
+BATCH_PROPOSALS = 20
 
 #: At most this many proposals each reviewer reviews in one run.
-REVIEW_LIMIT = 10
+REVIEW_LIMIT = 20
 
 
 def _slot() -> str:

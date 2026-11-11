@@ -1206,6 +1206,14 @@ from 03:24 UTC, ahead of the registered pace of three a batch:
 - A finding whose rule has verdicts but no reflection yet waits: no attempt is
   spent before its playbook exists. A rule with no verdict does not wait.
 
+**Throughput, the same day.** The operator: "I have a good plan of Claude don't
+worry use as many sonnet and haiku models simultaneously at same time". From this
+PR's merge a batch takes up to 20 findings (was 10), the Claude writers up to 16
+of them (was 4), up to 4 writers at once (was 2; fewer when the laptop's free
+memory is short), and each review run up to 20. More proposals reach the
+analysis; which writer takes a finding was never part of the design, and the
+arm is still fixed by the finding alone.
+
 **Unchanged.** Treatment, randomisation, outcome, population, hypotheses and the
 stopping rule. Every rule with a verdict had a playbook before D15's first batch,
 so the seed's pace affects no proposal in the analysis.

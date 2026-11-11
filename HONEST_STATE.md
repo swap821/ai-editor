@@ -11,7 +11,8 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **The flaw.** The first batch would have spent about eight scarce retries before any playbook existed. At the operator's word the reflector seeded all nine rules ahead of its pace (deviation D16, `docs/learning/PAYOFF_PREREGISTRATION.md`).
 - **Found while seeding.** Seven of nine answers were malformed JSON, and the code marked those rules reflected; a reflection repeated within an hour reused its request id. Re-run with a parser that reads each entry of a malformed answer: 22 entries kept across 9 rules, all before D15's first batch. 17 Sonnet calls in all, not the 9 first said.
 - **Fixed here:** the tolerant parser; nothing readable means tried next batch; a unique request id per reflection; a finding waits while its rule has verdicts but no reflection yet.
-- **Tests:** four new, one updated; the workshop's test file: 70 passed, 1 skipped.
+- **Throughput, at the operator's word** ("use as many sonnet and haiku models simultaneously"): a batch takes up to 20 findings, the Claude writers up to 16 (were 10 and 4), up to 4 writers at once (was 2), fewer when free memory is short (each writer is a process of about 0.4 to 0.6 GB; the laptop had about 3 GB free), and reviews up to 20 a run. The bound is the laptop's memory, not his plan.
+- **Tests:** five new, one updated; every test file that uses the workshop, its ledger or its Foundry: 349 passed, 6 skipped.
 
 ## 2026-11-11, D15: a playbook per rule, so the learning can show whether it helps (master `e3f1a830`, branch `feat/d15-workshop-playbook`)
 
