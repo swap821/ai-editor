@@ -99,6 +99,7 @@ from aios.maintenance.daily_work import (  # noqa: E402
     PYTHON_RULES,
     is_python_rule,
     MASK_TOKEN,
+    MAX_TASK_FILE_CHARS,
     MAX_TASK_TOTAL_CHARS,
     REVIEW_SCHEMA,
     REQUIRED_REVIEWERS,
@@ -126,8 +127,11 @@ from aios.maintenance.daily_work import (  # noqa: E402
     mask_like,
     mask_lines,
     missing_tests,
+    is_edit_answer,
+    parse_edits,
     parse_proposal,
     parse_review,
+    parse_task_edits,
     parse_task_files,
     project_facts,
     proposal_prompt,
@@ -548,10 +552,10 @@ def task_jobs(
                 refuse(f"{rel} cannot be read as text: {exc}")
                 refused = True
                 break
-            if len(text) > MAX_FILE_CHARS:
+            if len(text) > MAX_TASK_FILE_CHARS:
                 refuse(
-                    f"{rel} is {len(text)} characters; the bound for a whole-file "
-                    f"proposal is {MAX_FILE_CHARS}"
+                    f"{rel} is {len(text)} characters; the bound for a file a task "
+                    f"changes is {MAX_TASK_FILE_CHARS}"
                 )
                 refused = True
                 break
@@ -581,8 +585,7 @@ def task_jobs(
                 refuse(
                     f"the task's {len(files)} files are {total} characters together; "
                     f"the bound for a task over several files is "
-                    f"{MAX_TASK_TOTAL_CHARS} (the writer returns every changed file "
-                    "whole, in one answer)"
+                    f"{MAX_TASK_TOTAL_CHARS} (what one writer's prompt may carry)"
                 )
                 continue
         rel, text, masked, mapping, known = parts[0]
@@ -651,7 +654,11 @@ def record_task_files(
         print(f"  {pid} {f.rel} ({model}): refused: {why}")
 
     try:
-        answered = parse_task_files(raw, [p[1] for p in parts])
+        answered = (
+            parse_task_edits(raw, [p[2] for p in parts])
+            if is_edit_answer(raw)
+            else parse_task_files(raw, [p[1] for p in parts])
+        )
         changed: dict[int, str] = {}
         for i, new in sorted(answered.items()):
             rel, text, masked, mapping, _facts = parts[i]
@@ -1123,11 +1130,13 @@ def cmd_propose(args: argparse.Namespace) -> int:
             shape = (
                 text if f.rule != MISSING_TEST else ("\r\n" if "\r\n" in text else "\n")
             )
+            answer = (
+                parse_edits(raw, original=masked)
+                if f.rule == TASK_RULE and is_edit_answer(raw)
+                else parse_proposal(raw, original=shape)
+            )
             new_text = unmask(
-                parse_proposal(raw, original=shape),
-                mapping,
-                masked=masked,
-                repeat=f.rule == MISSING_TEST,
+                answer, mapping, masked=masked, repeat=f.rule == MISSING_TEST
             )
         except ProposalRefused as exc:
             pid = led.record_proposal(
@@ -2003,6 +2012,30 @@ def _branch_prs(root: Path, branch: str, app) -> list[dict]:
         raise PublishFailed(f"cannot read the PR list: {exc}") from exc
 
 
+#: GitHub refuses a PR body over 65,536 characters (measured 2026-11-11: three
+#: hours of accepted work could not be published); this leaves room.
+PR_BODY_LIMIT = 60_000
+
+
+def pr_body(led: DailyLedger, ids: list[str], footer: str) -> str:
+    """The PR's body: the day's whole report while it fits GitHub's limit;
+    else this PR's own proposals in full and the day's others counted; cut at
+    the limit, saying so, only if even that is too long."""
+    day = _today()
+    body = report(led, day=day, in_pr=ids, footer=footer, scrub=egress_redact)
+    if len(body) <= PR_BODY_LIMIT:
+        return body
+    body = report(led, day=day, in_pr=ids, footer=footer, scrub=egress_redact, only=ids)
+    if len(body) <= PR_BODY_LIMIT:
+        return body
+    cut = (
+        "\n\n(cut here at GitHub's limit for a PR body; the full report is "
+        f"`reports/{day}.md` in GAGOS's data on the operator's laptop)\n\n"
+    )
+    keep = PR_BODY_LIMIT - len(cut) - len(footer)
+    return body[:keep] + cut + footer
+
+
 def publish(
     led: DailyLedger,
     root: Path,
@@ -2044,7 +2077,7 @@ def publish(
         "each accepted by its reviewer)"
     )
     footer = pr_footer or (PR_FOOTER_APP if app else PR_FOOTER_NO_APP)
-    body = report(led, day=_today(), in_pr=ids, footer=footer, scrub=egress_redact)
+    body = pr_body(led, ids, footer)
     try:
         if app:
             from aios.operations import github_app as gha
@@ -2470,6 +2503,7 @@ def report(
     in_pr: list[str] | None = None,
     footer: str = "",
     scrub=None,
+    only: list[str] | None = None,
 ) -> str:
     """The day's work, every proposal and what happened to it (refused and
     rejected ones too: an honest day shows its misses), then D14's running
@@ -2480,6 +2514,11 @@ def report(
     s = scrub or (lambda text: text)
     every = led.proposals()
     chosen = [p for p in every if day is None or p["day"] == day]
+    # *only*: the per-proposal sections of these alone, the rest counted (a PR
+    # body over GitHub's limit, 2026-11-11).
+    others = [p for p in chosen if only is not None and p["proposal_id"] not in only]
+    if only is not None:
+        chosen = [p for p in chosen if p["proposal_id"] in only]
     by = Counter(p["status"] for p in every)
     reviewed = [led.reviews(p["proposal_id"]) for p in every]
     done = [r for r in reviewed if all(x in r for x in REQUIRED_REVIEWERS)]
@@ -2541,6 +2580,15 @@ def report(
         "",
         *efficiency(every, sum(spent.values())),
     ]
+    if others:
+        kinds = Counter(p["status"] for p in others)
+        out += [
+            f"**This day's {len(others)} other proposal(s)** ("
+            + ", ".join(f"{n} {k}" for k, n in sorted(kinds.items()))
+            + f") are in the day's full report, `reports/{day}.md` in GAGOS's data "
+            "on the operator's laptop: listed here they would pass GitHub's limit.",
+            "",
+        ]
     for p in chosen:
         reviews = led.reviews(p["proposal_id"])
         carried = " (in this PR)" if in_pr and p["proposal_id"] in in_pr else ""

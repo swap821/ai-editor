@@ -787,6 +787,21 @@ def beyond_reach(
 #: The writer's instruction for a task the operator wrote (2026-11-03): his
 #: change in one file, and nothing around it. The answer has the proposer's
 #: form, so :func:`parse_proposal` and :func:`unmask` read it unchanged.
+#: How a task's writer answers (2026-11-11): exact edits, not whole files, so a
+#: file of any size can be worked on and nothing the edits do not name can
+#: change. :func:`parse_edits` applies them; an answer with no edit block is
+#: still read as a whole file in one fenced block, as before. One line, like
+#: every writer's instruction: on Windows ``claude`` is a .cmd launcher and
+#: cmd.exe cuts its ``--system-prompt`` argument at the first line break.
+EDIT_FORMAT = (
+    "Reply with edits, not the whole file. Each edit is: a line <<<<<<< SEARCH, "
+    "then lines copied EXACTLY from the file (enough to match ONE place), then a "
+    "line =======, then the lines that replace them, then a line >>>>>>> REPLACE. "
+    "Edits apply in order, each to the file as the ones before left it. Copy the "
+    "SEARCH lines character for character, with their indentation; keep each "
+    "edit small. Write nothing outside the edits."
+)
+
 TASK_SYSTEM = (
     "You are GAGOS's frontend maintainer. The operator has asked for one change "
     "to one file of a React + TypeScript codebase. Make exactly that change and "
@@ -794,8 +809,7 @@ TASK_SYSTEM = (
     "reformat, reorder or rename anything the task does not need changed. Your "
     "change must add no ESLint warning or error. Never add eslint-disable, "
     "@ts-ignore, @ts-nocheck or @ts-expect-error. If the task cannot be done "
-    "in this file alone, return the file unchanged. Reply with the complete "
-    "changed file in ONE fenced code block and nothing else."
+    "in this file alone, reply with no edit at all. " + EDIT_FORMAT
 )
 
 PYTHON_TASK_SYSTEM = (
@@ -805,9 +819,8 @@ PYTHON_TASK_SYSTEM = (
     "reformat, reorder or rename anything the task does not need changed. Keep "
     "every public name other modules import from this file. Your change must "
     "add no ruff warning or error. Never add noqa, type: ignore, nosec or "
-    "pragma comments. If the task cannot be done in this file alone, return "
-    "the file unchanged. Reply with the complete changed file in ONE fenced "
-    "code block and nothing else."
+    "pragma comments. If the task cannot be done in this file alone, reply "
+    "with no edit at all. " + EDIT_FORMAT
 )
 
 
@@ -951,8 +964,13 @@ def task_review_prompt(
 #: writer returns every file it changes whole, in ONE answer, and an answer holds
 #: at most 12,000 tokens (about 36,000 characters at three a token). Thirty
 #: thousand leaves room for the labels and for a change that grows the files; a
-#: task over more is refused with the number, never cut short.
-MAX_TASK_TOTAL_CHARS = 30_000
+#: task over more is refused with the number, never cut short. Since 2026-11-11 a
+#: task's writer answers with edits, so the bound is what one prompt may carry:
+#: the files read, not the files written.
+MAX_TASK_TOTAL_CHARS = 240_000
+#: The longest file a task may change (2026-11-11): edits, not whole files,
+#: come back, so a task reaches files over the whole-file bound.
+MAX_TASK_FILE_CHARS = 160_000
 
 #: How a writer labels each file it returns, and how it is told to: the file's
 #: index in the task, and its name, never its path.
@@ -994,11 +1012,10 @@ def task_files_system(rels: Sequence[str]) -> str:
         "rename anything the task does not need changed. "
         + "; ".join(rules)[:1].upper()
         + "; ".join(rules)[1:]
-        + ". Reply with, for each file you change, a line `File N: name` exactly "
-        "as the file is labelled, then the complete changed file in ONE fenced "
-        "code block. Leave out every file you do not change. If the task cannot "
-        "be done in these files, change none of them and reply with no fenced "
-        "code block."
+        + ". For each file you change, write a line `File N: name` exactly as "
+        "the file is labelled, then that file's edits. Leave out every file you "
+        "do not change. If the task cannot be done in these files, reply with no "
+        "edit at all. " + EDIT_FORMAT
     )
 
 
@@ -1073,6 +1090,101 @@ def parse_task_files(raw: str, originals: Sequence[str]) -> dict[int, str]:
         raise ProposalRefused(
             f"File {pending} is labelled but has no fenced code block"
         )
+    return out
+
+
+_EDIT = re.compile(
+    r"^<<<<<<< SEARCH[ \t]*\n(.*?)^=======[ \t]*\n(.*?)^>>>>>>> REPLACE[ \t]*$",
+    re.DOTALL | re.MULTILINE,
+)
+_EDIT_MARK = re.compile(
+    r"^(?:<<<<<<< SEARCH|=======|>>>>>>> REPLACE)[ \t]*$", re.MULTILINE
+)
+
+
+def is_edit_answer(raw: str) -> bool:
+    """Whether a writer answered with edits (2026-11-11) rather than whole files."""
+    return re.search(r"^<<<<<<< SEARCH[ \t]*$", raw or "", re.MULTILINE) is not None
+
+
+def _edits(chunk: str) -> list[tuple[str, str]]:
+    """The ``(search, replace)`` pairs of *chunk*, LF-normalised; refused when
+    a marker stands outside a complete edit."""
+    chunk = chunk.replace("\r\n", "\n")
+    pairs, at = [], 0
+    for m in _EDIT.finditer(chunk):
+        if _EDIT_MARK.search(chunk, at, m.start()):
+            raise ProposalRefused(
+                "an edit is not complete: SEARCH, ======= and REPLACE"
+            )
+        pairs.append((m.group(1), m.group(2)))
+        at = m.end()
+    if _EDIT_MARK.search(chunk, at):
+        raise ProposalRefused("an edit is not complete: SEARCH, ======= and REPLACE")
+    return pairs
+
+
+def apply_edits(original: str, pairs: Sequence[tuple[str, str]]) -> str:
+    """*original* with each ``(search, replace)`` applied in order, each to the
+    text the ones before left. A SEARCH must occur exactly once; an empty one
+    only in an empty file (a new file's whole text). The original's line
+    endings and final-newline convention are kept."""
+    crlf = "\r\n" in original
+    text = original.replace("\r\n", "\n")
+    for n, (search, replace) in enumerate(pairs, 1):
+        if not search:
+            if text:
+                raise ProposalRefused(
+                    f"edit {n} has an empty SEARCH in a file that has text"
+                )
+            text = replace
+            continue
+        found = text.count(search)
+        if found != 1:
+            first = search.strip().splitlines()[0][:80] if search.strip() else ""
+            raise ProposalRefused(
+                f"edit {n}'s SEARCH "
+                + ("is not in the file" if not found else f"matches {found} places")
+                + (f" (it begins {first!r})" if first else "")
+            )
+        text = text.replace(search, replace, 1)
+    return text.replace("\n", "\r\n") if crlf else text
+
+
+def parse_edits(raw: str, original: str) -> str:
+    """A one-file task's answer given as edits: *original* (the text the
+    writer saw) with them applied. Refused: no edit, or an edit that does not
+    match exactly one place."""
+    pairs = _edits(raw or "")
+    if not pairs:
+        raise ProposalRefused("the answer has no edit")
+    return apply_edits(original, pairs)
+
+
+def parse_task_edits(raw: str, originals: Sequence[str]) -> dict[int, str]:
+    """A task over several files answered with edits: ``{index from 0: new
+    text}`` for each file labelled ``File N`` with edits after it, each applied
+    to that file's text as shown. Refused: an edit before any label, a label
+    with no edit, a label of a file the task does not have, a file twice."""
+    text = (raw or "").replace("\r\n", "\n")
+    labels = list(_FILE_LABEL.finditer(text))
+    first_label = labels[0].start() if labels else len(text)
+    if _edits(text[:first_label]):
+        raise ProposalRefused("an edit has no `File N` label before it")
+    out: dict[int, str] = {}
+    for k, label in enumerate(labels):
+        n = int(label.group(1))
+        if not 1 <= n <= len(originals):
+            raise ProposalRefused(
+                f"the answer labels File {n}; the task has {len(originals)} file(s)"
+            )
+        if n - 1 in out:
+            raise ProposalRefused(f"File {n} is given twice")
+        end = labels[k + 1].start() if k + 1 < len(labels) else len(text)
+        pairs = _edits(text[label.end() : end])
+        if not pairs:
+            raise ProposalRefused(f"File {n} is labelled but has no edit")
+        out[n - 1] = apply_edits(originals[n - 1], pairs)
     return out
 
 
@@ -2934,6 +3046,8 @@ __all__ = [
     "Finding",
     "MASK_TOKEN",
     "MAX_REACH",
+    "MAX_TASK_FILE_CHARS",
+    "EDIT_FORMAT",
     "MAX_TASK_TOTAL_CHARS",
     "MAX_TEST_LINES",
     "MISSING_TEST",
@@ -2961,8 +3075,12 @@ __all__ = [
     "mask_like",
     "mask_lines",
     "missing_tests",
+    "apply_edits",
+    "is_edit_answer",
+    "parse_edits",
     "parse_proposal",
     "parse_review",
+    "parse_task_edits",
     "parse_task_files",
     "file_label",
     "project_facts",

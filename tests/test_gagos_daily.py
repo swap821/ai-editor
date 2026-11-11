@@ -1671,3 +1671,57 @@ def test_writers_run_at_once_as_memory_allows() -> None:
     assert tool.writers_at_once(tool.SPARE_MB + tool.WRITER_MB * 2 + 1) == 2
     assert tool.writers_at_once(100) == 1
     assert tool.PLAN_PROPOSALS_PER_BATCH <= tool.BATCH_PROPOSALS <= tool.REVIEW_LIMIT
+
+
+# --------------------------------------------------------------------- the PR body's limit (2026-11-11)
+
+
+def _day_of_proposals(led, n):
+    """*n* accepted proposals of today."""
+    ids = []
+    for _ in range(n):
+        pid = _proposal(led)
+        led.record_review(
+            pid, "claude", model="opus", verdict="accept", reason="fine " * 40
+        )
+        ids.append(pid)
+    return ids
+
+
+def test_a_report_that_fits_is_the_whole_pr_body(tmp_path, monkeypatch) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    ids = _day_of_proposals(led, 3)
+    body = tool.pr_body(led, ids[:1], "FOOTER")
+    assert body == tool.report(
+        led, day=tool._today(), in_pr=ids[:1], footer="FOOTER", scrub=tool.egress_redact
+    )
+    assert body.count(" (in this PR)") == 1 and ids[2] in body
+
+
+def test_a_report_over_githubs_limit_keeps_this_prs_proposals_and_counts_the_rest(
+    tmp_path, monkeypatch
+) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    ids = _day_of_proposals(led, 6)
+    full = tool.report(
+        led, day=tool._today(), in_pr=ids[:2], footer="F", scrub=tool.egress_redact
+    )
+    monkeypatch.setattr(tool, "PR_BODY_LIMIT", len(full) - 1)
+    body = tool.pr_body(led, ids[:2], "F")
+    assert len(body) <= tool.PR_BODY_LIMIT
+    assert ids[0] in body and ids[1] in body and ids[5] not in body
+    assert "This day's 4 other proposal(s)" in body and "reports/" in body
+    assert body.rstrip().endswith("F")
+
+
+def test_a_body_still_over_the_limit_is_cut_saying_so(tmp_path, monkeypatch) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    ids = _day_of_proposals(led, 3)
+    monkeypatch.setattr(tool, "PR_BODY_LIMIT", 900)
+    body = tool.pr_body(led, ids, "THE FOOTER")
+    assert len(body) <= 900
+    assert "cut here at GitHub's limit" in body and body.endswith("THE FOOTER")
+
+
+def test_the_limit_leaves_room_under_githubs() -> None:
+    assert tool.PR_BODY_LIMIT < 65_536

@@ -243,7 +243,7 @@ def test_a_python_file_of_the_frozen_core_refuses_a_mixed_task(
 
 def test_a_file_over_the_bound_refuses_the_task(tmp_path, monkeypatch) -> None:
     led, asked, args, tid = _many(tmp_path, monkeypatch)
-    monkeypatch.setattr(tool, "MAX_FILE_CHARS", 10)
+    monkeypatch.setattr(tool, "MAX_TASK_FILE_CHARS", 10)
     assert tool.cmd_propose(args) == 0
     assert "bound" in led.task(tid)["reason"] and led.task(tid)["status"] == "refused"
     assert asked == [] and led.proposals() == []
@@ -289,11 +289,16 @@ def test_the_bound_is_measured_on_the_files_as_sent(tmp_path, monkeypatch) -> No
     assert asked == []
 
 
-def test_the_total_bound_fits_one_answer() -> None:
-    answer_chars = tool.MAX_OUTPUT_TOKENS * tool.CHARS_PER_TOKEN
-    assert dw.MAX_TASK_TOTAL_CHARS < answer_chars, (
-        "a change that rewrites every file whole still fits one answer"
-    )
+def test_a_task_is_answered_with_edits_so_its_bounds_are_what_is_read() -> None:
+    # 2026-11-11: a task's writer returns edits, not whole files, so the bounds
+    # are on what one prompt carries, and files over the whole-file bound fit.
+    for system in (
+        dw.TASK_SYSTEM,
+        dw.PYTHON_TASK_SYSTEM,
+        dw.task_files_system([REL, OTHER]),
+    ):
+        assert "<<<<<<< SEARCH" in system and ">>>>>>> REPLACE" in system
+    assert tool.MAX_FILE_CHARS < dw.MAX_TASK_FILE_CHARS <= dw.MAX_TASK_TOTAL_CHARS
 
 
 def test_a_file_a_change_holds_makes_the_task_wait_and_nothing_is_asked(

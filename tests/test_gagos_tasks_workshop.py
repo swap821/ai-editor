@@ -114,7 +114,7 @@ def test_a_python_task_on_the_frozen_core_is_refused(tmp_path, monkeypatch) -> N
 
 def test_a_file_over_the_bound_is_refused(tmp_path, monkeypatch) -> None:
     led, asked, args, _ids = _batch(tmp_path, monkeypatch)
-    monkeypatch.setattr(tool, "MAX_FILE_CHARS", 10)
+    monkeypatch.setattr(tool, "MAX_TASK_FILE_CHARS", 10)
     tid = led.add_task(REL, WORDS, said_by="operator")
     args.rules = ["none-such"]
     tool.cmd_propose(args)
