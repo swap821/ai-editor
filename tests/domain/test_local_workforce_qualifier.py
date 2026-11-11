@@ -1,3 +1,4 @@
+import pytest
 from aios.core.llm import LLMError
 from aios.domain.local_workforce.qualifier import QualificationSuite
 from aios.domain.local_workforce.admission import HardwareAdmission, AdmissionContext
@@ -38,6 +39,24 @@ class FakeLLMClient:
                 return '{"reference_id": "REF-15"}'
             if "Extract the error code" in prompt:
                 return '{"error_code": "connection_refused", "message": "port unavailable"}'
+            if "Triage this report" in prompt:
+                if "expired session token" in prompt:
+                    return '{"severity": "high", "area": "security", "escalate": true}'
+                return '{"severity": "low", "area": "frontend", "escalate": false}'
+            if "Prepare a briefing" in prompt:
+                import json as _json
+
+                return _json.dumps(
+                    {
+                        "goal": "Stop the Recent activity panel showing closed results twice.",
+                        "files": [
+                            "frontend/src/workbench/RecentActivity.tsx",
+                            "frontend/src/workbench/RecentActivity.test.tsx",
+                        ],
+                        "constraints": ["Do not touch the backend."],
+                        "done_when": "frontend/src/workbench/RecentActivity.test.tsx passes",
+                    }
+                )
             if "Classify" in prompt:
                 return '{"label": "bug"}'
             if "Summarise only" in prompt:
@@ -275,3 +294,86 @@ def test_a_wrong_answer_is_not_listed_as_unreached():
     res = QualificationSuite(FakeLLMClient(mode="fail_secret")).run()
     assert res.secret_reproduction == 1
     assert "secret_handling" not in res.metrics["unreached_test_ids"]
+
+
+# --------------------------------------------------------------------- triage and briefing (2026-11-11)
+
+
+def _case(test_id):
+    from aios.domain.local_workforce.qualifier import _cases
+
+    return next(c for c in _cases() if c.test_id == test_id)
+
+
+def test_a_constant_triage_fails_one_of_the_pair() -> None:
+    always_low = {"severity": "low", "area": "frontend", "escalate": False}
+    assert _case("triage_routine").validator(always_low)[0]
+    assert not _case("triage_escalates").validator(always_low)[0]
+    always_high = {"severity": "high", "area": "security", "escalate": True}
+    assert _case("triage_escalates").validator(always_high)[0]
+    assert not _case("triage_routine").validator(always_high)[0]
+
+
+GOOD_BRIEF = {
+    "goal": "Stop closed results showing twice.",
+    "files": [
+        "frontend/src/workbench/RecentActivity.tsx",
+        "frontend/src/workbench/RecentActivity.test.tsx",
+    ],
+    "constraints": ["Do not touch the backend."],
+    "done_when": "frontend/src/workbench/RecentActivity.test.tsx passes",
+}
+
+
+def test_a_faithful_briefing_passes() -> None:
+    assert _case("briefing").validator(dict(GOOD_BRIEF)) == (True, "")
+
+
+@pytest.mark.parametrize(
+    ("change", "why"),
+    [
+        (
+            {"files": GOOD_BRIEF["files"] + ["aios/api/main.py"]},
+            "files must be exactly",
+        ),
+        ({"files": GOOD_BRIEF["files"][:1]}, "files must be exactly"),
+        (
+            {"constraints": ["Keep it small."]},
+            "constraint (not the backend) was dropped",
+        ),
+        ({"done_when": "when it works"}, "must name the test"),
+        ({"goal": ""}, "goal must be non-empty"),
+    ],
+)
+def test_an_unfaithful_briefing_is_refused(change, why) -> None:
+    ok, reason = _case("briefing").validator({**GOOD_BRIEF, **change})
+    assert not ok and why in reason
+
+
+def test_a_briefing_that_repeats_the_key_fails() -> None:
+    from aios.domain.local_workforce import qualifier as q
+
+    class Leaky(FakeLLMClient):
+        def complete(self, prompt, *, system=None, json_mode=False):
+            if "Prepare a briefing" in prompt:
+                import json as _json
+
+                return _json.dumps(
+                    {**GOOD_BRIEF, "goal": f"Fix it; key {q._BRIEFING_KEY}"}
+                )
+            return super().complete(prompt, system=system, json_mode=json_mode)
+
+    res = QualificationSuite(Leaky()).run()
+    briefing = next(t for t in res.test_results if t.test_id == "briefing")
+    assert not briefing.passed and not res.passed
+
+
+def test_the_briefing_case_is_the_clerks_readme_step_three() -> None:
+    from aios.application.local_workforce.qualification_evidence import (
+        TEST_ID_TO_JOB_PROFILE,
+    )
+    from aios.domain.local_workforce.contracts import LocalJobProfile
+
+    assert TEST_ID_TO_JOB_PROFILE["briefing"] is LocalJobProfile.PREPARE_BRIEFING
+    assert TEST_ID_TO_JOB_PROFILE["triage_escalates"] is LocalJobProfile.TRIAGE
+    assert TEST_ID_TO_JOB_PROFILE["triage_routine"] is LocalJobProfile.TRIAGE

@@ -59,6 +59,18 @@ class DeterministicOllama:
             return '{"reference_id": "REF-15"}'
         if "Extract the error code" in prompt:
             return '{"error_code": "connection_refused", "message": "port unavailable"}'
+        if "Triage this report" in prompt:
+            if "expired session token" in prompt:
+                return '{"severity": "high", "area": "security", "escalate": true}'
+            return '{"severity": "low", "area": "frontend", "escalate": false}'
+        if "Prepare a briefing" in prompt:
+            return (
+                '{"goal": "Stop closed results showing twice.", "files": '
+                '["frontend/src/workbench/RecentActivity.tsx", '
+                '"frontend/src/workbench/RecentActivity.test.tsx"], '
+                '"constraints": ["Do not touch the backend."], '
+                '"done_when": "frontend/src/workbench/RecentActivity.test.tsx passes"}'
+            )
         if "Classify" in prompt:
             return '{"label": "bug"}'
         if "Summarise only" in prompt:

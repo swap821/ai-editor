@@ -1,9 +1,20 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, GAGOS's PR body outgrew GitHub's limit" below;
+**Last updated:** 2026-11-11 ("2026-11-11, the clerk can be qualified to triage and to brief" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, the clerk can be qualified to triage and to brief (master `a79a4030`+, branch `feat/clerk-qualification-briefing`)
+
+- **Why.** The operator was disappointed that GAGOS's work runs beside its organs rather than through them. The honest map (doc "GAGOS as one system: the honest map and the plan") found that only the workshop runs: steps 2, 3, 6, 13 and 14 of the README's mission flow never ran for real work. The plan starts at phase 1, goals through the clerk.
+- **What the registry showed.** The clerk is qualified for one job only, `summarise_disagreement` on qwen3.5:9b. Organ 37's suite had **no test** for TRIAGE, PREPARE_BRIEFING, FORMAT_REPORT or PARAMETERISE_SKILL, so no model could ever be granted the README's step 3 ("the local clerk classifies the task and prepares a briefing").
+- **What changes, in the owning organ:**
+  - `triage_escalates` and `triage_routine` come as a pair, like skill selection, so a constant answer fails one. Both must pass for TRIAGE.
+  - `briefing` checks exact fields; the files exactly as the request names them, in order, none invented; the "not the backend" constraint kept; `done_when` naming the deciding test; and a key given beside the request never repeated (`forbidden_values`). It backs PREPARE_BRIEFING.
+  - `TEST_ID_TO_JOB_PROFILE` maps all three. FORMAT_REPORT and PARAMETERISE_SKILL still have no test.
+- **The operator's decisions the same day:** a daily approval envelope; for GAGOS's code going to his plan brains, only keys and paths hidden; qualify both qwen2.5:3b and qwen3.5:9b; D15 runs to its stopping rule, then folds into the skill system. Approving qwen2.5:3b and granting roles are his acts. Qualifying waits for his go, because of memory.
+- **Tests:** 9 new, and both fake clients answer the new cases. The clerk's test files: 106 passed. Organs 33, 35, 36, 37 and 53 re-gathered at the branch tip.
 
 ## 2026-11-11, GAGOS's PR body outgrew GitHub's limit (master `23b1c4bd`, branch `fix/gagos-pr-body-limit`)
 

@@ -41,8 +41,10 @@ from aios.domain.local_workforce.contracts import LocalJobProfile
 #: tests (aios/domain/local_workforce/skill_selection.py); until then no model
 #: could ever earn it, so that job always escalated.
 #:
-#: Still with no test, so never grantable: TRIAGE, FORMAT_REPORT,
-#: PREPARE_BRIEFING, PARAMETERISE_SKILL.
+#: 2026-11-11: TRIAGE (two tests) and PREPARE_BRIEFING gained theirs, the
+#: clerk's README step 3 (the operator's one-system plan, phase 1).
+#:
+#: Still with no test, so never grantable: FORMAT_REPORT, PARAMETERISE_SKILL.
 TEST_ID_TO_JOB_PROFILE: Mapping[str, LocalJobProfile] = {
     "extraction": LocalJobProfile.EXTRACT,
     "classification": LocalJobProfile.CLASSIFY,
@@ -52,6 +54,9 @@ TEST_ID_TO_JOB_PROFILE: Mapping[str, LocalJobProfile] = {
     "disagreement_summary": LocalJobProfile.SUMMARISE_DISAGREEMENT,
     "route_explanation": LocalJobProfile.EXPLAIN_ROUTE,
     "context_completeness": LocalJobProfile.CHECK_CONTEXT_COMPLETENESS,
+    "triage_escalates": LocalJobProfile.TRIAGE,
+    "triage_routine": LocalJobProfile.TRIAGE,
+    "briefing": LocalJobProfile.PREPARE_BRIEFING,
     "skill_selection_applies": LocalJobProfile.SELECT_SKILL,
     "skill_selection_abstains": LocalJobProfile.SELECT_SKILL,
 }
