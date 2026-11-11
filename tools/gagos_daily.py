@@ -95,6 +95,8 @@ from aios.maintenance.daily_work import (  # noqa: E402
     FIRST_RULES,
     MISSING_TEST,
     NO_MODEL,
+    OP_CREATE,
+    OP_DELETE,
     UNSHOWABLE,
     PYTHON_RULES,
     is_python_rule,
@@ -1416,7 +1418,11 @@ def _group_evidence(p: dict, facts: list) -> tuple[str, bool, bool]:
         masked_new, added = mask_lines(masked_new, egress_redact, min_width=floor)
         floor = _mask_floor(added, floor)
         diff = unified_diff(Path(m["rel"]).name, masked_base, masked_new)
-        parts.append((m["rel"], masked_base, diff))
+        said = {
+            OP_CREATE: "This change creates the file.\n",
+            OP_DELETE: "This change deletes the file.\n",
+        }.get(m.get("op"), "")
+        parts.append((m["rel"], masked_base, said + diff))
         hidden, hid_added = hidden or bool(mapping), hid_added or bool(added)
     prompt = task_files_review_prompt(egress_redact(task["text"]), parts, facts=facts)
     return prompt, hidden, hid_added
@@ -2210,12 +2216,24 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     manifest = root / PORT_MANIFEST
 
     def put_new(unit: list[dict]) -> list[str]:
-        """Write the unit's new texts, and the port's manifest with them when
-        any is a file the port carries (2026-11-11, "GAGOS through the port"):
-        the paths to commit."""
+        """Write the unit's new texts (creating a new file's folders, removing a
+        deleted file), and the port's manifest with them when any is a file the
+        port carries (2026-11-11, "GAGOS through the port"): the paths to
+        commit, deletions included."""
         for p in unit:
-            (root / p["rel"]).write_bytes(p["new_text"].encode("utf-8"))
-        ported = port_manifest_after(root, {p["rel"]: p["new_text"] for p in unit})
+            path = root / p["rel"]
+            if p.get("op") == OP_DELETE:
+                path.unlink(missing_ok=True)
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(p["new_text"].encode("utf-8"))
+        ported = port_manifest_after(
+            root,
+            {
+                p["rel"]: None if p.get("op") == OP_DELETE else p["new_text"]
+                for p in unit
+            },
+        )
         if ported is None:
             return [p["rel"] for p in unit]
         manifest.write_bytes(ported.encode("utf-8"))
@@ -2244,14 +2262,16 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     _git(root, "checkout", "-q", "-B", branch, "origin/master")
     committed: list[str] = []
     for unit in units:
-        rels = [p["rel"] for p in unit]
         currents: dict[str, str | None] = {}
         fresh: dict[str, bool] = {}
         for p in unit:
             path = root / p["rel"]
             current = path.read_bytes().decode("utf-8") if path.is_file() else None
             currents[p["proposal_id"]] = current
-            if p["rule"] == MISSING_TEST:
+            if p.get("op") == OP_CREATE:
+                # A new file: still no file of its name.
+                fresh[p["proposal_id"]] = current is None
+            elif p["rule"] == MISSING_TEST:
                 # A first test: still no file of its name, and its module as it was.
                 module = root / subject_of(p["rel"])
                 base = module.read_bytes().decode("utf-8") if module.is_file() else None
@@ -2279,7 +2299,10 @@ def cmd_deliver(args: argparse.Namespace) -> int:
 
         manifest_before = manifest.read_bytes() if manifest.is_file() else None
         staged = put_new(unit)
-        failure = check(rels)
+        # A deleted file has nothing left to check; what it breaks is checked
+        # through the files that stay (and was by the sandbox's type check).
+        present = [p["rel"] for p in unit if p.get("op") != OP_DELETE]
+        failure = check(present) if present else None
         moot = None
         if failure is not None:
             for p in unit:
@@ -2295,7 +2318,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                 # change failed its delivery on a test that times out on this
                 # laptop with or without it). Failing there too, it says
                 # nothing about the change.
-                if check(rels) == failure:
+                if check(present) == failure:
                     moot = failure
             if moot is None:
                 for p in unit:
