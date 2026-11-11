@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 51 green / 8 yellow / 59 total
-- **Source ledger sha256:** `9594c5c064148255a4a64a835670d94246d5187bacb36871f60f182ed580b61e`
+- **Source ledger sha256:** `ccdb1261ac78f386cac7b1ac9bcadfc1c781e28876638b94e76084bd2492be1f`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
