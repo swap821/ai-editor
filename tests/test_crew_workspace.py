@@ -24,8 +24,8 @@ def _git(root, *args) -> str:
     ).stdout.strip()
 
 
-@pytest.fixture()
-def project(tmp_path):
+def make_project(tmp_path):
+    """A small repository; ``(root, base commit)``."""
     root = tmp_path / "project"
     root.mkdir()
     _git(root, "init", "-q", "-b", "master")
@@ -55,6 +55,11 @@ def project(tmp_path):
     )
     _git(root, "commit", "-qm", "base")
     return root, _git(root, "rev-parse", "HEAD")
+
+
+@pytest.fixture()
+def project(tmp_path):
+    return make_project(tmp_path)
 
 
 def test_the_copy_holds_tracked_files_under_its_scope_masked(project, tmp_path) -> None:
