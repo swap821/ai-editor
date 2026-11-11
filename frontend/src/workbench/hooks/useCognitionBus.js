@@ -112,7 +112,19 @@ export function useCognitionBus(reducedMotion = false) {
 
   // Verify toast notifications & tab output enrichment
   useEffect(() => {
-    return subscribeCognition((event) => {
+    // The toast's timers belong to this effect, not to one event: a cleanup
+    // returned from inside the event callback was ignored by the bus, so the
+    // timers outlived an unmount (2026-11-11: in CI one fired after the test
+    // environment was gone, "window is not defined", and failed a run).
+    const timers = new Set();
+    const later = (fn, ms) => {
+      const id = window.setTimeout(() => {
+        timers.delete(id);
+        fn();
+      }, ms);
+      timers.add(id);
+    };
+    const unsubscribe = subscribeCognition((event) => {
       if (event.type === 'verify' && event.data?.verdict) {
         const toastToken = {};
         const reportedVerdict = String(event.data.verdict).toLowerCase();
@@ -139,26 +151,25 @@ export function useCognitionBus(reducedMotion = false) {
         }
 
         if (reducedMotion) {
-          const id = window.setTimeout(() => {
+          later(() => {
             setVerifyToast((current) => (current?.token === toastToken ? null : current));
           }, 2600);
-          return () => window.clearTimeout(id);
+          return;
         }
 
-        const timers = [];
-        timers.push(
-          window.setTimeout(() => {
-            setVerifyToast((current) => (current?.token === toastToken ? { ...current, leaving: true } : current));
-            timers.push(
-              window.setTimeout(() => {
-                setVerifyToast((current) => (current?.token === toastToken ? null : current));
-              }, 250),
-            );
-          }, 2600),
-        );
-        return () => timers.forEach((t) => window.clearTimeout(t));
+        later(() => {
+          setVerifyToast((current) => (current?.token === toastToken ? { ...current, leaving: true } : current));
+          later(() => {
+            setVerifyToast((current) => (current?.token === toastToken ? null : current));
+          }, 250);
+        }, 2600);
       }
     });
+    return () => {
+      unsubscribe();
+      timers.forEach((id) => window.clearTimeout(id));
+      timers.clear();
+    };
   }, [reducedMotion]);
 
   return {

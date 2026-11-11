@@ -1,9 +1,15 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, D15's seed, and three fixes found the hour it began" below;
+**Last updated:** 2026-11-11 ("2026-11-11, D15's first batch, and a timer that outlived its component" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, D15's first batch, and a timer that outlived its component (master `b0792e7a`, branch `fix/cognition-toast-timers`)
+
+- **D15's first live batch (03:50 UTC)** ran as designed: every proposal got its arm (ON writers were shown the rule's 3 entries, OFF writers none), 4 Claude proposals passed their checks, tests and review, the credit was settled and `no-unused-vars` was reflected on again (6 entries). Population: 2 ON, 2 OFF. Three Codex calls hit the operator's OpenAI usage limit; the Bedrock key is still refused.
+- **GAGOS's PR #617** carries the four accepted changes. Its `frontend-tests` failed with every test file passing: one unhandled `ReferenceError: window is not defined`, from a verify-toast timer in `useCognitionBus.js` firing after the test environment was gone. The timers' cleanup was returned from inside the bus callback, which the bus never calls, so they outlived an unmount. Now the timers belong to the effect and are cleared with it.
+- **Test:** `useCognitionBus.test.js`, new: the toast shows, leaves and goes; no timer is left after an unmount, with or without reduced motion (without the fix the two unmount cases fail). With the hook's other caller's tests: 29 passed. ESLint clean.
 
 ## 2026-11-11, D15's seed, and three fixes found the hour it began (master `20dd6250`, branch `fix/d16-reflector-parse`)
 
