@@ -1486,8 +1486,10 @@ def test_a_failed_reflection_changes_nothing_and_is_tried_again(tmp_path) -> Non
 
     assert "tried next batch" in tool.reflect(led, RULE, broken)
     assert led.playbook(RULE) == [] and led.rules_awaiting_reflection() == [RULE]
-    assert "no JSON" in tool.reflect(led, RULE, lambda *a: "sorry")
-    assert led.rules_awaiting_reflection() == [], "a malformed answer is not retried"
+    assert "no entry could be read" in tool.reflect(led, RULE, lambda *a: "sorry")
+    assert led.rules_awaiting_reflection() == [RULE], (
+        "D16: an answer with nothing readable is tried next batch, like a failed call"
+    )
 
 
 def test_only_the_on_arms_writer_is_shown_the_playbook(tmp_path, monkeypatch) -> None:
@@ -1569,3 +1571,60 @@ def test_the_off_arms_writer_is_not_shown_the_playbook(tmp_path, monkeypatch) ->
     [p] = led.proposals()
     assert p["arm"] == dw.ARM_OFF and p["playbook_active"] == 1
     assert "Keep the diff" not in prompts[0] and json.loads(p["playbook_seen"]) == []
+
+
+# --------------------------------------------------------------------- D16
+
+
+#: The reflector's answer for E402 at the first seed, 2026-11-11 03:2x UTC: a
+#: stray `","` after the first entry made it invalid JSON (7 of 9 answers).
+MALFORMED = (
+    '{"add":[{"kind":"strategy","text":"Fix E402 by actually moving the module-level '
+    'imports to the top of the file.","},{"kind":"pitfall","text":"Never wrap late '
+    'imports in a dead conditional such as `if True:` to hide E402."},{"kind":"pitfall",'
+    '"text":"Don\'t move imports above a path bootstrap that they rely on."}],"retire":[]}'
+)
+
+
+def test_a_malformed_answer_is_read_entry_by_entry() -> None:
+    adds, retires = dw.parse_reflection(MALFORMED)
+    assert [k for k, _ in adds] == ["strategy", "pitfall", "pitfall"]
+    assert adds[0][1].startswith("Fix E402 by actually moving")
+    assert adds[1][1].endswith("to hide E402.") and retires == []
+    adds, retires = dw.parse_reflection(
+        '{"add":[{"kind":"pitfall","text":"one"}],"retire":["pb-0a1b2c3d"],}'
+    )
+    assert adds == [("pitfall", "one")] and retires == ["pb-0a1b2c3d"]
+
+
+def test_each_reflection_has_its_own_request_id(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _decided(led, "a.js", outcome=1)
+    ids: list[str] = []
+
+    def complete(prompt, system, request_id):
+        ids.append(request_id)
+        return "sorry"
+
+    tool.reflect(led, RULE, complete)
+    tool.reflect(led, RULE, complete)
+    assert len(set(ids)) == 2, "the gateway refuses a request id twice"
+
+
+def test_a_finding_waits_until_its_rule_has_been_reflected_on(
+    tmp_path, monkeypatch
+) -> None:
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    _decided(led, "other.js", outcome=0)  # the rule has a verdict, no reflection
+    assert led.awaits_first_reflection(RULE)
+    assert tool.cmd_propose(args) == 0
+    assert asked == [], "no attempt is spent before the rule's playbook exists"
+    led.mark_reflected(RULE)
+    assert not led.awaits_first_reflection(RULE)
+    assert tool.cmd_propose(args) == 0 and asked == ["m"]
+
+
+def test_a_rule_with_no_verdict_does_not_wait(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    assert not led.awaits_first_reflection(RULE), "nothing to reflect on: no wait"

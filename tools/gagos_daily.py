@@ -803,7 +803,10 @@ def cmd_propose(args: argparse.Namespace) -> int:
         [
             f
             for f in candidates
-            if f.rel not in busy and led.may_attempt(f.rel, f.rule, digest(base_of(f)))
+            if f.rel not in busy
+            and led.may_attempt(f.rel, f.rule, digest(base_of(f)))
+            # D16: an attempt is not spent before its rule's playbook exists.
+            and not led.awaits_first_reflection(f.rule)
         ]
     )
     if busy:
@@ -2612,11 +2615,15 @@ def reflect(led: DailyLedger, rule: str, complete) -> str:
         led.mark_reflected(rule)
         return f"{rule}: not sent, {altered}"
     try:
-        raw = complete(prompt, REFLECTOR_SYSTEM, f"gagos:{_slot()}:reflect:{rule}")
+        raw = complete(
+            prompt,
+            REFLECTOR_SYSTEM,
+            f"gagos:{_slot()}:reflect:{rule}:{uuid.uuid4().hex[:8]}",
+        )
         adds, retires = parse_reflection(raw)
     except ReflectionRefused as exc:
-        led.mark_reflected(rule)
-        return f"{rule}: {exc}"
+        # Read nothing: tried again next batch, like a failed call (D16).
+        return f"{rule}: {exc}, tried next batch"
     except Exception as exc:  # the call failed: tried again next batch
         return f"{rule}: the reflector's call failed, tried next batch: {exc}"[:300]
     # An entry the privacy filter would alter would keep its ON arm's writers
