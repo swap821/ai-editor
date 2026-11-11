@@ -1,9 +1,22 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, Codex's last three weeks of body work land" below;
+**Last updated:** 2026-11-11 ("2026-11-11, GAGOS works on the superbrain through the port" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, GAGOS works on the superbrain through the port (master `4862ca54`, branch `feat/gagos-through-the-port`)
+
+- **Found while planning the body's 10/10.** `frontend/src/superbrain` is lab-first: authored in the git-ignored lab `GAG demo/gag-orchestrator/src`, which exists only in the operator's main checkout, and ported with digests in `frontend/superbrain-source.json`. It holds 139 production files and 29,415 lines (61% of the frontend), including 6 of the 9 files over 800 lines and the dead `SuperbrainHUD`. GAGOS works from a clean checkout and left every ported file alone, so most of the body's debt was out of its reach.
+- **The operator's word:** "GAGOS through the port (Recommended)".
+- **What changes:**
+  - `editable_frontend_files` now includes the ported files;
+  - a delivery that changes one also writes `superbrain-source.json` in the same commit, with the digest a port would record (CRLF read as LF);
+  - an entry is updated, a new file of a kind the port carries joins, a removed one leaves;
+  - order and line endings are kept, so a change is a one-line manifest diff.
+- **A new guard,** `tests/test_port_manifest.py`, checks that every recorded file exists with exactly its recorded digest. It failed on master before #620: #533 and #534 both changed `SuperbrainScene.LEGACY.tsx`, and the merged file matched neither recorded digest. CI never ran the port check. #620's manifest, computed from the merged files, mended it, and on master `4862ca54` the guard passes. Register row `port-manifest`: 47 of 47.
+- **For the labs:** AGENTS.md and `frontend/README.md` say so. A lab older than master is stale, so before the next lab-first change it is moved aside and restored with `npm run port:restore`. Palette and textures stay sacred, and look-and-feel work on the being stays the operator's and Codex's in the lab.
+- **Tests:** 7 new, plus 1 delivery test. The workshop and sandbox set: 397 passed, 8 skipped. The 307 tests that read AGENTS.md or the README pass. Bandit is clean, and no organ's entrypoints are touched.
 
 ## 2026-11-11, Codex's last three weeks of body work land (master `5201dbc8`, branch `feat/land-codex-body-work`)
 

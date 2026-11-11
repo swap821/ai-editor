@@ -37,5 +37,11 @@ truth is the gitignored lab (`GAG demo/gag-orchestrator/`), synced by `npm run p
 *do* edit directly: `src/superbrain/SuperbrainApp.jsx` / `SuperbrainShell.jsx`, and
 everything under `src/workbench/` + `src/components/`.
 
+Since 2026-11-11 GAGOS's own workshop also changes ported files on master (the operator:
+"GAGOS through the port"). Its delivery updates `superbrain-source.json` in the same commit, as
+`npm run port` would, and `tests/test_port_manifest.py` fails if the manifest and the product
+disagree. A lab older than master is then stale: move it aside and run `npm run port:restore`
+before the next lab-first change.
+
 The 3D brain + cosmic space are the operator's cherished core — **enhance, never replace**
 (canon tag + goldens + before/after screenshots before any visual change).

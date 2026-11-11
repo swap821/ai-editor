@@ -246,7 +246,11 @@ resume yourself — say so if asked). Don't report a task done without evidence
   else doesn't matter"): `check_css_canon.py` guards the color palette, `check_canon_frozen.py` now
   guards ONLY his texture/GLB assets (break-glass `--allow-canon`); no auto-degrade of palette/texture.
   Product (`frontend/src/superbrain/`) is gated solely by the operator's `:5173` look at `npm run port`
-  time — never hand-edit product files (overwritten). (This relaxes ONLY the visual canon; the SECURITY
+  time — never hand-edit product files (overwritten). One exception (operator, 2026-11-11: "GAGOS
+  through the port"): GAGOS's own workshop may change these product files, and each delivery updates
+  `frontend/superbrain-source.json` in the same commit exactly as a port would
+  (`tests/test_port_manifest.py` holds the manifest to the product). A lab is then stale: before the next
+  lab-first change, move it aside and `npm run port:restore` from master. Palette and textures stay sacred. (This relaxes ONLY the visual canon; the SECURITY
   frozen core below is unchanged and stays RED.)
 - **Config is centralized** in `aios/config.py` (single source of truth). Subsystems are injected via FastAPI `Depends(...)` so tests override them with fakes — never add network/model/shell side-effects to a test path.
 - **Frozen core (§VIII controlled self-modification).** The security spine — `aios/security/{gateway,scope_lock,secret_scanner,audit_logger,injection_shield}.py` — is FROZEN. Any change to it follows the full §VIII flow (Observe→Analyse→Propose→Test→Verify→Human Review→Approve→Deploy) and is treated as **RED**: the product agent literally cannot touch it (`SCOPE_ROOTS` = `training_ground/` only → an attempt classifies RED/refused), and the Self-Analysis module treats it as **Tier T4 = RED + frozen** (a fix may be *proposed* for human review, but *applying* one is RED/blocked). Never weaken a guardrail to make a test pass; keep these modules deterministic and fail-closed.

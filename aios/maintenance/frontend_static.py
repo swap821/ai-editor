@@ -27,6 +27,7 @@ until the lab and the product are reconciled (the operator's guard).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -265,14 +266,60 @@ def port_managed(project_root: Path) -> frozenset[str]:
 
 
 def editable_frontend_files(project_root: Path) -> list[str]:
-    """The frontend source files the daily work may touch, project-relative."""
+    """The frontend source files the daily work may touch, project-relative:
+    all of them. Until 2026-11-11 the files the port owns were left out; the
+    operator then chose that GAGOS works on them through the port: a change to
+    one is delivered with the manifest updated as a port from the lab would
+    (:func:`port_manifest_after`)."""
     root = Path(project_root).resolve()
-    owned = port_managed(root)
-    return [
-        rel
-        for rel in (p.relative_to(root).as_posix() for p in frontend_files(root))
-        if rel not in owned
-    ]
+    return [p.relative_to(root).as_posix() for p in frontend_files(root)]
+
+
+#: File kinds the port carries (frontend/tools/sync-superbrain.mjs).
+PORT_KINDS = (".ts", ".tsx", ".js", ".jsx", ".css", ".json")
+#: The one file under the port root the port never carries.
+PORT_UNMANAGED = f"{PORT_ROOT}/SuperbrainApp.jsx"
+
+
+def port_digest(text: str) -> str:
+    """A file's digest as manifest version 2 records it: SHA-256 of its UTF-8
+    bytes with CRLF taken as LF (frontend/tools/sync-superbrain.mjs)."""
+    return hashlib.sha256(text.replace("\r\n", "\n").encode("utf-8")).hexdigest()
+
+
+def port_manifest_after(
+    project_root: Path, changes: Mapping[str, str | None]
+) -> str | None:
+    """The port's manifest with *changes* (``{rel: new text, or None for a
+    removed file}``) applied, as the text to write; None when no change is a
+    file the manifest records or would record (2026-11-11, "GAGOS through the
+    port"). A file it records takes its new digest, or leaves it when removed;
+    a new file under the port root of a kind the port carries joins it, so a
+    lab restored from master holds it too. The order of existing entries and
+    the file's line endings are kept."""
+    root = Path(project_root)
+    under = {
+        rel[len(PORT_ROOT) + 1 :]: text
+        for rel, text in changes.items()
+        if rel.startswith(PORT_ROOT + "/") and rel != PORT_UNMANAGED
+    }
+    if not under:
+        return None
+    path = root / PORT_MANIFEST
+    raw = path.read_bytes().decode("utf-8")
+    manifest = json.loads(raw)
+    files = manifest["files"]
+    touched = False
+    for key, text in under.items():
+        if text is None:
+            touched |= files.pop(key, None) is not None
+        elif key in files or key.endswith(PORT_KINDS):
+            files[key] = port_digest(text)
+            touched = True
+    if not touched:
+        return None
+    out = json.dumps(manifest, indent=2, ensure_ascii=False) + "\n"
+    return out.replace("\n", "\r\n") if "\r\n" in raw else out
 
 
 __all__ = [
@@ -283,5 +330,7 @@ __all__ = [
     "StaticResult",
     "check_texts",
     "editable_frontend_files",
+    "port_digest",
     "port_managed",
+    "port_manifest_after",
 ]

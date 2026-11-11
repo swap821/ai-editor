@@ -31,7 +31,6 @@ from aios.maintenance.frontend_static import (
     Comment,
     LintMessage,
     StaticResult,
-    editable_frontend_files,
 )
 from tools import gagos_daily as tool
 
@@ -122,23 +121,6 @@ def test_the_days_work_is_one_file_and_one_allowed_rule() -> None:
         ("frontend/src/b.tsx", RULE, 1),
         ("frontend/src/b.tsx", "@typescript-eslint/no-explicit-any", 1),
     ], "react-hooks rules change behaviour: not in the first rules"
-
-
-def test_files_the_port_owns_are_never_work(tmp_path) -> None:
-    for rel in (
-        "frontend/src/workbench/Mine.jsx",
-        "frontend/src/superbrain/lib/Owned.ts",
-        "frontend/src/superbrain/ProductOnly.tsx",
-    ):
-        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
-        (tmp_path / rel).write_text("export const x = 1;\n", encoding="utf-8")
-    (tmp_path / "frontend/superbrain-source.json").write_text(
-        json.dumps({"files": {"lib/Owned.ts": "d"}}), encoding="utf-8"
-    )
-    assert sorted(editable_frontend_files(tmp_path)) == [
-        "frontend/src/superbrain/ProductOnly.tsx",
-        "frontend/src/workbench/Mine.jsx",
-    ]
 
 
 # --------------------------------------------------------------------- the answer
@@ -890,6 +872,57 @@ def test_deliver_commits_each_accepted_change_with_both_reviews(
     ] == ["Co-authored-by: m <m@models.invalid>"], (
         "the model that wrote it is credited; no reviewer is an author"
     )
+
+
+def test_a_change_to_a_ported_file_is_delivered_with_the_manifest(
+    tmp_path, monkeypatch, origin_and_worktree
+) -> None:
+    """2026-11-11, "GAGOS through the port": the manifest takes the new digest
+    in the same commit, so master stays accepted product."""
+    import json
+
+    from aios.maintenance import frontend_static as fs
+
+    seed, work = origin_and_worktree
+    ported = f"{fs.PORT_ROOT}/lib/Panel.jsx"
+    (seed / ported).parent.mkdir(parents=True)
+    (seed / ported).write_bytes(BEFORE.encode())
+    (seed / fs.PORT_MANIFEST).write_text(
+        json.dumps(
+            {
+                "version": 2,
+                "baseline": "accepted product",
+                "files": {"lib/Panel.jsx": fs.port_digest(BEFORE)},
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    _git(seed, "add", "-A")
+    _git(seed, "commit", "-qm", "a ported file")
+    _git(seed, "push", "-q", "origin", "master")
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    from aios.application.promotion import smoke
+
+    monkeypatch.setattr(smoke, "frontend_smoke", lambda root, paths, **kw: None)
+    pid = led.record_proposal(
+        dw.Finding(rel=ported, rule=RULE, warnings=FINDING.warnings),
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="m",
+        new_text=AFTER,
+        verdict=dw.StaticVerdict(True, "ok", 1),
+    )
+    for who, model in (("codex", "gpt"), ("claude", "opus")):
+        led.record_review(pid, who, model=model, verdict="accept", reason="fine")
+    assert tool.cmd_deliver(_deliver_args(work)) == 0
+    assert led.proposals()[0]["status"] == "committed"
+    changed = _git(work, "show", "--name-only", "--format=", "HEAD").split()
+    assert sorted(changed) == sorted([ported, fs.PORT_MANIFEST])
+    manifest = json.loads((work / fs.PORT_MANIFEST).read_text(encoding="utf-8"))
+    assert manifest["files"]["lib/Panel.jsx"] == fs.port_digest(AFTER)
 
 
 def test_a_gagos_pr_says_who_opened_it() -> None:
