@@ -337,6 +337,17 @@ class FakeWeb:
             return "", "", 137
         if self.no_report:
             return "", "Error: cannot find module", 1
+        if mode == "typecheck":
+            # tsc's own lines: a TYPEERROR in util.js is one error; one in
+            # other.js is an error the base has too when the base has it.
+            out = f"noise\n{st.TSC_MARKER}\n"
+            errors = [
+                f"src/{name}(1,1): error TS2322: Type 'string' is not assignable to type 'number'."
+                for name in ("util.js", "other.js")
+                if "TYPEERROR"
+                in (tree / "frontend" / "src" / name).read_text(encoding="utf-8")
+            ]
+            return out + "\n".join(errors) + "\n", "", 2 if errors else 0
         if mode == "related":
             ran = [WEB_TEST[len("frontend/") :]] if "src/util.js" in files else []
         else:
@@ -379,8 +390,13 @@ def test_a_frontend_change_runs_its_related_tests_in_the_web_image(webproject) -
     # The test that always fails fails without the change too: not its doing.
     assert verdict.outcome == st.PASSED
     assert verdict.failing_anyway == ("src/util.test.js::flaky",)
-    assert web.calls == [("related", ["src/util.js"]), ("run", ["src/util.test.js"])]
+    assert web.calls == [
+        ("related", ["src/util.js"]),
+        ("typecheck", []),
+        ("run", ["src/util.test.js"]),
+    ]
     assert images == [st.web_image(LOCK)] and not py.calls
+    assert "types: tsc --noEmit is clean" in verdict.summary
 
 
 def test_a_frontend_change_that_breaks_a_test_names_it(webproject) -> None:
@@ -391,13 +407,15 @@ def test_a_frontend_change_that_breaks_a_test_names_it(webproject) -> None:
     assert verdict.broken == ("src/util.test.js::works",)
     assert verdict.refusal.startswith(st.BROKE_PREFIX)
     # Judged against the base: the second run saw the original module.
-    assert "BROKEN" in web.seen[0] and "BROKEN" not in web.seen[1]
+    assert "BROKEN" in web.seen[0] and "BROKEN" not in web.seen[-1]
     assert "frontend/" not in verdict.summary
 
 
 def test_a_frontend_file_no_test_imports_is_untested(webproject) -> None:
     verdict, _, web, _ = _set(webproject, {WEB_OTHER: "export const g = 2\n"})
-    assert verdict.outcome == st.UNTESTED and len(web.calls) == 1
+    assert verdict.outcome == st.UNTESTED
+    assert [mode for mode, _ in web.calls] == ["related", "typecheck"]
+    assert "types: tsc --noEmit is clean" in verdict.summary
 
 
 def test_without_the_web_image_the_step_says_how_to_build_it(webproject) -> None:
@@ -810,3 +828,99 @@ def test_a_proposal_the_sandbox_refused_gets_no_pre_screen(
     assert tool.cmd_test(SimpleNamespace(project=str(tmp_path), again=None)) == 0
     [p] = led.proposals()
     assert p["status"] == "refused" and p["prescreen"] is None
+
+
+# --------------------------------------------------------------------- the type check (2026-11-11)
+
+
+def test_a_change_that_adds_type_errors_is_broke_whatever_its_tests_did(
+    webproject,
+) -> None:
+    verdict, _, web, _ = _set(
+        webproject, {WEB_MODULE: "export const f = () => 1 // TYPEERROR\n"}
+    )
+    assert verdict.outcome == st.BROKE
+    assert verdict.summary.startswith(
+        "it adds 1 TypeScript error(s) the base does not have"
+    )
+    assert "TS2322" in verdict.summary and "tsc src/util.js TS2322" in verdict.broken
+    assert [mode for mode, _ in web.calls].count("typecheck") == 2, (
+        "with it, then without"
+    )
+    assert verdict.refusal.startswith(st.BROKE_PREFIX)
+
+
+def test_type_errors_the_base_has_too_are_not_the_changes_doing(webproject) -> None:
+    root, _ = webproject
+    (root / WEB_OTHER).write_text("export const g = 1 // TYPEERROR\n", encoding="utf-8")
+    _git(
+        root,
+        "-c",
+        "user.name=t",
+        "-c",
+        "user.email=t@example.com",
+        "commit",
+        "-qam",
+        "e",
+    )
+    commit = _git(root, "rev-parse", "HEAD")
+    verdict, _, _, _ = _set(
+        (root, commit), {WEB_MODULE: "export const f = () => 1\nexport const h = 2\n"}
+    )
+    assert verdict.outcome == st.PASSED
+    assert "no new type errors (1 exist without it too)" in verdict.summary
+
+
+def test_a_clean_type_check_never_makes_an_untested_change_tested(webproject) -> None:
+    verdict, _, _, _ = _set(webproject, {WEB_OTHER: "export const g = 2\n"})
+    assert verdict.outcome == st.UNTESTED
+
+
+def test_a_type_check_that_cannot_run_is_said_and_decides_nothing(webproject) -> None:
+    class NoTsc(FakeWeb):
+        def __call__(self, command, *, cwd, env, timeout_s):
+            if "typecheck" in command:
+                return "", "node: not found", 127
+            return super().__call__(command, cwd=cwd, env=env, timeout_s=timeout_s)
+
+    verdict, _, _, _ = _set(
+        webproject,
+        {WEB_MODULE: "export const f = () => 1\nexport const h = 2\n"},
+        web=NoTsc(),
+    )
+    assert verdict.outcome == st.PASSED
+    assert "types: not checked, tsc could not run" in verdict.summary
+
+
+def test_the_web_image_is_named_by_its_lock_and_its_runner() -> None:
+    import hashlib
+
+    assert (
+        st.web_image(LOCK) == f"aios-verify-web:{hashlib.sha256(LOCK).hexdigest()[:12]}"
+    )
+    assert st.web_image(LOCK, b"#!/bin/sh\n") != st.web_image(LOCK)
+    runner = (Path(__file__).resolve().parents[1] / st.WEB_RUNNER_SOURCE).read_bytes()
+    assert st.web_image(LOCK, runner) in st.web_build_hint(LOCK, runner)
+
+
+def test_the_runner_script_has_the_typecheck_mode_the_step_calls() -> None:
+    script = (Path(__file__).resolve().parents[1] / st.WEB_RUNNER_SOURCE).read_text(
+        encoding="utf-8"
+    )
+    assert '"$mode" = "typecheck"' in script and f"echo {st.TSC_MARKER}" in script
+    assert "tsc --noEmit -p tsconfig.json --pretty false" in script.replace(
+        "node_modules/typescript/bin/", ""
+    )
+
+
+def test_tscs_lines_are_read_by_file_code_and_message() -> None:
+    out = (
+        f"warn\n{st.TSC_MARKER}\n"
+        "src/a.ts(3,7): error TS2322: Type 'x' is not assignable.\n"
+        "src/a.ts(9,1): error TS2322: Type 'x' is not assignable.\n"
+        "Found 2 errors.\n"
+    )
+    found = st.parse_tsc(out)
+    assert found == {("src/a.ts", "TS2322", "Type 'x' is not assignable."): 2}
+    with pytest.raises(ValueError):
+        st.parse_tsc("no marker")

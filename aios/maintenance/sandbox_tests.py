@@ -55,6 +55,7 @@ set with both combines the two verdicts (:func:`_combine`).
 from __future__ import annotations
 
 import hashlib
+from collections import Counter
 import io
 import json
 import os
@@ -393,16 +394,30 @@ NO_FRONTEND_SANDBOX = (
 )
 
 
-def web_image(lock: bytes) -> str:
-    """The frontend sandbox image for this ``package-lock.json``."""
-    return f"aios-verify-web:{hashlib.sha256(lock).hexdigest()[:12]}"
+#: The runner script Dockerfile.verify-web bakes into the image.
+WEB_RUNNER_SOURCE = "tools/verify_web_run.sh"
+#: The line the runner prints before ``tsc``'s output (its typecheck mode).
+TSC_MARKER = "GAGOS-TSC"
+#: Frontend sources TypeScript checks (``allowJs``: JavaScript is compiled too).
+TYPED_SUFFIXES = (".ts", ".tsx", ".js", ".jsx")
+_TSC_ERROR = re.compile(
+    r"^(?P<file>[^\s(][^(]*)\(\d+,\d+\): error (?P<code>TS\d+): (?P<msg>.*)$"
+)
 
 
-def web_build_hint(lock: bytes) -> str:
+def web_image(lock: bytes, runner: bytes = b"") -> str:
+    """The frontend sandbox image for this ``package-lock.json`` and runner
+    script. The runner is baked into the image, so a new runner is a new image
+    (2026-11-11, the type check); with no runner the name is the lock's alone,
+    as it was."""
+    return f"aios-verify-web:{hashlib.sha256(lock + runner).hexdigest()[:12]}"
+
+
+def web_build_hint(lock: bytes, runner: bytes = b"") -> str:
     sha = hashlib.sha256(lock).hexdigest()
     return (
         f"docker build -f Dockerfile.verify-web --label package-lock.sha256={sha} "
-        f"-t {web_image(lock)} ."
+        f"-t {web_image(lock, runner)} ."
     )
 
 
@@ -485,6 +500,101 @@ def _vitest(
     if code == 1 and not failing:
         failing = (f"(vitest exit {code})",)
     return VitestRun(False, code, passed, failing, ran, seconds)
+
+
+@dataclass(frozen=True)
+class TscRun:
+    """One ``tsc --noEmit`` over the frontend in the sandbox. *errors* counts
+    each error by file, code and message (lines shift with any edit, so they
+    are not part of an error's identity); *note* says why it could not run."""
+
+    errors: Counter
+    seconds: float
+    note: str = ""
+
+
+def parse_tsc(output: str) -> Counter:
+    """The errors ``tsc --pretty false`` printed after the runner's marker."""
+    _, marker, rest = output.partition(TSC_MARKER)
+    if not marker:
+        raise ValueError("no tsc output in the sandbox's answer")
+    found: Counter = Counter()
+    for line in rest.splitlines():
+        hit = _TSC_ERROR.match(line.strip())
+        if hit:
+            found[(hit["file"], hit["code"], hit["msg"].strip())] += 1
+    return found
+
+
+def _typecheck(runner: Runner, tree: Path, timeout_s: int) -> TscRun:
+    started = time.monotonic()
+    try:
+        out, err, code = runner(
+            f"timeout -s KILL {timeout_s} {WEB_RUNNER} typecheck",
+            cwd=str(tree),
+            env=client_env(),
+            timeout_s=timeout_s + 30,
+        )
+    except Exception as exc:  # the container could not be run: said, not hidden
+        return TscRun(
+            Counter(), time.monotonic() - started, f"tsc could not run: {exc}"
+        )
+    seconds = time.monotonic() - started
+    if code == _KILLED:
+        return TscRun(Counter(), seconds, f"tsc did not finish within {timeout_s}s")
+    try:
+        errors = parse_tsc(out)
+    except ValueError as exc:
+        return TscRun(Counter(), seconds, f"tsc could not run (exit {code}): {exc}")
+    if code != 0 and not errors:
+        return TscRun(
+            Counter(), seconds, f"tsc exited {code} without reading as errors"
+        )
+    return TscRun(errors, seconds)
+
+
+def _type_gate(
+    verdict: SandboxVerdict, with_it: TscRun | None, without: TscRun | None
+) -> SandboxVerdict:
+    """The type check's word on a frontend change (2026-11-11): a change that
+    adds TypeScript errors the base does not have is BROKE, whatever its tests
+    did. A clean check changes no verdict -- it is not a test, and never turns
+    an untested change into a tested one. A check that could not run is said
+    and judged by CI."""
+    if with_it is None:
+        return verdict
+    if with_it.note:
+        return replace(
+            verdict, summary=f"{verdict.summary}; types: not checked, {with_it.note}"
+        )
+    if not with_it.errors:
+        return replace(
+            verdict, summary=f"{verdict.summary}; types: tsc --noEmit is clean"
+        )
+    base = without.errors if without is not None and not without.note else None
+    if base is None:
+        return replace(
+            verdict,
+            summary=f"{verdict.summary}; types: {sum(with_it.errors.values())} error(s), "
+            "and the base could not be checked to compare",
+        )
+    new = with_it.errors - base
+    if not new:
+        return replace(
+            verdict,
+            summary=f"{verdict.summary}; types: no new type errors "
+            f"({sum(base.values())} exist without it too)",
+        )
+    shown = "; ".join(f"{f} {c}: {m}"[:160] for (f, c, m) in list(new)[:3])
+    return SandboxVerdict(
+        BROKE,
+        f"it adds {sum(new.values())} TypeScript error(s) the base does not have: "
+        f"{shown}; then: {verdict.summary}",
+        verdict.tests,
+        verdict.broken + tuple(f"tsc {f} {c}" for (f, c, _) in new),
+        verdict.failing_anyway,
+        verdict.seconds,
+    )
 
 
 def _ordered_tests(tree: Path, rel: str) -> list[str]:
@@ -730,12 +840,14 @@ class _WebPart:
                 f"the path {unsafe[0][:60]!r} cannot be passed to the sandbox",
             )
         data = lock.read_bytes()
-        image = web_image(data)
+        script = self.tree / WEB_RUNNER_SOURCE
+        runner = script.read_bytes() if script.is_file() else b""
+        image = web_image(data, runner)
         if not self.image_ready(image):
             return SandboxVerdict(
                 UNAVAILABLE,
                 f"the frontend sandbox image {image} is not built (or Docker is "
-                f"not running); build it with: {web_build_hint(data)}",
+                f"not running); build it with: {web_build_hint(data, runner)}",
             )
         self.runner = self.runner_for(image)
         return None
@@ -926,6 +1038,12 @@ def _run_set(
         early = part.check()
         if early is not None:
             done[part.label] = early
+    # The frontend's sources are type-checked too, in the same image, when the
+    # set changes any (2026-11-11).
+    web_part = next((p for p in parts if isinstance(p, _WebPart)), None)
+    typed = web_part is not None and any(r.endswith(TYPED_SUFFIXES) for r in web)
+    types_with: TscRun | None = None
+    types_without: TscRun | None = None
     try:
         applied.apply()
         for part in parts:
@@ -933,15 +1051,21 @@ def _run_set(
                 verdict = part.run_with()
                 if verdict is not None:
                     done[part.label] = verdict
+        if typed and web_part.runner is not None:
+            types_with = _typecheck(web_part.runner, tree, timeout_s)
         pending = [p for p in parts if p.label not in done]
-        if pending:
+        recheck = types_with is not None and bool(types_with.errors)
+        if pending or recheck:
             # Judged against the base: the same tests, without the change.
             applied.revert()
             for part in pending:
                 done[part.label] = part.run_base()
+            if recheck:
+                types_without = _typecheck(web_part.runner, tree, timeout_s)
     finally:
         applied.revert()
-    return _combine([(p.label, done[p.label]) for p in parts], others, took())
+    combined = _combine([(p.label, done[p.label]) for p in parts], others, took())
+    return _type_gate(combined, types_with, types_without)
 
 
 __all__ = [

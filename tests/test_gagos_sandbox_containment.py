@@ -168,12 +168,12 @@ Promise.all([tcp, name]).then(() => console.log(JSON.stringify(out)));
 def web_probe(tmp_path_factory) -> dict:
     """The same probe in ``aios-verify-web``, the image the frontend's tests run
     in (``Dockerfile.verify-web``), through the same runner and limits."""
-    lock = (
-        Path(__file__).resolve().parents[1] / "frontend/package-lock.json"
-    ).read_bytes()
-    image = st.web_image(lock)
+    repo = Path(__file__).resolve().parents[1]
+    lock = (repo / "frontend/package-lock.json").read_bytes()
+    runner = (repo / st.WEB_RUNNER_SOURCE).read_bytes()
+    image = st.web_image(lock, runner)
     if not st.image_built(image):
-        pytest.skip(f"{image} is not built; {st.web_build_hint(lock)}")
+        pytest.skip(f"{image} is not built; {st.web_build_hint(lock, runner)}")
     tree = tmp_path_factory.mktemp("gagos-web-probe")
     (tree / "probe.js").write_text(WEB_PROBE, encoding="utf-8")
     os.environ["GAGOS_PROBE_TOKEN"] = "never-in-the-sandbox"

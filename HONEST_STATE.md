@@ -1,9 +1,17 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, D15's first batch, and a timer that outlived its component" below;
+**Last updated:** 2026-11-11 ("2026-11-11, the body's 10/10 begins: GAGOS gets a type check" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, the body's 10/10 begins: GAGOS gets a type check (master `fda1929c`, branch `feat/gagos-type-check`)
+
+- **The operator's word.** Asked whether the frontend (the body) is 10/10: measured, about 6.5. He: "that honest real hard and long work for GAGOS itself to make GAGOS frontend (body) infra honest 10/10 and complete". GAGOS does the work; Claude Code builds what it needs and reviews; he merges.
+- **Measured on master:** `strict` unset and `noImplicitAny: false` (with both on: 2 errors in production code, 114 in tests); 52 production files plain JS/JSX that TypeScript never checks; `SuperbrainHUD.tsx` (2,028 lines) imported by three modules for one type; `SuperbrainScene.LEGACY.tsx` (2,180 lines) imported by 11; `MaterializedTab.tsx` 2,571 lines; 106 ESLint warnings.
+- **What GAGOS could not do:** files over 40,000 characters (whole-file answers), create, rename or delete files, or know whether a change keeps TypeScript happy. Four steps give it those; this is the first.
+- **The type check.** The frontend sandbox runs `tsc --noEmit` with the change in place, and again without it when it finds errors. A change that adds TypeScript errors the base does not have is BROKE before review, whatever its tests did. A clean check changes no verdict (it never makes an untested change tested); a check that cannot run is said in the verdict and left to CI. The runner script is baked into the image, so the image is now named by the lock file and the runner together (with no runner, the name is the lock's alone, as before); the image is rebuilt once this merges.
+- **Tests:** seven new; two updated to the new call order. Every test file that uses the sandbox or the workshop: 378 passed, 8 skipped (the skips need the real images). Bandit and the register unchanged.
 
 ## 2026-11-11, D15's first batch, and a timer that outlived its component (master `b0792e7a`, branch `fix/cognition-toast-timers`)
 

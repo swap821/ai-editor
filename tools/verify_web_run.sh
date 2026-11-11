@@ -48,6 +48,17 @@ EOF
 export HOME=/tmp TMPDIR=/tmp XDG_CACHE_HOME=/tmp/xdg NODE_ENV=test CI=1
 export npm_config_cache=/tmp/cache VITE_CACHE_DIR=/tmp/cache/vite
 
+if [ "$mode" = "typecheck" ]; then
+    # The frontend type-checked as CI checks it (2026-11-11). What it prints
+    # last is one line, GAGOS-TSC, then tsc's own report.
+    node node_modules/typescript/bin/tsc --noEmit -p tsconfig.json --pretty false >/tmp/tsc.log 2>&1
+    code=$?
+    echo
+    echo GAGOS-TSC
+    cat /tmp/tsc.log
+    exit $code
+fi
+
 node node_modules/vitest/vitest.mjs "$mode" "$@" --config vitest.sandbox.config.mjs --run --passWithNoTests \
     --reporter=json --outputFile=/tmp/vitest.json --maxWorkers=2 \
     --cache=false >/tmp/vitest.log 2>&1
