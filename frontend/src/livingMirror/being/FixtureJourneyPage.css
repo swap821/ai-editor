@@ -32,6 +32,8 @@
 }
 .fixture-journey__controls :focus-visible { outline: 2px solid #7bf5fb; outline-offset: 2px; }
 .fixture-journey__controls :disabled { opacity: .5; }
+.fixture-journey__controls[data-compact="true"] { display: flex; flex-wrap: nowrap; gap: 8px; }
+.fixture-journey__controls[data-compact="true"] .fixture-journey__identity { flex: 1 1 auto; min-width: 0; }
 .fixture-journey__step { flex: 1 1 220px; overflow-wrap: anywhere; }
 .fixture-journey__app {
   min-height: 0;

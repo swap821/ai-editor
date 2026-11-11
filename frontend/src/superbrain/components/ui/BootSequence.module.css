@@ -109,16 +109,17 @@
   width: 100%;
   height: 2px;
   border-radius: 1px;
-  background: rgba(123, 245, 251, 0.13);
-  overflow: hidden;
+  background: transparent;
+  overflow: visible;
 }
 
 .fill {
   display: block;
   width: 100%;
   height: 100%;
-  transform: scaleX(0);
-  transform-origin: left center;
+  /* A fixed centered glow, not a percentage or moving progress bar. */
+  transform: scaleX(0.32);
+  transform-origin: center;
   background: linear-gradient(90deg, var(--neon-green), var(--neon-cyan));
   box-shadow: 0 0 8px rgba(123, 245, 251, 0.45);
   will-change: transform;
@@ -182,4 +183,15 @@
     -webkit-text-fill-color: currentColor;
     color: #e9f6ff;
   }
+}
+
+/* The app's own pause-motion preference shares the OS reduced-motion policy. */
+.overlay[data-reduced-motion='true'] { transition-duration: 0s; }
+.overlay[data-reduced-motion='true'] .mark { animation: none; }
+.overlay[data-reduced-motion='true'] .line { transition: none; transform: none; }
+.overlay[data-reduced-motion='true'] .finale {
+  animation: none;
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: #e9f6ff;
 }

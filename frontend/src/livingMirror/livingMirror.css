@@ -47,7 +47,7 @@
 .lm-renderer-fallback-notice span:last-child { color: var(--lm-muted); font-size: 12px; }
 .lm-renderer-fallback__retry {
   justify-self: start;
-  min-height: 40px;
+  min-height: 44px;
   padding: 7px 11px;
   border: 1px solid color-mix(in srgb, var(--lm-orange) 58%, var(--lm-line));
   border-radius: 7px;
@@ -57,7 +57,12 @@
 }
 .lm-renderer-fallback__retry:hover { border-color: var(--lm-orange); }
 .lm-renderer-fallback__retry:focus-visible { outline: 2px solid var(--lm-cyan); outline-offset: 3px; }
-.lm-scene { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.lm-scene { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.lm-scene-loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  margin: 0; padding: 12px; text-align: center; color: var(--lm-muted);
+  font-size: 12px; pointer-events: none;
+}
 .lm-stage { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
 /* A static spatial connection, beneath all readable/control surfaces. No flow,
    pulse or easing: keyboard/focus and reduced-motion remain immediate. */
@@ -72,13 +77,19 @@
 .lm-app[data-working="false"] .lm-scene { left: var(--lm-conversation-rail); }
 .lm-app[data-working="true"] .lm-scene { right: 68%; }
 .lm-shell { position: absolute; inset: 0; z-index: 30; pointer-events: none; }
+.lm-secondary-workspaces { display: none; }
+@media (min-width: 1200px) and (min-height: 700px) {
+  .lm-app[data-working="true"]:not([data-being-focus="true"]):not(:has(.gagos-chrome[data-approval-pending="true"], .lm-stop__detail, .gagos-account-panel, .bond-panel)) .lm-secondary-workspaces { display: block; }
+  .lm-shell .lm-secondary-workspaces > button { position: absolute; z-index: 1; top: 0; left: 0; width: 96px; height: 48px; min-height: 48px; padding: 0; display: flex; align-items: flex-end; justify-content: center; text-align: center; font-size: 11px; line-height: 1.2; pointer-events: auto; background: transparent; border-color: transparent; }
+  .lm-secondary-workspaces > button span { max-width: 100%; padding: 2px 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; background: color-mix(in srgb, var(--lm-surface) 86%, transparent); border-radius: 3px; }
+}
 /* Pending permission and opened Stop details sit above work/composer. Remove
    only the shell's stacking trap while either boundary exists; its positioned
    children keep their ordinary work layer and the Stop header takes priority.
    No move, remount, authority transfer, palette or animation change. */
-.lm-app:has(.gagos-chrome[data-approval-pending="true"], .lm-stop__detail) .lm-shell { z-index: auto; }
-.lm-app:has(.gagos-chrome[data-approval-pending="true"], .lm-stop__detail) .lm-shell > .lm-header { z-index: 50; }
-.lm-app:has(.gagos-chrome[data-approval-pending="true"], .lm-stop__detail) .lm-shell > :is(.lm-navigation, .lm-workspace-rail, .lm-surface, .lm-connection) { z-index: 30; }
+.lm-app:has(.gagos-chrome[data-approval-pending="true"], .gagos-account-panel, .bond-panel, .lm-stop__detail) .lm-shell { z-index: auto; }
+.lm-app:has(.gagos-chrome[data-approval-pending="true"], .gagos-account-panel, .bond-panel, .lm-stop__detail) .lm-shell > .lm-header { z-index: 50; }
+.lm-app:has(.gagos-chrome[data-approval-pending="true"], .gagos-account-panel, .bond-panel, .lm-stop__detail) .lm-shell > :is(.lm-navigation, .lm-workspace-rail, .lm-surface, .lm-connection) { z-index: 30; }
 .lm-shell button, .lm-shell input, .lm-shell select, .lm-shell textarea { font: inherit; }
 .lm-shell button, .lm-shell select { min-height: 44px; cursor: pointer; }
 .lm-shell button { border: 1px solid var(--lm-line); border-radius: 8px; background: var(--lm-surface); color: var(--lm-text); padding: 8px 14px; }
@@ -568,11 +579,18 @@
      same being, below the unchanged44px Stop row and12px clearance. */
   .lm-app[data-experience-mode="beginner"] { --lm-active-presence-top: calc(118px + var(--lm-safe-area-top)); }
   .lm-app .gagos-experience-switch { top: calc(10px + var(--lm-safe-area-top)); }
-  .lm-app .gagos-account-panel {
-    top: calc(64px + var(--lm-safe-area-top));
+  .lm-app :is(.gagos-account-panel, .bond-panel) {
+    /* Keep account controls below the measured Stop row and existing nav.
+       Their own content scrolls; the Stop header remains above the dialog. */
+    --lm-account-top: max(calc(var(--lm-header-bottom, 106px) + 12px), var(--lm-active-presence-top));
+    top: var(--lm-account-top);
     left: max(14px, var(--lm-safe-area-left));
     right: max(14px, var(--lm-safe-area-right));
+    max-height: calc(100% - var(--lm-account-top) - max(12px, var(--lm-safe-area-bottom)));
   }
+  .lm-app .bond-head { flex-shrink: 0; }
+  .lm-app :is(.bond-panel, .gagos-account-panel) :is(button, input) { min-height: 44px; }
+  .lm-app .bond-close { min-width: 44px; }
   /* The fixed Guided/Expert switch shares the narrow top band with the
      human-control header. Stack the header below it instead of allowing the
      Emergency stop to collide with the mode choices at 320–375px. */
@@ -764,6 +782,10 @@
   .lm-app[data-working="false"] .gagos-chat { width: auto; }
   .lm-app .gagos-status { display: none; }
   .lm-app .gagos-pill--bond { display: inline-flex; }
+  .lm-account-control-slot { display: block; max-width: 100%; }
+  .lm-account-control-slot .gagos-pill--bond { font-size: 12px; max-width: 100%; }
+  .lm-account-control-slot .gagos-pill__main { flex: none; }
+  .lm-account-control-slot .gagos-pill__meta { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
   .lm-embedded-panel { min-height: 360px; }
 }
 @media (max-width: 640px) {
@@ -1279,7 +1301,7 @@
 @media (min-width: 768px) and (min-height: 521px) {
   .lm-app[data-working="true"]:not([data-being-focus="true"]) .lm-workspace-rail {
     top: 162px;
-    right: 326px;
+    right: calc(40px + var(--lm-active-status-width, 286px));
     left: calc(32% + 16px);
     width: auto;
     max-width: none;
@@ -1312,8 +1334,8 @@
     right: 28px;
     bottom: auto;
     left: auto;
-    width: 286px;
-    max-width: 286px;
+    width: var(--lm-active-status-width, 286px);
+    max-width: var(--lm-active-status-width, 286px);
     height: 44px;
     align-items: center;
     flex-wrap: nowrap;
@@ -1386,6 +1408,23 @@
    its1px separator inside the existing144px header band. Keep the body and
    reader boundaries unchanged; short landscape retains its separate layout. */
 @media (min-width: 1200px) and (min-height: 521px) {
+  /* The fixed286px band clipped even Guided's protection/account labels.
+     Reserve their readable width inside the existing work side; navigation
+     yields horizontally, not the body, reader or request dock. Expert may
+     add a mode and long identity metadata: bound those optional strings,
+     keeping protection and account labels intact. No moving hit targets. */
+  .lm-app[data-working="true"] { --lm-active-status-width: 512px; }
+  .lm-app[data-working="true"] .gagos-status > .gagos-pill { flex: 0 1 auto; min-width: 0; }
+  .lm-app[data-working="true"] .gagos-status > .gagos-pill--supervised { flex: 0 0 auto; }
+  .lm-app[data-working="true"] .gagos-status > .gagos-pill:first-child { flex: 1 1 0; min-width: 100px; }
+  .lm-app[data-working="true"] .gagos-status > .gagos-pill--mode { max-width: 110px; }
+  .lm-app[data-working="true"] .gagos-pill--bond .gagos-pill__main { flex: none; }
+  .lm-app[data-working="true"] .gagos-status .gagos-pill__meta {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
   .lm-app .lm-shell[data-experience-mode="expert"] .lm-navigation {
     top: 83px;
     height: 61px;

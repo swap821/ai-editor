@@ -1,5 +1,25 @@
 # Exploded Warnings
 
+## PAINT VISIBILITY IS NOT PAINTED TISSUE
+
+24/25Oct twice found staging flags misdescribing output: copied ShaderMaterial uniforms kept actual GPU paint invisible; later uVisible1 at unfurl0 meant no painted points, but RETURN exposed2400. Reverse the actual current vertex mask/loft (including residual live loft and moving contact), not raw base positions or eligibility. Latch committed focus/hold interruptions independently of RAF. Add zero/partial birth and no-intervening-frame commits before qualification; never loosen geometry tolerances to accommodate a wrong paint oracle.
+
+## RETAINED IDENTITY IS NOT CURRENT WRITER OWNERSHIP
+
+22/23Oct controlled-wire regressions (not claimed production incidents) twice exposed local-generation checks mutating another owner's reused surface: disposal of a same-file tab and terminal transfer to a newly discovered filepath. The actual approval caller also kept replay work outside the hook's active ref. Before settling, retracting or transferring retained work, validate the shared writer on BOTH source and destination, including the real replay caller. Preserve a genuine permission hold and another owner's receipt/claim. Cover partial/completed/held destinations and continued successor streaming, not just same-placeholder Stop tests. Close independent review BEFORE long qualification; preserve any superseded run as incomplete evidence, never a pass.
+
+## RAW PATCH TEXT CAN BREAK THE ORCHESTRATOR BEFORE EXECUTION
+
+Two22Oct raw-template patch cells contained nested code backticks; another malformed quoted workdir caused a JavaScript parse error. Those cells did not execute any nested tools. Use quoted/JSON patch strings or avoid template-literal contexts, and split reconciliation from command execution. Distinguish these pre-execution parse errors from apply_patch runtime failures, which CAN leave earlier writes in place; inspect actual paths instead of assuming rollback or completion.
+
+## DOM REFLOW CAN PRECEDE SETTLED SCREENSHOT PAINT
+
+Two22Oct viewport observations reported the correct DOM width/height while their first capture still showed cropped/scaled old paint and black unused room. Do not diagnose camera/body/content disappearance from that transient capture. Check the selected target and actual DOM bounds, then use one subsequent supported visual observation; exclude the stale capture. Do not add arbitrary sleeps, repair screenshots or claim reset() restored initial dimensions without measurement.
+
+## SOURCE-LAZY IS NOT PRODUCTION-LAZY
+
+Two startup passes found shared-module capture inside forced heavyweight vendors: the Vite preload helper inside Monaco, then a DOM-shared dependency inside Drei reached through frontendMetrics. Source lazy imports and a blocked-module test did not prove the generated entry/App graph. Parse actual static imports/preloads after a production build, fail if editor/renderer vendors are required before controls mount, and preserve text/CSP initialization order. Byte/gzip reductions are not input-latency, GPU or physical-device acceptance.
+
 ## STALE AND TRANSIENT INDEX LOCKS ARE DIFFERENT
 
 Two own-worktree zero-byte locks were diagnosed and recoverably preserved2026-10-16 (one from11Oct, one unchanged32minutes). A separate transient lock disappeared untouched. Before Git writes, verify exact per-worktree gitdir, age/content and no open holder; inspect real operation names, not just git.exe presence (15processes were fsmonitor daemons). Never delete a new lock, kill daemons or disable fsmonitor/locking to push. Preserve a diagnosed stale lock under a unique exact metadata path; if the next lock is current/held, stop. The process that left these files is NOT established by this evidence.
@@ -20,6 +40,8 @@ _Patterns that harmed >= 2x get promoted here, loudest at the top._
 
 ## CHANGED WRAPPER INTERFACES REQUIRE BOTH MOCK AND REAL-OWNER PROOF
 
+Renderer follow-up24Oct: adding onCreated access to actual Three.debug aborted3 installed-Canvas consumer tests before controls mounted because their external createSink doubles lacked debug. Six failures cost a600s full run. BEFORE binding another renderer API, search every sink/factory (not only mocked Canvas components), mirror the installed renderer interface, and run those real-owner consumers. One debug-shape line per sink restored19focused checks without changing production guards, assertions or timeouts. Retain failed full proof until final whole-source qualification actually passes.
+
 Reader-receipt follow-up2026-10-16: final related62 omitted unchanged approvalReplay title queries; expensive full caught2 duplicate-title failures. A CSS-hidden heading still duplicated summary markup. Search existing text/role consumers before freezing a changed component, omit redundant host markup rather than weakening original queries, and count only files the focused filter actually matched. Corrected89/4/static pass; whole qualification remains separately required.
 
 Quality follow-up (2026-10-14): two fixed-tier scheduling mocks omitted a new wrapper export, failing12 cases BEFORE their original assertions. Search affected imports/mocks and migrate their exact interfaces before the expensive whole run; do not drop assertions or substitute those doubles for the installed Canvas/context-bridge owner witness. Outside its provider, the legacy default setter silently does nothing: hide unbound controls or share the existing owner, never add a second bus/provider. jsdom's closed-details exclusion is partial; native DOM/layout must separately prove concealment/reach. An unchanged framing case passed after a full15s timeout; this does not prove cause or a product fix. Keep original budgets, failed artifacts and durable terminal outcome, and never trade them for hardware/visual acceptance.
@@ -34,8 +56,11 @@ Confirmed in browser utterance callbacks and backend audio fetch/decode/source-e
 
 ## CANONICAL OUTER POSTURE DOES NOT GOVERN EVERY INNER CUE
 
-Body-return follow-up (2026-10-22): removing false completion-green also removed the real point-field return band/inhale because shader lifecycle coupled task status to choreography. Trace every lifecycle consumer; use existing physical return motion independently while preserving canonical critical/uncertain precedence and standalone fallback. Actual normal/reduced frame-uniform witnesses are required in addition to producer metadata and nerve color. These CPU checks are not native/GPU or vision acceptance.
+Lens follow-up23Oct: the new pane projection obeyed reduced/physical hold while OrganismFraming independently kept zoom/targetY easing. Test every camera channel (offset, lens, aim, orbit), including zero-delta first/demand paints and the actual parent hold caller. Necessary safe refitting may be immediate; do not advance retained control damping or infer GPU/native comfort from CPU lens values. Keep ordinary-motion positive cases and all anatomical envelopes.
 
+Body-return follow-up (2026-10-22): removing a false completion posture also removed BrainPointField's travelling return/inhale because shader lifecycle had coupled choreography to status. Trace every mapped-lifecycle consumer; preserve independently eligible physical return motion, current critical/uncertain precedence and standalone fallback. Actual frame-uniform normal/reduced witnesses are required in addition to producer travel metadata and nerve-color checks. No GPU appearance or vision acceptance follows from those CPU checks.
+
+Body-return follow-up (2026-10-22): removing false completion-green also removed the real point-field return band/inhale because shader lifecycle coupled task status to choreography. Trace every lifecycle consumer; use existing physical return motion independently while preserving canonical critical/uncertain precedence and standalone fallback. Actual normal/reduced frame-uniform witnesses are required in addition to producer metadata and nerve color. These CPU checks are not native/GPU or vision acceptance.
 Reader follow-up (2026-10-13): a correct selected-reader pose did not govern camera auto-orbit, parent float or the fused body's separate voyage clock. Trace each real owner and reuse valid selection rather than treating all retained work as attention. Keep breath/sky, deliberate inspection and Conversation/Close positives. Old tests that deliberately require selected-reader idle travel are obsolete CONTRACTS, not permission to remove anatomical bounds: preserve them and verify achieved side/rear views. Do not weaken floors/geometry/timeouts or infer GPU/device acceptance. Resume from final terminal proof, not a stale pending-run notebook.
 
 Confirmed in both CortexEngine's legacy impulses and NodeLattice's independent activation/travel: correct outer color/hold did not stop conflicting inner work. Probe the actual producer AND mounted child/relay/material inputs with canonical critical/quiet fixtures plus genuine/standalone positive controls. Preserve calm breath and lit anatomy; blanking every effect is not truth convergence. Review errors provide no approval.
@@ -75,6 +100,8 @@ Two2026-10-03 continuations made no progress waiting on a small layout question 
 ## ROLE QUERIES DO NOT ACCEPT AN EXACT OPTION
 
 Testing Library ByRoleOptions does not contain exact; a string name is already exact. This fixture mistake repeated across source units and spent typecheck/repair time without advancing product behavior. Use plain string or anchored-regex role names, then run focused typecheck before broad gates. Do not copy ByText options into role queries.
+
+CUA/Playwright locator options are a different API: their role locator DOES support exact. Never copy those options into Testing Library source tests; the identical method name does not imply an identical options type.
 
 ## STATE SELECTORS CHANGE CAMERA LAYOUT THROUGH CSS SPECIFICITY
 

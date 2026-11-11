@@ -3,11 +3,9 @@
 /**
  * BootSequence — GAGOS kernel boot overlay.
  *
- * Fullscreen overlay above the HUD while the Canvas underneath compiles
- * shaders and loads the GLB. The progress bar blends REAL asset progress
- * (drei's useProgress zustand store works outside the Canvas — it reads the
- * shared loading state) with a scripted minimum, so boot lands at ~2.6s
- * nominal and never exceeds ~3.4s even when assets stall or are uncached.
+ * Presentation-only arrival overlay while the Canvas initializes. Its
+ * central line is ambient, not an asset-progress meter. The short scripted
+ * sequence never gates the operational controls or claims renderer readiness.
  *
  * Any click or keypress skips straight to the finale. After the finale
  * sweep and a 500ms fade the component renders null — it never leaves an
@@ -18,7 +16,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useProgress } from '@react-three/drei';
 
 import { transitionToArriving, ArrivalMode } from '@/lib/lifecycleStateMachine';
-import { AIOS_BASE } from '@/lib/aiosAdapter';
+import { useReducedMotion } from '@/lib/reducedMotion';
 import styles from './BootSequence.module.css';
 
 interface BootLine {
@@ -34,7 +32,7 @@ const BOOT_LINES: BootLine[] = [
   { text: 'Opening readable work surfaces', status: 'PRESENTATION' },
   { text: 'Operational state comes from the local service', status: 'SEPARATE' },
   { text: 'Human controls remain available', status: 'CLIENT' },
-  { text: 'Select Skip to begin now', status: 'OPTIONAL ARRIVAL' },
+  { text: 'Click, tap or press a key to continue', status: 'OPTIONAL ARRIVAL' },
 ];
 
 const BOOT_FACTS_BUDGET_MS = 1_600;
@@ -70,12 +68,10 @@ const HexMark = () => (
 export default function BootSequence({ onComplete }: { onComplete: () => void }) {
   const [phase, setPhase] = useState<Phase>('log');
   const [lineCount, setLineCount] = useState(0);
-  const [reducedMotion] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  );
+  const reducedMotion = useReducedMotion();
 
-  const fillRef = useRef<HTMLSpanElement>(null);
   const skipRef = useRef(false);
+  const arrivalStartedRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
   useEffect(() => {
     onCompleteRef.current = onComplete;
@@ -160,20 +156,12 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
           : Math.min(BOOT_LINES.length, Math.floor(elapsed / timings.line) + 1);
       setLineCount((prev) => (targetLines > prev ? targetLines : prev));
 
-      // Blend real asset progress with the scripted minimum. Real progress
-      // can accelerate the ramp but never stall it past the hard ceiling.
-      const real = useProgress.getState().progress / 100;
-      const ramp = Math.min(1, elapsed / timings.ramp);
-      const forced = Math.min(1, elapsed / timings.bar);
-      const value = skipRef.current
-        ? 1
-        : Math.max(forced, Math.min(1, ramp * (0.55 + 0.45 * Math.max(real, forced))));
-
-      if (fillRef.current) {
-        fillRef.current.style.transform = `scaleX(${value.toFixed(4)})`;
-      }
-
-      if (skipRef.current || (value >= 1 && targetLines >= BOOT_LINES.length)) {
+      // Asset completion can shorten the decorative sequence, but it never
+      // turns the ambient line into a measured or timer-forced progress bar.
+      const assetProgress = useProgress.getState().progress;
+      const presentationElapsed = elapsed >= timings.bar
+        || (elapsed >= timings.ramp && Number.isFinite(assetProgress) && assetProgress >= 100);
+      if (skipRef.current || (presentationElapsed && targetLines >= BOOT_LINES.length)) {
         setLineCount(BOOT_LINES.length);
         setPhase('finale');
         return;
@@ -196,14 +184,17 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
       // The kernel is online — begin the being's opening. First-ever load on this
       // device coalesces (A); a return awakens (C). Reduced-motion is honored by
       // the scene (it renders the settled REST state immediately).
-      let firstEver = true;
-      try {
-        firstEver = window.localStorage.getItem('gag-has-arrived-v1') === null;
-        window.localStorage.setItem('gag-has-arrived-v1', '1');
-      } catch {
-        // Private mode: treat as first-ever (coalescence) — the richer opening.
+      if (!arrivalStartedRef.current) {
+        arrivalStartedRef.current = true;
+        let firstEver = true;
+        try {
+          firstEver = window.localStorage.getItem('gag-has-arrived-v1') === null;
+          window.localStorage.setItem('gag-has-arrived-v1', '1');
+        } catch {
+          // Private mode: treat as first-ever (coalescence) — the richer opening.
+        }
+        transitionToArriving(firstEver ? ArrivalMode.COALESCENCE : ArrivalMode.AWAKENING);
       }
-      transitionToArriving(firstEver ? ArrivalMode.COALESCENCE : ArrivalMode.AWAKENING);
       const id = window.setTimeout(() => {
         setPhase('done');
         onCompleteRef.current();
@@ -219,6 +210,7 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
       className={phase === 'fade' ? `${styles.overlay} ${styles.isFading}` : styles.overlay}
       role="status"
       aria-label="GAGOS boot sequence"
+      data-reduced-motion={reducedMotion ? 'true' : undefined}
     >
       <span className={styles.mark} aria-hidden="true">
         <HexMark />
@@ -244,8 +236,8 @@ export default function BootSequence({ onComplete }: { onComplete: () => void })
                 </p>
               ))}
             </div>
-            <div className={styles.track}>
-              <span ref={fillRef} className={styles.fill} />
+            <div className={styles.track} aria-hidden="true">
+              <span className={styles.fill} />
             </div>
           </>
         ) : (

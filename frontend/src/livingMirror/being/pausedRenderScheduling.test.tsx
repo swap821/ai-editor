@@ -9,6 +9,9 @@ import { publishCognition } from '../../superbrain/lib/cognitionBus';
 import { DPR_WARMUP_MS } from '../../superbrain/lib/perfBudget';
 import { SCENE_UNIFORMS } from '../../superbrain/components/canvas/SuperbrainScene.LEGACY';
 import { installKeyboardViewportTracking } from '../keyboardViewport';
+import { WorkspaceThumbnailTargets } from './WorkspaceThumbnailTargets';
+import { __resetTabStoreForTests, focusWorkspace, getTabStoreSnapshot, setMaterializedTabLifecycle, showContentSurface } from '../../superbrain/lib/tabStore';
+import { getContentSurfacePlacement } from '../../superbrain/lib/materializedSurfaceAnchors';
 
 const fixture = vi.hoisted(() => ({ state: null as RootState | null, paints: 0,
   canvas: null as HTMLCanvasElement | null, monitorMounted: false, composer: false, realControls: false,
@@ -127,6 +130,66 @@ const physical = { phase: 'resting', taskState: 'idle', coherence: 'fresh', moti
   cortex: { posture: 'rest' }, verification: { state: 'none' }, membrane: { state: 'clear' } };
 
 describe('paused installed renderer scheduling', () => {
+  it('finds a late-mounted secondary surface on its first demand frame without polling while idle', async () => {
+    __resetTabStoreForTests();
+    const selected=showContentSurface({filepath:'first.txt',language:'text',code:'first'},getContentSurfacePlacement(2));setMaterializedTabLifecycle(selected.id,'live');
+    const other=showContentSurface({filepath:'second.txt',language:'text',code:'second'},getContentSurfacePlacement(4));setMaterializedTabLifecycle(other.id,'live');focusWorkspace(selected.id);
+    const snapshot=getTabStoreSnapshot(),host=document.createElement('div'),pane=document.createElement('div');
+    host.className='lm-app';pane.className='lm-scene';
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg'),button=document.createElement('button');
+    button.dataset.secondaryId=other.id;button.style.visibility='hidden';host.append(pane,svg,button);document.body.append(host);
+    const overlayRef={current:svg},rect=new DOMRect(0,0,500,500);
+    vi.spyOn(Element.prototype,'getBoundingClientRect').mockReturnValue(rect);
+    vi.spyOn(Element.prototype,'getClientRects').mockReturnValue([rect] as unknown as DOMRectList);
+    const contents=(shown:boolean)=><WorkspaceCanvas physical={physical}>
+      {shown&&<group name={`gagos-workspace-${other.id}`}/>}
+      <WorkspaceThumbnailTargets snapshot={snapshot} overlayRef={overlayRef}/>
+    </WorkspaceCanvas>;
+    try {
+      setAmbientMotionPaused(true);
+      let view!:ReturnType<typeof render>;
+      await act(async()=>{view=render(contents(false));});await elapse(5000);
+      expect(button.style.visibility).toBe('hidden');const settled=fixture.paints;
+      await elapse(15000);expect(fixture.paints).toBe(settled);
+      await act(async()=>{view.rerender(contents(true));});await elapse(100);
+      expect(fixture.paints).toBeGreaterThan(settled);expect(button.style.visibility).toBe('visible');
+      await elapse(5000);const next=fixture.paints;await elapse(15000);expect(fixture.paints).toBe(next);
+    } finally {host.remove();__resetTabStoreForTests();}
+  });
+  it('reprojects secondary workspace controls after an approval boundary clears and settles back to idle', async () => {
+    __resetTabStoreForTests();
+    const selected=showContentSurface({filepath:'first.txt',language:'text',code:'first'},getContentSurfacePlacement(2));
+    setMaterializedTabLifecycle(selected.id,'live');
+    const other=showContentSurface({filepath:'second.txt',language:'text',code:'second'},getContentSurfacePlacement(4));
+    setMaterializedTabLifecycle(other.id,'live');focusWorkspace(selected.id);
+    const snapshot=getTabStoreSnapshot();
+    const host=document.createElement('div');host.className='lm-app';
+    const pane=document.createElement('div');pane.className='lm-scene';
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    const button=document.createElement('button');button.dataset.secondaryId=other.id;button.style.visibility='hidden';
+    const chat=document.createElement('div');chat.className='gagos-chat-context';
+    host.append(pane,svg,button,chat);document.body.append(host);
+    const overlayRef={current:svg};
+    const rect=new DOMRect(0,0,500,500);
+    vi.spyOn(Element.prototype,'getBoundingClientRect').mockReturnValue(rect);
+    vi.spyOn(Element.prototype,'getClientRects').mockReturnValue([rect] as unknown as DOMRectList);
+    try {
+      setAmbientMotionPaused(true);
+      await act(async()=>{render(<WorkspaceCanvas physical={physical}>
+        <group name={`gagos-workspace-${other.id}`}/>
+        <WorkspaceThumbnailTargets snapshot={snapshot} overlayRef={overlayRef}/>
+      </WorkspaceCanvas>);});
+      await elapse(5000);expect(button.style.visibility).toBe('visible');
+      const idle=fixture.paints;await act(async()=>{chat.append(document.createElement('span'));});
+      await elapse(100);expect(fixture.paints).toBe(idle);
+      const guard=document.createElement('div');guard.className='gagos-chrome';guard.dataset.approvalPending='true';
+      await act(async()=>{host.append(guard);});expect(button.style.visibility).toBe('hidden');
+      await elapse(5000);const before=fixture.paints;
+      await act(async()=>{guard.remove();});await elapse(100);
+      expect(fixture.paints).toBeGreaterThan(before);expect(button.style.visibility).toBe('visible');
+      await elapse(5000);const settled=fixture.paints;await elapse(15000);expect(fixture.paints).toBe(settled);
+    } finally {host.remove();__resetTabStoreForTests();}
+  });
   it.each(['viewport resize', 'viewport scroll', 'composer transition'] as const)(
     'reattaches the actual intake after an idle %s without resuming ambient motion', async (trigger) => {
       // Real keyboard tracking changes the DOM dock while Canvas size and the

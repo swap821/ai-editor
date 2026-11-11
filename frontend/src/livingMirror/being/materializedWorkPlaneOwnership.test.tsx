@@ -31,7 +31,7 @@ vi.mock('@react-three/drei', async (original) => ({
   Text: ({ children }: { children: string }) => <group name={`text:${children}`} />,
 }));
 extend({ Group: THREE.Group, Mesh: THREE.Mesh, Points: THREE.Points, LineSegments: THREE.LineSegments,
-  BufferGeometry: THREE.BufferGeometry, SphereGeometry: THREE.SphereGeometry, PlaneGeometry: THREE.PlaneGeometry,
+  BufferGeometry: THREE.BufferGeometry, BufferAttribute: THREE.BufferAttribute, SphereGeometry: THREE.SphereGeometry, PlaneGeometry: THREE.PlaneGeometry,
   BoxGeometry: THREE.BoxGeometry, TorusGeometry: THREE.TorusGeometry, TubeGeometry: THREE.TubeGeometry,
   CylinderGeometry: THREE.CylinderGeometry, ShapeGeometry: THREE.ShapeGeometry,
   MeshBasicMaterial: THREE.MeshBasicMaterial, MeshStandardMaterial: THREE.MeshStandardMaterial,
@@ -54,46 +54,214 @@ beforeEach(() => {
 afterEach(() => { cleanup(); __resetTabStoreForTests(); __resetSpineFusionForTests();
   window.localStorage.removeItem('gagos-pause-motion-v1'); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
-function MaterializedReaders({ snapshot, fullLayer = false, physical }: { snapshot: ReturnType<typeof getTabStoreSnapshot>; fullLayer?: boolean; physical?: PhysicalBodyProjection }) {
+function MaterializedReaders({ snapshot, fullLayer = false, physical, breathRef }: { snapshot: ReturnType<typeof getTabStoreSnapshot>; fullLayer?: boolean; physical?: PhysicalBodyProjection; breathRef?: {value:number} }) {
   const reducedMotion = useReducedMotion(); // same reactive source as the actual CortexEngine
-  if (fullLayer) return <MaterializationLayer reducedMotion={reducedMotion} physical={physical} />;
+  if (fullLayer) return <MaterializationLayer reducedMotion={reducedMotion} physical={physical} breathRef={breathRef} />;
   return snapshot.tabs.filter(tab => tab.kind === 'content').map(tab => <MaterializedTab key={tab.id} tab={tab}
     reducedMotion={reducedMotion} focused={snapshot.focusId === tab.id} workspaceCount={snapshot.tabs.length} />);
 }
 
-async function mount(reducedMotion: boolean, withReader = true, experienceMode: 'beginner' | 'expert' = 'beginner', reaching = false, fullLayer = false, physical?: PhysicalBodyProjection) {
+async function mount(reducedMotion: boolean, withReader = true, experienceMode: 'beginner' | 'expert' = 'beginner', reaching = false, fullLayer = false, physical?: PhysicalBodyProjection, breathRef?: {value:number}, decoyCanvas = false) {
   setAmbientMotionPaused(reducedMotion);
   const first = showContentSurface({ filepath: 'first.txt', language: 'text', code: 'first retained content' }, getContentSurfacePlacement(2));
   if (!reaching) setMaterializedTabLifecycle(first.id, 'live');
   const overlayRef = createRef<SVGSVGElement>();
-  const dom = render(<div className="lm-app"><canvas />
+  const dom = render(<div className="lm-app">{decoyCanvas && <canvas data-decoy="true" />}<canvas data-renderer="true" />
     {withReader && <LivingWorkspaceShell experienceMode={experienceMode} />}
     <WorkspaceConnectionOverlay overlayRef={overlayRef} />
   </div>);
-  const canvas = dom.container.querySelector('canvas')!;
+  const canvas = dom.container.querySelector<HTMLCanvasElement>('canvas[data-renderer]')!;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(42, 1, 0.1, 100);
   camera.position.set(0, 0, 10); camera.updateMatrixWorld();
   camera.setViewOffset(460, 900, 0, 0, 1440, 900);
   const root = createRoot(canvas);
   const store = _roots.get(canvas)!.store;
-  const gl = { domElement: canvas, render() {}, setSize() {}, setPixelRatio() {} } as unknown as RootState['gl'];
+  const gl = { domElement: canvas, render() {}, setSize() {}, setPixelRatio() {}, getPixelRatio:()=>1 } as unknown as RootState['gl'];
   await root.configure({ gl, scene, camera, frameloop: 'never', size: { width: 1440, height: 900, left: 0, top: 0 } });
   // Like PresenceViewport, install pane framing after R3F configures stage size.
   camera.setViewOffset(460, 900, 0, 0, 1440, 900);
-  const sync = async () => {
+  const commit = async () => {
     const snapshot = getTabStoreSnapshot();
     await act(async () => { root.render(<>
-      <MaterializedReaders snapshot={snapshot} fullLayer={fullLayer} physical={physical} />
-      <WorkspaceConnectionProjection overlayRef={overlayRef} snapshot={snapshot} />
+      <MaterializedReaders snapshot={snapshot} fullLayer={fullLayer} physical={physical} breathRef={breathRef} />
+      <WorkspaceConnectionProjection overlayRef={overlayRef} snapshot={snapshot} breathRef={breathRef} />
     </>); });
-    act(() => advance(1, false, store.getState()));
   };
+  const sync = async () => { await commit(); act(() => advance(1, false, store.getState())); };
   await sync();
-  return { first, dom, scene, sync, overlayRef, store,
+  return { first, dom, scene, sync, commit, overlayRef, store,
     setPhysical: async (next: PhysicalBodyProjection) => { physical = next; await sync(); },
     close: async () => { await act(async () => root.unmount()); dom.unmount(); } };
 }
+
+it('keeps the connection on the renderer when another canvas precedes it', async () => {
+  vi.mocked(Element.prototype.getBoundingClientRect).mockImplementation(function (this: Element) {
+    const value = this.matches('[data-decoy]')
+      ? { x: 0, y: 0, width: 0, height: 0 }
+      : this.matches('.lm-surface, .approval-panel')
+        ? { x: 477, y: 200, width: 935, height: 450 }
+        : { x: 0, y: 0, width: 1440, height: 900 };
+    return { ...value, left: value.x, top: value.y, right: value.x + value.width,
+      bottom: value.y + value.height, toJSON: () => value };
+  });
+  const view = await mount(false, true, 'beginner', false, false, undefined, undefined, true);
+  try {
+    expect(view.overlayRef.current!.querySelector('path')!.getAttribute('d')).not.toBe('');
+    const nerve = view.scene.getObjectByName('workspace-nerve') as THREE.Mesh;
+    expect(nerve.visible).toBe(true);
+  } finally { await view.close(); }
+});
+
+it('signals admitted streaming changes on the real nerve and stays quiet when ambient motion is paused', async () => {
+  let now = 10000;
+  vi.spyOn(performance, 'now').mockImplementation(() => now);
+  const view = await mount(false);
+  try {
+    const original = getTabStoreSnapshot().tabs.find(tab => tab.id === view.first.id)!;
+    act(() => updateMaterializedTab(original.id, { content: { ...original.content!, streaming: true } }));
+    await view.sync();
+    const nerve = view.scene.getObjectByName('workspace-nerve') as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
+    const fibers = view.scene.getObjectByName('workspace-nerve-fibers') as THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
+    expect(nerve.material.uniforms.signal?.value).toBe(-1);
+    expect(fibers.material.uniforms.signal?.value).toBe(-1);
+    act(() => updateMaterializedTab(original.id, { content: { ...original.content!, code: 'first retained content + chunk', streaming: true } }));
+    await view.sync();
+    expect(nerve.material.uniforms.signal?.value).toBeCloseTo(0, 4);
+    expect(fibers.material.uniforms.signal?.value).toBeCloseTo(0, 4);
+    expect(nerve.material.fragmentShader).toContain('signal');
+    expect(fibers.material.fragmentShader).toContain('signal');
+    now += 200; await view.sync();
+    expect(nerve.material.uniforms.signal?.value).toBeGreaterThan(0.35);
+    expect(nerve.material.uniforms.signal?.value).toBeLessThan(0.65);
+    act(() => setAmbientMotionPaused(true)); await view.sync();
+    expect(nerve.material.uniforms.signal?.value).toBe(-1);
+    act(() => updateMaterializedTab(original.id, { content: { ...original.content!, code: 'quiet update', streaming: true } }));
+    await view.sync();
+    act(() => setAmbientMotionPaused(false)); await view.sync();
+    expect(nerve.material.uniforms.signal?.value).toBe(-1);
+  } finally { await view.close(); }
+});
+
+it('cancels the real nerve cue when the operating system requests reduced motion', async () => {
+  let now=10000, reduced=false;
+  vi.spyOn(performance,'now').mockImplementation(()=>now);
+  const media=new EventTarget();
+  Object.defineProperty(media,'matches',{get:()=>reduced});
+  vi.stubGlobal('matchMedia',()=>media);
+  const view=await mount(false);
+  try {
+    const original=getTabStoreSnapshot().tabs.find(tab=>tab.id===view.first.id)!;
+    act(()=>updateMaterializedTab(original.id,{content:{...original.content!,streaming:true}}));await view.sync();
+    act(()=>updateMaterializedTab(original.id,{content:{...original.content!,code:'admitted chunk',streaming:true}}));await view.sync();
+    const nerve=view.scene.getObjectByName('workspace-nerve') as THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    expect(nerve.material.uniforms.signal.value).toBe(0);
+    reduced=true;act(()=>media.dispatchEvent(new Event('change')));await view.sync();
+    expect(nerve.material.uniforms.signal.value).toBe(-1);
+    now+=50;act(()=>updateMaterializedTab(original.id,{content:{...original.content!,code:'quiet chunk',streaming:true}}));await view.sync();
+    reduced=false;act(()=>media.dispatchEvent(new Event('change')));await view.sync();
+    expect(nerve.material.uniforms.signal.value).toBe(-1);
+  } finally {await view.close();}
+});
+
+it('writes the shared breath to both actual nerve materials and settles when motion is paused',async()=>{
+  const breathRef={value:.2};
+  const view=await mount(false,true,'beginner',false,false,undefined,breathRef);
+  expect(view.scene.getObjectByName(`gagos-workspace-${view.first.id}`)).toBeTruthy();
+  const tube=view.scene.getObjectByName('workspace-nerve') as THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;
+  const fibers=view.scene.getObjectByName('workspace-nerve-fibers') as THREE.Points<THREE.BufferGeometry,THREE.ShaderMaterial>;
+  expect(tube.material.uniforms.breath.value).toBe(.2);expect(fibers.material.uniforms.breath.value).toBe(.2);
+  breathRef.value=.9;await view.sync();
+  expect(tube.material.uniforms.breath.value).toBe(.9);expect(fibers.material.uniforms.breath.value).toBe(.9);
+  act(()=>setAmbientMotionPaused(true));await view.sync();
+  expect(tube.material.uniforms.breath.value).toBe(.5);expect(fibers.material.uniforms.breath.value).toBe(.5);
+  await view.close();
+});
+
+it('keeps the actual 3D nerve on the reader connection and retires it with the same return',async()=>{
+  let now=1000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+  const view=await mount(false);
+  const tube=view.scene.getObjectByName('workspace-nerve') as THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;
+  const fibers=view.scene.getObjectByName('workspace-nerve-fibers') as THREE.Points<THREE.BufferGeometry,THREE.ShaderMaterial>;
+  expect(tube.visible).toBe(true);expect(fibers.visible).toBe(true);
+  expect(fibers.geometry.getAttribute('position').count).toBe(600);
+  const readPath=()=>view.overlayRef.current!.querySelector('path')!.getAttribute('d')!;
+  const project=(point:THREE.Vector3)=>{const p=point.clone().project(view.store.getState().camera);return [(p.x+1)*720,(1-p.y)*450];};
+  const initial=readPath(), match=initial.match(/^M ([\d.-]+) ([\d.-]+)/)!;
+  const [x,y]=project(tube.material.uniforms.p0.value);expect(x).toBeCloseTo(Number(match[1]),4);expect(y).toBeCloseTo(Number(match[2]),4);
+  expect(fibers.material.uniforms.reach.value).toBe(1);
+  now=3000;act(()=>closeWorkspace(view.first.id));await view.sync();
+  expect(tube.visible).toBe(true);expect(fibers.visible).toBe(true);
+  now=3650;setBodyGroupWorldMatrix(new THREE.Matrix4().makeTranslation(2,0,0));await view.sync();
+  expect(readPath()).not.toBe(initial);
+  expect(tube.material.uniforms.reach.value).toBeCloseTo(.5,4);
+  expect(fibers.material.uniforms.reach.value).toBeCloseTo(.5,4);
+  now=4300;await view.sync();expect(tube.visible).toBe(false);expect(fibers.visible).toBe(false);
+  expect(getTabStoreSnapshot().recoverableTabs?.find(tab=>tab.id===view.first.id)?.content?.code).toBe('first retained content');
+  await view.close();
+});
+
+it('keeps one decorative return after immediate Close, then retires its actual GPU paint on the existing timeline',async()=>{
+  let now=1000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+  const view=await mount(false);
+  const rim=view.scene.getObjectByName('workspace-contact-rim') as THREE.Points<THREE.BufferGeometry,THREE.ShaderMaterial>;
+  expect(rim).toBeTruthy();expect(rim.visible).toBe(true);
+  expect(rim.material.uniforms.uVisible.value).toBe(1);
+  expect(rim.material.uniforms.uUnfurl.value).toBe(1);
+  const positions=rim.geometry.getAttribute('position');
+  expect(positions.count).toBe(2400);expect(positions.getX(0)).toBeGreaterThan(0);
+  expect(rim.material.uniforms.uViewport.value.toArray()).toEqual([1440,900]);
+  expect(view.scene.getObjectsByProperty('name','workspace-contact-rim')).toHaveLength(1);
+  now=3000;act(()=>closeWorkspace(view.first.id));await view.sync();
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().recoverableTabs?.some(tab=>tab.id===view.first.id)).toBe(true);
+  expect(rim.visible).toBe(true);expect(rim.material.uniforms.uReturning?.value).toBe(1);
+  now=3650;await view.sync();
+  expect(rim.material.uniforms.uReturnTime?.value).toBe(.5);
+  expect(rim.geometry.getAttribute('position')).toBe(positions);
+  now=4300;await view.sync();
+  expect(rim.visible).toBe(false);expect(rim.material.uniforms.uVisible.value).toBe(0);
+  await view.close();
+});
+
+it.each([0,16])('preserves painted coverage and displacement when Close interrupts unfurl at %sms',async delta=>{
+  let now=1000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+  const view=await mount(false,true,'beginner',true);
+  try {
+    act(()=>setMaterializedTabLifecycle(view.first.id,'unfurling',3000));now=3000+delta;await view.sync();
+    const rim=view.scene.getObjectByName('workspace-contact-rim') as THREE.Points<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    const data=rim.geometry.getAttribute('aData'),normal=rim.geometry.getAttribute('aOutward'),position=rim.geometry.getAttribute('position');
+    const alpha=new Float32Array(data.count),pixels=new Float32Array(data.count*2);
+    const origin=rim.material.uniforms.uOrigin.value,unfurl=rim.material.uniforms.uUnfurl.value;
+    const smooth=(lo:number,hi:number,x:number)=>{const t=Math.min(1,Math.max(0,(x-lo)/(hi-lo)));return t*t*(3-2*t);};
+    // Independent oracle for the current birth shader, before RETURN can
+    // mutate its buffers. These are CPU/installed-object witnesses, not pixels.
+    const spread=1-Math.pow(1-unfurl,3);let painted=0;
+    for(let i=0;i<data.count;i++) {
+      const separation=Math.abs(data.getX(i)-origin),travel=Math.min(separation,1-separation)*2;
+      const born=smooth(travel*.82,travel*.82+.18,spread),settle=smooth(0,.20,spread-travel*.82);
+      alpha[i]=born*(.38+.46*data.getY(i)+.32*(1-settle));
+      pixels[i*2]=position.getX(i)+normal.getX(i)*(1-settle)*10;
+      pixels[i*2+1]=position.getY(i)+normal.getY(i)*(1-settle)*10;
+      if(alpha[i]>.002)painted++;
+    }
+    if(delta===0)expect(painted).toBe(0);else{expect(painted).toBeGreaterThan(0);expect(painted).toBeLessThan(data.count);}
+    now=3500;act(()=>closeWorkspace(view.first.id));await view.sync();
+    if(painted===0)expect(rim.visible,'unpainted tissue must never appear on dismissal').toBe(false);
+    else {
+      expect(rim.visible).toBe(true);const returningAlpha=rim.geometry.getAttribute('aReturnAlpha');let returned=0;
+      for(let i=0;i<data.count;i++) {
+        expect(returningAlpha.getX(i)).toBeCloseTo(alpha[i],6);
+        if(returningAlpha.getX(i)>.002) {
+          returned++;expect(position.getX(i)).toBeCloseTo(pixels[i*2],3);expect(position.getY(i)).toBeCloseTo(pixels[i*2+1],3);
+        }
+      }
+      expect(returned).toBe(painted);
+    }
+    expect(getTabStoreSnapshot().focusId).toBeNull();
+    expect(getTabStoreSnapshot().recoverableTabs?.find(tab=>tab.id===view.first.id)?.content?.code).toBe('first retained content');
+  } finally {await view.close();}
+});
 
 it.each([false, true])('keeps the mounted nerve with canonical work/hold/stop while an older reader returns (reduced=%s)', async reducedMotion => {
   vi.spyOn(performance, 'now').mockReturnValue(10000);
@@ -191,7 +359,7 @@ it.each([false, true])('retargets a moving HUD nerve without replacing its geome
   } finally { if (!closed) await view.close(); dispose?.mockRestore(); }
 });
 
-it.each(['reaching', 'retracting'] as const)('preserves the replacement-frame draw range during HUD %s', async lifecycle => {
+it.each(['reaching', 'retracting'] as const)('keeps the partial nerve reveal on the retarget frame during HUD %s', async lifecycle => {
   let now = 10000;
   vi.spyOn(performance, 'now').mockImplementation(() => now);
   const view = await mount(false, true, 'beginner', false, true);
@@ -214,11 +382,15 @@ it.each(['reaching', 'retracting'] as const)('preserves the replacement-frame dr
     act(() => advance(1, false, view.store.getState()));
     expect(geometry.drawRange.count).toBeGreaterThan(0);
     expect(geometry.drawRange.count).toBeLessThan(geometry.getIndex()!.count);
+    const visibleCount = geometry.drawRange.count;
+    const position = geometry.getAttribute('position') as THREE.BufferAttribute;
+    const positionVersion = position.version;
     act(() => setBrainDockScale(0.64));
     await view.sync();
     expect(tube.geometry).toBe(geometry);
-    // The predecessor installed a fresh TubeGeometry after the reveal step.
-    expect(geometry.drawRange).toEqual({ start: 0, count: Infinity });
+    expect(position.version).toBeGreaterThan(positionVersion);
+    // Retargeting changes the curve, not how much lifecycle progress is painted.
+    expect(geometry.drawRange).toEqual({ start: 0, count: visibleCount });
     act(() => advance(1, false, view.store.getState()));
     expect(geometry.drawRange.count).toBeGreaterThan(0);
     expect(geometry.drawRange.count).toBeLessThan(geometry.getIndex()!.count);
@@ -269,6 +441,23 @@ it.each([[false, 3], [true, 3], [false, 11], [true, 11]] as const)('fits and sep
           paintedBoxes.push(box);
         });
       }
+      // Include every added point and its maximum 1 CSS-pixel raster radius;
+      // the existing mesh-only framing assertion cannot establish this boundary.
+      let dustCount=0;
+      for (const dust of view.scene.getObjectsByProperty('name','waiting-workspace-edge') as THREE.Points[]) {
+        let visible=true;for(let owner:THREE.Object3D|null=dust;owner;owner=owner.parent)if(!owner.visible)visible=false;
+        if(!visible)continue;
+        dustCount++;
+        const positions=dust.geometry.getAttribute('position');
+        for(let vertex=0;vertex<positions.count;vertex++){
+          point.fromBufferAttribute(positions,vertex).applyMatrix4(dust.matrixWorld).project(camera);
+          const x=(point.x+1)*720,y=(1-point.y)*450;
+          expect.soft(x-1).toBeGreaterThanOrEqual(left);expect.soft(x+1).toBeLessThanOrEqual(left+width);
+          expect.soft(y-1).toBeGreaterThanOrEqual(top);expect.soft(y+1).toBeLessThanOrEqual(top+height);
+        }
+      }
+      // This lab baseline paints dust only on its first two waiting surfaces.
+      expect(dustCount).toBe(Math.min(2, expectedPaintedSlabs));
       expect(slabs).toBe(expectedPaintedSlabs); // Only the actual dissolve boundary may remove paint.
       for (let index = 0; index < centers.length; index++) {
         for (const other of centers.slice(index + 1)) expect.soft(centers[index].distanceTo(other)).toBeGreaterThan(1);
@@ -647,6 +836,75 @@ it.each([false, true])('the visible reader nerve follows the actual birth reach,
   } finally { await view.close(); }
 });
 
+it('preserves the real painted nerve when the same result updates then closes between frames', async () => {
+  let now=10_000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+  const view=await mount(false,true,'beginner',true);
+  try {
+    now+=250;await view.sync();
+    const nerve=view.scene.getObjectByName('workspace-nerve') as THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    const fibers=view.scene.getObjectByName('workspace-nerve-fibers') as THREE.Points<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    const before=nerve.material.uniforms.reach.value as number;
+    const tab=getTabStoreSnapshot().tabs.find(value=>value.id===view.first.id)!;
+    act(()=>updateMaterializedTab(tab.id,{content:{...tab.content!,code:'first retained content and a new chunk',streaming:true}}));
+    await view.commit();
+    act(()=>closeWorkspace(tab.id));await view.commit();
+    act(()=>advance(1,false,view.store.getState()));
+    expect(nerve.visible).toBe(true);expect(fibers.visible).toBe(true);
+    expect(nerve.material.uniforms.reach.value).toBeCloseTo(before,6);
+    expect(fibers.material.uniforms.reach.value).toBeCloseTo(before,6);
+    expect(getTabStoreSnapshot().recoverableTabs?.find(value=>value.id===tab.id)?.content?.code).toBe('first retained content and a new chunk');
+  } finally { await view.close(); }
+});
+
+it('retargets the real nerve contact after the body moves during return', async () => {
+  let now=10_000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+  const view=await mount(false,true);
+  try {
+    const nerve=view.scene.getObjectByName('workspace-nerve') as THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    const fibers=view.scene.getObjectByName('workspace-nerve-fibers') as THREE.Points<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    act(()=>closeWorkspace(view.first.id));await view.sync();now+=650;await view.sync();
+    const before=(nerve.material.uniforms.p3.value as THREE.Vector3).clone();
+    setBodyGroupWorldMatrix(new THREE.Matrix4().makeTranslation(0,1,0));
+    act(()=>expect(reopenMaterializedTab(view.first.id)).toBe(true));await view.sync();
+    expect((nerve.material.uniforms.p3.value as THREE.Vector3).distanceTo(before)).toBeLessThan(.00001);
+    expect((fibers.material.uniforms.p3.value as THREE.Vector3).distanceTo(before)).toBeLessThan(.00001);
+    now+=130;await view.sync();const midpoint=(nerve.material.uniforms.p3.value as THREE.Vector3).clone();
+    now+=130;await view.sync();const end=nerve.material.uniforms.p3.value as THREE.Vector3;
+    expect(end.distanceTo(before)).toBeGreaterThan(.01);
+    expect(midpoint.distanceTo(before)).toBeGreaterThan(0);
+    expect(midpoint.distanceTo(before)).toBeLessThan(end.distanceTo(before));
+    expect(screen.getByText('first retained content')).toBeVisible();
+  } finally { await view.close(); }
+});
+
+it('reopens from the real painted nerve and rim buffers without delaying the reader', async () => {
+  let now=10_000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+  const view=await mount(false,true);
+  try {
+    const nerve=view.scene.getObjectByName('workspace-nerve') as THREE.Mesh<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    const fibers=view.scene.getObjectByName('workspace-nerve-fibers') as THREE.Points<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    const rim=view.scene.getObjectByName('workspace-contact-rim') as THREE.Points<THREE.BufferGeometry,THREE.ShaderMaterial>;
+    act(()=>closeWorkspace(view.first.id));await view.sync();
+    now+=650;await view.sync();
+    const before=nerve.material.uniforms.reach.value as number;
+    const positions=(rim.geometry.getAttribute('position').array as Float32Array).slice();
+    const alpha=(rim.geometry.getAttribute('aReturnAlpha').array as Float32Array).slice();
+    expect(rim.material.uniforms.uReturning.value).toBe(1);
+    act(()=>expect(reopenMaterializedTab(view.first.id)).toBe(true));await view.sync();
+    expect(screen.getByText('first retained content')).toBeVisible();
+    expect(nerve.material.uniforms.reach.value).toBeCloseTo(before,6);
+    expect(fibers.material.uniforms.reach.value).toBeCloseTo(before,6);
+    expect(rim.material.uniforms.uReturning.value).toBe(1);
+    expect(Array.from(rim.geometry.getAttribute('position').array)).toEqual(Array.from(positions));
+    expect(Array.from(rim.geometry.getAttribute('aReturnAlpha').array)).toEqual(Array.from(alpha));
+    now+=260;await view.sync();
+    expect(nerve.material.uniforms.reach.value).toBe(1);
+    expect(rim.material.uniforms.uReturning.value).toBe(0);
+    expect(rim.material.uniforms.uVisible.value).toBe(1);
+    expect(screen.getByText('first retained content')).toBeVisible();
+  } finally { await view.close(); }
+});
+
 it('a replacement and same-result Reopen use their own reach without replaying on streamed reader updates', async () => {
   let now = 10_000;
   vi.spyOn(performance, 'now').mockImplementation(() => now);
@@ -670,11 +928,18 @@ it('a replacement and same-result Reopen use their own reach without replaying o
     await view.sync();
     expect.soft(exposed()).toBeCloseTo(grown, 5);
     expect(screen.getByText(/^first retained content/)).toBe(reader);
+    const nerve = view.scene.getObjectByName('workspace-nerve') as THREE.Mesh<THREE.BufferGeometry, THREE.ShaderMaterial>;
+    const fibers = view.scene.getObjectByName('workspace-nerve-fibers') as THREE.Points<THREE.BufferGeometry, THREE.ShaderMaterial>;
+    expect(nerve.material.uniforms.reach.value).toBeCloseTo(grown, 5);
     act(() => closeWorkspace(view.first.id)); await view.sync();
-    expect(path.getAttribute('d')).toBe('');
+    expect(path.getAttribute('d')).not.toBe('');
+    expect(exposed()).toBeCloseTo(grown, 5); // return begins from the last painted nerve
+    expect(nerve.visible).toBe(true); expect(fibers.visible).toBe(true);
+    expect(nerve.material.uniforms.reach.value).toBeCloseTo(grown, 5);
+    expect(fibers.material.uniforms.reach.value).toBeCloseTo(grown, 5);
     now += 50;
     act(() => { expect(reopenMaterializedTab(view.first.id)).toBe(true); }); await view.sync();
-    expect.soft(exposed()).toBeCloseTo(0.03, 5);
+    expect.soft(exposed()).toBeCloseTo(grown, 5); // retarget from the last painted return
     expect.soft(contact.style.visibility).toBe('hidden');
     expect(screen.getByText(/^first retained content/)).toBe(reader);
     expect(getTabStoreSnapshot().tabs.find(tab => tab.id === second)).toBeDefined();
@@ -1013,4 +1278,151 @@ it('retiring delegated approval stays quiet after its dialog leaves, with no fra
     expect(slab.visible).toBe(false);
     expect(getTabStoreSnapshot().tabs.find(record => record.id === view.tab.id)?.lifecycle).toBe('retracting');
   } finally { await view.close(); }
+});
+it('keeps the edge study on waiting surfaces and follows workspace identity when focus changes',async()=>{
+  const view=await mount(false);
+  let other='';
+  act(()=>{
+    other=showContentSurface({filepath:'waiting.txt',language:'text',code:'waiting result'},getContentSurfacePlacement(4)).id;
+    setMaterializedTabLifecycle(other,'live');focusWorkspace(view.first.id);
+  });
+  await view.sync();
+  const findDust=()=>view.scene.getObjectsByProperty('name','waiting-workspace-edge') as THREE.Points[];
+  let dust=findDust();expect(dust).toHaveLength(1);
+  expect(dust[0].geometry.getAttribute('position').count).toBe(144);
+  const material=dust[0].material as THREE.ShaderMaterial;
+  expect(material.uniforms.uGain.value).toBe(1);
+  let now=10000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+  act(()=>setMaterializedTabLifecycle(other,'unfurling',now));await view.sync();
+  expect(material.uniforms.uGain.value).toBe(0);
+  now+=260;await view.sync();expect(material.uniforms.uGain.value).toBeCloseTo(.5,4);
+  act(()=>setMaterializedTabLifecycle(other,'live',now));await view.sync();expect(material.uniforms.uGain.value).toBe(1);
+  let owner:THREE.Object3D|null=dust[0];while(owner&&owner.name!==`gagos-workspace-${other}`)owner=owner.parent;
+  expect(owner).not.toBeNull();
+  act(()=>focusWorkspace(other));await view.sync();
+  dust=findDust();expect(dust).toHaveLength(1);
+  owner=dust[0];while(owner&&owner.name!==`gagos-workspace-${view.first.id}`)owner=owner.parent;
+  expect(owner).not.toBeNull();
+  await view.close();
+});
+it('fades waiting edge particles on the existing return timeline',async()=>{
+  let now=10000;vi.spyOn(performance,'now').mockImplementation(()=>now);
+  const view=await mount(false);
+  try {
+    let other='';act(()=>{
+      other=showContentSurface({filepath:'returning.txt',language:'text',code:'retained'},getContentSurfacePlacement(4)).id;
+      setMaterializedTabLifecycle(other,'live',now);focusWorkspace(view.first.id);
+    });
+    await view.sync();const dust=view.scene.getObjectByName('waiting-workspace-edge') as THREE.Points;
+    expect(dust).toBeTruthy();const material=dust.material as THREE.ShaderMaterial;expect(material.uniforms.uGain.value).toBe(1);
+    act(()=>closeWorkspace(other));await view.sync();expect(material.uniforms.uGain.value).toBe(1);
+    now+=POINTS_SLAB_RETRACT_MS/2;await view.sync();expect(material.uniforms.uGain.value).toBeCloseTo(.5,4);
+    now+=POINTS_SLAB_RETRACT_MS/2;await view.sync();expect(material.uniforms.uGain.value).toBe(0);
+  } finally {await view.close();}
+});
+
+
+it('waiting edge breath follows the real shared body uniform and holds still for reduced motion', async () => {
+  const breathRef = { value: 0.2 };
+  const view = await mount(false, true, 'beginner', false, true, undefined, breathRef);
+  try {
+    act(() => {
+      const waiting = showContentSurface({ filepath: 'breathing.txt', language: 'text', code: 'waiting' }, getContentSurfacePlacement(4));
+      setMaterializedTabLifecycle(waiting.id, 'live');
+      focusWorkspace(view.first.id);
+    });
+    await view.sync();
+    const dust = view.scene.getObjectByName('waiting-workspace-edge') as THREE.Points;
+    expect(dust).toBeTruthy();
+    let material = dust.material as THREE.ShaderMaterial;
+    expect(material.uniforms.uBreath.value).toBe(0.2);
+    expect(material.fragmentShader).toMatch(/uBreath/);
+    breathRef.value = 0.8;
+    await view.sync();
+    expect(material.uniforms.uBreath.value).toBe(0.8);
+    act(() => setAmbientMotionPaused(true));
+    await view.sync();
+    material = (view.scene.getObjectByName('waiting-workspace-edge') as THREE.Points).material as THREE.ShaderMaterial;
+    expect(material.uniforms.uBreath.value).toBe(0.5);
+    breathRef.value = 0.1;
+    await view.sync();
+    expect(material.uniforms.uBreath.value).toBe(0.5);
+  } finally { await view.close(); }
+});
+
+it('starts a newly created waiting nerve at its current reach instead of showing the full tube', async () => {
+  const now = 10000;
+  vi.spyOn(performance, 'now').mockReturnValue(now);
+  const view = await mount(false, true, 'beginner', false, true);
+  try {
+    act(() => {
+      showContentSurface({ filepath: 'new-waiting.txt', language: 'text', code: 'waiting' }, getContentSurfacePlacement(8));
+      focusWorkspace(view.first.id);
+    });
+    await view.sync();
+    const owner = view.scene.children.find(node => node.getObjectByName('text:new-waiting.txt'))!;
+    const tube = owner.children.find(node => node instanceof THREE.Mesh && node.renderOrder === 6) as THREE.Mesh<THREE.TubeGeometry>;
+    expect(tube.geometry.drawRange.count).toBe(Math.max(2, Math.floor(tube.geometry.getIndex()!.count * 0.03)));
+    expect(tube.geometry.drawRange.count).toBeLessThan(tube.geometry.getIndex()!.count);
+  } finally { await view.close(); }
+});
+
+it('stages a crowded compact pair at distinct heights without changing workspace identities', async () => {
+  const view=await mount(true,true,'beginner',false,true);
+  const ids:string[]=[];
+  try {
+    act(()=>{
+      for(const seat of [0,1,3,4,5,6,7,8,9,10,11]){
+        const tab=showContentSurface({filepath:`organic-${seat}.txt`,language:'text',code:'waiting'},getContentSurfacePlacement(seat));
+        ids.push(tab.id);setMaterializedTabLifecycle(tab.id,'live');
+      }
+      focusWorkspace(view.first.id);
+      view.store.getState().setSize(390,844);
+    });
+    await view.sync();view.scene.updateMatrixWorld(true);
+    const left=view.scene.getObjectByName(`gagos-workspace-${ids[2]}`)!;
+    const right=view.scene.getObjectByName(`gagos-workspace-${ids[3]}`)!;
+    expect(left).toBeTruthy();expect(right).toBeTruthy();
+    const a=left.getWorldPosition(new THREE.Vector3()),b=right.getWorldPosition(new THREE.Vector3());
+    expect(Math.abs(a.y-b.y)).toBeGreaterThan(0.005);
+    const fartherLeft=view.scene.getObjectByName(`gagos-workspace-${ids[4]}`)!;
+    expect(Math.abs(a.x-fartherLeft.getWorldPosition(new THREE.Vector3()).x)).toBeGreaterThan(0.01);
+    expect(getTabStoreSnapshot().tabs.map(tab=>tab.id)).toEqual([view.first.id,...ids]);
+    expect(getTabStoreSnapshot().focusId).toBe(view.first.id);
+    expect(screen.getByRole('region',{name:'Selected workspace'})).toBeVisible();
+  } finally {await view.close();}
+});
+
+it.each([false,true])('keeps staggered compact workspace geometry inside a phone-sized pane (reduced=%s)', async reducedMotion=>{
+  const view=await mount(reducedMotion,true,'beginner',false,true);
+  try {
+    act(()=>{
+      for(const seat of [0,1,3,4,5,6,7,8,9,10,11]){
+        const tab=showContentSurface({filepath:`phone-pane-${seat}.txt`,language:'text',code:'waiting'},getContentSurfacePlacement(seat));
+        setMaterializedTabLifecycle(tab.id,'live');
+      }
+      focusWorkspace(view.first.id);view.store.getState().setSize(390,844);
+    });
+    const camera=view.store.getState().camera as THREE.PerspectiveCamera;
+    camera.setViewOffset(390,280,0,-150,390,844);
+    await view.sync();view.scene.updateMatrixWorld(true);
+    const point=new THREE.Vector3(),pixel=new THREE.Vector2(),boxes:THREE.Box2[]=[];
+    for(const root of view.scene.children){
+      if(!root.visible)continue;
+      root.traverse(node=>{
+        if(!(node instanceof THREE.Mesh)||node.geometry.type!=='ExtrudeGeometry')return;
+        const positions=node.geometry.getAttribute('position'),box=new THREE.Box2();
+        for(let vertex=0;vertex<positions.count;vertex++){
+          point.fromBufferAttribute(positions,vertex).applyMatrix4(node.matrixWorld).project(camera);
+          box.expandByPoint(pixel.set((point.x+1)*195,(1-point.y)*422));
+        }
+        expect.soft(box.min.x).toBeGreaterThanOrEqual(0);expect.soft(box.max.x).toBeLessThanOrEqual(390);
+        expect.soft(box.min.y).toBeGreaterThanOrEqual(150);expect.soft(box.max.y).toBeLessThanOrEqual(430);
+        boxes.push(box);
+      });
+    }
+    expect(boxes).toHaveLength(11);
+    for(let i=0;i<boxes.length;i++)for(const other of boxes.slice(i+1))expect.soft(boxes[i].intersectsBox(other)).toBe(false);
+    expect(screen.getByRole('region',{name:'Selected workspace'})).toBeVisible();
+  } finally {await view.close();}
 });

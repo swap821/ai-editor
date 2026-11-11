@@ -1,4 +1,5 @@
 import { Text } from '@react-three/drei';
+import { WorkspaceEdgeDust } from './materializedTab/WorkspaceEdgeDust';
 import { readBeingMode } from '@/lib/beingMode';
 
 // In the point-field being the spine is welded into the brain cloud at
@@ -25,7 +26,7 @@ import { deriveMaterializedSurfaceSkin, type MaterializedSurfaceSkin } from '@/l
 import { useSurfaceDial } from '@/lib/surfaceDialBus';
 import { useDomWorkPlane } from '@/lib/useDomWorkPlane';
 import { POINTS_REABSORPTION_MS, POINTS_SLAB_RETRACT_MS } from '@/lib/reabsorptionTiming';
-import { MATERIALIZATION_REACH_MS } from '@/lib/materializationTiming';
+import { MATERIALIZATION_REACH_MS, MATERIALIZATION_UNFURL_MS } from '@/lib/materializationTiming';
 import { deriveOrganMaterialState, type OrganMaterialState } from '@/lib/organMaterialState';
 import { formatMaterializedTextPreview } from '@/lib/materializedTextPreview';
 import { easeOutExpo, easeOutBack, easeInCubic, layerProgress, flashBell } from '@/lib/motionEasing';
@@ -53,7 +54,6 @@ import { ApprovalActionButton } from './materializedTab/ApprovalActionButton';
 import { WorkTabLiveDashboard } from './materializedTab/WorkTabLiveDashboard';
 import { toSurfaceTheme, type SurfaceTheme } from './materializedTab/theme';
 
-const UNFURL_DURATION_MS = 520;
 // MULTI-FILE CASCADE (#wow): per-seat bloom delay so several panels materialize 1→2→3
 // (focus leads) instead of popping together. Capped at 6 seats → cascade ≤ ~660ms.
 const CASCADE_STAGGER_MS = 110;
@@ -857,6 +857,7 @@ function OutcomeImprintSkin({
 export default function MaterializedTab({
   tab,
   reducedMotion,
+  breathRef,
   focused = true,
   metabolism = REST_TURN_METABOLISM,
   outcome = REST_OUTCOME_IMPRINT,
@@ -868,6 +869,7 @@ export default function MaterializedTab({
 }: {
   tab: MaterializedTabRecord;
   reducedMotion: boolean;
+  breathRef?: { value: number };
   focused?: boolean;
   metabolism?: TurnMetabolismSnapshot;
   outcome?: OutcomeImprintSnapshot;
@@ -902,6 +904,7 @@ export default function MaterializedTab({
   const conductorPunctaRefs = useRef<THREE.Mesh[]>([]);
   const bodyRef = useRef<THREE.Mesh>(null);
   const frameRef = useRef<THREE.LineSegments>(null);
+  const edgeDustRef = useRef<THREE.ShaderMaterial>(null);
   const labelRef = useRef<THREE.Object3D>(null);
   const beadRefs = useRef<THREE.Mesh[]>([]);
   const socketRef = useRef<THREE.Mesh>(null); // vertebra seat glow (focus-driven)
@@ -1203,7 +1206,7 @@ export default function MaterializedTab({
         }
       } else if (tab.lifecycle === 'unfurling') {
         reachProgress = 1;
-        slabProgress = clamp01(elapsed / UNFURL_DURATION_MS);
+        slabProgress = clamp01(elapsed / MATERIALIZATION_UNFURL_MS);
         liveProgress = slabProgress;
         if (slabProgress >= 1) {
           setMaterializedTabLifecycle(tab.id, 'live', now);
@@ -1229,14 +1232,20 @@ export default function MaterializedTab({
       }
     }
 
+    if (edgeDustRef.current) {
+      edgeDustRef.current.uniforms.uGain.value = clamp01(slabProgress);
+      // R3F may copy uniform descriptors, so update the mounted material.
+      edgeDustRef.current.uniforms.uBreath.value = reducedMotion ? 0.5 : breathRef?.value ?? 0.5;
+    }
+
+    const nerveReveal = Math.max(easeOutExpo(reachProgress), 0.03);
     if (tubeRef.current) {
       const geometry = tubeRef.current.geometry;
       const drawCount = geometry.getIndex()?.count ?? geometry.getAttribute('position').count;
       // BLOOM (#wow): the nerve LUNGES from the vertebra and DECELERATES into the
       // anchor (ease-out), instead of extending at a constant linear rate — so the
       // fiber reaches, lands, and the panel blooms FROM that contact.
-      const reachDraw = Math.max(easeOutExpo(reachProgress), 0.03);
-      geometry.setDrawRange(0, Math.max(2, Math.floor(drawCount * reachDraw)));
+      geometry.setDrawRange(0, Math.max(2, Math.floor(drawCount * nerveReveal)));
       const mat = tubeRef.current.material as THREE.MeshStandardMaterial;
       mat.color.copy(theme.reach).lerp(theme.live, liveProgress).lerp(metabolismColor, surfaceExcitation * 0.28);
       mat.emissive.copy(theme.reach).lerp(theme.live, liveProgress).lerp(metabolismColor, surfaceExcitation * 0.44);
@@ -1491,8 +1500,27 @@ export default function MaterializedTab({
               const idleBob = reducedMotion ? 0
                 : THREE.MathUtils.clamp(Math.sin(state.clock.elapsedTime * 1.5 + waitingIndex * 1.3) * 0.08,
                   -rowGap / 4, rowGap / 4);
-              hudX = (waitingIndex % 2 === 0 ? -1 : 1) * branchX;
-              hudY = THREE.MathUtils.clamp((crowdedRows > 1 ? branchY * (1 - 2 * row / (crowdedRows - 1)) : 0) + idleBob, -branchY, branchY);
+              const side = waitingIndex % 2 === 0 ? -1 : 1;
+              const step = crowdedRows > 1 ? 2 * branchY / (crowdedRows - 1) : 0;
+              const screenRadius = commonRadius * (1 + halfY / HUD_DIST) / (1 - commonRadius / HUD_DIST);
+              // Spend only spare inter-row room on a compact stagger; preserve
+              // surface separation and the existing idle-motion allowance.
+              const spare = Math.max(0, (step - 2 * screenRadius - rowGap / 2) / 2);
+              const compactBlend = waitingCount > 4 ? clamp01((768 - viewportWidth) / 128) : 0;
+              const stagger = Math.min(step * 0.18, spare) * compactBlend;
+              const alternating = row % 2 === 0 ? side : -side;
+              // Vary reach only within the actual side clearance: the body's
+              // projected envelope and a full near-perspective slab radius stay clear.
+              const sideRadius = commonRadius * (1 + halfX / HUD_DIST) / (1 - commonRadius / HUD_DIST);
+              const innerEdge = hasCortex
+                ? Math.max(0, side > 0 ? _cortexScreen.max.x : -_cortexScreen.min.x) + sideRadius + marginX
+                : branchX * 0.45;
+              const reachRoom = Math.max(0, branchX - innerEdge);
+              const reachPattern = (1 + Math.sin((row + 1) * 2.4 + side * 0.9)) / 2;
+              const inset = Math.min(branchX * 0.35, reachRoom) * reachPattern * compactBlend;
+              hudX = side * (branchX - inset);
+              hudY = THREE.MathUtils.clamp((crowdedRows > 1 ? branchY - row * step : 0)
+                + alternating * stagger + idleBob, -branchY, branchY);
             }
             if (hasCortex && clearStripRadius === 0) {
               // Bounds-only fitting can leave a card over the actual head.
@@ -1572,12 +1600,11 @@ export default function MaterializedTab({
             if (tubeRef.current) {
               const previous = hudTubeGeometryRef.current;
               const next = previous ?? new THREE.TubeGeometry(c, UMBILICAL_SEGMENTS, tubeRadius, UMBILICAL_RADIAL_SEGMENTS, false);
-              if (previous) {
-                retargetTubeGeometry(previous, c, tubeRadius);
-                // Replacement used the constructor default after this frame's
-                // lifecycle reveal; preserve that ordering while reusing buffers.
-                previous.setDrawRange(0, Infinity);
-              }
+              if (previous) retargetTubeGeometry(previous, c, tubeRadius);
+              // A new or retargeted tube must keep this frame's partial reach;
+              // otherwise moving endpoints briefly reveal the whole nerve.
+              const drawCount = next.getIndex()?.count ?? next.getAttribute('position').count;
+              next.setDrawRange(0, Math.max(2, Math.floor(drawCount * nerveReveal)));
               hudTubeGeometryRef.current = next;
               tubeRef.current.geometry = next;
             }
@@ -2120,8 +2147,10 @@ export default function MaterializedTab({
       ))}
 
       <group ref={orientationRef}>
-        <group ref={slabRef}>
+        <group ref={slabRef} name={`gagos-workspace-${tab.id}`}>
           <group rotation={dimensions.tilt}>
+            {POINTS && tab.kind === 'content' && !isFocused && waitingIndex < 2 &&
+              <WorkspaceEdgeDust ref={edgeDustRef} shape={slabShape} depth={dimensions.thickness} reach={theme.reach} live={theme.live} />}
             <mesh ref={bodyRef} renderOrder={8}>
               <primitive object={slabBodyGeometry} attach="geometry" />
               {/* Points being (operator call 2026-06-23): a real DISPLAY the brain

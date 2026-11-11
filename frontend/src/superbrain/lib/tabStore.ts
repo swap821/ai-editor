@@ -606,8 +606,11 @@ export function beginRetractingMaterializedTab(id?: string, phaseStartedAt = per
   const retiring: MaterializedTabRecord = {
     ...current, lifecycle: 'retracting', phaseStartedAt, retractionToken: ++retractionSequence,
   };
-  const keepContent = current.kind === 'content'
-    && !!(current.content?.code || current.content?.verifyOutput);
+  // An empty in-flight surface still owns future chunks. Keep its identity
+  // through visual retirement just as we keep already-written partial work.
+  const keepContent = current.kind === 'content' && !!current.content
+    && !!(current.content.code || current.content.verifyOutput || current.content.streaming
+      || current.content.completion === 'awaiting-approval' || current.content.completion === 'awaiting-replay');
   const recoverableTabs = keepContent
     ? [...(snapshot.recoverableTabs ?? []).filter((tab) => tab.id !== current.id), retiring]
     : snapshot.recoverableTabs ?? [];
@@ -627,7 +630,8 @@ export function beginRetractingMaterializedTab(id?: string, phaseStartedAt = per
     attention: keepAttentionForTabs(snapshot.attention, tabs),
   });
   // A readable-only overflow result has no renderer to retire its geometry.
-  if (current.recoverySeatPending) finishMaterializedTabRetraction(current.id, retiring.retractionToken);
+  if (current.recoverySeatPending || (current.kind === 'approval' && current.seatIndex === null))
+    finishMaterializedTabRetraction(current.id, retiring.retractionToken);
   return true;
 }
 

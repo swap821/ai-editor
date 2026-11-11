@@ -44,8 +44,9 @@ export function CompactWorkingChrome({ children, onHost, blocked }: {
     };
     const closeNavigation = (event: MouseEvent) => {
       // Portal events follow their React owner tree, not this DOM slot. A
-      // native boundary observes the actual navigation without replacing it.
-      if (event.target instanceof Element && event.target.closest('nav button')) setOpen(false);
+      // native boundary observes navigation and the Focus action without
+      // replacing their owners. Reveal the being after Focus is selected.
+      if (event.target instanceof Element && event.target.closest('nav button, .gagos-focus-toggle')) setOpen(false);
     };
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || !element.open) return;

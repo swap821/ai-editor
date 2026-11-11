@@ -15,6 +15,7 @@ import { createContextRecoveryTracker } from '../livingMirror/observability/cont
 import { createMirrorReconnectTracker, recordFrontendMetric, startRafIntervalSampler } from '../livingMirror/observability/frontendMetrics';
 import { RendererFallbackNotice } from '../livingMirror/RendererFallbackNotice';
 import { RendererFailureBoundary } from '../livingMirror/RendererFailureBoundary';
+import { SceneReadinessNotice } from '../livingMirror/SceneReadinessNotice';
 import {
   rendererFallbackVisible,
   setRendererFallbackPresentation,
@@ -44,8 +45,11 @@ function SuperbrainAppContent() {
   const [canvasContextLost, setCanvasContextLost] = useState(false);
   const [rendererRestartKey, setRendererRestartKey] = useState(0);
   const [OrganismScene, setOrganismScene] = useState(createOrganismScene);
+  const [sceneHost, setSceneHost] = useState(null);
+  const stageRef = useRef(null);
   const [compactViewport, setCompactViewport] = useState(() => typeof window.matchMedia === 'function' && window.matchMedia('(max-width: 767px)').matches);
   const [compactControlsHost, setCompactControlsHost] = useState(null);
+  const [accountControlsHost, setAccountControlsHost] = useState(null);
   const snapshot = useTabStore();
   const being = useBeingPresentation();
   const physical = useMemo(() => derivePhysicalSnapshot(being), [being]);
@@ -74,7 +78,9 @@ function SuperbrainAppContent() {
     };
     const clearLastFocus = () => { lastCompactControlFocusRef.current = null; };
     const ownerDocument = appRootRef.current?.ownerDocument;
-    const rememberFocus = () => { lastCompactControlFocusRef.current = captureCompactControlFocus(appRootRef.current); };
+    // CSS can move focus to BODY before the media callback. Preserve only
+    // the still-owned, now-hidden control; explicit other focus clears it.
+    const rememberFocus = () => { lastCompactControlFocusRef.current = captureCompactControlFocus(appRootRef.current, lastCompactControlFocusRef.current); };
     const clearPointerAway = (event) => {
       if (!(event.target instanceof Node) || !lastCompactControlFocusRef.current?.previous.contains(event.target)) clearLastFocus();
     };
@@ -93,10 +99,11 @@ function SuperbrainAppContent() {
   useLayoutEffect(() => {
     // Portal destinations settle in a second commit on folding. Wait for the
     // actual slot; otherwise diagnostics would be focused before moving again.
-    if (!compactControlFocusRef.current || (compactWorking && !compactControlsHost)) return;
+    if (!compactControlFocusRef.current || (compactWorking && !compactControlsHost)
+      || (compactViewport && compactControlFocusRef.current.key === 'account' && !accountControlsHost)) return;
     restoreCompactControlFocus(appRootRef.current, compactControlFocusRef.current);
     compactControlFocusRef.current = null;
-  }, [compactWorking, compactControlsHost]);
+  }, [compactWorking, compactControlsHost, compactViewport, accountControlsHost]);
   const handleBootComplete = useCallback(() => setBooted(true), []);
   const handleExperienceModeChange = useCallback((nextMode) => {
     writeExperienceMode(nextMode);
@@ -246,13 +253,14 @@ function SuperbrainAppContent() {
   >
     <div className="lm-being-status" role="status" aria-live="polite" aria-atomic="true">{beingStatusText(being)}</div>
     <RendererFallbackNotice visible={rendererFallback} onRetry={handleRendererRetry} />
-    <div className="lm-scene" aria-hidden="true" />
-    <div className="lm-stage">{canvasContextLost ? null : (
+    <div className="lm-scene" ref={setSceneHost} aria-hidden="true" />
+    <div className="lm-stage" ref={stageRef}>{canvasContextLost ? null : (
       <RendererFailureBoundary key={rendererRestartKey} onRetry={handleSceneRetry}>
-        <Suspense fallback={<p className="lm-scene-loading">Loading the organism. Operational controls remain available.</p>}>
+        <Suspense fallback={<SceneReadinessNotice host={sceneHost} stageRef={stageRef} />}>
           <OrganismScene booted={booted} onBootComplete={handleBootComplete}
             physical={physical} being={being} snapshot={snapshot} inputAttentionActive={inputAttentionActive}
             attentionTargetRef={attentionTargetRef} workspaceConnectionRef={workspaceConnectionRef} />
+          <SceneReadinessNotice host={sceneHost} stageRef={stageRef} />
         </Suspense>
       </RendererFailureBoundary>
     )}</div>
@@ -267,9 +275,11 @@ function SuperbrainAppContent() {
       onBeingFocusChange={setBeingFocused}
       compactWorkingChrome={compactWorking}
       onCompactControlsHost={setCompactControlsHost}
+      accountControlsHost={compactViewport ? accountControlsHost : null}
     /></main>
     <LivingWorkspaceShell experienceMode={experienceMode} onReturnToConversation={handleReturnToConversation}
       compactWorkingChrome
+      onPhoneAccountHost={compactViewport ? setAccountControlsHost : undefined}
       compactControlsHost={compactWorking ? compactControlsHost : null} />
   </div>;
 }

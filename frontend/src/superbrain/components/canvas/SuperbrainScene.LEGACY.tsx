@@ -58,6 +58,7 @@ import {
 } from '@/lib/phaseWeather';
 import { getCortexAnchor } from '@/lib/spineFusionBus';
 import BodySpeech from './BodySpeech';
+import { createSupervisedHaloMaterial, updateSupervisedHaloFrame } from '@/lib/supervisedHalo';
 
 /** THE VISION (operator's words — the design constitution, see VISION.md):
  *  "AN AGENTIC GAGOS SUPERBRAIN CONSTANTLY MOVING FORWARD (MOTION) IN THE
@@ -1114,7 +1115,7 @@ export function BrainModel({
             Renders nothing while the queue is empty. */}
         <MemoryHalo reducedMotion={reduceMotion} />
       </group>
-      <MaterializationLayer reducedMotion={reduceMotion} physical={physical} />
+      <MaterializationLayer reducedMotion={reduceMotion} physical={physical} breathRef={uniforms.uBreath} />
       {/* Status FROM the body (poster #6): a calm green pulse at the brainstem —
           the "supervised / overseen mind" mark. Rides the voyage/orbit; reduced-
           motion holds it steady. Sacred green (#54f0a0 = supervised). */}
@@ -1440,7 +1441,8 @@ export function OrganismFraming({
 function SupervisedMark({ reducedMotion }: { reducedMotion: boolean }) {
   const ringMat = useRef<THREE.MeshBasicMaterial>(null);
   const coreMat = useRef<THREE.MeshBasicMaterial>(null);
-  const haloMat = useRef<THREE.MeshBasicMaterial>(null);
+  const haloMaterial = useMemo(createSupervisedHaloMaterial, []);
+  useEffect(() => () => haloMaterial.dispose(), [haloMaterial]);
   useFrame((state) => {
     const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(state.clock.elapsedTime * 1.1);
     // BEAUTIFIED (operator: "beautification polish") — an IRIS-RING seal instead of a
@@ -1449,14 +1451,14 @@ function SupervisedMark({ reducedMotion }: { reducedMotion: boolean }) {
     // the brainstem, not a stray dot. Still sacred green.
     if (ringMat.current) ringMat.current.opacity = 0.34 + pulse * 0.26;
     if (coreMat.current) coreMat.current.opacity = 0.1 + pulse * 0.1;
-    if (haloMat.current) haloMat.current.opacity = 0.04 + pulse * 0.05;
+    updateSupervisedHaloFrame(haloMaterial, state.clock.elapsedTime, reducedMotion);
   });
   return (
     <group position={[0, -0.35, 0]}>
       {/* faint outer bloom */}
       <mesh renderOrder={5}>
         <sphereGeometry args={[0.12, 16, 16]} />
-        <meshBasicMaterial ref={haloMat} color="#54f0a0" transparent opacity={0.06} blending={THREE.AdditiveBlending} depthWrite={false} toneMapped={false} />
+        <primitive object={haloMaterial} attach="material" />
       </mesh>
       {/* soft inner glow — the pupil */}
       <mesh renderOrder={6}>
