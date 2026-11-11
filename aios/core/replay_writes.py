@@ -51,6 +51,7 @@ from typing import Optional
 
 from aios import config
 from aios.core.autonomy import UNGOVERNED_FIXTURE as _UNGOVERNED_FIXTURE
+from aios.core.autonomy import stop_permits_autonomy
 from aios.core.autonomy import workspace_id
 from aios.memory.db import get_connection, init_memory_db
 from aios.security.secret_scanner import scan_and_redact
@@ -88,40 +89,13 @@ def decision_signature(
 UNGOVERNED_FIXTURE = _UNGOVERNED_FIXTURE
 
 
-def _stop_permits_writing(emergency_stop) -> bool:
-    """May a write proceed, given this stop control?
-
-    THIS USED TO SKIP WHEN THE STOP WAS ABSENT, while the callers' docstrings
-    claimed "fail-closed on every axis". Measured 2026-09-07:
-
-        is_approved_write(..., enabled=True, emergency_stop=None)  ->  True
-
-    Authorised with no stop consulted at all. `RuntimeDeps.autonomy` defaults to
-    `None`, and the call sites read the latch through
-    `getattr(self.autonomy, "emergency_stop", None)`, so absence was the DEFAULT
-    state rather than an unusual one.
-
-    Third appearance of one shape in this codebase: `executor.py`'s
-    `if self.emergency_stop is not None:`, the self-apply verify executor built
-    without one, and this. Each time an absent latch was treated as a satisfied
-    check rather than a missing one -- and this one was written AFTER
-    `require_wired` existed to prevent exactly that, which is why the fix here
-    is paired with a test that makes the boundary mandatory instead of
-    conventional.
-
-    So absence is a refusal. A caller that genuinely has no stop says so with
-    `UNGOVERNED_FIXTURE`, which puts the decision in the diff instead of in a
-    default.
-    """
-    if emergency_stop is UNGOVERNED_FIXTURE:
-        return True
-    if emergency_stop is None:
-        return False
-    try:
-        emergency_stop.assert_operational()
-    except Exception:  # noqa: BLE001 - engaged, unreadable, or not a latch: deny
-        return False
-    return True
+#: May a write proceed, given this stop control? The one predicate autonomy
+#: uses (:func:`aios.core.autonomy.stop_permits_autonomy`): absence is a
+#: refusal, ``UNGOVERNED_FIXTURE`` says so in the diff, an engaged or unreadable
+#: latch denies. Until 2026-11-10 this was a second function with the same body
+#: (it once skipped an absent stop, measured 2026-09-07); a review of the whole
+#: codebase found the twin, and one derivation with two callers replaced it.
+_stop_permits_writing = stop_permits_autonomy
 
 
 @dataclass(frozen=True)

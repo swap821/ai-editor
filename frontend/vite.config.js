@@ -51,7 +51,10 @@ export default defineConfig(({ mode }) => {
       ? "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'"
       : "script-src 'self' 'wasm-unsafe-eval'",
     "style-src 'self' 'unsafe-inline'",
-    `connect-src 'self' ${AIOS_WS_ORIGIN} ${AIOS_ORIGIN} ws://localhost:8000 wss://* http://localhost:8000 https://*`,
+    // The API origin and the local backend only (2026-11-10): `https://*` and
+    // `wss://*` let the face connect anywhere, and nothing in it connects
+    // outside (Monaco, fonts and textures are bundled or served by Vite).
+    `connect-src 'self' ${AIOS_WS_ORIGIN} ${AIOS_ORIGIN} ws://localhost:8000 http://localhost:8000`,
     "img-src 'self' data: blob:",
     "font-src 'self' data:",
     "media-src 'self' blob:",

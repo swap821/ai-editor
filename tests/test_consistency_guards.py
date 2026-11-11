@@ -557,3 +557,27 @@ def test_the_workshop_rests_a_writer_at_its_limit_and_queues_a_refused_one(
 def test_the_workshop_classifies_failures_as_the_router_does() -> None:
     source = _text("aios/maintenance/daily_work.py")
     assert "from aios.core.model_availability import is_usage_limit_error" in source
+
+
+def test_a_tool_ci_pins_is_pinned_as_the_lock_pins_it() -> None:
+    """2026-11-10, a review of the whole codebase: CI installed mypy 2.3.1
+    over requirements.txt's 2.4.1, so the type gate ran a version nobody had
+    locked. Every ``name==version`` a workflow installs that the lock also pins
+    must name the same version."""
+    lock = {}
+    for line in (ROOT / "requirements.txt").read_text(encoding="utf-8").splitlines():
+        found = re.match(r"^([A-Za-z0-9_.\-\[\]]+)==([^\s;#]+)", line.strip())
+        if found:
+            lock[found.group(1).split("[")[0].lower()] = found.group(2)
+    drift = []
+    for workflow in sorted((ROOT / ".github" / "workflows").glob("*.yml")):
+        for line in workflow.read_text(encoding="utf-8").splitlines():
+            if "pip install" not in line:
+                continue
+            for name, version in re.findall(
+                r"\b([A-Za-z0-9_.\-]+)==([0-9][^\s\"']*)", line
+            ):
+                pinned = lock.get(name.lower())
+                if pinned is not None and pinned != version:
+                    drift.append(f"{workflow.name}: {name}=={version}, lock {pinned}")
+    assert not drift, drift

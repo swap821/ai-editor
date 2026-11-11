@@ -1,9 +1,29 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-10 ("2026-11-10, #611 merged; its organ evidence on master" below;
+**Last updated:** 2026-11-11 ("2026-11-11, an outside review of the whole codebase, and what it found that is true" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, an outside review of the whole codebase, and what it found that is true (master `e3f1a830`, branch `fix/review-verified-defects`)
+
+The operator shared a review of master `307f8ab` by Fable 5.2 ("GAGOS (ai-editor) — Whole-Codebase Review", 2026-11-10). Its grades: security spine A-, verification discipline A, CI B+, frontend B, backend architecture C, product value D, repo hygiene D. Its verdict: a security spine worth respecting around an agent that does little, in a codebase (about 420,000 lines) too large for one operator to hold. Every concrete defect it named was checked against the code before anything was changed.
+
+- **True, and fixed here:**
+  - `aios/core/replay_writes.py` carried a twin of `stop_permits_autonomy` with the same body; it is now an alias of the one predicate, with a guard and a register row.
+  - CI installed mypy 2.3.1 over the lock's 2.4.1. CI now pins 2.4.1 (the spine's type gate passes on it: 0 errors), and a new guard fails when any tool a workflow pins disagrees with `requirements.txt` (it fails on the old line).
+  - README's proven row said the private Executor Service "never receives the Docker socket"; compose gives it exactly that, by design, and the cited test asserts the control plane lacks it. The row now says so.
+  - `SECURITY.md` named the branch `main` (it is `master`), called approval tokens HMAC-signed (they are random single-use tokens stored as SHA-256 digests), and cited two lines of a 824-line `main.py`; it now names the three call sites of the injection check.
+  - The face's CSP let it connect to any `https://` or `wss://` host; nothing in it connects outside, so `connect-src` is the API origin and the local backend.
+  - `pytest.ini` declared a `fast` marker as "the default CI subset"; no test carried it and no job selected it. It is removed.
+  - Six stale files at the root (`a.txt`, `backend_log.txt`, three test-output dumps, `sse.patch`) and three stray frontend patch scripts are deleted; nothing referenced them.
+- **True, and not mine to fix (frozen core, `aios/security/*`, the operator's section VIII process):**
+  - Audit key rotation under a pinned key: `rotate_audit_key` keeps the new private key only in memory and stores its public half, while `verify_chain` with a pinned key trusts pinned keys only, so every entry signed after a rotation would read as invalid and a restart loses the key.
+  - `MAX_RED_ACTIONS_PER_SESSION` is inert: past the ceiling the gateway returns `REQUIRE_HUMAN` with a different message, the same decision as below it.
+  - The shell policy (substring regexes, `git status` and `npm test` RED, `xyz touch a` YELLOW) needs the table the review proposes, an amendment.
+- **True, and the operator's decision:** shrink before adding; take memory recall and the reflex off the default turn until a pre-registered run shows a lift (Phase 8, D12 and D13 did not); split `stream_generate` (1,673 lines); turn ruff and mypy on repo-wide with a shrink-only budget; consolidate the 26 databases; delete the dead frontend modules and the one-off scripts; one outside install.
+- **Said plainly about this session's own work:** the review's last line is "do not add an organ, a queen, a ledger or a proof script". #611, merged the same day, added a scoreboard table, a claims table, a spend record and a pre-screen: measured, tested and asked for, and also more of what the review counts as the project's real risk. This PR adds no machinery: one alias, one guard, corrections and deletions.
+- **Tests:** the affected files, 904 passed; architecture, register, Bandit and currency, 94 passed after the CI pin was restored with Bandit's (the Bandit gate requires a pin in the workflow); register 46 of 46; thesis audit ok. No organ entrypoint changed.
 
 ## 2026-11-10, #611 merged; its organ evidence on master (master `307f8abf`, branch `evidence/after-611`)
 

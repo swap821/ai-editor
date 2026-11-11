@@ -549,7 +549,7 @@ Each row names the check. The check is the claim.
 | Claim | Check |
 | --- | --- |
 | Container containment holds against a real daemon: the repo root is mounted read-only and only declared scope roots are remounted writable | `AIOS_EXECUTOR_INTEGRATION=1 python -m pytest -rs tests/test_container_containment_integration.py` — runs on every push in `release-authority`; 4 passed, 0 skipped on `9381121` |
-| The private Executor Service is isolated and never receives the Docker socket | `AIOS_EXECUTOR_INTEGRATION=1 python -m pytest tests/test_executor_integration.py` — runs on every push in `release-authority` |
+| The control plane never receives the Docker socket; only the private Executor Service holds it, by design, and accepts structured jobs alone | `AIOS_EXECUTOR_INTEGRATION=1 python -m pytest tests/test_executor_integration.py` — runs on every push in `release-authority` |
 | A ratified constitutional amendment changes enforced behaviour, including at worker spawn | `pytest tests/adversarial/test_control_consistency.py tests/test_governance_red_team_corpus.py` |
 | The audit chain rejects a forged key, a stripped signature, and total erasure | `pytest tests/adversarial/test_audit_key_trust.py` |
 | Known attacks against every governed boundary stay closed | `python -m pytest tests/adversarial/ -q` — 486 passed, 0 failed on `9381121` |
