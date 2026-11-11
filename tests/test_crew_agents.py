@@ -111,3 +111,29 @@ def test_the_worker_prompt_names_its_files_and_the_others() -> None:
     assert "ONLY these files" in text and "frontend/src/a.ts" in text
     assert "never touch their files" in text and "frontend/src/b.ts" in text
     assert "run_tests" in text
+
+
+def test_the_prompt_goes_on_stdin_and_the_rules_are_one_line(
+    monkeypatch, tmp_path
+) -> None:
+    """On Windows ``claude`` is a .cmd launcher; cmd.exe cuts a command-line
+    argument at its first line break (measured 2026-11-11: the lead saw only its
+    prompt's first line). The prompt goes on stdin; the rules stay one line."""
+    seen = {}
+
+    class Done:
+        returncode = 0
+        stdout = json.dumps({"result": "ok", "num_turns": 2})
+        stderr = ""
+
+    def run(argv, **kw):
+        seen["argv"], seen["input"] = argv, kw.get("input")
+        return Done()
+
+    monkeypatch.setattr(ca.subprocess, "run", run)
+    prompt = "line one\nline two\nthe goal"
+    out = ca.run_agent(ca.agent_argv("m", write=False, max_turns=3), prompt, tmp_path)
+    assert out.error is None and out.result == "ok" and out.turns == 2
+    assert seen["input"] == prompt and prompt not in seen["argv"]
+    assert not any("\n" in a for a in seen["argv"]), "no argument may hold a line break"
+    assert "\n" not in ca.RULES

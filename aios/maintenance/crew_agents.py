@@ -146,11 +146,14 @@ def run_agent(
     started = time.monotonic()
     claude = shutil.which(argv[0]) or argv[0]
     try:
+        # The prompt goes on stdin: on Windows ``claude`` is a .cmd launcher,
+        # and cmd.exe cuts a command-line argument at its first line break
+        # (measured 2026-11-11: the lead saw its prompt's first line only).
         proc = subprocess.run(
-            [claude, *argv[1:], prompt],
+            [claude, *argv[1:]],
             cwd=str(cwd),
             capture_output=True,
-            stdin=subprocess.DEVNULL,
+            input=prompt,
             timeout=timeout_s,
             encoding="utf-8",
             errors="replace",
