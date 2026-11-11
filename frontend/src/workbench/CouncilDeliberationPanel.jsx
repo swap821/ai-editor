@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import { subscribeSwarmHUD, getSwarmHUDState } from '../superbrain/lib/swarmHUDStore';
 
