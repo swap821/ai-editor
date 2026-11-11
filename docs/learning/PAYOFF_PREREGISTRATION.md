@@ -1176,3 +1176,44 @@ nothing yet about the local model or about the counter's turns. Which rules and
 writers are active shifts over the run (easy findings are done first; a plan's
 usage limit comes and goes); randomising each finding protects the comparison,
 not the level.
+
+### D16 — 2026-11-11 — D15's seed run ahead of its pace; a malformed answer is read entry by entry; an attempt waits for its rule's playbook
+
+**Applies to** D15, recorded the hour #615 merged and before D15's first batch.
+
+**What happened.** #615 merged at 03:14 UTC. A dry run of the first batch showed
+it would take about eight `no-unused-vars` retries at 03:50 UTC, before any
+playbook existed: outside the population, each spending one of the finding's
+three attempts, from a rule with ten findings never accepted. At the operator's
+word ("Seed now + fix"), the reflector was run for all nine rules with verdicts
+from 03:24 UTC, ahead of the registered pace of three a batch:
+- the first pass read two (F401, F841): the other seven answers were not valid
+  JSON (a stray `","` after the first entry), and the code then marked those
+  rules reflected;
+- a second pass at 03:27 UTC re-ran the seven with a parser that reads each
+  kind/text pair of a malformed answer, the parser below. 22 entries were kept,
+  one dropped by the curator.
+- 17 Claude Sonnet calls in all on the operator's plan, against the 9 he was told
+  of; the seed proposals are unchanged and not in the analysis.
+- Reflecting a rule twice in one hour reused its request id; the gateway's
+  context record refused the second (the calls completed).
+
+**Changed, from the merge of this deviation's PR.**
+- `parse_reflection` reads strict JSON first, then pair by pair; an answer with
+  nothing readable is tried next batch, like a failed call, and no longer marks
+  the rule reflected.
+- Each reflection has its own request id.
+- A finding whose rule has verdicts but no reflection yet waits: no attempt is
+  spent before its playbook exists. A rule with no verdict does not wait.
+
+**Throughput, the same day.** The operator: "I have a good plan of Claude don't
+worry use as many sonnet and haiku models simultaneously at same time". From this
+PR's merge a batch takes up to 20 findings (was 10), the Claude writers up to 16
+of them (was 4), up to 4 writers at once (was 2; fewer when the laptop's free
+memory is short), and each review run up to 20. More proposals reach the
+analysis; which writer takes a finding was never part of the design, and the
+arm is still fixed by the finding alone.
+
+**Unchanged.** Treatment, randomisation, outcome, population, hypotheses and the
+stopping rule. Every rule with a verdict had a playbook before D15's first batch,
+so the seed's pace affects no proposal in the analysis.
