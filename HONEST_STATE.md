@@ -15,6 +15,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - An answer without edits is still read as a whole file, as before.
   - A task file may be up to 160,000 characters, and a task's files 240,000 together: what one prompt carries, since only edits come back.
 - **What doesn't change.** Lint findings and first tests keep whole-file answers, so D15's pre-registered conditions are untouched.
+- **One line, found by the crew's live test.** On this laptop `claude` is `claude.CMD`, and `cmd.exe` cuts a `--system-prompt` argument at its first line break. The first edit format had six line breaks, so Claude writers would have received it cut off after its first line. It is now one line, and a guard test keeps every writer's instruction on one line. The existing instructions all were.
 - **Tests:** 16 new; 3 bound tests rewritten to the new contract. The workshop set: 400 passed, 8 skipped. Bandit is clean.
 
 ## 2026-11-11, GAGOS works on the superbrain through the port (master `4862ca54`, branch `feat/gagos-through-the-port`)
