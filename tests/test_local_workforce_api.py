@@ -59,7 +59,7 @@ class DeterministicOllama:
             return '{"reference_id": "REF-15"}'
         if "Extract the error code" in prompt:
             return '{"error_code": "connection_refused", "message": "port unavailable"}'
-        if "Triage this report" in prompt:
+        if "Triage this for" in prompt:
             if "expired session token" in prompt:
                 return '{"severity": "high", "area": "security", "escalate": true}'
             return '{"severity": "low", "area": "frontend", "escalate": false}'

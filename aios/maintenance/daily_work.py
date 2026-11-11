@@ -835,10 +835,18 @@ def task_prompt(
     *,
     masked: bool = False,
     facts: Sequence[str] = (),
+    briefing: str = "",
 ) -> str:
     """The task writer's prompt. *task_text* must already be scrubbed; the file
-    is named, never its path."""
+    is named, never its path. *briefing*, already scrubbed, is the local
+    clerk's (goal_intake.writer_briefing), when it has briefed the goal."""
     lines = [f"File: {Path(rel).name}", "The operator's task:", task_text]
+    if briefing:
+        lines += [
+            "",
+            "The local clerk's briefing (advisory; the operator's task above decides):",
+            briefing,
+        ]
     if facts:
         lines += [
             "",
@@ -1025,11 +1033,18 @@ def task_files_prompt(
     *,
     masked: bool = False,
     facts: Sequence[str] = (),
+    briefing: str = "",
 ) -> str:
     """The writer's prompt for a task over several files: *task_text* already
     scrubbed, and *files* as ``(rel, text)`` (the text already masked), each
-    under its :func:`file_label`."""
+    under its :func:`file_label`; *briefing* as in :func:`task_prompt`."""
     lines = ["The operator's task:", task_text]
+    if briefing:
+        lines += [
+            "",
+            "The local clerk's briefing (advisory; the operator's task above decides):",
+            briefing,
+        ]
     if facts:
         lines += [
             "",
@@ -1664,6 +1679,14 @@ CREATE TABLE IF NOT EXISTS tasks (
     reason TEXT,
     updated_at TEXT NOT NULL,
     also TEXT NOT NULL DEFAULT '[]'
+);
+CREATE TABLE IF NOT EXISTS goal_intake (
+    task_id TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    clerk TEXT NOT NULL,
+    reason TEXT,
+    mission_request TEXT,
+    updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS playbook (
     entry_id TEXT PRIMARY KEY,
@@ -2693,6 +2716,42 @@ class DailyLedger:
                 (task_id, now, first, body, who[:200], now, json.dumps(more)),
             )
         return task_id
+
+    # Goals through the clerk (2026-11-11, the one-system plan's phase 1).
+    def record_intake(self, task_id: str, outcome: Mapping[str, Any]) -> None:
+        """The clerk's intake of the task *task_id* (goal_intake.intake's
+        outcome), replacing an earlier one (a goal that waited for the clerk is
+        taken in again)."""
+        with self._db() as db:
+            db.execute(
+                "INSERT OR REPLACE INTO goal_intake (task_id, state, clerk, reason, "
+                "mission_request, updated_at) VALUES (?,?,?,?,?,?)",
+                (
+                    task_id,
+                    outcome["state"],
+                    json.dumps(outcome.get("clerk") or {}),
+                    outcome.get("reason") or None,
+                    json.dumps(outcome["mission_request"])
+                    if outcome.get("mission_request")
+                    else None,
+                    _now(),
+                ),
+            )
+
+    def intakes(self) -> dict[str, dict]:
+        """Every goal's intake, by task id."""
+        with self._db() as db:
+            out = {}
+            for r in db.execute("SELECT * FROM goal_intake"):
+                row = dict(r)
+                row["clerk"] = json.loads(row["clerk"] or "{}")
+                row["mission_request"] = (
+                    json.loads(row["mission_request"])
+                    if row["mission_request"]
+                    else None
+                )
+                out[row["task_id"]] = row
+            return out
 
     def task(self, task_id: str) -> dict | None:
         with self._db() as db:

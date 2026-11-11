@@ -79,6 +79,7 @@ if str(REPO) not in sys.path:
 from aios import config  # noqa: E402
 from aios.core import cloud_spend  # noqa: E402
 from aios.domain.reviews import queen_review  # noqa: E402
+from aios.maintenance import goal_intake  # noqa: E402
 from aios.maintenance.daily_work import (  # noqa: E402
     ARM_ON,
     ARM_OFF,
@@ -503,6 +504,10 @@ def task_jobs(
     jobs: list[tuple] = []
     editable: dict[bool, set[str] | Exception] = {}
     held: set[str] = set()
+    # Goals through the clerk (2026-11-11): the writer reads the clerk's
+    # briefing beside the operator's words. The clerk is advisory: a goal it
+    # has not briefed (no model qualified yet) is worked on as before.
+    intakes = led.intakes() if goals_through_clerk() else {}
     for task in led.tasks(status="open"):
         if len(jobs) >= budget:
             break
@@ -592,8 +597,11 @@ def task_jobs(
         # His words are scrubbed like his direction notes before any model
         # reads them.
         said = egress_redact(task["text"])
+        briefing = egress_redact(goal_intake.writer_briefing(intakes.get(tid)))
         if len(files) == 1:
-            prompt = task_prompt(rel, said, masked, masked=bool(mapping), facts=known)
+            prompt = task_prompt(
+                rel, said, masked, masked=bool(mapping), facts=known, briefing=briefing
+            )
             system = task_system(rel)
         else:
             prompt = task_files_prompt(
@@ -603,6 +611,7 @@ def task_jobs(
                 # Facts that fit every file: a mix of kinds gets the frontend's,
                 # which hold the operator's notes too.
                 facts=notes if all(is_python(p[0]) for p in parts) else facts,
+                briefing=briefing,
             )
             system = task_files_system(files)
         altered = would_be_altered(prompt, system)
@@ -2466,6 +2475,52 @@ def efficiency(every: list[dict], spent: float) -> list[str]:
     ]
 
 
+#: Goals the clerk takes in, at most, in one hour (each is three local jobs).
+GOALS_PER_HOUR = 3
+
+
+def goals_through_clerk() -> bool:
+    """Whether open tasks go to the clerk first (the one-system plan, phase 1):
+    on unless ``AIOS_GAGOS_GOALS_THROUGH_CLERK=0``."""
+    return os.environ.get("AIOS_GAGOS_GOALS_THROUGH_CLERK", "1").strip() != "0"
+
+
+def goals_hour(led: DailyLedger, root: Path, *, service=None) -> None:
+    """The clerk's part of the hour: up to GOALS_PER_HOUR open tasks not yet
+    briefed go through the clerk's context check, triage and briefing
+    (aios.maintenance.goal_intake). Each job is recorded in the clerk's own
+    provenance by its service; the outcome is recorded here. A clerk that
+    cannot answer leaves the goal waiting, saying why."""
+    if not goals_through_clerk():
+        return
+    todo = goal_intake.pending(led.tasks(status="open"), led.intakes())[:GOALS_PER_HOUR]
+    if not todo:
+        return
+    if service is None:
+        from aios.operations.clerk_admin import default_service
+
+        service = default_service()
+    for task in todo:
+        try:
+            outcome = goal_intake.intake(
+                task, service, project_root=str(root), redact=egress_redact
+            )
+        except Exception as exc:  # said, never hidden; the goal waits
+            outcome = {
+                "state": goal_intake.AWAITING_CLERK,
+                "clerk": {},
+                "reason": f"the clerk could not be asked: {type(exc).__name__}: {exc}"[
+                    :400
+                ],
+                "mission_request": None,
+            }
+        led.record_intake(task["task_id"], outcome)
+        print(
+            f"  goal {task['task_id']}: {outcome['state']}"
+            + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
+        )
+
+
 def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
     """The report's lines on the operator's tasks: counts by status, and each
     task still moving (open, or taken and not yet delivered). Never his words."""
@@ -2478,10 +2533,17 @@ def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
         + ", ".join(f"{s} {by[s]}" for s in TASK_STATUSES)
         + "):"
     ]
+    intakes = led.intakes()
     for t in progress:
         # A task over several files names each, and each one's proposal.
         files = ", ".join(f"`{scrub(rel)}`" for rel in t["files"])
-        if t["status"] == "open":
+        if t["status"] == "open" and t["task_id"] in intakes:
+            seen = intakes[t["task_id"]]
+            why = f" ({scrub(seen['reason'])})" if seen.get("reason") else ""
+            out.append(
+                f"- `{t['task_id']}` in {files}: with the clerk, {seen['state']}{why}"
+            )
+        elif t["status"] == "open":
             out.append(f"- `{t['task_id']}` in {files}: open")
         elif t["status"] == "taken":
             p = t["proposal"]
@@ -3126,6 +3188,13 @@ def cmd_daily(args: argparse.Namespace) -> int:
             return 2
         _git(root, "fetch", "-q", "origin", "master")
         _git(root, "checkout", "-q", "--detach", "origin/master")
+        # Goals first through the clerk (the one-system plan, phase 1).
+        try:
+            goals_hour(led, root)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(
+                f"  goals: the clerk's intake failed: {type(exc).__name__}: {exc}"[:400]
+            )
         rc = cmd_propose(
             argparse.Namespace(
                 project=str(root),

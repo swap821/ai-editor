@@ -1,9 +1,19 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, the clerk can be qualified to triage and to brief" below;
+**Last updated:** 2026-11-12 ("2026-11-12, GAGOS's goals go through the clerk" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, GAGOS's goals go through the clerk (branch `feat/clerk-qualification-briefing`, PR #627)
+
+- **What runs now.** Each hour, before the writers, up to three of the operator's open goals go to the local clerk's own governed service (`LocalWorkforceService.run_advisory_job`): triage, then a briefing. Each job is in the clerk's provenance store, recorded by that service. The outcome is in the workshop ledger's new `goal_intake` table, and the report says where the clerk is with each goal.
+- **One builder, two callers.** The prompts, the declared output and the reading of the answer live in `aios/domain/local_workforce/goal_jobs.py`, as `skill_selection.py` does for the reuse job. Organ 37's triage and briefing cases are built from it, so a model granted a job was measured on exactly that job.
+- **The clerk blocks nothing.** It is advisory. A briefed goal's writer reads the clerk's constraints and "done when" beside the operator's words, labelled as the clerk's, with his task deciding. A goal the clerk cannot brief is worked on as before.
+- **What the clerk produces for the next phases.** A briefed goal also becomes the Queen Council's own `CouncilMissionRequest`: his files only, never the clerk's; goal, constraints and "done when" from the briefing; `created_by` `gagos_clerk`. It is stored for phase 2 (the council plans it). **Nothing reads it yet.**
+- **Measured, not yet live.** No model is granted TRIAGE or PREPARE_BRIEFING. Until the operator approves qwen2.5:3b, the qualification runs and he grants the jobs, every goal waits with "No admitted healthy local model for profile", and that refusal is on the clerk's record.
+- **Not asked, and why.** `check_context_completeness`'s qualification case hands the model its answer ("Return exactly complete=false and missing=[...]"), so a grant would not show judgment. It needs the treatment skill selection and triage got (paired cases from one builder) before GAGOS asks it. That is open.
+- **Tests:** 25 new in `tests/test_goal_intake.py`, including the real clerk service with its provenance store in both directions (granted → briefed and recorded; nothing granted → waiting, refusal recorded), his words scrubbed before the clerk reads them, and the writer prompt with and without a briefing. Two were shown to fail when their behaviour was broken (a writer without the briefing; the council's scope taken from the clerk).
 
 ## 2026-11-11, the clerk can be qualified to triage and to brief (master `a79a4030`+, branch `feat/clerk-qualification-briefing`)
 
