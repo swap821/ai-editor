@@ -196,7 +196,7 @@ export default function KnowledgeIngestPanel() {
     try {
       await deleteJson(`/api/v1/knowledge/sources/${encodeURIComponent(id)}`);
       void loadSources();
-    } catch (err) {
+    } catch {
       alert('Could not delete source');
     }
   };
