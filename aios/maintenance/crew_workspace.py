@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import io
 import re
+import shutil
 import subprocess
 import tarfile
 from collections.abc import Callable, Sequence
@@ -63,7 +64,7 @@ def _tracked(
     ``git archive`` (no checkout, nothing untracked)."""
     proc = subprocess.run(
         [
-            "git",
+            shutil.which("git") or "git",
             "-C",
             str(project_root),
             "archive",

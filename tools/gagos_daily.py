@@ -151,6 +151,11 @@ from aios.maintenance.daily_work import (  # noqa: E402
     unified_diff,
     unmask,
 )
+from tools.gagos_crew import (  # noqa: E402
+    CREW_TASKS_PER_HOUR,
+    crew_enabled,
+    crew_task,
+)
 from aios.maintenance.frontend_static import (  # noqa: E402
     PORT_MANIFEST,
     StaticCheckUnavailable,
@@ -879,7 +884,13 @@ def cmd_propose(args: argparse.Namespace) -> int:
     # Each finding is made ready here, one at a time and without a model:
     # what cannot be sent is recorded and costs nothing of the batch. The
     # operator's tasks come first (2026-11-03), oldest first.
-    jobs = task_jobs(led, root, head, busy, notes, facts, args.budget)
+    # With the crew on (2026-11-11), tasks are the crew's: one-shot writers keep
+    # the lint findings and first tests.
+    jobs = (
+        []
+        if crew_enabled()
+        else task_jobs(led, root, head, busy, notes, facts, args.budget)
+    )
     # A file a task takes this batch is the task's: a lint fix on it would be a
     # second proposal on the same base, and one of the two would go stale
     # (both reviewers of the tasks build, 2026-11-03).
@@ -1656,7 +1667,11 @@ def cmd_test(args: argparse.Namespace) -> int:
             verdict = run_change_tests(
                 trees,
                 base_commit=p["base_commit"],
-                changes={m["rel"]: m["new_text"] for m in unit},
+                # A deleted file is removed while its group's tests run.
+                changes={
+                    m["rel"]: None if m.get("op") == OP_DELETE else m["new_text"]
+                    for m in unit
+                },
             )
             refusal = verdict.refusal
             if (
@@ -3079,6 +3094,33 @@ def _pr_state(url: str) -> str:
         return "UNKNOWN"
 
 
+def crew_hour(led: DailyLedger, root: Path, busy) -> None:
+    """The crew's part of the hour (2026-11-11): up to CREW_TASKS_PER_HOUR open
+    tasks, each planned by a lead and worked by parallel agents, under the same
+    egress law as every writer. A failure is said and leaves the task open."""
+    if not crew_enabled():
+        return
+    allowed, why = cloud_coding_allowed()
+    if not allowed:
+        print(f"  crew: refused by GAGOS's egress law ({why})")
+        return
+    for task in led.tasks(status="open")[:CREW_TASKS_PER_HOUR]:
+        try:
+            line = crew_task(
+                led,
+                root,
+                task,
+                redact=egress_redact,
+                check_texts=check_texts,
+                foundry=writers_foundry(),
+                work_dir=Path(led.path).parent / "crew",
+                busy=frozenset(busy or ()),
+            )
+        except Exception as exc:  # said, never hidden; the task stays open
+            line = f"task {task['task_id']} stays open: {type(exc).__name__}: {exc}"
+        print(f"  crew: {line}"[:600])
+
+
 def cmd_daily(args: argparse.Namespace) -> int:
     """GAGOS's hour, run by its own scheduler around the clock, needing no one
     to start it: one batch, then the reviews, then delivery. An open GAGOS PR
@@ -3110,6 +3152,7 @@ def cmd_daily(args: argparse.Namespace) -> int:
             return 2
         _git(root, "fetch", "-q", "origin", "master")
         _git(root, "checkout", "-q", "--detach", "origin/master")
+        crew_hour(led, root, in_flight(led, open_prs))
         rc = cmd_propose(
             argparse.Namespace(
                 project=str(root),
