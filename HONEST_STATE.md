@@ -1,9 +1,21 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, GAGOS works on the superbrain through the port" below;
+**Last updated:** 2026-11-11 ("2026-11-11, a task's writer answers with edits" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, a task's writer answers with edits (master `a79a4030`, branch `feat/gagos-task-edits`)
+
+- **Why.** The operator wants GAGOS itself to complete the living-being blueprint. 15 frontend files are over the 40,000-character whole-file bound, and they are the body's core: `MaterializedTab` 114,541, the LEGACY scene, the HUD, `livingMirror.css`, `GagosChrome`. A writer returning whole files could not touch them.
+- **What changes:**
+  - A task's writer now answers with exact SEARCH/REPLACE edits, applied in order to the text it was shown.
+  - Each SEARCH must match exactly one place.
+  - The original's line endings are kept.
+  - An answer without edits is still read as a whole file, as before.
+  - A task file may be up to 160,000 characters, and a task's files 240,000 together: what one prompt carries, since only edits come back.
+- **What doesn't change.** Lint findings and first tests keep whole-file answers, so D15's pre-registered conditions are untouched.
+- **Tests:** 16 new; 3 bound tests rewritten to the new contract. The workshop set: 400 passed, 8 skipped. Bandit is clean.
 
 ## 2026-11-11, GAGOS works on the superbrain through the port (master `4862ca54`, branch `feat/gagos-through-the-port`)
 
