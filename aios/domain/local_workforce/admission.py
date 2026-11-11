@@ -7,8 +7,6 @@ from typing import Dict, Any
 
 from pydantic import BaseModel
 
-from aios import config
-
 
 class AdmissionContext(BaseModel):
     """Contextual information needed to make an admission decision."""
