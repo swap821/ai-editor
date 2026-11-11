@@ -1073,3 +1073,106 @@ unchanged. It does not change D14, and D14 does not depend on it. The launch
 waits until the laptop can give the local model its memory (at least 6 GB
 available): the second attempt's two timeouts came from memory starvation.
 GAGOS's own work stands aside while D13 holds the machine.
+
+### D15 — 2026-11-11 — a playbook per rule, learned from GAGOS's own verdicts, randomised against none
+
+**Applies to** GAGOS's hourly workshop (D14's real use), from its first batch
+after the change that builds this merges. **Operator decision**, 2026-11-11:
+memory recall and the reflex stay; "I want to make them work think hard research
+on Internet may be there be some hope", then "Yes" to this design. This entry is
+committed before the code that runs it and before any of its data.
+
+**Why.** Phase 8, D12 and D13 found no lift from lessons. The studies that do
+measure a lift share six things these runs lacked:
+1. entries are general strategies and pitfalls, not facts about one module
+   (ReasoningBank, arXiv 2509.25140; Agent Workflow Memory, ICML 2025; ACE,
+   arXiv 2510.04618; subtask-level memory, arXiv 2602.21611, where whole-instance
+   memory misled SWE agents);
+2. the same kinds of task recur (Agent Workflow Memory);
+3. memory is pruned by later outcomes, since agents follow what they recall and
+   bad entries spread their errors (arXiv 2505.16067);
+4. the model is strong (Dynamic Cheatsheet, arXiv 2504.07952: small models gain
+   little);
+5. winners and losers on the same kind of task are contrasted, failures included
+   (Training-Free GRPO, arXiv 2510.08191; ReasoningBank);
+6. entries are added and retired one at a time, never rewritten whole (ACE).
+
+D12 and D13 used facts about modules, novel targets only, a local 9B model, and
+kept lessons later found false. GAGOS's workshop already has (2) and (4), and the
+signals (3) and (5) need: sandbox tests, reviewer verdicts with reasons, refusals.
+
+**The treatment: a playbook per rule.** At most 8 active entries per rule, each
+one sentence (at most 240 characters), a strategy or a pitfall, naming no file
+and no path.
+- **Reflector.** After a batch's reviews, for each rule with a proposal decided
+  since its last reflection, a strong model (Claude Sonnet through Claude Code on
+  the operator's plan, through the one gateway, sealed and tool-less) reads the
+  rule, its playbook, and the reasons of up to 6 accepted and 6 not accepted
+  proposals for that rule: reviewer reasons, check refusals and sandbox
+  summaries, no code, scrubbed for egress. It returns at most 3 entries to add
+  and the ids of entries to retire.
+- **Curator** (code, no model). New entries are added whole; an entry whose words
+  repeat an active one is dropped; past 8 active, the lowest-scoring is retired.
+  No entry is ever rewritten.
+- **Credit.** When a proposal that was shown entries is decided, each entry shown
+  gains one helpful (accepted) or one harmful (not). An entry with harmful at
+  least 3 and at least twice helpful plus one is retired.
+- **Seed.** The reflector first reads the proposals the ledger has decided so far
+  (84 on 2026-11-11), once per rule, at most 3 rules a batch so the operator's
+  plan is not spent in one hour; a rule's playbook exists before any of its
+  proposals can enter the analysis (see Population). The seed proposals are not
+  in the analysis.
+- **Pace.** At most 3 rules are reflected on per batch, the rules waiting longest
+  first. A reflection whose call fails changes nothing and is tried next batch.
+
+**Randomisation.** A finding's arm is fixed by SHA-256 of
+`d15|<path>|<rule>|<base digest>`: first byte even, ON (its writer is shown the
+rule's active entries); odd, OFF (it is not). A retry of the same finding on the
+same base keeps its arm. The operator's tasks are not randomised and are not in
+the analysis. Both arms keep D14's feedback, the rule's last three refusal
+reasons: the playbook is the only difference. Recorded per proposal: its arm,
+the entries shown, and how many were active when it was assigned.
+
+**Supply, decided now.** On 2026-11-11 no finding GAGOS may work on alone was left
+unattempted. A finding never accepted may therefore be tried again: at most 3
+model-answered attempts in all, the last at least 24 hours earlier, its file
+unchanged. A retry is a new proposal in its finding's arm.
+
+**Outcome.** A decided proposal is 1 when accepted (accepted, committed or
+delivered) and 0 when rejected by a reviewer, failed by the delivery checks, or
+refused for what the model wrote. A failed call, a proposal no model was asked
+for, one still awaiting review, and a stale one are not decided: the rule GAGOS
+has used for its writers' records since 2026-11-02.
+
+**Population.** Decided proposals assigned after D15 starts, excluding tasks,
+whose rule had at least one active entry when they were assigned, in both arms
+alike: an OFF proposal with an empty playbook had nothing withheld.
+
+**Hypotheses.**
+- **H1 (primary).** Acceptance ON is greater than OFF. One-sided Fisher exact test.
+- **H1c (secondary).** Per finding, ever accepted, ON greater than OFF, one-sided
+  Fisher exact test. Holm over H1 and H1c at α = 0.05.
+- **Harm.** Acceptance ON lower than OFF at one-sided p < 0.05: the playbook is
+  switched off and that is reported.
+- **Descriptive.** Per rule and per writer family; attempts until accepted; each
+  entry's helpful and harmful counts.
+
+**Power, said now.** Near D14's 50% acceptance (43 of 84 decided), a rise to 65%
+needs about 135 decided proposals per arm for 80% power. GAGOS decided 84 in ten
+days while AWS refused most calls. A null at the stopping point most likely means
+"too few", and will be reported with the effect and its 95% interval.
+
+**Stopping.** One analysis, when 240 decided proposals are in the population or
+30 days after the first batch, whichever comes first. Counts per arm are shown
+daily; no rate or test is computed before then.
+
+**What each outcome means.** H1 met: a playbook learned from real verdicts helps
+strong writers on recurring work, the first measured lift GAGOS has had; the
+same design then goes to the counter's recall. Not met: reported with the effect
+size, and the playbook stays off by default after the run. Harm: off at once.
+
+**What this does not claim.** A playbook that helps the hourly writers says
+nothing yet about the local model or about the counter's turns. Which rules and
+writers are active shifts over the run (easy findings are done first; a plan's
+usage limit comes and goes); randomising each finding protects the comparison,
+not the level.

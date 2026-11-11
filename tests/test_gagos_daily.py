@@ -1327,3 +1327,245 @@ def test_a_writers_spend_is_settled_from_the_tokens_its_provider_reported(
     monkeypatch.setattr(tool, "governed_completer", completer)
     assert tool.cmd_propose(args) == 0
     assert led.month_spend(tool._month()) == {"m": pytest.approx(1.0)}
+
+
+# --------------------------------------------------------------------- D15: a playbook per rule
+
+
+def _decided(led, rel, *, outcome, rule=RULE, arm=None, seen=(), active=0, model="m"):
+    finding = dw.Finding(rel=rel, rule=rule, warnings=((3, 9, "x"),))
+    pid = led.record_proposal(
+        finding,
+        base_text=BEFORE + rel,
+        base_commit="c" * 40,
+        model=model,
+        new_text=AFTER,
+        verdict=dw.StaticVerdict(True, "ok", 1),
+        arm=arm,
+        playbook_seen=seen,
+        playbook_active=active,
+    )
+    led.record_review(
+        pid,
+        "claude",
+        model="opus",
+        verdict="accept" if outcome else "reject",
+        reason="keeps behaviour" if outcome else "drops a used name",
+    )
+    led.resettle()
+    return pid
+
+
+def test_a_findings_arm_is_fixed_and_the_arms_are_balanced() -> None:
+    arms = [dw.d15_arm(f"src/f{i}.js", RULE, "d" * 8) for i in range(2000)]
+    assert 0.45 < arms.count(dw.ARM_ON) / len(arms) < 0.55
+    assert dw.d15_arm("a.js", RULE, "x") == dw.d15_arm("a.js", RULE, "x"), (
+        "a retry keeps its arm"
+    )
+
+
+def test_a_finding_never_accepted_may_be_tried_again_a_day_later(tmp_path) -> None:
+    import sqlite3
+    from datetime import datetime, timedelta, timezone
+
+    led = dw.DailyLedger(tmp_path / "l.db")
+    base = dw.digest(BEFORE)
+    assert led.may_attempt(REL, RULE, base), "never attempted"
+    _proposal(led, passed=False)  # refused by the checks
+    assert not led.may_attempt(REL, RULE, base), "not within a day"
+
+    def age(hours):
+        when = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        with sqlite3.connect(tmp_path / "l.db") as db:
+            db.execute("UPDATE proposals SET created_at = ?", (when,))
+
+    age(25)
+    assert led.may_attempt(REL, RULE, base), "never accepted, a day later"
+    _proposal(led, passed=False)
+    _proposal(led, passed=False)
+    age(25)
+    assert not led.may_attempt(REL, RULE, base), f"at most {dw.MAX_ATTEMPTS} attempts"
+
+
+def test_an_awaiting_finding_is_not_tried_again(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _proposal(led)  # proposed, awaiting review
+    assert not led.may_attempt(REL, RULE, dw.digest(BEFORE))
+
+
+def test_the_curator_keeps_only_general_new_entries_and_rewrites_none(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    first = "Remove only the unused binding; keep every side effect of its initializer."
+    added, dropped = led.add_playbook_entries(
+        RULE,
+        [
+            ("strategy", first),
+            ("pitfall", "Do not touch frontend/src/x.js"),
+            ("advice", "Something"),
+        ],
+        sources=["gd-1"],
+    )
+    assert len(added) == 1 and len(dropped) == 2
+    again, dropped = led.add_playbook_entries(
+        RULE,
+        [("strategy", first.replace(";", ","))],
+        sources=["gd-2"],
+    )
+    assert again == [] and "repeats" in dropped[0]
+    for i in range(dw.PLAYBOOK_MAX_ACTIVE + 2):
+        led.add_playbook_entries(
+            RULE,
+            [("pitfall", f"Distinct pitfall number {i} {'z' * (i + 1)}")],
+            sources=[],
+        )
+    assert len(led.playbook(RULE)) == dw.PLAYBOOK_MAX_ACTIVE
+    oldest = led.playbook(RULE, active_only=False)[0]
+    assert oldest["text"] == first, "never rewritten"
+
+
+def test_credit_goes_to_the_entries_shown_once_and_a_harmful_entry_retires(
+    tmp_path,
+) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    [eid], _ = led.add_playbook_entries(
+        RULE, [("strategy", "Keep the diff to the warned lines.")], sources=[]
+    )
+    _decided(led, "a.js", outcome=1, arm=dw.ARM_ON, seen=[eid], active=1)
+    _decided(led, "b.js", outcome=0, arm=dw.ARM_OFF, seen=[], active=1)
+    assert led.settle_playbook_credit() == 1 and led.settle_playbook_credit() == 0
+    [entry] = led.playbook(RULE)
+    assert (entry["helpful"], entry["harmful"]) == (1, 0), (
+        "OFF proposals credit nothing"
+    )
+    for i in range(4):
+        _decided(led, f"c{i}.js", outcome=0, arm=dw.ARM_ON, seen=[eid], active=1)
+    led.settle_playbook_credit()
+    [entry] = led.playbook(RULE, active_only=False)
+    assert entry["status"] == "retired" and entry["harmful"] == 4
+
+
+def test_a_reflection_reads_reasons_not_code_and_keeps_what_the_curator_allows(
+    tmp_path,
+) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _decided(led, "a.js", outcome=1)
+    _decided(led, "b.js", outcome=0)
+    assert led.rules_awaiting_reflection() == [RULE]
+    seen = {}
+
+    def complete(prompt, system, request_id):
+        seen["prompt"] = prompt
+        return json.dumps(
+            {
+                "add": [
+                    {
+                        "kind": "pitfall",
+                        "text": "Never remove a name another statement still reads.",
+                    },
+                    {"kind": "strategy", "text": "Edit src/a.js only"},
+                ],
+                "retire": ["pb-unknown"],
+            }
+        )
+
+    summary = tool.reflect(led, RULE, complete)
+    assert "1 added" in summary and "1 not kept" in summary
+    assert "drops a used name" in seen["prompt"] and "keeps behaviour" in seen["prompt"]
+    assert AFTER not in seen["prompt"], "no code reaches the reflector"
+    assert led.rules_awaiting_reflection() == [], "marked reflected"
+    _decided(led, "c.js", outcome=0)
+    assert led.rules_awaiting_reflection() == [RULE], "a new verdict waits again"
+
+
+def test_a_failed_reflection_changes_nothing_and_is_tried_again(tmp_path) -> None:
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _decided(led, "a.js", outcome=1)
+
+    def broken(prompt, system, request_id):
+        raise RuntimeError("usage limit")
+
+    assert "tried next batch" in tool.reflect(led, RULE, broken)
+    assert led.playbook(RULE) == [] and led.rules_awaiting_reflection() == [RULE]
+    assert "no JSON" in tool.reflect(led, RULE, lambda *a: "sorry")
+    assert led.rules_awaiting_reflection() == [], "a malformed answer is not retried"
+
+
+def test_only_the_on_arms_writer_is_shown_the_playbook(tmp_path, monkeypatch) -> None:
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    [eid], _ = led.add_playbook_entries(
+        RULE, [("strategy", "Keep the diff to the warned lines.")], sources=[]
+    )
+    prompts: list[str] = []
+
+    def completer(model, region):
+        def complete(prompt, system, request_id):
+            prompts.append(prompt)
+            return f"```jsx\n{AFTER}```"
+
+        return complete
+
+    monkeypatch.setattr(tool, "governed_completer", completer)
+    assert tool.cmd_propose(args) == 0
+    [p] = led.proposals()
+    arm = dw.d15_arm(REL, RULE, dw.digest(BEFORE))
+    assert p["arm"] == arm and p["playbook_active"] == 1
+    shown = "Keep the diff to the warned lines." in prompts[0]
+    assert shown is (arm == dw.ARM_ON)
+    assert json.loads(p["playbook_seen"]) == ([eid] if arm == dw.ARM_ON else [])
+
+
+def test_the_analysis_is_the_pre_registered_one(tmp_path) -> None:
+    rows = [
+        {
+            "arm": dw.ARM_ON,
+            "outcome": 1,
+            "rel": f"a{i}",
+            "rule": RULE,
+            "base_digest": "x",
+        }
+        for i in range(30)
+    ] + [
+        {
+            "arm": dw.ARM_OFF,
+            "outcome": int(i < 10),
+            "rel": f"b{i}",
+            "rule": RULE,
+            "base_digest": "x",
+        }
+        for i in range(30)
+    ]
+    result = tool.d15_analysis(rows)
+    assert result["on"] == {"n": 30, "accepted": 30, "rate": 1.0}
+    assert result["off"]["accepted"] == 10
+    assert result["H1"]["met"] and result["H1c"]["met"]
+    assert not result["harm"]["seen"]
+    led = dw.DailyLedger(tmp_path / "l.db")
+    _decided(led, "a.js", outcome=1, arm=dw.ARM_ON, active=1)
+    _decided(led, "b.js", outcome=0, arm=dw.ARM_OFF, active=0)  # nothing withheld: out
+    assert tool.d15_counts(led) == {dw.ARM_ON: 1, dw.ARM_OFF: 0}
+    text = tool.report(led)
+    assert "**D15**" in text and "ON 1, OFF 0" in text
+
+
+def test_the_off_arms_writer_is_not_shown_the_playbook(tmp_path, monkeypatch) -> None:
+    asked: list[str] = []
+    led, args = _propose_setup(tmp_path, monkeypatch, asked)
+    led.add_playbook_entries(
+        RULE, [("strategy", "Keep the diff to the warned lines.")], sources=[]
+    )
+    monkeypatch.setattr(tool, "d15_arm", lambda *a: dw.ARM_OFF)
+    prompts: list[str] = []
+
+    def completer(model, region):
+        def complete(prompt, system, request_id):
+            prompts.append(prompt)
+            return f"```jsx\n{AFTER}```"
+
+        return complete
+
+    monkeypatch.setattr(tool, "governed_completer", completer)
+    assert tool.cmd_propose(args) == 0
+    [p] = led.proposals()
+    assert p["arm"] == dw.ARM_OFF and p["playbook_active"] == 1
+    assert "Keep the diff" not in prompts[0] and json.loads(p["playbook_seen"]) == []

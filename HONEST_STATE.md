@@ -1,9 +1,25 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, an outside review of the whole codebase, and what it found that is true" below;
+**Last updated:** 2026-11-11 ("2026-11-11, D15: a playbook per rule, so the learning can show whether it helps" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, D15: a playbook per rule, so the learning can show whether it helps (master `e3f1a830`, branch `feat/d15-workshop-playbook`)
+
+- **The operator's word.** An outside review (Fable 5.2, 2026-11-10) proposed taking memory recall and the reflex off the default turn, since Phase 8, D12 and D13 showed no lift. He answered: "I don't want to lose direction to my north-star vision" and "I want to make them work think hard research on Internet may be there be some hope", then "Yes" to this design.
+- **What the research said.** The studies that measure a lift from agent memory share what the D-runs lacked: general strategies and pitfalls rather than facts about one module, recurring kinds of task, entries pruned by later outcomes, strong models, winners contrasted with losers, and small curated updates (ReasoningBank, ACE, Agent Workflow Memory, Training-Free GRPO, Dynamic Cheatsheet, subtask-level SWE memory, the experience-following study). GAGOS's hourly workshop already has recurring kinds of task, strong writers and real verdicts.
+- **Pre-registered first.** D15 is in `docs/learning/PAYOFF_PREREGISTRATION.md`, committed before its code (`50883137`, with the pacing clarified in `423838e2`, still before any code or data): treatment, randomisation by finding, supply, outcome, population, H1 and H1c with Holm, harm, power (about 135 decided per arm for 50% to 65%, so a null will most likely mean too few) and the stopping rule (240 decided, or 30 days).
+- **Built.**
+  - A `playbook` per rule in GAGOS's ledger: at most 8 active entries, one sentence each, strategy or pitfall, no path; a curator in code that keeps entries whole, drops repeats and pathlike text, and retires the lowest-scoring past 8.
+  - A reflector after each batch's reviews: Claude Sonnet on the operator's plan, through the one gateway, reads the reasons behind a rule's recent accepted and not-accepted proposals (never code, scrubbed) and proposes at most 3 entries; at most 3 rules a batch; a failed call changes nothing.
+  - Credit: an ON proposal's outcome is credited to the entries its writer saw; an entry harmful at least 3 times and twice its helpful plus one is retired.
+  - Each finding's arm from SHA-256 of its path, rule and base; the ON writer sees the rule's playbook, the OFF writer does not; both keep the last three refusal reasons. Recorded: arm, entries shown, entries active.
+  - Supply: a finding never accepted may be tried again, at most 3 answered attempts, a day apart.
+  - `outcome_of`: one rule for an outcome, now shared by the writers' records and D15.
+  - `gagos_daily.py d15` shows the counts per arm; `--final` runs the one analysis. The report shows counts only.
+- **Tests:** ten for D15 in `tests/test_gagos_daily.py`; deliberately breaking the playbook injection or the attempt cap fails them (breaking the OFF guard in the credit changes nothing: an OFF proposal never records entries shown). All workshop, ledger and Foundry test files with the architecture, Bandit, register and currency tests: 412 passed, 6 skipped.
+- **Not yet.** No data: the run begins with the first hourly batch after this merges. The local model and the counter's turns are not in D15.
 
 ## 2026-11-11, an outside review of the whole codebase, and what it found that is true (master `e3f1a830`, branch `fix/review-verified-defects`)
 
