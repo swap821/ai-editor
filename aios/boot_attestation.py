@@ -13,8 +13,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
-from aios.config import PROJECT_ROOT
-
 
 def compute_spine_hash(spine_dir: Path) -> str:
     """Compute a SHA-256 Merkle tree hash over all .py files in *spine_dir*.
