@@ -447,7 +447,7 @@ describe('CouncilDashboard sovereignty views', () => {
       'fetch',
       vi.fn(async (url: RequestInfo | URL) => {
         const u = String(url);
-        let payload: any = {};
+        let payload: unknown = {};
         if (u.includes('/mirror/governance')) payload = null; // simulate failed/empty response
         return { ok: true, status: 200, json: async () => payload } as unknown as Response;
       })
@@ -466,7 +466,7 @@ describe('CouncilDashboard sovereignty views', () => {
       'fetch',
       vi.fn(async (url: RequestInfo | URL) => {
         const u = String(url);
-        let payload: any = {};
+        let payload: unknown = {};
         if (u.includes('/mirror/governance')) {
           payload = { approvals: [{ requested_action: { value: null, status: 'unavailable', source: 'test' } }] };
         }
@@ -486,7 +486,7 @@ describe('CouncilDashboard sovereignty views', () => {
       'fetch',
       vi.fn(async (url: RequestInfo | URL) => {
         const u = String(url);
-        let payload: any = {};
+        let payload: unknown = {};
         if (u.includes('/mirror/governance')) {
           payload = { privacyAudits: [{ provider: { value: null, status: 'unavailable', source: 'test' } }] };
         }
