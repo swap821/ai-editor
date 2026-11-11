@@ -137,7 +137,7 @@ class TTSService:
 
     def _download_model(self, model_path: Path) -> None:
         try:
-            from piper.download import find_voice, ensure_voice_exists
+            from piper.download import ensure_voice_exists
         except ImportError:
             raise VoiceError(
                 f"Piper model {self._model_name} not found at {model_path} "
