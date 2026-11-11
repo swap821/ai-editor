@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import re
 
-from aios.memory.relevance import tokens
-
 _TOOL_VERBS = frozenset(
     {
         "read_file",
