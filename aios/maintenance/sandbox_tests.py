@@ -636,12 +636,14 @@ class _Applied:
     """A set of changes written into the base copy, and taken out again.
 
     ``revert`` restores every file to exactly the bytes the base had (or
-    removes it, when the change created it); it is safe to call twice."""
+    removes it, when the change created it); it is safe to call twice. A change
+    of None removes the file while it is applied (2026-11-11: a crew agent may
+    delete files)."""
 
-    def __init__(self, tree: Path, changes: dict[str, str]) -> None:
+    def __init__(self, tree: Path, changes: dict[str, str | None]) -> None:
         root = tree.resolve()
         self.originals: dict[Path, bytes | None] = {}
-        self.texts: dict[Path, str] = {}
+        self.texts: dict[Path, str | None] = {}
         for rel, text in changes.items():
             path = (tree / rel).resolve()
             if not path.is_relative_to(root):
@@ -651,6 +653,9 @@ class _Applied:
 
     def apply(self) -> None:
         for path, text in self.texts.items():
+            if text is None:
+                path.unlink(missing_ok=True)
+                continue
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(text.encode("utf-8"))
 
@@ -811,9 +816,12 @@ class _WebPart:
 
     label = "frontend tests"
 
-    def __init__(self, tree, rels, runner_for, image_ready, timeout_s) -> None:
+    def __init__(self, tree, rels, runner_for, image_ready, timeout_s, gone=()) -> None:
         self.tree = tree
-        self.rels = [r.removeprefix(FRONTEND_DIR + "/") for r in rels]
+        # The files whose related tests run; a deleted file has none left, so
+        # what it breaks is the type check's to find (it is in *gone*).
+        self.rels = [r.removeprefix(FRONTEND_DIR + "/") for r in rels if r not in gone]
+        self.gone = [r.removeprefix(FRONTEND_DIR + "/") for r in gone]
         self.runner_for, self.image_ready = runner_for, image_ready
         self.timeout_s = timeout_s
         self.with_it: VitestRun | None = None
@@ -853,6 +861,12 @@ class _WebPart:
         return None
 
     def run_with(self) -> SandboxVerdict | None:
+        if not self.rels:
+            # Only deletions: no related tests to run; the type check judges.
+            return SandboxVerdict(
+                UNTESTED,
+                f"the change only deletes {len(self.gone)} frontend file(s)",
+            )
         try:
             run = _vitest(self.runner, self.tree, "related", self.rels, self.timeout_s)
         except SandboxUnavailable as exc:
@@ -934,7 +948,7 @@ def run_change_tests(
     trees: BaseTrees,
     *,
     base_commit: str,
-    changes: dict[str, str],
+    changes: dict[str, str | None],
     runner_for: Callable[[str], Runner] = default_runner,
     image_ready: Callable[[str], bool] = image_built,
     timeout_s: int = TEST_TIMEOUT_S,
@@ -1000,7 +1014,7 @@ def _run_set(
     trees: BaseTrees,
     *,
     base_commit: str,
-    changes: dict[str, str],
+    changes: dict[str, str | None],
     runner_for: Callable[[str], Runner],
     image_ready: Callable[[str], bool],
     timeout_s: int,
@@ -1024,7 +1038,8 @@ def _run_set(
             _PythonPart(tree, py, runner_for, image_ready, timeout_s, python_image)
         )
     if web:
-        parts.append(_WebPart(tree, web, runner_for, image_ready, timeout_s))
+        gone = [r for r in web if changes[r] is None]
+        parts.append(_WebPart(tree, web, runner_for, image_ready, timeout_s, gone=gone))
     if not parts:
         return SandboxVerdict(
             UNTESTED, "no test covers a file of this kind (Python or frontend only)"

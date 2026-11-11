@@ -332,7 +332,8 @@ class FakeWeb:
         words = command.split(st.WEB_RUNNER)[1].split()
         mode, files = words[0], words[1:]
         self.calls.append((mode, files))
-        self.seen.append((tree / WEB_MODULE).read_text(encoding="utf-8"))
+        module = tree / WEB_MODULE
+        self.seen.append(module.read_text(encoding="utf-8") if module.is_file() else "")
         if self.killed:
             return "", "", 137
         if self.no_report:
@@ -341,18 +342,26 @@ class FakeWeb:
             # tsc's own lines: a TYPEERROR in util.js is one error; one in
             # other.js is an error the base has too when the base has it.
             out = f"noise\n{st.TSC_MARKER}\n"
+            src = tree / "frontend" / "src"
             errors = [
                 f"src/{name}(1,1): error TS2322: Type 'string' is not assignable to type 'number'."
                 for name in ("util.js", "other.js")
-                if "TYPEERROR"
-                in (tree / "frontend" / "src" / name).read_text(encoding="utf-8")
+                if (src / name).is_file()
+                and "TYPEERROR" in (src / name).read_text(encoding="utf-8")
             ]
+            if not (src / "util.js").is_file():
+                # A deleted module: its importer no longer resolves.
+                errors.append(
+                    "src/util.test.js(1,19): error TS2307: Cannot find module './util'."
+                )
             return out + "\n".join(errors) + "\n", "", 2 if errors else 0
         if mode == "related":
             ran = [WEB_TEST[len("frontend/") :]] if "src/util.js" in files else []
         else:
             ran = files
-        broken = "BROKEN" in (tree / WEB_MODULE).read_text(encoding="utf-8")
+        broken = not (tree / WEB_MODULE).is_file() or "BROKEN" in (
+            tree / WEB_MODULE
+        ).read_text(encoding="utf-8")
         report = {
             f: [("works", "failed" if broken else "passed"), ("flaky", "failed")]
             for f in ran
@@ -924,3 +933,37 @@ def test_tscs_lines_are_read_by_file_code_and_message() -> None:
     assert found == {("src/a.ts", "TS2322", "Type 'x' is not assignable."): 2}
     with pytest.raises(ValueError):
         st.parse_tsc("no marker")
+
+
+# --------------------------------------------------------------------- deletions (2026-11-11)
+
+
+def test_deleting_a_module_others_import_is_broke_by_the_type_check(webproject) -> None:
+    root, commit = webproject
+    verdict, _, web, _ = _set(webproject, {WEB_MODULE: None})
+    assert verdict.outcome == st.BROKE
+    assert "TS2307" in verdict.summary and "Cannot find module" in verdict.summary
+    assert [mode for mode, _ in web.calls][0] == "typecheck", (
+        "no related run for a deletion"
+    )
+    assert (root / WEB_MODULE).is_file(), "the operator's checkout is never touched"
+
+
+def test_deleting_a_file_nothing_imports_is_untested_and_type_clean(webproject) -> None:
+    verdict, _, web, _ = _set(webproject, {WEB_OTHER: None})
+    assert verdict.outcome == st.UNTESTED
+    assert "only deletes 1 frontend file" in verdict.summary
+    assert "types: tsc --noEmit is clean" in verdict.summary
+
+
+def test_a_deleted_file_is_back_in_the_base_copy_afterwards(tmp_path) -> None:
+    tree = tmp_path / "tree"
+    (tree / "src").mkdir(parents=True)
+    a = b"export const a = 1;\n"
+    (tree / "src/a.js").write_bytes(a)
+    applied = st._Applied(tree, {"src/a.js": None, "src/b.js": "export const b = 2;\n"})
+    applied.apply()
+    assert not (tree / "src/a.js").exists() and (tree / "src/b.js").is_file()
+    applied.revert()
+    assert (tree / "src/a.js").read_bytes() == a
+    assert not (tree / "src/b.js").exists()
