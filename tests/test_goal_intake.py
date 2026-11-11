@@ -399,7 +399,7 @@ def test_the_report_says_where_the_clerk_is_with_each_goal(tmp_path) -> None:
 
 
 def test_the_intake_runs_before_the_writers_each_hour() -> None:
-    import inspect
+    from tests.source_rules import executable_source
 
-    src = inspect.getsource(tool.cmd_daily)
+    src = executable_source(tool.cmd_daily)
     assert src.index("goals_hour(led, root)") < src.index("rc = cmd_propose(")

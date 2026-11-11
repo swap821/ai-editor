@@ -175,7 +175,11 @@ def _probe_local_workforce_qualification(scratch: Path) -> str:
                 qualification_fixture_answer,
             )
 
-            answer = qualification_fixture_answer(prompt)
+            from aios.domain.local_workforce.goal_jobs import (
+                qualification_fixture_answer as goal_job_answer,
+            )
+
+            answer = qualification_fixture_answer(prompt) or goal_job_answer(prompt)
             if answer is not None:
                 return answer
             if "one field result" in prompt:

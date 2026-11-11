@@ -13,6 +13,7 @@ The clerk is advisory: a triage or a briefing decides no authority.
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
 from typing import Any
 
@@ -56,6 +57,57 @@ def briefing_prompt(request: str, context: str = "") -> str:
     )
 
 
+#: What organ 37's qualification asks of these jobs, and the answers a model
+#: must give: here, beside the jobs, so every stand-in model (tests, the R15
+#: runtime proof) answers exactly the cases the suite asks, as
+#: ``skill_selection.qualification_fixture_answer`` does for the reuse job.
+TRIAGE_ESCALATES = (
+    "test_login_rejects_expired_token fails: an expired session token was "
+    "accepted (aios/identity/service.py)"
+)
+TRIAGE_ROUTINE = (
+    "no-unused-vars: the variable unusedTimer is assigned but never used in "
+    "frontend/src/workbench/FileTree.jsx"
+)
+ESCALATES_ANSWER: Mapping[str, Any] = {
+    "severity": "high",
+    "area": "security",
+    "escalate": True,
+}
+ROUTINE_ANSWER: Mapping[str, Any] = {
+    "severity": "low",
+    "area": "frontend",
+    "escalate": False,
+}
+BRIEFING_FILES = (
+    "frontend/src/workbench/RecentActivity.tsx",
+    "frontend/src/workbench/RecentActivity.test.tsx",
+)
+BRIEFING_REQUEST = (
+    "The Recent activity panel in frontend/src/workbench/RecentActivity.tsx "
+    "shows closed results twice. Fix it without touching the backend. Done when "
+    "frontend/src/workbench/RecentActivity.test.tsx passes."
+)
+BRIEFING_ANSWER: Mapping[str, Any] = {
+    "goal": "Stop the Recent activity panel showing closed results twice.",
+    "files": list(BRIEFING_FILES),
+    "constraints": ["Do not touch the backend."],
+    "done_when": "frontend/src/workbench/RecentActivity.test.tsx passes",
+}
+
+
+def qualification_fixture_answer(prompt: str) -> str | None:
+    """The correct answer to a triage or briefing qualification prompt, for a
+    deterministic stand-in model; None for any other prompt."""
+    if triage_prompt(TRIAGE_ESCALATES) in prompt:
+        return json.dumps(dict(ESCALATES_ANSWER))
+    if triage_prompt(TRIAGE_ROUTINE) in prompt:
+        return json.dumps(dict(ROUTINE_ANSWER))
+    if f"from this request: '{BRIEFING_REQUEST}'" in prompt:
+        return json.dumps(dict(BRIEFING_ANSWER))
+    return None
+
+
 def _text_list(value: Any) -> bool:
     return isinstance(value, list) and all(
         isinstance(item, str) and item.strip() for item in value
@@ -93,10 +145,18 @@ def read_briefing(data: Mapping[str, Any]) -> tuple[bool, str]:
 
 __all__ = [
     "AREAS",
+    "BRIEFING_ANSWER",
+    "BRIEFING_FILES",
+    "BRIEFING_REQUEST",
     "BRIEFING_SCHEMA",
+    "ESCALATES_ANSWER",
+    "ROUTINE_ANSWER",
     "SEVERITIES",
+    "TRIAGE_ESCALATES",
+    "TRIAGE_ROUTINE",
     "TRIAGE_SCHEMA",
     "briefing_prompt",
+    "qualification_fixture_answer",
     "read_briefing",
     "read_triage",
     "triage_prompt",
