@@ -146,9 +146,11 @@ from aios.maintenance.daily_work import (  # noqa: E402
     unmask,
 )
 from aios.maintenance.frontend_static import (  # noqa: E402
+    PORT_MANIFEST,
     StaticCheckUnavailable,
     check_texts,
     editable_frontend_files,
+    port_manifest_after,
 )
 from aios.maintenance.python_static import (  # noqa: E402
     PYTHON_SCOPE,
@@ -533,7 +535,7 @@ def task_jobs(
             if rel not in allowed:
                 refuse(
                     f"{rel} is not a file GAGOS may edit: it does not exist here, or it "
-                    "is frozen core, an organ's entrypoint or a port"
+                    "is frozen core or an organ's entrypoint"
                 )
                 refused = True
                 break
@@ -2196,9 +2198,19 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                 reasons.append(failure)
         return "; ".join(reasons) if reasons else None
 
-    def put_new(unit: list[dict]) -> None:
+    manifest = root / PORT_MANIFEST
+
+    def put_new(unit: list[dict]) -> list[str]:
+        """Write the unit's new texts, and the port's manifest with them when
+        any is a file the port carries (2026-11-11, "GAGOS through the port"):
+        the paths to commit."""
         for p in unit:
             (root / p["rel"]).write_bytes(p["new_text"].encode("utf-8"))
+        ported = port_manifest_after(root, {p["rel"]: p["new_text"] for p in unit})
+        if ported is None:
+            return [p["rel"] for p in unit]
+        manifest.write_bytes(ported.encode("utf-8"))
+        return [p["rel"] for p in unit] + [PORT_MANIFEST]
 
     # The changes to deliver: a proposal alone, or a task's every file together.
     units: list[list[dict]] = []
@@ -2256,7 +2268,8 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                     )
             continue
 
-        put_new(unit)
+        manifest_before = manifest.read_bytes() if manifest.is_file() else None
+        staged = put_new(unit)
         failure = check(rels)
         moot = None
         if failure is not None:
@@ -2266,6 +2279,8 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                     path.unlink()
                 else:
                     path.write_bytes(current.encode("utf-8"))
+            if manifest_before is not None:
+                manifest.write_bytes(manifest_before)
             if all(c is not None for c in currents.values()):
                 # The same check on master without it (2026-11-02: an accepted
                 # change failed its delivery on a test that times out on this
@@ -2285,13 +2300,13 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                         f"{failure}"
                     )
                 continue
-            put_new(unit)
+            staged = put_new(unit)
             for p in unit:
                 print(
                     f"  {p['proposal_id']} {p['rel']}: the delivery check fails on "
                     f"master without it too ({failure}); not its doing, CI judges it"
                 )
-        _git(root, "add", "--", *rels)
+        _git(root, "add", "--", *staged)
         first = unit[0]
         _git(
             root,

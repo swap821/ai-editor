@@ -752,6 +752,21 @@
         "tests/test_consistency_guards.py::test_a_tool_ci_pins_is_pinned_as_the_lock_pins_it"
       ],
       "note": "Found 2026-11-10 by Fable's review of the whole codebase: CI installed mypy 2.3.1 over the lock's 2.4.1. The workflow keeps its own pins (the Bandit gate requires one there); the guard holds every such pin to the lock's."
+    },
+    {
+      "id": "port-manifest",
+      "fact": "The digest the lab-to-product port records for each superbrain file, against the product file itself.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "frontend/superbrain-source.json",
+        "frontend/tools/sync-superbrain.mjs",
+        "aios/maintenance/frontend_static.py"
+      ],
+      "guards": [
+        "tests/test_port_manifest.py::test_the_manifest_matches_the_product_it_records"
+      ],
+      "note": "Found 2026-11-11: #533 and #534 both changed SuperbrainScene.LEGACY.tsx and the merged file matched neither recorded digest; CI never ran the port check. The same day the operator chose that GAGOS works on these files through the port: its delivery updates the manifest in the same commit (frontend_static.port_manifest_after)."
     }
   ]
 }
