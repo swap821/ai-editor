@@ -790,17 +790,16 @@ def beyond_reach(
 #: How a task's writer answers (2026-11-11): exact edits, not whole files, so a
 #: file of any size can be worked on and nothing the edits do not name can
 #: change. :func:`parse_edits` applies them; an answer with no edit block is
-#: still read as a whole file in one fenced block, as before.
+#: still read as a whole file in one fenced block, as before. One line, like
+#: every writer's instruction: on Windows ``claude`` is a .cmd launcher and
+#: cmd.exe cuts its ``--system-prompt`` argument at the first line break.
 EDIT_FORMAT = (
-    "Reply with edits, not the whole file. Each edit is:\n"
-    "<<<<<<< SEARCH\n"
-    "(lines copied EXACTLY from the file, enough to match ONE place)\n"
-    "=======\n"
-    "(the lines that replace them)\n"
-    ">>>>>>> REPLACE\n"
-    "Edits apply in order, each to the file as the ones before left it. Copy "
-    "the SEARCH lines character for character, with their indentation; keep "
-    "each edit small. Write nothing outside the edits."
+    "Reply with edits, not the whole file. Each edit is: a line <<<<<<< SEARCH, "
+    "then lines copied EXACTLY from the file (enough to match ONE place), then a "
+    "line =======, then the lines that replace them, then a line >>>>>>> REPLACE. "
+    "Edits apply in order, each to the file as the ones before left it. Copy the "
+    "SEARCH lines character for character, with their indentation; keep each "
+    "edit small. Write nothing outside the edits."
 )
 
 TASK_SYSTEM = (

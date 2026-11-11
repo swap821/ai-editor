@@ -114,3 +114,20 @@ def test_a_task_over_a_file_beyond_the_whole_file_bound_is_done_with_edits(
     assert led.task(tid)["status"] == "taken" and len(asked) == 1
     [proposal] = led.proposals()
     assert proposal["new_text"] == AFTER and proposal["status"] == "proposed"
+
+
+def test_every_writers_instruction_is_one_line() -> None:
+    """On Windows ``claude`` is a .cmd launcher, and cmd.exe cuts its
+    ``--system-prompt`` argument at the first line break (found 2026-11-11: an
+    edit format with line breaks would have reached the Claude writers cut off
+    after its first line)."""
+    systems = {
+        name: getattr(dw, name)
+        for name in dir(dw)
+        if name.endswith("_SYSTEM") and isinstance(getattr(dw, name), str)
+    }
+    systems["task_files_system"] = dw.task_files_system([REL, "frontend/src/b.ts"])
+    systems["task_files_system (python)"] = dw.task_files_system(
+        ["aios/a.py", "aios/b.py"]
+    )
+    assert systems and not [n for n, v in systems.items() if "\n" in v or "\r" in v]
