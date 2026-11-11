@@ -1,9 +1,15 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, a task's writer answers with edits" below;
+**Last updated:** 2026-11-11 ("2026-11-11, GAGOS's PR body outgrew GitHub's limit" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, GAGOS's PR body outgrew GitHub's limit (master `23b1c4bd`, branch `fix/gagos-pr-body-limit`)
+
+- **What happened.** From 08:53 UTC every hour's delivery waited. GitHub refused the PR for `gagos/daily-2026-11-11-3` with `422: body is too long (maximum is 65536 characters)`. The PR body was the day's whole report, every proposal refused and rejected ones included, and the day's volume (#616's larger batches) passed the limit. Ten accepted changes were waiting, among them GAGOS's first work in the superbrain.
+- **The fix.** `pr_body` uses the whole report while it fits under `PR_BODY_LIMIT` (60,000). Otherwise it lists this PR's own proposals in full and counts the day's others by status, pointing to the full report `reports/<day>.md` in GAGOS's data on the laptop. If even that is too long, it is cut at the limit, saying so, and keeps the footer. The misses stay counted; they are just not all listed in the PR.
+- **Tests:** 4 new. The workshop set passes; Bandit is clean.
 
 ## 2026-11-11, a task's writer answers with edits (master `a79a4030`, branch `feat/gagos-task-edits`)
 
