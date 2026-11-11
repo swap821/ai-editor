@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import FileTree from './FileTree';
-import React from 'react';
 
 // Mock matchMedia for framer-motion in HUDPanel
 Object.defineProperty(window, 'matchMedia', {
