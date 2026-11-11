@@ -12,9 +12,10 @@ type MirrorConnectionNoticeProps = {
   experienceMode?: ExperienceMode;
   onOpenAuthority?: (trigger: HTMLButtonElement) => void;
   detailsHost?: HTMLElement | null;
+  onPhoneAccountHost?: (element: HTMLSpanElement | null) => void;
 };
 
-export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuthority, detailsHost = null }: MirrorConnectionNoticeProps) {
+export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuthority, detailsHost = null, onPhoneAccountHost }: MirrorConnectionNoticeProps) {
   const mirror = useMirrorStore();
   const copy = getMirrorConnectionCopy(mirror, experienceMode);
   const [detailsOpen, setDetailsOpen] = useState(() => (
@@ -46,6 +47,7 @@ export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuth
       {mirror.snapshotReceivedAt ? <span className="lm-connection__snapshot">Snapshot {new Date(mirror.snapshotReceivedAt).toLocaleTimeString()}</span> : null}
       {mirror.compatibility ? <span>{mirror.compatibility}</span> : null}
       <RenderingQualityControls />
+      {onPhoneAccountHost ? <span className="lm-account-control-slot" ref={onPhoneAccountHost} /> : null}
     </span>
   </details>;
   return (

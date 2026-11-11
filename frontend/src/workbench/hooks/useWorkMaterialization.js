@@ -452,9 +452,11 @@ export function useWorkMaterialization({
               if (source?.content) {
                 // Settle readable source work with this turn's complete snapshot
                 // before retirement. A full recovery cache must leave a truthful,
-                // readable result in place, not an orphaned partial stream. Empty
-                // placeholders stay empty so retirement need not consume storage.
-                const readable = Boolean(source.content.code || source.content.verifyOutput);
+                // readable result in place, not an orphaned partial stream. A
+                // closed empty writer is already retained and must receive this
+                // result under its original identity before any transfer.
+                const readable = Boolean(source.content.code || source.content.verifyOutput
+                  || sourceSnapshot.recoverableTabs?.some((tab) => tab.id === writingTab.id));
                 updateMaterializedTab(writingTab.id, { content: readable
                   ? { code, language, filepath, streaming: false }
                   : { ...source.content, streaming: false } });

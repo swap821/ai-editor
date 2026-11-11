@@ -16,6 +16,7 @@ vi.mock('@react-three/fiber', async (importOriginal) => {
   const createSink = ({ canvas }) => {
     let ratio = 1;
     return { domElement: canvas, getPixelRatio: () => ratio,
+      debug: { checkShaderErrors: true, onShaderError: null },
       setPixelRatio: value => { ratio = value; }, setSize() {},
       render(scene) { scene.updateMatrixWorld(true); },
       dispose() {}, forceContextLoss() {}, shadowMap: {},

@@ -1,9 +1,25 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, the body's 10/10 begins: GAGOS gets a type check" below;
+**Last updated:** 2026-11-11 ("2026-11-11, Codex's last three weeks of body work land" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, Codex's last three weeks of body work land (master `5201dbc8`, branch `feat/land-codex-body-work`)
+
+- **Found while planning the body's 10/10.** Codex's goal for the body (09-24 to 11-08, about 235 hours, paused at its usage limit, not complete) is in its own goal store. Its measure is the frozen 29-criterion acceptance ledger in `docs/frontend/` (3 of 100 accepted; 52.5 of 100 implemented by Codex's 10-09 audit). Its work from 10-22 to 11-07 was never committed: 78 source files, 20 new modules, some of them approved by the operator.
+- **A mistake of mine.** My worktree cleanup on 11-10 archived that tree and then removed it. It was restored byte for byte today, and the work is also on the local branch `archive/codex-living-being-run-20261107`.
+- **The operator's word:** "Claude lands it now".
+- **How it was ported.** A cherry-pick of only what changed after Codex's last commit `3204cbdc`; most of that commit had reached master through #496 and #531 to #534. The first attempt merged from the 10-13 branch point instead: 40 conflicts, a stray constant, and a 150-line block doubled without a conflict marker. It was discarded.
+- **What the port needed.** 13 conflicts, five of them source, each read against its base. Records keep both sides' entries. The port manifest's hashes come from the merged files.
+- **What was checked.** An audit of all 70 changed files: no doubled lines; no addition from either side lost, except old signatures replaced on purpose; no deletion undone.
+- **Two fixes beyond the port.** The thumbnail targets wrote `0` where browsers read back `0px`, so their "unchanged" check never matched and the transform was rewritten every frame. And the IME test now waits 5 s for the lazy terminal.
+- **Results:**
+  - `tsc` is clean and the build passes;
+  - ESLint shows 0 errors and 106 of 124 warnings on master after #617 (the 5 it adds are in Codex's new code);
+  - Vitest: **2,087 tests in 269 files pass** (master about 1,931).
+  - No organ's entrypoints or tests changed.
+- **Not acceptance.** Physical phones, assistive technology, the live backend journey and the ledger itself remain open. Codex's `RESUME.md` carries a dated note telling it this landed.
 
 ## 2026-11-11, the body's 10/10 begins: GAGOS gets a type check (master `fda1929c`, branch `feat/gagos-type-check`)
 

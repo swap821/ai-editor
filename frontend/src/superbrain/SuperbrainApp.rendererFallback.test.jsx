@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import SuperbrainApp from './SuperbrainApp';
 import { setRendererFallbackPresentation } from '../livingMirror/rendererFallbackPresentation';
 
@@ -21,6 +21,8 @@ function installVisualViewport({ height, offsetTop = 0, scale = 1 }) {
   return viewport;
 }
 
+// The graphics-fault harness does not load the GLB or mount the real scene.
+vi.mock('@/components/canvas/SuperbrainScene.LEGACY', () => ({ SCENE_UNIFORMS: { uBreath: { value: 0.5 } } }));
 vi.mock('@/components/ui/BootSequence', () => ({
   default: () => null,
 }));
@@ -56,6 +58,7 @@ vi.mock('../workbench/SuperbrainReactiveEffects', () => ({
 // real overlay; its actual projection/lifecycle is covered by the connection
 // integration tests with a frame driver and real camera/seat transforms.
 vi.mock('../livingMirror/being/WorkspaceConnectionProjection', () => ({ WorkspaceConnectionProjection: () => null }));
+vi.mock('../livingMirror/being/WorkspaceThumbnailTargets', () => ({ WorkspaceThumbnailTargets: () => null }));
 
 vi.mock('../livingMirror/LivingWorkspaceShell', () => ({
   LivingWorkspaceShell: () => null,
@@ -122,6 +125,32 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     document.body.innerHTML = '';
     restoreWindowDescriptor('visualViewport', originalVisualViewport);
     restoreWindowDescriptor('innerHeight', originalInnerHeight);
+  });
+
+  it('keeps a scoped loading indication until the current canvas reports readiness', async () => {
+    render(<SuperbrainApp />);
+    const input=screen.getByRole('textbox',{name:'Fixture input'});
+    await waitFor(()=>expect(document.querySelector('.scene-layer canvas')).toBeInTheDocument());
+    const canvas=document.querySelector('.scene-layer canvas');
+    expect(document.querySelector('.lm-scene .lm-scene-loading')).toBeInTheDocument();
+    expect(screen.getByRole('status',{name:'Visual organism loading'})).toBeInTheDocument();
+    const other=document.createElement('canvas');document.body.append(other);
+    act(()=>window.dispatchEvent(new CustomEvent('gagos:ready',{detail:{canvas:other}})));
+    expect(screen.getByRole('status',{name:'Visual organism loading'})).toBeInTheDocument();
+    act(()=>window.dispatchEvent(new CustomEvent('gagos:ready',{detail:{canvas}})));
+    expect(screen.queryByRole('status',{name:'Visual organism loading'})).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox',{name:'Fixture input'})).toBe(input);
+    const replacement=document.createElement('canvas');canvas.replaceWith(replacement);
+    await waitFor(()=>expect(screen.getByRole('status',{name:'Visual organism loading'})).toBeInTheDocument());
+    act(()=>window.dispatchEvent(new CustomEvent('gagos:ready',{detail:{canvas}})));
+    expect(screen.getByRole('status',{name:'Visual organism loading'})).toBeInTheDocument();
+    const fallback=document.createElement('div');fallback.className='webgl-fallback';document.querySelector('.lm-stage').append(fallback);
+    await waitFor(()=>expect(screen.queryByRole('status',{name:'Visual organism loading'})).not.toBeInTheDocument());
+    fallback.remove();
+    await waitFor(()=>expect(screen.getByRole('status',{name:'Visual organism loading'})).toBeInTheDocument());
+    act(()=>window.dispatchEvent(new CustomEvent('gagos:ready',{detail:{canvas:replacement}})));
+    expect(screen.queryByRole('status',{name:'Visual organism loading'})).not.toBeInTheDocument();
+    expect(screen.getByRole('textbox',{name:'Fixture input'})).toBe(input);
   });
 
   it('relays only local engagement through the existing product scene prop', async () => {

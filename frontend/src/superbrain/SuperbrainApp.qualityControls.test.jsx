@@ -4,6 +4,8 @@ import SuperbrainApp from './SuperbrainApp';
 import { MirrorConnectionNotice } from '../livingMirror/MirrorConnectionNotice';
 import { setRendererFallbackPresentation } from '../livingMirror/rendererFallbackPresentation';
 
+// The preference harness replaces the renderer; do not preload its GLB.
+vi.mock('@/components/canvas/SuperbrainScene.LEGACY', () => ({ SCENE_UNIFORMS: { uBreath: { value: 0.5 } } }));
 vi.mock('@/components/ui/BootSequence', () => ({ default: () => null }));
 // DOM failure harness qualifies owner/lifetime wiring, not R3F/GPU rendering.
 // The installed Canvas and actual point-field witness is a separate test.

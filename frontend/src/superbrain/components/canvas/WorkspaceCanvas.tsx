@@ -1,7 +1,7 @@
 'use client';
 import { subscribeCognition } from '@/lib/cognitionBus';
 
-import { Suspense, useCallback, useState, useRef, useEffect, type ReactNode, type MutableRefObject } from 'react';
+import { Suspense, useCallback, useState, useRef, useEffect, useMemo, type ReactNode, type MutableRefObject } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { POST_FX, CAMERA } from '@/lib/constants';
@@ -20,6 +20,7 @@ import RenderFrameLoop from './RenderFrameLoop';
 import { useFeatureGate } from '../../core/Performance/FeatureGate';
 import { TIER_DPR } from '@/lib/perfBudget';
 import { startAiosPolling } from '@/lib/aiosAdapter';
+import { installRendererShaderFailure } from '../../lib/rendererShaderFailure';
 
 import {
   notifyDirective,
@@ -31,14 +32,23 @@ import {
  *  index.html boot loader dismisses precisely when the being is up — not on a
  *  guessed timer that fires before the heavy 3D is ready. One extra rAF so the
  *  frame has painted before the crossfade. Pure additive signal: no render. */
-function ReadySignal() {
+function ReadySignal({ generation }: { generation: { active: boolean } }) {
   const fired = useRef(false);
+  const live = useRef(true);
+  useEffect(() => {
+    live.current = true;
+    return () => { live.current = false; };
+  }, []);
   useFrame((state) => {
-    if (fired.current) return;
+    if (fired.current || !generation.active) return;
     fired.current = true;
     if (typeof window !== 'undefined') {
       const canvas = state.gl.domElement;
-      window.requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('gagos:ready', { detail: { canvas } })));
+      window.requestAnimationFrame(() => {
+        // useFrame runs before shader compilation. A failed or retired canvas
+        // must not publish the queued successful-first-frame notification.
+        if (live.current && generation.active) window.dispatchEvent(new CustomEvent('gagos:ready', { detail: { canvas } }));
+      });
     }
   });
   return null;
@@ -118,6 +128,11 @@ function WorkspaceInner({ children, booted, physical, inputAttentionActive, atte
   // a machine where Ollama can evict the GPU at any moment.
   const [glEpoch, setGlEpoch] = useState(0);
   const restoreTimerRef = useRef<number | null>(null);
+  const [shaderFailed, setShaderFailed] = useState(false);
+  // Each replacement owns a different token. Retry cannot revive an old
+  // queued ready event while R3F's separate-root cleanup is still pending.
+  const generation = useMemo(() => ({ active: false }), [glEpoch]);
+  const releaseRendererRef = useRef<(() => void) | null>(null);
   // The operator's sovereign sky/surface choices still load from storage so
   // the being renders the chosen look; the topbar that wrote them lived in the
   // removed 2D HUD, so there are no setters here.
@@ -126,38 +141,66 @@ function WorkspaceInner({ children, booted, physical, inputAttentionActive, atte
 
   useEffect(() => {
     return () => {
+      releaseRendererRef.current?.();
+      releaseRendererRef.current = null;
       if (restoreTimerRef.current) {
         window.clearTimeout(restoreTimerRef.current);
       }
     };
   }, []);
 
+  const retireGraphics = useCallback(() => {
+    generation.active = false;
+    const release = releaseRendererRef.current;
+    releaseRendererRef.current = null;
+    release?.();
+  }, [generation]);
+
   const handleCreated = useCallback(({ gl }: { gl: THREE.WebGLRenderer }) => {
+    releaseRendererRef.current?.();
+    generation.active = true;
     // WebGPURenderer (the ?gpu=webgpu spike) has no `.capabilities` — guard so the
     // WebGL2 probe never throws and aborts the whole scene mount under WebGPU.
     if (gl.capabilities && !gl.capabilities.isWebGL2) {
       console.warn('WebGL 2 is not available. Falling back to lower quality rendering or failing.');
     }
-    // Listeners live and die with this canvas element; a remount re-attaches
-    // them via this same onCreated.
+    // Callbacks/timers belong to this canvas, not whichever canvas is current
+    // when an old driver notification eventually arrives.
     const el = gl.domElement;
-    el.addEventListener('webglcontextlost', (event) => {
+    const clearRestoreTimer = () => {
+      if (restoreTimerRef.current !== null) window.clearTimeout(restoreTimerRef.current);
+      restoreTimerRef.current = null;
+    };
+    const handleLost = (event: Event) => {
       event.preventDefault(); // opt in to in-place restoration
-      
-      if (restoreTimerRef.current) window.clearTimeout(restoreTimerRef.current);
+      clearRestoreTimer();
       restoreTimerRef.current = window.setTimeout(() => {
         restoreTimerRef.current = null;
+        generation.active = false;
         setGlEpoch((epoch) => epoch + 1);
       }, CONTEXT_RESTORE_GRACE_MS);
+    };
+    const handleRestored = () => clearRestoreTimer();
+    el.addEventListener('webglcontextlost', handleLost);
+    el.addEventListener('webglcontextrestored', handleRestored);
+    const releaseShaderFailure = installRendererShaderFailure(gl, () => {
+      retireGraphics();
+      setShaderFailed(true);
     });
-    el.addEventListener('webglcontextrestored', () => {
-      if (restoreTimerRef.current) {
-        window.clearTimeout(restoreTimerRef.current);
-        restoreTimerRef.current = null;
-      }
-      
-    });
-  }, []);
+    releaseRendererRef.current = () => {
+      generation.active = false;
+      releaseShaderFailure();
+      el.removeEventListener('webglcontextlost', handleLost);
+      el.removeEventListener('webglcontextrestored', handleRestored);
+      clearRestoreTimer();
+    };
+  }, [generation, retireGraphics]);
+
+  const retryGraphics = useCallback(() => {
+    retireGraphics();
+    setShaderFailed(false);
+    setGlEpoch(epoch => epoch + 1);
+  }, [retireGraphics]);
 
   // Once booted, the organism listens to GAGOS: trail/metric polling
   // feeds the intake channels and fires knowledge events when actual skill
@@ -193,19 +236,19 @@ function WorkspaceInner({ children, booted, physical, inputAttentionActive, atte
     };
   }, []);
 
-  if (!webglAvailable) {
+  if (!webglAvailable || shaderFailed) {
     return (
       <div className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>
         {/* R3F children use Canvas hooks and must not be mounted outside a
             renderer. The accessible fallback owns the 2D presence instead. */}
-        <WebGLFallback />
+        <WebGLFallback onRetry={shaderFailed ? retryGraphics : undefined} />
       </div>
     );
   }
 
   return (
       <div className={`superbrain-experience ${booted ? 'is-booted' : 'is-booting'}`}>
-        <WebGLErrorBoundary onRetry={() => setGlEpoch((epoch) => epoch + 1)}>
+        <WebGLErrorBoundary onError={retireGraphics} onRetry={retryGraphics}>
           <div className="scene-layer" aria-hidden="true">
             <Canvas
               key={glEpoch}
@@ -239,7 +282,7 @@ function WorkspaceInner({ children, booted, physical, inputAttentionActive, atte
                 && physical?.phase !== 'stopped' && physical?.cortex.posture !== 'stopped'} />
               <Suspense fallback={null}>
                 <CortexEngine mode={mode} activity={activity} tier={tier} sky={skyMode} surface={surface} physical={physical} inputAttentionActive={inputAttentionActive} attentionTargetRef={attentionTargetRef} />
-                <ReadySignal />
+                <ReadySignal generation={generation} />
                 {/* Product-side forge ports (editor/preview) mount here, INSIDE the
                     one canvas, so the canon nerves plug into them. Renders nothing
                     when no children are passed (home/?ui=superbrain unchanged). */}

@@ -51,7 +51,7 @@ describe('mirror connection copy', () => {
     });
   });
 
-  it('only uses ready language for a fresh projection', () => {
+  it('only says the picture is current for a fresh projection', () => {
     expect(getMirrorConnectionCopy({
       ...base,
       status: 'online',
@@ -60,8 +60,8 @@ describe('mirror connection copy', () => {
       snapshotReceivedAt: '2026-09-21T12:00:00.000Z',
       lastEventId: 19,
     }, 'beginner')).toMatchObject({
-      label: 'GAGOS is ready',
-      detail: 'The live picture is current.',
+      label: 'Live picture is current',
+      detail: 'Connected and up to date.',
       tone: 'ready',
       canRetry: false,
     });
@@ -91,7 +91,7 @@ describe('mirror connection copy', () => {
       lastEventId: 19,
       lastAnnouncement: 'Snapshot unavailable (HTTP 401).',
     }, 'beginner')).toMatchObject({
-      label: 'GAGOS is ready',
+      label: 'Live picture is current',
       tone: 'ready',
       canRetry: false,
     });

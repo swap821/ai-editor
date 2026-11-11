@@ -22,6 +22,7 @@ vi.mock('@react-three/fiber', async importOriginal => {
       getParameter: () => 4, createRenderbuffer: () => ({}), bindRenderbuffer() {},
       renderbufferStorageMultisample() {}, deleteRenderbuffer() {} };
     return { domElement: canvas, getContext: () => context,
+      debug: { checkShaderErrors: true, onShaderError: null },
       getSize: target => target.set(1280, 720), getDrawingBufferSize: target => target.set(1280 * ratio, 720 * ratio),
       getPixelRatio: () => ratio, setPixelRatio: value => { ratio = value; }, setSize() {},
       render(scene) { scene.updateMatrixWorld(true); }, dispose() {}, forceContextLoss() {}, shadowMap: {},

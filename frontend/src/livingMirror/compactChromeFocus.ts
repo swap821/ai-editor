@@ -4,6 +4,7 @@ const controlSelectors = {
   focus: '.gagos-focus-toggle',
   diagnostics: '.lm-connection__details > summary',
   quality: '.lm-rendering-preferences select',
+  account: '.gagos-pill--bond',
   more: '.lm-compact-more > summary',
   navigation: '.lm-navigation button, .lm-navigation summary',
 } as const;
@@ -15,18 +16,19 @@ export type CompactControlFocus = {
 
 /** One transient UI focus intent, never task/permission or preference state. */
 export function captureCompactControlFocus(root: HTMLElement | null, lastKnown: CompactControlFocus | null = null): CompactControlFocus | null {
-  if (!root || root.dataset.working !== 'true') return null;
+  if (!root) return null;
+  const working = root.dataset.working === 'true';
   const active = root.ownerDocument.activeElement;
   if (active instanceof HTMLElement && root.contains(active)) {
     for (const key of Object.keys(controlSelectors) as Array<keyof typeof controlSelectors>) {
-      if (active.matches(controlSelectors[key])) return { key, previous: active };
+      if ((working || key === 'account') && active.matches(controlSelectors[key])) return { key, previous: active };
     }
   }
   // Native media CSS can blur a desktop control before its change callback.
   // Recover only that still-owned, now CSS-hidden control, never a stale or
   // deliberately abandoned focus. The app clears lastKnown on other focus,
   // an outside pointer action and window blur.
-  if (active !== root.ownerDocument.body || !lastKnown || !root.contains(lastKnown.previous)) return null;
+  if (active !== root.ownerDocument.body || !lastKnown || (!working && lastKnown.key !== 'account') || !root.contains(lastKnown.previous)) return null;
   const view = root.ownerDocument.defaultView;
   for (let node: HTMLElement | null = lastKnown.previous; node && node !== root; node = node.parentElement) {
     const style = view?.getComputedStyle(node);

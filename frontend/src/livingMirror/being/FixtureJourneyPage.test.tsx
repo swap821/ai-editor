@@ -19,6 +19,9 @@ import { readFileSync } from 'node:fs';
 // The explicit retirement callback below stands in for GPU animation finish;
 // no native motion or device acceptance is claimed by this DOM test.
 vi.mock('@/components/canvas/WorkspaceCanvas', () => ({ default: () => <div className="scene-layer"><canvas aria-hidden="true" /></div> }));
+// This test substitutes the whole GPU root, so provide its breathing input
+// without evaluating the scene module's real GLB preload in jsdom.
+vi.mock('../../superbrain/components/canvas/SuperbrainScene.LEGACY', () => ({ SCENE_UNIFORMS: { uBreath: { value: .5 } } }));
 let fixture: ReturnType<typeof createFixtureJourneyTransport>;
 const previousMode = localStorage.getItem(EXPERIENCE_MODE_STORAGE_KEY);
 const previousUrl = window.location.href;
@@ -84,6 +87,23 @@ async function advance() {
   fireEvent.click(controls.getByRole('button', { name: 'Advance fixture' }));
   await act(async () => {});
 }
+it('compacts only the fixture controls while preserving the label, draft and selected outcome',async()=>{
+  await mount(false,false,true);
+  const input=screen.getByRole<HTMLInputElement>('textbox',{name:'Talk to GAGOS'});
+  fireEvent.change(input,{target:{value:'Keep this draft while comparing the layout.'}});
+  fireEvent.change(screen.getByRole('combobox',{name:'Fixture outcome'}),{target:{value:'verified'}});
+  const toggle=screen.getByRole('button',{name:'Compact fixture controls'});toggle.focus();fireEvent.click(toggle);
+  expect(screen.getByText('Fixture—not backend work')).toBeVisible();
+  expect(screen.getByText('No real files, permissions or checks.')).toBeVisible();
+  expect(screen.queryByRole('button',{name:'Advance fixture'})).not.toBeInTheDocument();
+  expect(screen.getByRole('textbox',{name:'Talk to GAGOS'})).toBe(input);
+  expect(input).toHaveValue('Keep this draft while comparing the layout.');
+  const reopen=screen.getByRole('button',{name:'Show fixture controls'});
+  expect(reopen).toHaveFocus();expect(reopen).toHaveAttribute('aria-expanded','false');
+  fireEvent.click(reopen);
+  expect(screen.getByRole('combobox',{name:'Fixture outcome'})).toHaveValue('verified');
+  expect(fixture.getSnapshot().pending).toBe(false);
+});
 // Development observation only: actual mirror admission, DOM/body projection,
 // request owner and work retention stay real. No Stop/Clear command is granted.
 it.each([[false, false], [false, true], [true, false], [true, true]])('shows fixture conversation in one readable reply and the body output; reduced=%s narrow=%s', async (reduced, narrow) => {
@@ -191,6 +211,50 @@ it('does not move focus or lose oversized Guided work when Close cannot retain i
   expect(getTabStoreSnapshot().tabs.find((tab) => tab.kind === 'content')?.content?.code.length).toBe(3 * 1024 * 1024);
   expect(screen.getByRole('textbox', { name: 'Talk to GAGOS' })).not.toHaveFocus();
 });
+it.each(['awaiting-approval', 'awaiting-replay'] as const)('keeps an empty %s workspace reachable after Close', async (completion) => {
+  await mount(false, false, true);
+  let id = '';
+  act(() => { id = showContentSurface({ filepath: 'waiting.py', code: '', language: 'python', completion }, { seatIndex: 2 }).id; });
+  fireEvent.click(screen.getByRole('button', { name: 'Close workspace' }));
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().recoverableTabs?.some(tab => tab.id === id)).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Recent activity' }));
+  fireEvent.click(within(screen.getByRole('region', { name: 'Closed work' })).getByRole('button', { name: 'Reopen waiting.py' }));
+  expect(getTabStoreSnapshot().focusId).toBe(id);
+  expect(getTabStoreSnapshot().tabs.find(tab => tab.id === id)?.content?.completion).toBe(completion);
+});
+
+it('keeps an unfinished empty workspace reachable when closed before the first chunk', async () => {
+  await mount(false, false, true);
+  const input = screen.getByRole('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Create a greeting example' } });
+  fireEvent.click(screen.getByRole('button', { name: /^Send$/ }));
+  await waitFor(() => expect(fixture.getSnapshot().label).toBe('Advance to partial work'));
+  const initial = getTabStoreSnapshot().tabs.find(tab => tab.kind === 'content')!;
+  expect(initial.content?.code).toBe('');
+  expect(screen.getByText('Waiting for the first result. No completed outcome is established.')).toBeVisible();
+  expect(screen.getByText('No generated content received yet. Project effects require separate receipts.')).toBeVisible();
+  expect(screen.queryByText('Generated artifact · Project effects require separate receipts.')).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name: 'Close workspace' }));
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().tabs.some(tab => tab.id === initial.id)).toBe(true);
+  expect(getTabStoreSnapshot().recoverableTabs?.some(tab => tab.id === initial.id)).toBe(true);
+  fireEvent.click(screen.getByRole('button', { name: 'Recent activity' }));
+  fireEvent.click(within(screen.getByRole('region', { name: 'Closed work' })).getByRole('button', { name: /^Reopen / }));
+  expect(getTabStoreSnapshot().focusId).toBe(initial.id);
+  fireEvent.click(screen.getByRole('button', { name: 'Close workspace' }));
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  await advance(); await advance();
+  fireEvent.click(within(await screen.findByRole('alertdialog')).getByRole('button', { name: 'Allow once' }));
+  await advance(); await advance(); await advance();
+  const receipt = await screen.findByRole('status', { name: 'Finished, but not verified' });
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().recoverableTabs?.find(tab => tab.id === initial.id)?.content?.code).toBe('print("Hello from the fixture")\n');
+  fireEvent.click(within(receipt).getByRole('button', { name: 'Review' }));
+  expect(await screen.findByText('print("Hello from the fixture")')).toBeVisible();
+  expect(getTabStoreSnapshot().focusId).toBe(initial.id);
+}, 15000);
+
 async function start(previewSelected = true) {
   fireEvent.change(screen.getByRole('textbox', { name: 'Talk to GAGOS' }), { target: { value: 'Create a greeting example' } });
   fireEvent.click(screen.getByRole('button', { name: /^Send$/ }));
@@ -337,6 +401,7 @@ it.each([false, true])('keeps partial work, real Allow, Close and Reopen usable 
   expect(getPendingApproval()).toBeNull();
   // GPU driver only: the development control requests loss, and the real
   // context-loss listener/fallback bridge remains responsible for the UI.
+  await waitFor(() => expect(document.querySelector('canvas')).not.toBeNull());
   const canvas = document.querySelector('canvas')!;
   vi.spyOn(canvas, 'getContext').mockReturnValue({ getExtension: () => ({ loseContext: () => {
     canvas.dispatchEvent(new Event('webglcontextlost', { cancelable: true }));
@@ -459,7 +524,8 @@ it.each([false, true])('keeps a repeated same-path check unattributed across bod
   expect(versions.find((tab) => tab.id !== previous.id)?.content?.verifyEventId).toBeUndefined();
   if (closed) {
     fireEvent.click(within(screen.getByRole('main', { name: 'GAGOS conversation' })).getByRole('button', { name: /^Recent activity$/ }));
-    fireEvent.click(await screen.findByRole('button', { name: 'Forget fixture/hello.py' }));
+    const resultNumber = previous.id.replace('materialized-tab-', '');
+    fireEvent.click(await screen.findByRole('button', { name: `Forget fixture/hello.py — result ${resultNumber}` }));
     fireEvent.click(screen.getByRole('button', { name: 'Forget permanently' }));
     expect(getTabStoreSnapshot().recoverableTabs ?? []).toHaveLength(0);
     expect(document.querySelector('.lm-app')).toHaveAttribute('data-being-task-state', 'done-unverified');
@@ -515,6 +581,33 @@ it('opts into quieter working chrome without moving Stop, input or the result in
   expect(input).toHaveValue('Keep this prototype draft');
   expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
   expect(screen.getByText('retained prototype result')).toBeVisible();
+});
+it('reveals the being after the compact Focus toggle without losing the selected work or draft', async () => {
+  window.history.replaceState(null, '', '?physical-gallery=journey');
+  await mount(false, false, true);
+  let artifactId = '';
+  act(() => { artifactId = showContentSurface({ filepath: 'focus.py', code: 'retained focus work', language: 'python' }, { seatIndex: 0 }).id; });
+  const input = screen.getByRole('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Keep my unsent focus draft' } });
+  const more = document.querySelector<HTMLDetailsElement>('.lm-compact-more')!;
+  await waitFor(() => expect(more.querySelector('.lm-navigation')).not.toBeNull());
+  more.open = true; fireEvent(more, new Event('toggle'));
+  const focus = within(more).getByRole('button', { name: 'Focus on the being; hide conversation history and workspace navigation' });
+  focus.focus(); fireEvent.click(focus);
+  await waitFor(() => expect(more.open).toBe(false));
+  expect(more.querySelector('summary')).toHaveFocus();
+  expect(document.querySelector('.lm-app')).toHaveAttribute('data-being-focus', 'true');
+  expect(getTabStoreSnapshot().focusId).toBe(artifactId);
+  expect(screen.getByText('retained focus work')).toBeVisible();
+  expect(input).toHaveValue('Keep my unsent focus draft');
+  more.open = true; fireEvent(more, new Event('toggle'));
+  const fullView = within(more).getByRole('button', { name: 'Return to full workspace controls' });
+  fullView.focus(); fireEvent.click(fullView);
+  await waitFor(() => expect(more.open).toBe(false));
+  expect(more.querySelector('summary')).toHaveFocus();
+  expect(document.querySelector('.lm-app')).toHaveAttribute('data-being-focus', 'false');
+  expect(getTabStoreSnapshot().focusId).toBe(artifactId);
+  expect(input).toHaveValue('Keep my unsent focus draft');
 });
 it.each(['motion', 'workspace'] as const)('dismisses More after a portaled %s action without hiding focus or losing work', async (action) => {
   window.history.replaceState(null, '', '?physical-gallery=journey');
@@ -613,7 +706,10 @@ function responsiveCompactMedia(initialNarrow: boolean) {
   const notify = (media: string) => {
     for (const callback of listeners.get(media) ?? []) callback({ media, matches: matches(media) } as MediaQueryListEvent);
   };
-  return { matchMedia, setNarrow(nextNarrow: boolean) { narrow = nextNarrow; }, notify, resize(nextNarrow: boolean) {
+  return { matchMedia, setNarrow(nextNarrow: boolean) { narrow = nextNarrow; }, notify,
+    notifySeparately(media: string) {
+      for (const callback of listeners.get(media) ?? []) act(() => callback({ media, matches: matches(media) } as MediaQueryListEvent));
+    }, resize(nextNarrow: boolean) {
     narrow = nextNarrow;
     for (const media of ['(max-width: 767px)', '(max-width: 360px)']) {
       notify(media);
@@ -771,7 +867,12 @@ it.each(['pointer', 'outside-pointer', 'outside-focus', 'window-blur'] as const)
   const navigation = document.querySelector<HTMLElement>('.lm-navigation')!;
   const target = within(navigation).getByRole('button', { name: 'Project files' });
   target.focus();
-  if (abandonment === 'pointer') fireEvent.pointerDown(document.querySelector('.scene-layer')!);
+  if (abandonment === 'pointer') {
+    // The real renderer host exists even while its lazy visual is loading.
+    const bodyPane = document.querySelector('.lm-stage');
+    expect(bodyPane).not.toBeNull();
+    fireEvent.pointerDown(bodyPane!);
+  }
   else if (abandonment === 'outside-pointer') fireEvent.pointerDown(screen.getByRole('button', { name: 'Simulate visual loss' }));
   else if (abandonment === 'outside-focus') { const outside = screen.getByRole('button', { name: 'Simulate visual loss' }); outside.focus(); outside.blur(); }
   else fireEvent(window, new Event('blur'));
@@ -797,4 +898,145 @@ it('returns to resting chrome when Guided hides the selected Expert-only panel',
   expect(getTabStoreSnapshot().focusId).toBe('settings');
   await act(async () => {});
   expect(fixture.getSnapshot().pending).toBe(false);
+});
+
+it.each([false, true])('phone account entry uses the existing disclosure and returns visible focus; working=%s', async working => {
+  await mount(false, false, true);
+  const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Keep the phone account draft unsent' } });
+  if (working) act(() => { showContentSurface({ filepath: 'account.py', code: 'retained account reading', language: 'python' }, { seatIndex: 0 }); });
+  const reader = document.querySelector('.lm-surface__body:not([hidden])');
+  const more = document.querySelector<HTMLDetailsElement>('.lm-compact-more');
+  if (more) { more.open = true; fireEvent(more, new Event('toggle')); }
+  const details = document.querySelector<HTMLDetailsElement>('.lm-connection__details')!;
+  details.open = true; fireEvent(details, new Event('toggle'));
+  const trigger = document.querySelector<HTMLButtonElement>('.gagos-pill--bond')!;
+  expect(details, 'the one existing account entry must not remain in the phone-hidden header').toContainElement(trigger);
+  expect(document.querySelectorAll('.gagos-pill--bond')).toHaveLength(1);
+  expect(trigger).toBeVisible();
+  trigger.focus(); fireEvent.click(trigger);
+  const dialog = await screen.findByRole('dialog', { name: 'Account not linked' });
+  const close = within(dialog).getByRole('button', { name: 'Close' });
+  expect(close).toHaveFocus();
+  close.focus(); fireEvent.click(close);
+  const destination = more ? more.querySelector('summary') : trigger;
+  await waitFor(() => expect(destination).toHaveFocus());
+  expect(document.querySelector('.gagos-pill--bond')).toBe(trigger);
+  expect(input).toHaveValue('Keep the phone account draft unsent');
+  if (working) {
+    expect(screen.getByText('retained account reading')).toBeVisible();
+    expect(document.querySelector('.lm-surface__body:not([hidden])')).toBe(reader);
+    expect(more).not.toHaveAttribute('open');
+  }
+  expect(fixture.getSnapshot().pending).toBe(false);
+  expect(getPendingApproval()).toBeNull();
+});
+
+it.each([false, true])('phone account focus follows its existing disclosure across rest and work breakpoints; working=%s', async working => {
+  const media = responsiveCompactMedia(false);
+  await mount(false, false, false, media.matchMedia);
+  const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Keep account resize context' } });
+  if (working) act(() => { showContentSurface({ filepath: 'account-resize.py', code: 'account resize reading', language: 'python' }, { seatIndex: 0 }); });
+  const reader = document.querySelector('.lm-surface__body:not([hidden])');
+  const desktopTrigger = document.querySelector<HTMLButtonElement>('.gagos-pill--bond')!;
+  desktopTrigger.focus();
+  act(() => media.resize(true));
+  await waitFor(() => expect(document.querySelector('.lm-connection__details')).toContainElement(document.querySelector('.gagos-pill--bond')));
+  const more = document.querySelector<HTMLDetailsElement>('.lm-compact-more');
+  const details = document.querySelector<HTMLDetailsElement>('.lm-connection__details')!;
+  await waitFor(() => expect(more ? more.querySelector('summary') : details.querySelector('summary')).toHaveFocus());
+  if (more) { more.open = true; fireEvent(more, new Event('toggle')); }
+  details.open = true; fireEvent(details, new Event('toggle'));
+  document.querySelector<HTMLButtonElement>('.gagos-pill--bond')!.focus();
+  act(() => media.resize(false));
+  await waitFor(() => expect(document.querySelector('.gagos-status .gagos-pill--bond')).toHaveFocus());
+  expect(document.querySelectorAll('.gagos-pill--bond')).toHaveLength(1);
+  expect(input).toHaveValue('Keep account resize context');
+  if (working) expect(document.querySelector('.lm-surface__body:not([hidden])')).toBe(reader);
+  expect(fixture.getSnapshot().pending).toBe(false);
+});
+
+it('phone account adaptation does not replace an explicit typing focus handoff', async () => {
+  const media = responsiveCompactMedia(false);
+  await mount(false, false, false, media.matchMedia);
+  const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Explicit account-resize destination' } });
+  document.querySelector<HTMLButtonElement>('.gagos-pill--bond')!.focus();
+  act(() => { media.resize(true); input.focus(); });
+  await waitFor(() => expect(document.querySelector('.lm-connection__details')).toContainElement(document.querySelector('.gagos-pill--bond')));
+  expect(input).toHaveFocus();
+  expect(input).toHaveValue('Explicit account-resize destination');
+  expect(fixture.getSnapshot().pending).toBe(false);
+});
+
+it.each([false, true])('phone account Expert opening transfers focus into its existing dialog; working=%s', async working => {
+  await mount(false, false, true);
+  fireEvent.click(screen.getByRole('button', { name: 'Expert / Mirror' }));
+  const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Expert account draft stays unsent' } });
+  if (working) act(() => { showContentSurface({ filepath: 'expert-account.py', code: 'Expert account reading', language: 'python' }, { seatIndex: 0 }); });
+  const more = document.querySelector<HTMLDetailsElement>('.lm-compact-more');
+  if (more) { more.open = true; fireEvent(more, new Event('toggle')); }
+  const details = document.querySelector<HTMLDetailsElement>('.lm-connection__details')!;
+  details.open = true; fireEvent(details, new Event('toggle'));
+  const trigger = document.querySelector<HTMLButtonElement>('.gagos-pill--bond')!;
+  trigger.focus(); fireEvent.click(trigger);
+  const dialog = await screen.findByRole('dialog', { name: 'Sovereign bond' });
+  const close = within(dialog).getByRole('button', { name: 'Close' });
+  expect(close).toHaveFocus();
+  const last = within(dialog).getByRole('button', { name: 'I already hold the credential' });
+  last.focus(); fireEvent.keyDown(last, { key: 'Tab' });
+  expect(close).toHaveFocus();
+  fireEvent.keyDown(close, { key: 'Tab', shiftKey: true });
+  expect(last).toHaveFocus();
+  close.focus();
+  fireEvent.click(close);
+  await waitFor(() => expect(more ? more.querySelector('summary') : trigger).toHaveFocus());
+  expect(input).toHaveValue('Expert account draft stays unsent');
+  expect(fixture.getSnapshot().pending).toBe(false);
+  expect(getPendingApproval()).toBeNull();
+});
+
+it.each([false, true])('phone account resize survives native CSS focus fixup before its media callback; working=%s', async working => {
+  const media = responsiveCompactMedia(false);
+  await mount(false, false, false, media.matchMedia);
+  if (working) act(() => { showContentSurface({ filepath: 'account-native-resize.py', code: 'native resize account reading', language: 'python' }, { seatIndex: 0 }); });
+  const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'Native account resize context' } });
+  const trigger = document.querySelector<HTMLButtonElement>('.gagos-pill--bond')!;
+  trigger.focus();
+  // Native viewport CSS hides the desktop status before matchMedia callbacks.
+  // Use real DOM focus fixup, as the existing navigation regression does.
+  trigger.closest<HTMLElement>('.gagos-status')!.style.display = 'none';
+  document.documentElement.focus();
+  expect(document.activeElement).toBe(document.body);
+  fireEvent.focusIn(document.body);
+  media.setNarrow(true);
+  media.notifySeparately('(max-width: 767px)');
+  media.notifySeparately('(max-width: 360px)');
+  const more = document.querySelector<HTMLDetailsElement>('.lm-compact-more');
+  const details = document.querySelector<HTMLDetailsElement>('.lm-connection__details')!;
+  await waitFor(() => expect(more ? more.querySelector('summary') : details.querySelector('summary')).toHaveFocus());
+  expect(input).toHaveValue('Native account resize context');
+  expect(document.querySelectorAll('.gagos-pill--bond')).toHaveLength(1);
+});
+
+it.each([
+  ['Enter', { isComposing: true }],
+  ['Escape', { isComposing: true }],
+  ['Enter', { keyCode: 229 }],
+  ['Escape', { keyCode: 229 }],
+] as const)('keeps a composer draft when %s belongs to the input method (%j)', async (key, composition) => {
+  await mount(false, false, true);
+  const input = screen.getByRole<HTMLInputElement>('textbox', { name: 'Talk to GAGOS' });
+  fireEvent.change(input, { target: { value: 'unfinished composition' } });
+  act(() => input.focus());
+  fireEvent.keyDown(input, { key, ...composition });
+  expect(input).toHaveValue('unfinished composition');
+  expect(input).toHaveFocus();
+  expect(fixture.getSnapshot().pending).toBe(false);
+  fireEvent.keyDown(input, { key });
+  if (key === 'Enter') await waitFor(() => expect(fixture.getSnapshot().pending).toBe(true));
+  else { expect(input).toHaveValue(''); expect(fixture.getSnapshot().pending).toBe(false); }
 });

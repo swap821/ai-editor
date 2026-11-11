@@ -405,3 +405,49 @@ it('keeps recovery reachable when context loss removes the renderer before closi
   expect(screen.getByRole('heading', { name: 'saved-0.ts' })).toBeVisible();
   expect(store.getTabStoreSnapshot().recoverableTabs).toHaveLength(11);
 });
+
+
+it.each(['beginner', 'expert'] as const)('distinguishes same-named closed results and reopens the selected identity in %s', async (mode) => {
+  await act(async () => { render(<LivingWorkspaceShell experienceMode={mode} />); });
+  let first!: ReturnType<typeof materialize>, second!: ReturnType<typeof materialize>;
+  act(() => {
+    first = materialize('first.ts', 'first retained body');
+    store.closeWorkspace(first.id); finishRetraction(first.id);
+    second = materialize('second.ts', 'second retained body');
+    store.closeWorkspace(second.id); finishRetraction(second.id);
+    for (const tab of [first, second]) store.updateMaterializedTab(tab.id, { content: { ...tab.content!, filepath: 'same.ts' } });
+  });
+  recent(mode);
+  const ordinal = (id: string) => id.replace('materialized-tab-', '');
+  const firstLabel = `same.ts — result ${ordinal(first.id)}`;
+  const secondLabel = `same.ts — result ${ordinal(second.id)}`;
+  expect(screen.getByText(firstLabel)).toBeVisible();
+  expect(screen.getByText(secondLabel)).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: `Reopen ${firstLabel}` }));
+  expect(store.getTabStoreSnapshot().focusId).toBe(first.id);
+  expect(screen.getByText('first retained body')).toBeVisible();
+  expect(store.getTabStoreSnapshot().recoverableTabs?.map(tab => tab.id)).toEqual([second.id]);
+});
+
+
+it('distinguishes open and closed work with the same name and forgets only the chosen copy', async () => {
+  await act(async () => { render(<LivingWorkspaceShell experienceMode="expert" />); });
+  let saved!: ReturnType<typeof materialize>, open!: ReturnType<typeof materialize>;
+  act(() => {
+    saved = materialize('saved.ts', 'saved body');
+    store.closeWorkspace(saved.id); finishRetraction(saved.id);
+    open = materialize('open.ts', 'open body');
+    for (const tab of [saved, open]) store.updateMaterializedTab(tab.id, { content: { ...tab.content!, filepath: 'same.ts' } });
+  });
+  recent();
+  const ordinal = (id: string) => id.replace('materialized-tab-', '');
+  expect(screen.getByRole('button', { name: `View same.ts — result ${ordinal(open.id)}` })).toBeVisible();
+  fireEvent.click(screen.getByRole('button', { name: `Forget same.ts — result ${ordinal(saved.id)}` }));
+  expect(store.getTabStoreSnapshot().recoverableTabs?.map(tab => tab.id)).toEqual([saved.id]);
+  fireEvent.click(screen.getByRole('button', { name: 'Forget permanently' }));
+  expect(store.getTabStoreSnapshot().recoverableTabs ?? []).toHaveLength(0);
+  expect(store.getTabStoreSnapshot().tabs.find(tab => tab.id === open.id)?.content?.code).toBe('open body');
+  fireEvent.click(screen.getByRole('button', { name: 'View same.ts' }));
+  expect(store.getTabStoreSnapshot().focusId).toBe(open.id);
+  expect(screen.getByText('open body')).toBeVisible();
+});

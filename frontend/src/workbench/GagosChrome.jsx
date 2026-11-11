@@ -18,8 +18,9 @@
  * voice-speaking) so the 3D being still reacts (posture, glow).
  */
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import { CompactWorkingChrome } from '../livingMirror/CompactWorkingChrome';
+import { restoreCompactControlFocus } from '../livingMirror/compactChromeFocus';
 import {
   cancelPendingApproval,
   getPendingApproval,
@@ -31,7 +32,7 @@ import {
 } from '../superbrain/lib/aiosAdapter';
 import { initSwarmCognitionBridge } from './swarmCognitionBridge';
 import ApprovalPanel from '../superbrain/components/ui/ApprovalPanel';
-import SovereigntyPanel from '../superbrain/components/ui/SovereigntyPanel';
+import { ExpertAccountDialog } from '../livingMirror/ExpertAccountDialog';
 import {
   refreshSovereignStatus,
   subscribeSovereignStatus,
@@ -278,7 +279,10 @@ function chatModelEntry(id) {
  *   onInputAttentionChange?: (active: boolean) => void,
  *   conversationInputRef?: import('react').RefObject<HTMLInputElement | null>,
  *   beingFocused?: boolean,
- *   onBeingFocusChange?: (focused: boolean) => void }} props
+ *   onBeingFocusChange?: (focused: boolean) => void,
+ *   compactWorkingChrome?: boolean,
+ *   onCompactControlsHost?: (element: HTMLDivElement | null) => void,
+ *   accountControlsHost?: HTMLElement | null }} props
  */
 export default function GagosChrome({
   integrated = false,
@@ -290,6 +294,7 @@ export default function GagosChrome({
   onBeingFocusChange = () => {},
   compactWorkingChrome = false,
   onCompactControlsHost,
+  accountControlsHost = null,
 }) {
   const guided = experienceMode === 'beginner';
   const [focused, setFocused] = useState(false);
@@ -595,7 +600,12 @@ export default function GagosChrome({
 
   const closeBond = useCallback(() => {
     setBondOpen(false);
-    window.setTimeout(() => bondButtonRef.current?.focus(), 0);
+    window.setTimeout(() => {
+      const button = bondButtonRef.current;
+      const root = button?.closest('.lm-app');
+      if (root && button) restoreCompactControlFocus(root, { key: 'account', previous: button });
+      else button?.focus();
+    }, 0);
   }, []);
 
   const openExpertAccount = useCallback(() => {
@@ -841,6 +851,28 @@ export default function GagosChrome({
     pushMessage('gagos', `↳ ${verb} ${target}.`);
   };
 
+  // The measured account owner and handlers never move. Only its single DOM
+  // trigger uses the existing phone disclosure instead of a hidden header.
+  const accountControl = <button
+    ref={bondButtonRef}
+    type="button"
+    className={`gagos-pill gagos-pill--bond${sovereign.operatorId ? ' gagos-pill--bond-sovereign' : ''}`}
+    onClick={() => setBondOpen((open) => !open)}
+    aria-haspopup="dialog"
+    aria-expanded={bondOpen}
+    aria-label={sovereign.operatorId && !guided
+      ? `Sovereign bond held by ${sovereign.operatorId}. Open the bond panel.`
+      : guided ? 'Account identity status. Open the account panel.'
+        : 'No sovereign session. Open the bond panel to claim or present a credential.'}
+  >
+    <span className={`gagos-dot ${sovereign.operatorId ? 'gagos-dot--bond-sovereign' : 'gagos-dot--bond-unbound'}`} aria-hidden="true" />
+    <span className="gagos-pill__main">
+      {sovereign.measured !== 'measured' ? (guided ? 'account…' : 'bond…')
+        : sovereign.operatorId ? (guided ? 'account linked' : 'sovereign')
+          : (guided ? 'account not linked' : 'unbound')}
+    </span>
+    {sovereign.operatorId && !guided ? <span className="gagos-pill__meta">{sovereign.operatorId}</span> : null}
+  </button>;
   const experienceControls = <div className="gagos-experience-switch">
     <ExperienceModeSwitch mode={experienceMode} onChange={onExperienceModeChange} />
     {integrated ? <button type="button" className="gagos-focus-toggle" aria-pressed={beingFocused}
@@ -878,36 +910,7 @@ export default function GagosChrome({
           <span className="gagos-dot gagos-dot--supervised" aria-hidden="true" />
           <span className="gagos-pill__main">{guided ? 'approval protected' : 'supervised'}</span>
         </span>
-        <button
-          ref={bondButtonRef}
-          type="button"
-          className={`gagos-pill gagos-pill--bond${sovereign.operatorId ? ' gagos-pill--bond-sovereign' : ''}`}
-          onClick={() => setBondOpen((open) => !open)}
-          aria-haspopup="dialog"
-          aria-expanded={bondOpen}
-          aria-label={
-            sovereign.operatorId && !guided
-              ? `Sovereign bond held by ${sovereign.operatorId}. Open the bond panel.`
-              : guided
-                ? 'Account identity status. Open the account panel.'
-                : 'No sovereign session. Open the bond panel to claim or present a credential.'
-          }
-        >
-          <span
-            className={`gagos-dot ${sovereign.operatorId ? 'gagos-dot--bond-sovereign' : 'gagos-dot--bond-unbound'}`}
-            aria-hidden="true"
-          />
-          <span className="gagos-pill__main">
-            {sovereign.measured !== 'measured'
-              ? (guided ? 'account…' : 'bond…')
-              : sovereign.operatorId
-                ? (guided ? 'account linked' : 'sovereign')
-                : (guided ? 'account not linked' : 'unbound')}
-          </span>
-          {sovereign.operatorId && !guided ? (
-            <span className="gagos-pill__meta">{sovereign.operatorId}</span>
-          ) : null}
-        </button>
+        {accountControlsHost ? null : accountControl}
         {!guided && online && brainChip.mode ? (
           <span
             className={`gagos-pill gagos-pill--mode gagos-pill--mode-${brainChip.mode}`}
@@ -918,6 +921,8 @@ export default function GagosChrome({
           </span>
         ) : null}
       </header>
+
+      {accountControlsHost ? createPortal(accountControl, accountControlsHost) : null}
 
       {compactWorkingChrome ? <CompactWorkingChrome
         onHost={onCompactControlsHost} blocked={!!pendingApproval || emergencyStopped || bondOpen}>
@@ -951,7 +956,7 @@ export default function GagosChrome({
           onOpenExpert={openExpertAccount}
         />
       ) : (
-        <SovereigntyPanel onClose={closeBond} />
+        <ExpertAccountDialog onClose={closeBond} />
       ) : null}
 
       {pendingApproval && emergencyStopped ? (
@@ -1137,6 +1142,8 @@ export default function GagosChrome({
             onChange={(e) => { setDraft(e.target.value); setTranscriptPending(false); }}
             onAnimationEnd={() => setTranscriptPending(false)}
             onKeyDown={(e) => {
+              // Enter and Escape belong to the active input method until it finishes.
+              if (e.nativeEvent.isComposing || e.nativeEvent.keyCode === 229) return;
               if (e.key === 'Enter') { e.preventDefault(); setTranscriptPending(false); void submit(draft); }
               else if (e.key === 'Escape') {
                 if (listening) { stopMic(); }
@@ -1155,7 +1162,7 @@ export default function GagosChrome({
             type="button"
             className="gagos-btn gagos-recent"
             aria-label="Recent activity"
-            title="Review open work or reopen closed results in Recent activity"
+            title="Review open work or reopen closed work in Recent activity"
             onClick={() => openWorkspacePanel('history', 'Recent activity')}
           >Recent</button>}
           {voiceSupported || backendVoice.stt ? (
