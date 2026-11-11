@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import Editor from '@monaco-editor/react';
 import '../superbrain/lib/monacoConfig';
@@ -71,7 +71,7 @@ export default function CodeEditor({ file, onClose }) {
       label: 'Ask GAGOS to refactor this function',
       contextMenuGroupId: 'navigation',
       contextMenuOrder: 1.5,
-      run: function(ed) {
+      run: function(_ed) {
         console.log('Asked GAGOS to refactor selection');
       }
     });

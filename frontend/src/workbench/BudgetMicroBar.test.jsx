@@ -1,7 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import BudgetMicroBar from './BudgetMicroBar';
-import React from 'react';
 
 describe('BudgetMicroBar', () => {
   let fetchMock;

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import HUDPanel from '../components/HUDPanel';
 import { Activity, Server, Cpu, Database, Network } from 'lucide-react';
 import { API_HEADERS } from '../config';
