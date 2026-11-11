@@ -6,6 +6,7 @@ import './FixtureJourneyPage.css';
 export default function FixtureJourneyPage({ fixture }: { fixture: ReturnType<typeof createFixtureJourneyTransport> }) {
   const state = useSyncExternalStore(fixture.subscribe, fixture.getSnapshot);
   const [visualCheck, setVisualCheck] = useState('');
+  const [compactControls, setCompactControls] = useState(false);
   const appViewportRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // Typing in this deliberately inset/scrolling development app can leave
@@ -22,12 +23,16 @@ export default function FixtureJourneyPage({ fixture }: { fixture: ReturnType<ty
     extension.loseContext();
   };
   return <div className="fixture-journey">
-    <aside className="fixture-journey__controls" aria-label="Isolated development journey">
+    <aside className="fixture-journey__controls" data-compact={compactControls ? 'true' : 'false'} aria-label="Isolated development journey">
       <div className="fixture-journey__identity">
         <strong>Fixture—not backend work</strong>
         <span>No real files, permissions or checks.</span>
         <span>Frontend candidate—not release accepted.</span>
       </div>
+      <button type="button" aria-expanded={!compactControls} onClick={() => setCompactControls(value => !value)}>
+        {compactControls ? 'Show fixture controls' : 'Compact fixture controls'}
+      </button>
+      {!compactControls && <>
       <label>Outcome
         <select aria-label="Fixture outcome" value={state.outcome} disabled={state.pending || state.waitingForDecision}
           onChange={(event) => fixture.setOutcome(event.target.value as FixtureOutcome)}>
@@ -44,6 +49,7 @@ export default function FixtureJourneyPage({ fixture }: { fixture: ReturnType<ty
       </button>
       <span className="fixture-journey__step" role="status">{state.label}</span>
       {visualCheck && <span role="status">{visualCheck}</span>}
+      </>}
     </aside>
     <div className="fixture-journey__app" ref={appViewportRef}><SuperbrainApp /></div>
   </div>;

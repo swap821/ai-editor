@@ -367,6 +367,26 @@ describe('SuperbrainReactiveEffects point conductor', () => {
     expect(view.container.querySelector('[data-testid="cortex-current"]')?.getAttribute('data-color')).toBe('#7bf5fb');
   });
 
+  it('does not aim a held decision at another work seat when approval has no anchor', async () => {
+    const work = showContentSurface({ code: 'retained', language: 'text', filepath: 'work.txt' }, { seatIndex: 3 });
+    showApprovalSurface({ requestRef: 'conversation-approval', summary: 'Approval required', explanation: '',
+      diff: '', command: '', kindLabel: 'create', filepath: 'decision.txt', content: '' }, { seatIndex: null });
+    mockBeing.current = { ...mockBeing.current, phase: 'awaiting-human', taskState: 'needs-permission',
+      motion: 'attention', attention: 'approval' };
+    const { default: SuperbrainReactiveEffects } = await import('./SuperbrainReactiveEffects');
+    const view = render(<SuperbrainReactiveEffects />);
+    expect(getTabStoreSnapshot().focusId).toBe(work.id);
+    expect(view.container.querySelector('[data-testid="approval-seat-boundary"]')).toBeNull();
+    expect(view.container.querySelector('[data-testid="physical-conductor-path"]')).toBeNull();
+    const currents = view.container.querySelectorAll('[data-testid="cortex-current"]');
+    expect(currents.length).toBeGreaterThan(0);
+    const scale = getBrainDockScale(), physical = derivePhysicalSnapshot(mockBeing.current);
+    const expected = deriveCortexAttentionPaths({ origin: getCortexAnchor().map(value => value * scale) as [number, number, number],
+      target: null, activity: physical.cortex.activity, convergence: physical.cortex.convergence, count: currents.length });
+    const actual = JSON.parse(currents[0].getAttribute('data-coordinates') ?? '[]') as number[][];
+    for (let axis = 0; axis < 3; axis++) expect(actual[2][axis]).toBeCloseTo(expected[0][2][axis], 8);
+  });
+
   it('does not place an approval boundary without a live approval surface', async () => {
     mockBeing.current = {
       ...mockBeing.current,

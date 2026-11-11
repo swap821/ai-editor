@@ -20,6 +20,7 @@
    positions, palette, motion and approval ownership remain unchanged. */
 .gagos-chrome[data-approval-pending="true"] { z-index: 40; }
 .gagos-chrome:has(.gagos-approval-hold) { z-index: 40; }
+.gagos-chrome:has(.gagos-account-panel, .bond-panel) { z-index: 40; }
 .gagos-chrome[data-approval-pending="true"] .approval-panel { z-index: 60; }
 
 /* The proposal owns scrolling, never the decision actions. Use the existing
@@ -327,6 +328,17 @@
     transform: none;
   }
 }
+/* Local operator-approved prototype: active wide-desktop modes share the
+   work plane's gutter, leaving the organism pane clear. Keep each mode's
+   existing vertical/header band; rest, short landscape and smaller screens
+   retain their own composition. Move this one existing row, never clone it
+   or animate its hit targets. Production adoption remains unapproved. */
+@media (min-width: 1200px) and (min-height: 521px) {
+  .lm-app[data-working="true"] .gagos-experience-switch {
+    left: calc(32% + 16px);
+    transform: none;
+  }
+}
 .gagos-focus-toggle {
   min-height: 44px;
   padding: 8px 12px;
@@ -478,6 +490,8 @@
    reserved for this pill alone: sovereignty, not status. */
 .gagos-pill--bond {
   min-height: 44px;
+  /* This real control opts back into hits; decorative status paint does not. */
+  pointer-events: auto;
   cursor: pointer;
   font: inherit;
   letter-spacing: 0.06em;
@@ -1045,6 +1059,11 @@
 .gagos-input::placeholder {
   /* WCAG AA: alpha lifted 0.4->0.62 so the placeholder hint clears 4.5:1 over the bar (hue unchanged). */
   color: rgba(190, 202, 226, 0.62);
+}
+.gagos-input:focus-visible {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .gagos-intent {

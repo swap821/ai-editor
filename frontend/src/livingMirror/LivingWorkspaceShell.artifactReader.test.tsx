@@ -13,6 +13,19 @@ afterEach(() => {
   cleanup(); __resetTabStoreForTests(); __resetSovereignIdentityForTests(); vi.unstubAllGlobals();
 });
 
+it.each([
+  ['awaiting-approval', 'Generation is waiting for your permission. No completed outcome is established.'],
+  ['cancelled', 'Generation cancelled locally. Backend termination is unconfirmed.'],
+  ['declined', 'Action declined locally. No completed outcome is established.'],
+  ['incomplete', 'Generation interrupted. No completed outcome is established.'],
+] as const)('does not invent a partial result for empty %s work', async (completion, message) => {
+  await act(async () => { render(<LivingWorkspaceShell experienceMode="beginner" />); });
+  act(() => { showContentSurface({ filepath: 'pending.py', code: '', language: 'python', completion }); });
+  expect(within(screen.getByRole('region', { name: 'Selected workspace' })).getByRole('status')).toHaveTextContent(message);
+  expect(screen.getByText('No generated content received yet. Project effects require separate receipts.')).toBeVisible();
+  expect(screen.queryByText(/Partial result/)).not.toBeInTheDocument();
+});
+
 it('describes the focused same-path code with its own replay uncertainty, not the older result', async () => {
   await act(async () => { render(<LivingWorkspaceShell experienceMode="expert" />); });
   act(() => {

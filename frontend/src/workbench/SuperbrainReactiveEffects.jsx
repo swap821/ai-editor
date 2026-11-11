@@ -428,6 +428,10 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
       && tab.seatIndex >= 0
       && tab.seatIndex < SEGMENT_ANCHORS.length)?.seatIndex ?? null
     : null;
+  // A live decision without a free seat is still held, but must not borrow
+  // the selected result's physical anchor for its visual attention path.
+  const unseatedApproval = physical.membrane.state === 'held' && tabs.some((tab) =>
+    tab.kind === 'approval' && tab.lifecycle !== 'retracting' && tab.seatIndex === null);
   const attentionOrchestration = useMemo(
     () => heldApprovalSeat === null
       ? orchestration
@@ -439,8 +443,8 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
     [tabs, attentionOrchestration],
   );
   const conductorPathPoints = useMemo(
-    () => conductor.conductingSeatIndexes.map((seatIndex) => anchorWorldPosition(seatIndex)),
-    [conductor.conductingSeatIndexes],
+    () => unseatedApproval ? [] : conductor.conductingSeatIndexes.map((seatIndex) => anchorWorldPosition(seatIndex)),
+    [conductor.conductingSeatIndexes, unseatedApproval],
   );
   const conductorSeatSignals = useMemo(
     () => conductor.vertebrae.filter((signal) => signal.role !== 'idle'),
@@ -919,7 +923,7 @@ export default function SuperbrainReactiveEffects({ presentationOverride = null,
   const focusedPanel = panels.find((panel) => panel.open && panel.id === focusId);
   // A readable-only History has no spatial target. Do not imply a connection
   // to another result by falling back to that result's conductor anchor.
-  const focusSeatIndex = heldApprovalSeat ?? (focusedPanel
+  const focusSeatIndex = unseatedApproval ? null : heldApprovalSeat ?? (focusedPanel
     ? focusedPanel.seatIndex
     : conductor.activeSeatIndex);
   const cortexCurrentPaths = useMemo(() => {

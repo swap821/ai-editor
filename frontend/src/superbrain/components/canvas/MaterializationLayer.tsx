@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { subscribePendingApproval, type PendingApproval } from '@/lib/aiosAdapter';
+import { getPendingApproval, subscribePendingApproval, type PendingApproval } from '@/lib/aiosAdapter';
 import { deriveAnatomicalConductor } from '@/lib/anatomicalConductor';
 import { subscribeCognition } from '@/lib/cognitionBus';
 import {
@@ -32,7 +32,6 @@ import {
   getMaterializedTabByKind,
   getOccupiedVertebraSeats,
   getTabStoreSnapshot,
-  clearMaterializedTab,
   isWorkMaterializationClaimed,
   showApprovalSurface,
   showContentSurface,
@@ -43,7 +42,6 @@ import {
   type MaterializedTabContent,
 } from '@/lib/tabStore';
 import { deriveLivingOrchestration } from '@/lib/livingOrchestrator';
-import { setConversationPhase } from '@/lib/conversationPhaseBus';
 
 import { getTurnMetabolismSnapshot, useTurnMetabolism } from '@/lib/turnMetabolism';
 import AnatomicalConductorOverlay from './AnatomicalConductorOverlay';
@@ -99,8 +97,8 @@ function reabsorbInputSurface(): void {
   }
 }
 
-export default function MaterializationLayer({ reducedMotion, physical }: { reducedMotion: boolean; physical?: PhysicalBodyProjection }) {
-  const { tabs: retainedTabs, focusId, attention } = useTabStore();
+export default function MaterializationLayer({ reducedMotion, physical, breathRef }: { reducedMotion: boolean; physical?: PhysicalBodyProjection; breathRef?: { value: number } }) {
+  const { tabs: retainedTabs, panels, focusId, attention } = useTabStore();
   // Readable overflow work has no free body anchor. Keep it in the DOM, not
   // an overlapping surface or a fictitious anatomical conduction.
   const tabs = retainedTabs.filter((tab) => !tab.recoverySeatPending);
@@ -164,9 +162,13 @@ export default function MaterializationLayer({ reducedMotion, physical }: { redu
         const approval = normalizeApproval(pending);
         if (approval) {
           const current = getMaterializedTabByKind('approval');
-          const seatIndex = current?.seatIndex ?? selectNextAvailableVertebraSeat(getOccupiedVertebraSeats());
+          const occupied = getOccupiedVertebraSeats();
+          const seatIndex = current?.seatIndex ?? selectNextAvailableVertebraSeat(occupied);
+          // The allocator's legacy fallback can be occupied at capacity. Keep
+          // the real decision in the DOM without inventing an anatomical seat.
+          const available = current?.seatIndex === seatIndex || !occupied.includes(seatIndex);
           reabsorbInputSurface();
-          showApprovalSurface(approval, getApprovalSurfacePlacement(seatIndex));
+          showApprovalSurface(approval, available ? getApprovalSurfacePlacement(seatIndex) : { seatIndex: null });
           return;
         }
         const current = getMaterializedTabByKind('approval');
@@ -176,6 +178,18 @@ export default function MaterializationLayer({ reducedMotion, physical }: { redu
       }),
     [],
   );
+
+  // Attach an unseated, still-pending decision as soon as a real seat is free.
+  // A closing surface retains its seat until its existing retirement finishes.
+  useEffect(() => {
+    const current = retainedTabs.find(tab => tab.kind === 'approval' && tab.lifecycle !== 'retracting'
+      && tab.seatIndex === null && tab.approval?.requestRef === 'conversation-approval');
+    if (!current || !getPendingApproval()) return;
+    const occupied = getOccupiedVertebraSeats();
+    const seat = selectNextAvailableVertebraSeat(occupied);
+    if (occupied.includes(seat)) return;
+    updateMaterializedTab(current.id, { ...getApprovalSurfacePlacement(seat), lifecycle: 'reaching', phaseStartedAt: performance.now() });
+  }, [retainedTabs, panels]);
 
   useEffect(() => {
     if (completion.state !== 'settling' || !completion.targetId) return;
@@ -410,8 +424,8 @@ export default function MaterializationLayer({ reducedMotion, physical }: { redu
   const orchestration = deriveLivingOrchestration({ tabs, focusId, attention });
   // This count is only the render-placement budget, not active/admitted work.
   // A still-painted retiring slab must reserve its row until it disappears.
-  const paintedWorkspaceCount = tabs.filter(tab => tab.kind !== 'input').length;
-  const paintedWaitingCount = orchestration.surfaces.filter(({ tab, focused }) => tab.kind !== 'input' && !focused).length;
+  const paintedWorkspaceCount = tabs.filter(tab => tab.kind !== 'input' && tab.seatIndex !== null).length;
+  const paintedWaitingCount = orchestration.surfaces.filter(({ tab, focused }) => tab.kind !== 'input' && tab.seatIndex !== null && !focused).length;
   const anatomy = deriveAnatomicalConductor({ tabs, orchestration });
   const rootSystem = deriveAnatomicalRootSystem({ surfaces: orchestration.surfaces, metabolism, outcome });
   const organism = deriveOrganismLifecycle({ orchestration, metabolism, outcome, completion, rootSystem });
@@ -442,12 +456,13 @@ export default function MaterializationLayer({ reducedMotion, physical }: { redu
           surfaces are rendered here. Excluding kind:'input' collapses the former
           duplicate input render (one renderer per surface). */}
       {orchestration.surfaces
-        .filter(({ tab }) => tab.kind !== 'input')
+        .filter(({ tab }) => tab.kind !== 'input' && tab.seatIndex !== null)
         .map(({ tab, focused, waitingIndex }) => (
           <MaterializedTab
             key={tab.id}
             tab={tab}
             reducedMotion={reducedMotion}
+            breathRef={breathRef}
             focused={focused}
             waitingIndex={waitingIndex}
             workspaceCount={paintedWorkspaceCount}
@@ -465,7 +480,7 @@ export default function MaterializationLayer({ reducedMotion, physical }: { redu
           spine back into the brain (points being). */}
       {POINTS &&
         orchestration.surfaces
-          .filter(({ tab }) => tab.kind !== 'input' && tab.lifecycle === 'retracting')
+          .filter(({ tab }) => tab.kind !== 'input' && tab.seatIndex !== null && tab.lifecycle === 'retracting')
           .map(({ tab }) => (
             <ReabsorptionParticles
               key={`reabsorb-${tab.id}`}

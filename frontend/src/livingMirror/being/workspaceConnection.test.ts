@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { Matrix4, PerspectiveCamera, Vector3 } from 'three';
-import { projectWorkspaceConnection } from './workspaceConnection';
+import { projectWorkspaceConnection, projectWorkspaceReturnConnection, retargetWorkspaceConnection } from './workspaceConnection';
 
 const camera = new PerspectiveCamera(90, 1, 0.1, 100);
 camera.position.set(0, 0, 10);
@@ -28,6 +28,22 @@ describe('workspace connection projection', () => {
       dockScale: 0.5, camera, canvas, plane, overlay,
     });
     expect(connection?.source).toEqual({ x: 340, y: 240 });
+  });
+  it('uses the same gently curved nerve for work and its return', () => {
+    const input = { origin: new Vector3(), bodyWorld: new Matrix4(), dockScale: 1, camera, canvas, plane, overlay };
+    const live = projectWorkspaceConnection(input)!;
+    const returning = projectWorkspaceReturnConnection({ ...input, target: live.target, horizontal: live.horizontal });
+    expect(live.path).toBe('M 280 240 C 429 220, 429 220, 578 240');
+    expect(returning?.path).toBe(live.path);
+  });
+  it('retargets only on the same exposed edge and rejects an opposite edge', () => {
+    const input = { origin: new Vector3(), bodyWorld: new Matrix4(), dockScale: 1, camera, canvas, plane, overlay };
+    const current = projectWorkspaceConnection(input)!;
+    expect(retargetWorkspaceConnection(current,{x:current.target.x,y:current.target.y+80},true,0)?.target).toEqual({x:current.target.x,y:current.target.y+80});
+    expect(retargetWorkspaceConnection(current,{x:current.target.x,y:current.target.y+80},true,.5)?.target).toEqual({x:current.target.x,y:current.target.y+40});
+    expect(retargetWorkspaceConnection(current,{x:current.target.x+604,y:current.target.y},true,.5)).toBeNull();
+    expect(retargetWorkspaceConnection(current,current.target,false,.5)).toBeNull();
+    expect(retargetWorkspaceConnection(current,current.target,true,NaN)).toBeNull();
   });
   it('meets the mobile plane above its reading content, rather than drawing across it', () => {
     const connection = projectWorkspaceConnection({

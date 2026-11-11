@@ -1,7 +1,7 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { API_HEADERS } from '../config';
-import { useTabStore, getTabStoreSnapshot, getMaterializedTabLabel, openWorkspacePanel, focusWorkspace, closeWorkspace, clearMaterializedTab, pinWorkspace, reopenMaterializedTab, forgetRecoverableMaterializedTab, finishMaterializedTabRetraction, type WorkspacePanel, type MaterializedTabContent } from '../superbrain/lib/tabStore';
+import { useTabStore, getTabStoreSnapshot, getMaterializedTabLabel, openWorkspacePanel, focusWorkspace, closeWorkspace, clearMaterializedTab, pinWorkspace, reopenMaterializedTab, forgetRecoverableMaterializedTab, finishMaterializedTabRetraction, type WorkspacePanel, type MaterializedTabContent, type MaterializedTabRecord } from '../superbrain/lib/tabStore';
 import { useMirrorStore } from '../superbrain/lib/mirrorStore';
 import { getSovereignStatus, subscribeSovereignStatus } from '../superbrain/lib/sovereignIdentity';
 import { WorkspaceHostContext } from './WorkspaceHostContext';
@@ -75,6 +75,11 @@ const guidedSurfaces = [
 const NARROW_VIEWPORT_QUERY = '(max-width: 767px)';
 const COMPACT_WORKSPACE_QUERY = '(max-width: 360px)';
 
+function shortWorkspaceLabel(label: string): string {
+  const chars = Array.from(label);
+  return chars.length > 14 ? `${chars.slice(0, 4).join('')}…${chars.slice(-8).join('')}` : label;
+}
+
 function readNarrowViewport(): boolean {
   return typeof window !== 'undefined'
     && typeof window.matchMedia === 'function'
@@ -88,42 +93,65 @@ function readCompactWorkspaceViewport(): boolean {
 }
 
 function PartialResultNotice({ content, id }: { content: MaterializedTabContent; id?: string }) {
+  const hasResult = Boolean(content.code || content.verifyOutput);
   if (content.completion === 'awaiting-approval') {
-    return <p id={id} role="status">Generation is waiting for your permission. Partial result; no completed outcome is established.</p>;
+    return <p id={id} role="status">{hasResult ? 'Generation is waiting for your permission. Partial result; no completed outcome is established.' : 'Generation is waiting for your permission. No completed outcome is established.'}</p>;
   }
   if (content.completion === 'awaiting-replay') {
     return <p id={id} role="status">Permission submitted. Waiting for the replay response; completion is unconfirmed.</p>;
   }
   if (content.completion === 'declined') {
-    return <p id={id} role="status">Action declined locally. Partial result retained; no completed outcome is established.</p>;
+    return <p id={id} role="status">{hasResult ? 'Action declined locally. Partial result retained; no completed outcome is established.' : 'Action declined locally. No completed outcome is established.'}</p>;
   }
   if (content.completion === 'cancelled') {
-    return <p id={id} role="status">Generation cancelled locally. Partial result retained; backend termination is unconfirmed.</p>;
+    return <p id={id} role="status">{hasResult ? 'Generation cancelled locally. Partial result retained; backend termination is unconfirmed.' : 'Generation cancelled locally. Backend termination is unconfirmed.'}</p>;
   }
   if (content.completion === 'incomplete') {
-    return <p id={id} role="status">Generation interrupted. Partial result; no completed outcome is established.</p>;
+    return <p id={id} role="status">{hasResult ? 'Generation interrupted. Partial result; no completed outcome is established.' : 'Generation interrupted. No completed outcome is established.'}</p>;
   }
-  return content.streaming ? <p id={id}>Partial result; no completed outcome is established.</p> : null;
+  return content.streaming ? <p id={id}>{hasResult ? 'Partial result; no completed outcome is established.' : 'Waiting for the first result. No completed outcome is established.'}</p> : null;
 }
 
 function History({ guided }: { guided: boolean }) {
   const mirror = useMirrorStore();
-  const { recoverableTabs = [], recoveryIssue, panels = [], focusId } = useTabStore();
+  const { tabs, recoverableTabs = [], recoveryIssue, panels = [], focusId } = useTabStore();
+  const openWork = tabs.filter((tab) => tab.kind === 'content' && tab.lifecycle !== 'retracting');
+  // The same filepath can describe distinct retained results. Reuse each
+  // session-local result number so the displayed actions identify the record.
+  const labels = new Map<string, number>();
+  for (const tab of [...openWork, ...recoverableTabs]) {
+    const label = getMaterializedTabLabel(tab);
+    labels.set(label, (labels.get(label) ?? 0) + 1);
+  }
+  const historyLabel = (tab: MaterializedTabRecord) => {
+    const label = getMaterializedTabLabel(tab);
+    if ((labels.get(label) ?? 0) < 2) return label;
+    const result = /^materialized-tab-(\d+)$/.exec(tab.id)?.[1] ?? tab.id;
+    return `${label} — result ${result}`;
+  };
   const [forgetId, setForgetId] = useState<string | null>(null);
   return <section><h3>{guided ? 'Recent activity' : 'Recent observations'}</h3><p>{guided ? 'A short record of what GAGOS has measured in this session.' : 'Up to 256 observations retained in this browser session. Durable mission reports are available under Missions.'}</p>
-    <section className="lm-closed-results" aria-label="Closed results">
-      <h3>Closed results</h3>
+    {openWork.length > 0 && <section className="lm-closed-results" aria-label="Open work">
+      <h3>Open work</h3>
+      <ul>{openWork.map((tab) => <li key={tab.id}>
+        <strong>{historyLabel(tab)}</strong>
+        {tab.content && <PartialResultNotice content={tab.content} />}
+        <div className="lm-result-actions"><button type="button" aria-label={`View ${historyLabel(tab)}`} onClick={() => focusWorkspace(tab.id)}>View</button></div>
+      </li>)}</ul>
+    </section>}
+    <section className="lm-closed-results" aria-label="Closed work">
+      <h3>Closed work</h3>
       {panels.some((panel) => panel.id === focusId && panel.open && panel.seatIndex === null)
-        && <p role="status">Recent activity is available without a body anchor while all anchors are in use. You can still forget closed results here; reopening a result requires a free anchor.</p>}
-      <p>Up to 12 results and 4 MiB of text kept in this browser session only. Reloading, signing out or changing accounts clears them. Reopening does not run the task again.</p>
-      {recoverableTabs.length === 0 && <p>No closed results in this session.</p>}
-      {recoveryIssue === 'seats-full' && <p role="status">All workspace anchors are in use. Close another workspace before reopening; your saved result is unchanged.</p>}
+        && <p role="status">Recent activity is available without a body anchor while all anchors are in use. You can still forget closed work here; reopening a workspace requires a free anchor.</p>}
+      <p>Up to 12 workspaces and 4 MiB of text kept in this browser session only. Reloading, signing out or changing accounts clears them. Reopening does not run the task again.</p>
+      {recoverableTabs.length === 0 && <p>No closed work in this session.</p>}
+      {recoveryIssue === 'seats-full' && <p role="status">All workspace anchors are in use. Close another workspace before reopening; your saved work is unchanged.</p>}
       <ul>{[...recoverableTabs].reverse().map((tab) => <li key={tab.id}>
-        <strong>{getMaterializedTabLabel(tab)}</strong>
+        <strong>{historyLabel(tab)}</strong>
         {tab.content && <PartialResultNotice content={tab.content} />}
         <div className="lm-result-actions">
-          <button type="button" aria-label={`Reopen ${getMaterializedTabLabel(tab)}`} onClick={() => { setForgetId(null); reopenMaterializedTab(tab.id); }}>Reopen</button>
-          <button type="button" aria-label={`Forget ${getMaterializedTabLabel(tab)}`} onClick={() => setForgetId(tab.id)}>Forget</button>
+          <button type="button" aria-label={`Reopen ${historyLabel(tab)}`} onClick={() => { setForgetId(null); reopenMaterializedTab(tab.id); }}>Reopen</button>
+          <button type="button" aria-label={`Forget ${historyLabel(tab)}`} onClick={() => setForgetId(tab.id)}>Forget</button>
         </div>
         {forgetId === tab.id && <div role="group" aria-label="Confirm forgetting">
           <p>Forget this browser copy permanently? This does not stop backend work or delete project files.</p>
@@ -186,11 +214,12 @@ function PanelContent({ panel, experienceMode }: { panel: WorkspacePanel; experi
   }
 }
 
-export function LivingWorkspaceShell({ experienceMode = 'beginner', onReturnToConversation, compactControlsHost = null, compactWorkingChrome = false }: {
+export function LivingWorkspaceShell({ experienceMode = 'beginner', onReturnToConversation, compactControlsHost = null, compactWorkingChrome = false, onPhoneAccountHost }: {
   experienceMode?: ExperienceMode;
   onReturnToConversation?: () => void;
   compactControlsHost?: HTMLElement | null;
   compactWorkingChrome?: boolean;
+  onPhoneAccountHost?: (element: HTMLSpanElement | null) => void;
 }) {
   const snapshot = useTabStore();
   const rendererUnavailable = useRendererFallbackPresentation();
@@ -252,6 +281,8 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner', onReturnToCo
     ...snapshot.tabs.filter((t) => t.kind !== 'input' && t.lifecycle !== 'retracting').map((t) => ({ id: t.id, title: getMaterializedTabLabel(t), seat: t.seatIndex, pinned: t.pinned })),
   ];
   const working = !!focused || !!artifact;
+  const secondaryWork = working ? snapshot.tabs.filter((tab) => tab.kind === 'content' && tab.id !== snapshot.focusId
+    && tab.lifecycle === 'live' && typeof tab.seatIndex === 'number') : [];
   const workspaceTitle = focused?.title ?? (artifact ? getMaterializedTabLabel(artifact) : '');
   const showWorkspaceChooser = narrowViewport && experienceMode === 'beginner' && handles.length > 1;
   // The approved compact working layout spends reclaimed chrome space on
@@ -437,12 +468,19 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner', onReturnToCo
       {!(narrowViewport && experienceMode === 'expert') && renderMotionControl()}
     </nav>;
   return <div className="lm-shell" data-experience-mode={experienceMode} data-motion-reduced={motionPaused ? 'true' : 'false'}>
+    {secondaryWork.length > 0 && <aside className="lm-secondary-workspaces" aria-label="Other open workspaces">
+      {secondaryWork.map((tab) => <button type="button" key={tab.id} data-secondary-id={tab.id}
+        style={{ visibility: 'hidden' }} onClick={(event) => focusFromControl(tab.id, event.currentTarget)}
+        aria-label={`View ${getMaterializedTabLabel(tab)} · Anchor ${tab.seatIndex}`}>
+        <span aria-hidden="true">#{tab.seatIndex} · {shortWorkspaceLabel(getMaterializedTabLabel(tab))}</span>
+      </button>)}
+    </aside>}
     <header className="lm-header">
       <div className="lm-brand lm-expert-only"><h1>GAGOS</h1><span className="lm-subtitle">Local-first intelligence. Human authority.</span></div>
       <EmergencyControl guided={experienceMode === 'beginner'} />
     </header>
     {compactControlsHost ? createPortal(navigationControls, compactControlsHost) : navigationControls}
-    <MirrorConnectionNotice experienceMode={experienceMode} detailsHost={compactControlsHost} onOpenAuthority={experienceMode === 'expert' ? (trigger) => open('governance', 'Governance', trigger) : undefined} />
+    <MirrorConnectionNotice experienceMode={experienceMode} detailsHost={compactControlsHost} onPhoneAccountHost={onPhoneAccountHost} onOpenAuthority={experienceMode === 'expert' ? (trigger) => open('governance', 'Governance', trigger) : undefined} />
     {!(narrowViewport && experienceMode === 'expert') && <aside ref={workspaceRail} className="lm-workspace-rail" aria-label="Spinal workspace anchors">
       {handles.slice(0, 4).map((handle) => <button type="button" key={handle.id} aria-current={snapshot.focusId === handle.id ? 'true' : undefined} onClick={(event) => focusFromControl(handle.id, event.currentTarget)}>
         <span className="lm-vertebra" aria-hidden="true" />{handle.title}{handle.pinned ? ' · pinned' : ''}
@@ -451,7 +489,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner', onReturnToCo
       {listOpen && <div className="lm-workspace-list">{handles.map((handle) => <button key={handle.id} type="button" onClick={(event) => { focusFromControl(handle.id, event.currentTarget); setListOpen(false); }}>{handle.title} · Anchor {handle.seat ?? 'unassigned'}</button>)}</div>}
     </aside>}
     <section className="lm-surface" data-workspace-id={working ? snapshot.focusId ?? undefined : undefined} data-workspace-collapsed={workspaceCollapsed ? 'true' : undefined} hidden={!working} aria-label="Selected workspace" onKeyDown={(event) => {
-      if (event.key === 'Escape' && !event.defaultPrevented && !(event.target as HTMLElement).closest('.monaco-editor, .lm-workspace-chooser')) { event.stopPropagation(); dismiss(); }
+      if (event.key === 'Escape' && !event.defaultPrevented && !event.nativeEvent.isComposing && event.nativeEvent.keyCode !== 229 && !(event.target as HTMLElement).closest('.monaco-editor, .lm-workspace-chooser')) { event.stopPropagation(); dismiss(); }
     }}>
       <header className="lm-surface__header"><h2 ref={heading} tabIndex={-1}
         className={showWorkspaceChooser ? 'lm-surface__title--chooser' : undefined}
@@ -515,7 +553,9 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner', onReturnToCo
             tab.content!.completion || tab.content!.streaming ? `lm-artifact-${tab.id}-status` : '',
             `lm-artifact-${tab.id}-provenance`,
           ].filter(Boolean).join(' ')}>{tab.content!.code}</pre>
-          <p id={`lm-artifact-${tab.id}-provenance`}>Generated artifact · Project effects require separate receipts.</p>
+          <p id={`lm-artifact-${tab.id}-provenance`}>{tab.content!.code || tab.content!.verifyOutput
+            ? 'Generated artifact · Project effects require separate receipts.'
+            : 'No generated content received yet. Project effects require separate receipts.'}</p>
           {tab.content!.verifyOutput && <details><summary>Reported check output</summary><pre>{tab.content!.verifyOutput}</pre></details>}
           <div className="lm-artifact-receipt-host" data-artifact-id={tab.id} />
         </PersistentWorkspaceBody>)}

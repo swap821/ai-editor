@@ -133,7 +133,8 @@ it.each([
     expect(work.current.workTabIdsRef.current).not.toContain(writing.id);
     act(() => finishMaterializedTabRetraction(writing.id, source.retractionToken));
     fireEvent.click(within(screen.getByRole('navigation', { name: 'Workspaces' })).getByRole('button', { name: 'Recent observations' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Reopen actual.py' }));
+    const resultNumber = writing.id.replace('materialized-tab-', '');
+    fireEvent.click(screen.getByRole('button', { name: `Reopen actual.py — result ${resultNumber}` }));
     expect(getTabStoreSnapshot().focusId).toBe(writing.id);
     expect(getTabStoreSnapshot().tabs.find((tab) => tab.id === writing.id)?.content)
       .toMatchObject({ code: complete, streaming: false });
@@ -170,6 +171,32 @@ it.each([false, true])('settles a closed in-flight duplicate without reopening i
   expect(isWorkMaterializationClaimed()).toBe(false);
 });
 
+it.each([false, true])('Close retains an empty in-flight workspace and its later output (retired=%s)', async (retired) => {
+  const { result: work } = mountWork();
+  let finish!: (value: Awaited<ReturnType<typeof sendDirective>>) => void;
+  vi.mocked(sendDirective).mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  let turn!: Promise<void>;
+  act(() => { turn = work.current.submit('create delayed.py'); });
+  const writing = getTabStoreSnapshot().tabs.find(tab => tab.content?.filepath === 'delayed.py')!;
+  expect(writing.content?.code).toBe('');
+  act(() => focusWorkspace(writing.id));
+  fireEvent.click(screen.getByRole('button', { name: 'Close workspace' }));
+  expect((getTabStoreSnapshot().recoverableTabs ?? []).map(tab => tab.id)).toContain(writing.id);
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  if (retired) act(() => finishMaterializedTabRetraction(writing.id, getTabStoreSnapshot().tabs.find(tab => tab.id === writing.id)?.retractionToken));
+  await act(async () => {
+    finish({ ok: true, paused: false, answer: '', emittedCode: { code: 'print("late result")', filepath: 'delayed.py', language: 'python' } });
+    await turn;
+  });
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().recoverableTabs?.find(tab => tab.id === writing.id)?.content)
+    .toMatchObject({ code: 'print("late result")', streaming: false });
+  fireEvent.click(within(screen.getByRole('navigation', { name: 'Workspaces' })).getByRole('button', { name: 'Recent observations' }));
+  fireEvent.click(screen.getByRole('button', { name: 'Reopen delayed.py' }));
+  expect(getTabStoreSnapshot().focusId).toBe(writing.id);
+  expect(screen.getByText('print("late result")')).toBeVisible();
+});
+
 it('keeps an interrupted partial readable and explicitly incomplete through Close and Reopen', async () => {
   const { result: work } = mountWork();
   vi.mocked(sendDirective).mockImplementationOnce(async (_text, _signal, onChunk) => {
@@ -189,7 +216,7 @@ it('keeps an interrupted partial readable and explicitly incomplete through Clos
     finishMaterializedTabRetraction(partial.id, getTabStoreSnapshot().tabs[0].retractionToken);
   });
   fireEvent.click(within(screen.getByRole('navigation', { name: 'Workspaces' })).getByRole('button', { name: 'Recent observations' }));
-  expect(within(screen.getByRole('region', { name: 'Closed results' })).getByText('Generation interrupted. Partial result; no completed outcome is established.')).toBeVisible();
+  expect(within(screen.getByRole('region', { name: 'Closed work' })).getByText('Generation interrupted. Partial result; no completed outcome is established.')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Reopen partial.py' }));
   expect(screen.getByText('print("partial")')).toBe(reader);
   expect(reader.scrollTop).toBe(37);
@@ -323,7 +350,7 @@ it('the real composer Stop cancels locally and the same cancelled reader reopens
     finishMaterializedTabRetraction(partial.id, getTabStoreSnapshot().tabs[0].retractionToken);
   });
   fireEvent.click(within(screen.getByRole('navigation', { name: 'Workspaces' })).getByRole('button', { name: 'Recent observations' }));
-  expect(within(screen.getByRole('region', { name: 'Closed results' })).getByText('Generation cancelled locally. Partial result retained; backend termination is unconfirmed.')).toBeVisible();
+  expect(within(screen.getByRole('region', { name: 'Closed work' })).getByText('Generation cancelled locally. Partial result retained; backend termination is unconfirmed.')).toBeVisible();
   fireEvent.click(screen.getByRole('button', { name: 'Reopen partial.py' }));
   expect(screen.getByText('print("partial")')).toBe(reader);
   expect(reader).toBeVisible();
@@ -533,4 +560,36 @@ it('keeps Guided Forget reachable with twelve retained submissions and twelve oc
   expect(getTabStoreSnapshot().recoverableTabs?.some((record) => record.id === current.id)).toBe(true);
   expect(getTabStoreSnapshot().recoverableTabs).toHaveLength(12);
   expect(vi.mocked(sendDirective)).toHaveBeenCalledTimes(24);
+});
+
+it.each([false, true])('settles an empty retained writer when its terminal path matches another workspace (geometry retired=%s)', async (geometryRetired) => {
+  const { result: work } = mountWork();
+  let existing!: ReturnType<typeof showContentSurface>;
+  act(() => { existing = showContentSurface({ filepath: 'actual.py', code: 'old work', language: 'python' }); });
+  let finish!: (value: Awaited<ReturnType<typeof sendDirective>>) => void;
+  vi.mocked(sendDirective).mockImplementationOnce((_text, _signal, onChunk) => {
+    onChunk?.('```python\nprint("partial")');
+    return new Promise(resolve => { finish = resolve; });
+  });
+  let turn!: Promise<void>;
+  act(() => { turn = work.current.submit('create guessed.py'); });
+  const writing = getTabStoreSnapshot().tabs.find(tab => tab.id !== existing.id)!;
+  act(() => {
+    focusWorkspace(writing.id);
+    closeWorkspace(writing.id);
+    if (geometryRetired) finishMaterializedTabRetraction(writing.id, getTabStoreSnapshot().tabs.find(tab => tab.id === writing.id)?.retractionToken);
+    // The pending-store candidate permits a closed writer to be empty. Build
+    // that state using the current real store, without replacing its owner.
+    const saved = getTabStoreSnapshot().recoverableTabs!.find(tab => tab.id === writing.id)!;
+    updateMaterializedTab(writing.id, { content: { ...saved.content!, code: '' } });
+  });
+  await act(async () => {
+    finish({ ok: true, paused: false, answer: '', emittedCode: { code: 'complete actual work', filepath: 'actual.py', language: 'python' } });
+    await turn;
+  });
+  expect(getTabStoreSnapshot().focusId).toBeNull();
+  expect(getTabStoreSnapshot().recoverableTabs?.find(tab => tab.id === writing.id)?.content)
+    .toMatchObject({ code: 'complete actual work', filepath: 'actual.py', streaming: false });
+  expect(getTabStoreSnapshot().tabs.find(tab => tab.id === existing.id)?.content?.code).toBe('complete actual work');
+  expect(isWorkMaterializationClaimed()).toBe(false);
 });

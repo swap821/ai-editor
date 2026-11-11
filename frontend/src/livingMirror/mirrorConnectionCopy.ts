@@ -34,8 +34,8 @@ export function getMirrorConnectionCopy(
 
   if (state.projection === 'fresh' && state.connection === 'connected' && state.status === 'online') {
     return {
-      label: mode === 'expert' ? 'Live projection ready' : 'GAGOS is ready',
-      detail: mode === 'expert' ? 'Continuity has been confirmed.' : 'The live picture is current.',
+      label: mode === 'expert' ? 'Live projection ready' : 'Live picture is current',
+      detail: mode === 'expert' ? 'Continuity has been confirmed.' : 'Connected and up to date.',
       tone: 'ready',
       canRetry: false,
       technical,

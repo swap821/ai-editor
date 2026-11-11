@@ -1,7 +1,9 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import MaterializationLayer from '../../superbrain/components/canvas/MaterializationLayer';
-import { __resetAiosAdapterForTests, getPendingApproval, sendDirective } from '../../superbrain/lib/aiosAdapter';
+import MaterializedTab from '../../superbrain/components/canvas/MaterializedTab';
+import { getOrganismPhase } from '../../superbrain/lib/organismPhaseBus';
+import { __resetAiosAdapterForTests, cancelPendingApproval, getPendingApproval, sendDirective } from '../../superbrain/lib/aiosAdapter';
 import { dispatchLivingMirrorEvent } from '../../superbrain/lib/livingMirrorRegistry';
 import { publishCognition, subscribeCognition } from '../../superbrain/lib/cognitionBus';
 import { __resetCompletionReflexForTests } from '../../superbrain/lib/completionReflex';
@@ -16,7 +18,7 @@ import { LivingWorkspaceShell } from '../LivingWorkspaceShell';
 // Registry admission, transport/cache, MaterializationLayer effects, store,
 // anchors and readable Shell are real. GPU leaves cannot mount in jsdom;
 // these tests establish source/reader ownership, not native 3D acceptance.
-vi.mock('../../superbrain/components/canvas/MaterializedTab', () => ({ default: () => null }));
+vi.mock('../../superbrain/components/canvas/MaterializedTab', () => ({ default: vi.fn(() => null) }));
 vi.mock('../../superbrain/components/canvas/ReabsorptionParticles', () => ({ default: () => null }));
 vi.mock('../../superbrain/components/canvas/AnatomicalConductorOverlay', () => ({ default: () => null }));
 vi.mock('../../superbrain/components/canvas/AttentionConductionPulse', () => ({ default: () => null }));
@@ -325,4 +327,45 @@ it('keeps overflow code readable without assigning another result to an occupied
   expect(contents().find((tab) => tab.id === overflow.id)).toMatchObject({ seatIndex: first.seatIndex, recoverySeatPending: false });
   expect(screen.getByText('// unnamed result 13')).toBe(reader);
   expect(reader).toBeVisible();
+});
+
+
+it('keeps an approval unseated at full capacity, then attaches only when a real seat is freed', async () => {
+  mount();
+  act(() => { for (let index = 0; index < 12; index++) emit(200 + index, { code: `result ${index}`, language: 'text' }); });
+  const originals = contents().map(tab => ({ id: tab.id, seatIndex: tab.seatIndex, code: tab.content?.code }));
+  expect(new Set(originals.map(tab => tab.seatIndex)).size).toBe(12);
+  const focused = getTabStoreSnapshot().focusId;
+  vi.mocked(MaterializedTab).mockClear();
+  await act(async () => { await sendDirective('hold a real approval fixture'); });
+  const approval = getTabStoreSnapshot().tabs.find(tab => tab.kind === 'approval')!;
+  expect(getPendingApproval()?.token).toBe('pending-fixture-token');
+  expect(approval.seatIndex).toBeNull();
+  expect(getOrganismPhase()).toBe('approval_hold');
+  expect(vi.mocked(MaterializedTab).mock.calls.some(([props]) => props.tab.id === approval.id)).toBe(false);
+  expect(contents().map(tab => ({ id: tab.id, seatIndex: tab.seatIndex, code: tab.content?.code }))).toEqual(originals);
+  expect(getTabStoreSnapshot().focusId).toBe(focused);
+  const released = originals[11];
+  act(() => {
+    closeWorkspace(released.id);
+    const retiring = getTabStoreSnapshot().tabs.find(tab => tab.id === released.id)!;
+    finishMaterializedTabRetraction(released.id, retiring.retractionToken);
+  });
+  const seated = getTabStoreSnapshot().tabs.find(tab => tab.id === approval.id)!;
+  expect(seated.seatIndex).toBe(released.seatIndex);
+  expect(vi.mocked(MaterializedTab).mock.calls.some(([props]) => props.tab.id === approval.id)).toBe(true);
+  expect(getPendingApproval()?.token).toBe('pending-fixture-token');
+  expect(getTabStoreSnapshot().focusId).toBe(focused);
+});
+
+it('removes an unseated approval on cancellation even when no renderer can retire it', async () => {
+  mount();
+  act(() => { for (let index = 0; index < 12; index++) emit(300 + index, { code: `result ${index}`, language: 'text' }); });
+  await act(async () => { await sendDirective('hold a real approval fixture'); });
+  const approval = getTabStoreSnapshot().tabs.find(tab => tab.kind === 'approval')!;
+  expect(approval.seatIndex).toBeNull();
+  act(() => cancelPendingApproval());
+  expect(getPendingApproval()).toBeNull();
+  expect(getTabStoreSnapshot().tabs.some(tab => tab.id === approval.id)).toBe(false);
+  expect(contents()).toHaveLength(12);
 });

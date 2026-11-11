@@ -17,6 +17,7 @@ import { derivePhysicalSnapshot } from './physicalSnapshot';
 vi.mock('@react-three/fiber', async original => {
   const actual = await original();
   const createSink = ({ canvas }) => ({ domElement: canvas, getPixelRatio: () => 1,
+    debug: { checkShaderErrors: true, onShaderError: null },
     setPixelRatio() {}, setSize() {}, render(scene) { scene.updateMatrixWorld(true); },
     dispose() {}, forceContextLoss() {}, shadowMap: {} });
   return { ...actual, Canvas: props => <actual.Canvas {...props} gl={createSink} /> };

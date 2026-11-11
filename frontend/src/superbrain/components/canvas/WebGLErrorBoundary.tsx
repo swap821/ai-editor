@@ -7,6 +7,7 @@ interface Props {
   children: ReactNode;
   fallback?: ReactNode;
   onRetry?: () => void;
+  onError?: () => void;
 }
 
 interface State {
@@ -47,6 +48,7 @@ export class WebGLErrorBoundary extends Component<Props, State> {
   }
 
   public componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    this.props.onError?.();
     console.error('WebGL/Canvas error caught by boundary:', error, errorInfo);
   }
 
