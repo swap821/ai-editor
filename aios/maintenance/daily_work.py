@@ -1801,24 +1801,45 @@ class ReflectionRefused(ValueError):
     """A reflector's answer that is not the object it was asked for."""
 
 
+_PAIR = re.compile(
+    r'"kind"\s*:\s*"(strategy|pitfall)"\s*,\s*"text"\s*:\s*"((?:[^"\\]|\\.)*)"', re.S
+)
+_RETIRE_LIST = re.compile(r'"retire"\s*:\s*\[([^\]]*)\]', re.S)
+_ENTRY_ID = re.compile(r"pb-[0-9a-f]{8}")
+
+
 def parse_reflection(raw: str) -> tuple[list[tuple[str, str]], list[str]]:
-    """``(adds, retires)`` from the reflector's answer: adds as (kind, text)."""
+    """``(adds, retires)`` from the reflector's answer: adds as (kind, text).
+
+    Strict JSON first. Deviation D16 (2026-11-11): the first seed found the
+    reflector's JSON malformed in 7 of 9 answers (a stray ``","`` after the
+    first entry), so an answer that is not JSON is read pair by pair, each
+    ``"kind": ..., "text": ...`` whole or not at all."""
     start, end = raw.find("{"), raw.rfind("}")
-    if start < 0 or end <= start:
-        raise ReflectionRefused("no JSON object in the reflector's answer")
-    try:
-        value = json.loads(raw[start : end + 1])
-    except ValueError as exc:
-        raise ReflectionRefused(f"the reflector's answer is not JSON: {exc}") from exc
-    if not isinstance(value, dict):
-        raise ReflectionRefused("the reflector's answer is not an object")
-    adds = [
-        (str(a.get("kind", "")).strip().lower(), str(a.get("text", "")).strip())
-        for a in value.get("add") or []
-        if isinstance(a, dict)
-    ][:PLAYBOOK_ADDS_PER_REFLECTION]
-    retires = [str(r) for r in value.get("retire") or [] if isinstance(r, str)]
-    return adds, retires
+    if start >= 0 and end > start:
+        try:
+            value = json.loads(raw[start : end + 1])
+        except ValueError:
+            value = None
+        if isinstance(value, dict):
+            adds = [
+                (str(a.get("kind", "")).strip().lower(), str(a.get("text", "")).strip())
+                for a in value.get("add") or []
+                if isinstance(a, dict)
+            ][:PLAYBOOK_ADDS_PER_REFLECTION]
+            retires = [str(r) for r in value.get("retire") or [] if isinstance(r, str)]
+            return adds, retires
+    adds = []
+    for kind, text in _PAIR.findall(raw):
+        try:
+            adds.append((kind, json.loads(f'"{text}"').strip()))
+        except ValueError:
+            continue
+    found = _RETIRE_LIST.search(raw)
+    retires = _ENTRY_ID.findall(found.group(1)) if found else []
+    if not adds and not retires:
+        raise ReflectionRefused("no entry could be read in the reflector's answer")
+    return adds[:PLAYBOOK_ADDS_PER_REFLECTION], retires
 
 
 #: How long a claim on a file lives: a batch that has not released its claims
@@ -2866,6 +2887,19 @@ class DailyLedger:
             }
         waiting = [rule for rule, n in counts.items() if n > seen.get(rule, (0, ""))[0]]
         return sorted(waiting, key=lambda rule: (seen.get(rule, (0, ""))[1], rule))
+
+    def awaits_first_reflection(self, rule: str) -> bool:
+        """Whether *rule* has decided proposals but was never reflected on
+        (deviation D16): its findings wait, so no attempt is spent before its
+        playbook exists."""
+        with self._db() as db:
+            if db.execute(
+                "SELECT 1 FROM reflections WHERE rule = ?", (rule,)
+            ).fetchone():
+                return False
+        return any(
+            p["rule"] == rule and outcome_of(p) is not None for p in self.proposals()
+        )
 
     def mark_reflected(self, rule: str) -> None:
         decided = sum(

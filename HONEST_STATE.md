@@ -1,9 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, D15: a playbook per rule, so the learning can show whether it helps" below;
+**Last updated:** 2026-11-11 ("2026-11-11, D15's seed, and three fixes found the hour it began" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-11, D15's seed, and three fixes found the hour it began (master `20dd6250`, branch `fix/d16-reflector-parse`)
+
+- #615 (D15) merged at 03:14 UTC; the operator then asked whether the learning and memory infrastructure was "10/10 for a perfect D15 result". Said honestly: no. The design holds, but supply and throughput make a clear answer unlikely within 30 days, and a dry run found a flaw in the first batch.
+- **The flaw.** The first batch would have spent about eight scarce retries before any playbook existed. At the operator's word the reflector seeded all nine rules ahead of its pace (deviation D16, `docs/learning/PAYOFF_PREREGISTRATION.md`).
+- **Found while seeding.** Seven of nine answers were malformed JSON, and the code marked those rules reflected; a reflection repeated within an hour reused its request id. Re-run with a parser that reads each entry of a malformed answer: 22 entries kept across 9 rules, all before D15's first batch. 17 Sonnet calls in all, not the 9 first said.
+- **Fixed here:** the tolerant parser; nothing readable means tried next batch; a unique request id per reflection; a finding waits while its rule has verdicts but no reflection yet.
+- **Throughput, at the operator's word** ("use as many sonnet and haiku models simultaneously"): a batch takes up to 20 findings, the Claude writers up to 16 (were 10 and 4), up to 4 writers at once (was 2), fewer when free memory is short (each writer is a process of about 0.4 to 0.6 GB; the laptop had about 3 GB free), and reviews up to 20 a run. The bound is the laptop's memory, not his plan.
+- **Tests:** five new, one updated; every test file that uses the workshop, its ledger or its Foundry: 349 passed, 6 skipped.
 
 ## 2026-11-11, D15: a playbook per rule, so the learning can show whether it helps (master `e3f1a830`, branch `feat/d15-workshop-playbook`)
 
