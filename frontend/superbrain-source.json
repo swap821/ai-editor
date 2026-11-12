@@ -249,6 +249,7 @@
     "core/AttentionField/ConductionPaths.test.ts": "42ba9fa0f93a5fd4311e3d2dc59b5d15091df25ff01a8deacd6e7b65f62e7b18",
     "core/AttentionField/SignalParticles.test.tsx": "f1ac74dd42a3895e35981a2ce864bd68af764c97de1b4e203fa5b5a08010aa1b",
     "core/CorticalNerves/DeliberationOverlay.test.tsx": "4be1baf12cf84cd1cffde6accbca18560e69847ca5a4b8de83e04b113e7e0fc0",
-    "lib/seededRandom.test.ts": "c20e2edb04453e86ac9a0321829e40510affd67273c3864b9f28ecefb40d9ca2"
+    "lib/seededRandom.test.ts": "c20e2edb04453e86ac9a0321829e40510affd67273c3864b9f28ecefb40d9ca2",
+    "lib/spineAnatomy.test.ts": "7874cbcbf3521c1d9ae28ca68d6c709aa00de0fb9bbdb55490e4e5264f9de71b"
   }
 }
