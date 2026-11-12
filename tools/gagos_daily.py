@@ -2564,7 +2564,7 @@ def goals_hour(led: DailyLedger, root: Path, *, service=None) -> None:
     for task in todo:
         try:
             outcome = goal_intake.intake(
-                task, service, project_root=str(root), redact=egress_redact
+                task, service, project_root=str(root), redact=goal_intake.clerk_redact
             )
         except Exception as exc:  # said, never hidden; the goal waits
             outcome = {

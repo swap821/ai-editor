@@ -1,9 +1,26 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, never two backends; the clerk is qualified and granted" below;
+**Last updated:** 2026-11-12 ("2026-11-12, the clerk's first live intake; it reads goals as written" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, the clerk's first live intake; it reads goals as written (branch `fix/clerk-reads-goal-as-written`)
+
+- **Phase 1 ran live** in the 12:50 UTC hour (master `ca928970`), on the two blueprint goals:
+  - **qwen3.5:9b triaged** both as medium / frontend / no escalation, which is right for both.
+  - **qwen2.5:3b briefed** both, and the writers took both goals.
+  - Each job is in the clerk's provenance store and the outcome in the ledger's `goal_intake`.
+- **What the briefings showed.** The clerk had read the goals through the **cloud** egress scrubbers:
+  - the secret policy's entropy pass took the blueprint document's path for a secret (`<REDACTED:HIGH_ENTROPY:…>`);
+  - the privacy filter removed every file path (`frontend[PATH REDACTED]`);
+  - the briefings carried the debris: "recoverableTabs has at most 636f2506034a entries", and files listed as `frontend[PATH REDACTED]`.
+- **3b's briefings also invented constraints** that the requests did not hold (for example "restored correctly in both passing and failing tests"). Its qualification case checks faithfulness on one request, and this is the first live evidence against it. The writer reads the briefing as advisory beside his words, which decide.
+- **The fix.** The clerk is local, and the README's step 3 comes before its step 4 (privacy), so the cloud scrubbers are not its gate.
+  - `goal_intake.clerk_redact`: a goal holding a credential the secret policy **names** (a key, a token, a private key) is read scrubbed, so no credential reaches the clerk or its provenance store.
+  - Any other goal is read as written; the entropy guess and the path filter are not applied.
+  - What a cloud writer reads of the briefing is still scrubbed (`egress_redact` in `task_jobs`).
+- **Tests:** 2 new, on the live goal's own text: the cloud scrubbers alter it, and the clerk reads it unchanged. A credential still never reaches the clerk, and the hour's test now also requires the file paths to arrive. With the old redaction the hour's test fails.
 
 ## 2026-11-12, never two backends; the clerk is qualified and granted (branch `fix/watchdog-no-second-backend`)
 

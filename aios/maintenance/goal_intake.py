@@ -55,6 +55,24 @@ CLERK_JOB_S = 180
 CLERK_TOKENS = 400
 
 
+def clerk_redact(text: str) -> str:
+    """What the local clerk reads of a goal. A goal holding a credential the
+    secret policy names (a key, a token, a private key) is read scrubbed, so no
+    credential reaches the clerk or its provenance store; any other goal is read
+    as the operator wrote it.
+
+    The clerk is local -- the README's step 3 comes before its step 4,
+    privacy -- so the cloud scrubbers are not its gate. On 2026-11-12 they
+    mangled its first live goals: the entropy pass took a document path for a
+    secret, the privacy filter removed every file path, and the clerk's
+    briefing carried the debris ("at most 636f2506034a entries")."""
+    from aios.runtime.secret_policy import SecretPolicy
+
+    result = SecretPolicy().inspect_text(text)
+    named = [label for label in result.findings if label != "HIGH_ENTROPY"]
+    return result.scrubbed if named else text
+
+
 def goal_text(task: Mapping[str, Any]) -> str:
     """The goal as the clerk reads it: the operator's words and his files."""
     files = [task["rel"], *task.get("also", [])]
@@ -238,6 +256,7 @@ __all__ = [
     "AWAITING_CLERK",
     "BRIEFED",
     "ESCALATED",
+    "clerk_redact",
     "INTAKE_STATES",
     "goal_text",
     "intake",
