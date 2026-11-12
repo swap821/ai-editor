@@ -1691,10 +1691,19 @@ def _day_of_proposals(led, n):
 def test_a_report_that_fits_is_the_whole_pr_body(tmp_path, monkeypatch) -> None:
     led = dw.DailyLedger(tmp_path / "l.db")
     ids = _day_of_proposals(led, 3)
+    # The body carries the day's aliveness pulse (2026-11-12); pinned here.
+    pulse = ["**Aliveness** (...): live 1.", ""]
+    monkeypatch.setattr(tool, "aliveness_lines", lambda: list(pulse))
     body = tool.pr_body(led, ids[:1], "FOOTER")
     assert body == tool.report(
-        led, day=tool._today(), in_pr=ids[:1], footer="FOOTER", scrub=tool.egress_redact
+        led,
+        day=tool._today(),
+        in_pr=ids[:1],
+        footer="FOOTER",
+        scrub=tool.egress_redact,
+        aliveness=pulse,
     )
+    assert "**Aliveness** (...): live 1." in body
     assert body.count(" (in this PR)") == 1 and ids[2] in body
 
 

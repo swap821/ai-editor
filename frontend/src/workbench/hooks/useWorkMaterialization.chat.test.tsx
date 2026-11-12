@@ -400,3 +400,41 @@ it('chat cleanup: settles an unfinished turn before resetting stores and restori
   expect(escaped).toEqual([]);
   expect(getConversationPhase()).toBe('idle');
 });
+
+it('composer draft: a draft typed before unmount is back after a fresh mount', () => {
+  window.sessionStorage.clear();
+  const first = mountChat();
+  act(() => { first.result.current.setDraft('half typed thought'); });
+  first.unmount();
+  const second = mountChat();
+  expect(second.result.current.draft).toBe('half typed thought');
+  expect(second.result.current.messages).toEqual([]);
+});
+
+it('composer draft: emptying the draft removes its stored copy', () => {
+  window.sessionStorage.clear();
+  const { result } = mountChat();
+  const baseline = window.sessionStorage.length;
+  act(() => { result.current.setDraft('unsent words'); });
+  expect(window.sessionStorage.length).toBe(baseline + 1);
+  act(() => { result.current.setDraft(''); });
+  expect(window.sessionStorage.length).toBe(baseline);
+});
+
+it('composer draft: throwing sessionStorage never breaks typing', () => {
+  window.sessionStorage.clear();
+  const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+  const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+  const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => { throw new Error('storage unavailable'); });
+  try {
+    const { result } = mountChat();
+    act(() => { result.current.setDraft('still typing'); });
+    expect(result.current.draft).toBe('still typing');
+    act(() => { result.current.setDraft(''); });
+    expect(result.current.draft).toBe('');
+  } finally {
+    getItem.mockRestore();
+    setItem.mockRestore();
+    removeItem.mockRestore();
+  }
+});

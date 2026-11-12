@@ -10,6 +10,25 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **UX-05's mystery, solved.** The composer draft passed the sandbox (350 tests) and Opus's review three times; two deliveries failed "the tests related to the frontend targets did not pass". The output #637 now keeps named it: `FixtureJourneyPage.test.tsx` timed out at vitest's default 5 s on the laptop. The same test passes in the sandbox and in CI. In the 17:50 hour it timed out with and without the change, so the change was delivered as not its doing (#642).
 - **The fix.** The delivery smoke's `vitest related` gives each test 30 s (`FRONTEND_TEST_TIMEOUT_MS`). The smoke judges correctness, not speed, and the whole smoke keeps its own deadline. CI's and the sandbox's limits are unchanged.
 - **Tests:** 1 new: the limit reaches vitest's command line.
+## 2026-11-12, a daily aliveness pulse: which parts of GAGOS do real work (branch `feat/aliveness-pulse`)
+
+- **Why.** The operator: "are we using SWARM infra... there can be many things like this honestly". Measured read-only on master `7bee519a` (every store's rows and newest write, every cortex event type), most of GAGOS was silent, for three causes:
+  - **no conversation turns** since 10-30, and those came from the proof scripts, not from him: 13 organs, memory, the reflex and the swarm at the counter;
+  - **work never runs as missions**: the 9 mission organs last ran on 10-19, the vulture repair;
+  - **no producer**: 8 organs and the knowledge base have never held a row; 37 of 104 distinct stores are empty.
+- **A correction.** I had told him the swarm is refused in production. It is not: since 11-09 it runs through the Foundry (`swarm_foundry`), and only the role pass is refused. It is unused, because only a counter turn asks for it, and his data holds no swarm run at all.
+- **The pulse** (`aios/application/observability/aliveness.py`, organ 52) makes that measurement daily:
+  - each organ and subsystem declares the evidence it leaves when it works (tables, event types, which Foundry workers);
+  - each one's status: live (2 days), recent (14), stale, never, or undated; guards, face surfaces and evaluation organs leave nothing to measure and are named so;
+  - it opens every database read-only and changes nothing.
+- **Where it shows.** GAGOS's daily report and PR body carry it: the counts, then every silent part by name with its last real activity. A pulse that cannot be measured says so; the report still goes out.
+- **On his data today:** live 16, recent 17, stale 13, never 11, guard 7, face 4, evaluation 4.
+- **Kept honest:**
+  - A test requires every organ of the ledger, exactly once, by its own name, so a new organ cannot go silent unseen.
+  - Worker kind is read from the worker's own strategy and contract, never from the files it touches. A first draft counted workshop writers editing `swarm_patterns.py` as swarm runs.
+- **Bandit:** 2 B608 findings, budget raised. The table and column names come from each database's own catalog, opened read-only, and are quoted with any `"` doubled.
+- **Not done here:** bringing the silent parts to life. The map's moves A (goals as missions), B (his own use of the counter) and C (producers) follow, in the order he set: D, then A, then C.
+- **Tests:** 10 new.
 
 ## 2026-11-12, the clerk's first live intake; it reads goals as written (branch `fix/clerk-reads-goal-as-written`)
 
