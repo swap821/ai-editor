@@ -20,7 +20,15 @@ export default function SignalParticles({
   /** Firefly budget — governed by the quality tier. */
   count?: number;
 }) {
-  const materialRef = useRef<any>(null);
+  const materialRef = useRef<THREE.ShaderMaterial & {
+    uPixelRatio: number;
+    uTime: CognitionUniforms['uTime']['value'];
+    uWaveOrigins: CognitionUniforms['uWaveOrigins']['value'];
+    uWaveTimes: CognitionUniforms['uWaveTimes']['value'];
+    uPostureColor: CognitionUniforms['uPosture']['value'];
+    uPostureTint: CognitionUniforms['uPostureTint']['value'];
+    uActivity: number;
+  }>(null);
 
   const fireflyGeometry = useMemo(() => {
     return buildFireflyGeometry(source, count);
