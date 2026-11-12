@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from aios.council.queen_verdict import highest_risk
+from aios.domain.capabilities.envelope import EnvelopeError, normalise_path
 from aios.runtime.contracts import MissionContract, QueenVerdict, RiskLevel
 from aios.security.gateway import Zone, classify
 
@@ -136,7 +137,14 @@ class SecurityQueen:
         return command
 
     def _normalize_path_rule(self, rule: str) -> str:
-        return rule.replace("\\", "/").strip().lstrip("./")
+        """One POSIX spelling of *rule*: backslashes as slashes, surrounding
+        space trimmed, leading ``./`` segments dropped. Only those: until
+        2026-11-12 this was ``lstrip("./")``, which also ate a dotfile's own
+        dot (``.env`` was read as ``env``)."""
+        text = rule.replace("\\", "/").strip()
+        while text.startswith("./"):
+            text = text[2:]
+        return text
 
     def _looks_unsafe_path_rule(self, rule: str) -> bool:
         if not rule:
@@ -144,12 +152,24 @@ class SecurityQueen:
         path = Path(rule)
         if path.is_absolute() or rule.startswith("../") or "/../" in rule:
             return True
-        return len(rule) >= 2 and rule[1] == ":"
+        if len(rule) >= 2 and rule[1] == ":":
+            return True
+        # What Windows reads as another path (2026-11-12): ":" streams, 8.3
+        # short names ("SECURI~1"), segments ending in a dot or a space
+        # ("security." IS "security"), wildcards and control characters. The
+        # same rules GAGOS's envelope applies, from the same place.
+        try:
+            normalise_path(rule)
+        except EnvelopeError:
+            return True
+        return False
 
     def _matches_protected_foundation(self, rule: str) -> bool:
-        clean = rule.rstrip("/")
+        # Case-insensitive (2026-11-12): on Windows "AIOS/SECURITY/x.py" is
+        # aios/security/x.py, and a case-sensitive match let it through.
+        clean = rule.rstrip("/").lower()
         for protected in _PROTECTED_PATTERNS:
-            protected_clean = protected.rstrip("/")
+            protected_clean = protected.rstrip("/").lower()
             if clean == protected_clean or clean.startswith(f"{protected_clean}/"):
                 return True
         return False
