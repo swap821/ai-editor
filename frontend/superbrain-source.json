@@ -243,6 +243,7 @@
     "components/canvas/TierGovernor.test.tsx": "b7febe752dd579aa53a2e8505c6c62d5aacc844738c3a9db6f5287c99afdc5c1",
     "components/canvas/materializedTab/theme.test.ts": "0bd8b87920ba766c46303a0ac88e9e9cb823c1a7ba32db30d1616bf24a8fd785",
     "components/qualityTierContext.test.ts": "4d29f046b23025cc95c56c9cd17826446bbcd2783b0329a16ca545436247da27",
-    "components/ui/SwarmHUD.test.tsx": "19251d85c0bb46bba5ecf4580a34f98e8b6bfc9cf90c050c46946f0362bd3fdf"
+    "components/ui/SwarmHUD.test.tsx": "19251d85c0bb46bba5ecf4580a34f98e8b6bfc9cf90c050c46946f0362bd3fdf",
+    "core/AccretionCore/CoreGeometry.test.ts": "aa7d551fca2463c171e9b98aa763af37394efa40e9ec2f5dbb41a996bb56cb29"
   }
 }
