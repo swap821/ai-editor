@@ -157,7 +157,7 @@ export default function AnatomicalConductorOverlay({
         }),
       );
     });
-  }, [activeSignals, anatomy.vertebrae.length]);
+  }, [activeSignals, anatomy.vertebrae.length, anatomy.trunkTint]);
 
   const rootFans = useMemo<RenderRootFan[]>(() => {
     if (!rootSystem) return fallbackRootFans;

@@ -4,7 +4,7 @@
   "files": {
     "components/QualityTierProvider.tsx": "7d8d3b1eb860d70eb251b5140fa5a3801c2ba6af7e669a00038d9701a26c5e58",
     "components/canvas/AmbientFloat.tsx": "2b16c67bcee1620df2c4ba35606531c4edadfa90268879a803ccaeb66dacd519",
-    "components/canvas/AnatomicalConductorOverlay.tsx": "5f45f647c5b01cbdfb4c2d2caa48ae489484ed6524778644200171f331aec0f4",
+    "components/canvas/AnatomicalConductorOverlay.tsx": "64dfd30d7d7c68d4c99390f2d67a3c088031257b382353c06c9a491a1e9d1782",
     "components/canvas/AttentionConductionPulse.tsx": "c89e2afd832ef3f0a42da1f23a138dbbd89ef8b3e805dfd66d9ea07f2d36f3e3",
     "components/canvas/BodyIntakeAnchors.tsx": "f4704ebfd20a0073c66cb1187901f5aed295f92a8104c79f07590e22ac5d54f7",
     "components/canvas/BodySpeech.tsx": "33136d8ba154372468bec4d6eb71c57aeb3d37b04701560a2d7706b03743027d",
