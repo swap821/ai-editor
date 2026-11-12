@@ -231,12 +231,13 @@ export default function FileTree({ onClose, onOpenFile }) {
 
   useEffect(() => {
     const ctrl = new AbortController();
+    const controllers = childControllers.current;
     void loadRoot(ctrl.signal);
     return () => {
       ctrl.abort();
       if (rootController.current === ctrl.signal) rootController.current = null;
-      childControllers.current.forEach((controller) => controller.abort());
-      childControllers.current.clear();
+      controllers.forEach((controller) => controller.abort());
+      controllers.clear();
     };
   }, [loadRoot]);
 
