@@ -1,9 +1,30 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, the clerk's first live intake; it reads goals as written" below;
+**Last updated:** 2026-11-12 ("2026-11-12, a council mission can be verified by the sandbox" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, a council mission can be verified by the sandbox (branch `feat/council-sandbox-verification`)
+
+- **Why (move A2a on the aliveness map).** Measured:
+  - The Planner defers any mission without verification commands, and "defer" blocks.
+  - Every frontend test command is RED at the security gateway: `npx vitest` and `node …/vitest.mjs` are scope violations, and `npm test` is not allowlisted.
+  - So council missions could verify only Python work; the one mission that ever ran (10-19) was Python. GAGOS's goals are almost all frontend, and they are checked by the workshop's Docker sandbox, which the council never used.
+- **What.** No gateway change (its commands stay RED) and no organ entrypoint touched:
+  - A mission may declare `metadata.sandbox_verification = {"files": [...]}`. One reader (`aios/council/sandbox_spec.py`) serves both queens:
+    - the Planner takes a well-formed declaration as a verification;
+    - the Security Queen denies one that names a file outside the mission's own allowed files, an unsafe path, the protected foundation, or a malformed declaration.
+  - `sandbox_tests.ledger_entry` writes a sandbox verdict as one command of the worker's run ledger. That is what the Testing Queen and promotion (organ 15) already read, unchanged:
+    - **the command** is the runner's own line in the sandbox (`node node_modules/vitest/vitest.mjs related … --run`, or `python -m pytest -q …`);
+    - **the exit code** is 0 only for a pass; untested and unavailable runs are not passes;
+    - **the counts** are in the runner's words.
+  - `SandboxVerdict` now carries `passed_count` and `failed_count`; older stored verdicts load with 0.
+  - Organ 15's strength rule recognises a runner's own script launched by `node` (matched on the exact `node_modules/vitest/vitest.mjs` tail), so that line is not under-graded. `node echo.js 5 passed` and lookalike scripts stay WEAK, and a run that asserted nothing is never STRONG.
+- **Honest grading.** A pass with tests failing without the change too is WEAK, not STRONG, and promotion requires STRONG. A change spanning Python and the frontend is recorded under a `sandbox:` command no runner rule recognises: WEAK, because its counts cannot be told apart by runner.
+- **Found, not fixed here.** The Security Queen compares protected paths case-sensitively, so `AIOS/SECURITY/x.py` is not seen as protected on Windows. GAGOS's envelope already refuses such paths case-insensitively before any mission is drafted; the queen itself needs its own fix.
+- **Next (A2b, A3).** GAGOS originates council missions inside the operator's envelope, and its worker runs the sandbox and records this entry.
+- **Tests:** 28 new. 228 pass across the 17 existing council, sandbox and verification test files.
 
 ## 2026-11-12, the clerk's first live intake; it reads goals as written (branch `fix/clerk-reads-goal-as-written`)
 

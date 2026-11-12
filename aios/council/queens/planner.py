@@ -16,6 +16,7 @@ from typing import Any
 from aios import config
 from aios.core.llm import LLMClient
 from aios.council.reasoning import plan_with_llm, reconcile_plan
+from aios.council.sandbox_spec import sandbox_files
 from aios.runtime.contracts import MissionContract, QueenVerdict
 from aios.runtime.castes import apply_caste_profile, caste_from_contract
 
@@ -134,7 +135,10 @@ class PlannerQueen:
             risk = "YELLOW"
             reason = "Planner cannot spawn a worker without allowed_files."
             constraints = ["Add at least one allowed file before worker birth."]
-        elif not contract.verification_commands:
+        elif not contract.verification_commands and not sandbox_files(contract):
+            # A declared sandbox verification (aios.council.sandbox_spec) is
+            # a verification: the worker runs the workshop's sandbox and
+            # records it in its ledger, read like any command.
             verdict = "defer"
             risk = "YELLOW"
             reason = (
