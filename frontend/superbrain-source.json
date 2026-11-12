@@ -263,6 +263,7 @@
     "lib/spineAnatomyData.test.ts": "f73e88d5e70a24b2e0a12d4f8f2fa0b4a8af234867a4c3d7b7f54e14574943d4",
     "lib/spineFusionState.test.ts": "8999fb36bf8b9525df431081b6ceaac4ae3ce2b8f018f432dcab87b1a7d68cdc",
     "lib/surfacePlacement.test.ts": "2e8832debbe27953ca7d47819b9efd15d38db5a069ba3fb7d99cf71dd4d68d71",
-    "lib/swarmHUDStore.test.ts": "261d7b21ffa8e5829dbfebb50cada2389515b2598fd3b01f685a990d769d00ac"
+    "lib/swarmHUDStore.test.ts": "261d7b21ffa8e5829dbfebb50cada2389515b2598fd3b01f685a990d769d00ac",
+    "lib/useBodyWorldFrame.test.ts": "f3de1ffa40b64ceb12d65a30b84bd0f184aea7480ae4e8470eda42f0c27460df"
   }
 }
