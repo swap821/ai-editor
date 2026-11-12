@@ -227,6 +227,7 @@
     "components/canvas/BodyIntakeAnchors.test.tsx": "61cf05343791972bac65dcf53626d3598361593c8836b95fa19bb0ff92550a9e",
     "components/canvas/BodySpeech.test.tsx": "5aa311148d3e1c6d5b286070c7019c7571c2502d9e221da04df60f96049bae5a",
     "components/canvas/BrainPointField.test.tsx": "dde7ad16664a707f36b4e5c6604064d33e1aa01ebb5be828350922d0f863f2b7",
-    "components/canvas/CognitiveGrasp.test.tsx": "09bfb0919a9f56ece9fde90c21ec6a1a205be4ca87059e6670cd6d0f3481e9da"
+    "components/canvas/CognitiveGrasp.test.tsx": "09bfb0919a9f56ece9fde90c21ec6a1a205be4ca87059e6670cd6d0f3481e9da",
+    "components/canvas/CommandNerve3D.test.tsx": "67339f12ad5c4d271ad54762a900b890147ee3025c4ae43736deeddd09994f85"
   }
 }
