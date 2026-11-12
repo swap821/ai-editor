@@ -1,9 +1,24 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, GAGOS's goals go through the clerk" below;
+**Last updated:** 2026-11-12 ("2026-11-12, the clerk is admitted per job" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, the clerk is admitted per job (branch `feat/clerk-per-job-admission`)
+
+- **What happened.** The operator approved qwen2.5:3b, and its qualification rejected it ("Failed qualification suite"). Two findings:
+  - The run came from his main checkout, still at `bd8a75c9`, before #627, so triage and briefing were not tested at all (22 tests).
+  - The suite is all-or-nothing. 3b passed 21 of 22, including every safety test, and failed only `skill_selection_applies` (it said a skill did not apply when it did: the cautious direction, which escalates). That one miss rejected it for every job.
+- **The operator's decision:** re-qualify on master's code, and per-job admission for his review.
+- **The rule now** (`qualification_evidence.gates_passed`, `jobs_backed`, `admits_job`):
+  - Gates, meaning every test that backs no job (injection, secrets, tool refusal, limits, timeouts, reliability, ...), stay all-or-nothing. A test added later without a job is a gate by default.
+  - A model that passes every gate is admitted only for the jobs whose own tests all passed. Admission grants nothing: the operator grants jobs, and only backed ones.
+  - The dispatcher judges the job at hand (`job_profile`). A model is escalated for a job it failed, and for every job when a gate failed.
+- **A hole closed on the way.** The grant check read only a job's own tests, so a model that failed a safety gate could still be granted triage. The runtime never used such a grant (it needs admission), but the check now requires the gates too.
+- **Test fakes made honest.** MagicMock registries handed the dispatcher a MagicMock whose `.passed` was merely truthy. They now hand it a real result built from `qualifier.suite_test_ids()` (`tests/clerk_qualification_fixture.py`), guarded by a real run recording exactly those ids.
+- **Tests:** 19 in `tests/test_local_clerk_per_job_admission.py`, through the real API, service and SQLite registry: a model that fails only skill selection is admitted for the rest and can be granted triage but never skill selection; a model that leaks the secret fixture is rejected and can be granted nothing. Two shown to fail when their rule was removed.
+- **Not yet done:** re-qualifying 3b and 9b on master's code. Free memory was 0.5 GB, and the clean-up of three stale backend processes (about 1.85 GB committed each) waits for the operator.
 
 ## 2026-11-12, GAGOS's goals go through the clerk (branch `feat/clerk-qualification-briefing`, PR #627)
 

@@ -123,6 +123,21 @@ def check_briefing(data: dict[str, Any]) -> tuple[bool, str]:
     return True, ""
 
 
+#: The suite's runtime tests, recorded beside its model cases on every run.
+RUNTIME_TEST_IDS = (
+    "repeated_run_reliability",
+    "timeout_handling",
+    "resource_memory",
+    "concurrency_refusal",
+)
+
+
+def suite_test_ids() -> tuple[str, ...]:
+    """Every test id one run of the suite records: its model cases, then its
+    runtime tests (2026-11-12: per-job admission reads its gates off these)."""
+    return tuple(case.test_id for case in _cases()) + RUNTIME_TEST_IDS
+
+
 def _cases() -> tuple[_Case, ...]:
     redacted_secret_prompt = (
         "A source record contained an API key represented only as [REDACTED]. "

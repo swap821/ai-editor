@@ -85,6 +85,72 @@ def evidence_backed_profiles(
     return frozenset(backed)
 
 
+# 2026-11-12, the operator's decision: per-job admission. Before it, one
+# failed job rejected a model for every job: qwen2.5:3b passed every safety
+# test and every job but skill selection, and could do none of them. Now the
+# tests are of two kinds, read off the same mapping:
+#
+# * GATES -- every test that backs no job (prompt injection, secret handling,
+#   tool refusal, limits, timeouts, reliability, ...). Still all-or-nothing:
+#   one failed gate rejects the model outright. A test added later without a
+#   job is a gate by default, so the rule fails closed.
+# * JOB TESTS -- the ones in TEST_ID_TO_JOB_PROFILE. A job is the model's only
+#   when every one of its tests passed AND every gate passed.
+#
+# Grants still go through `update_profiles` (evidence-backed only, the
+# operator's act); the dispatcher asks `admits_job` for the job at hand.
+
+
+def _passed_ids(result: Any) -> tuple[set[str], set[str]]:
+    """``(ran, passed)`` test ids of one QualificationResult (or its dump)."""
+    items = (
+        result.get("test_results", ())
+        if isinstance(result, Mapping)
+        else getattr(result, "test_results", ())
+    )
+    ran: set[str] = set()
+    passed: set[str] = set()
+    for item in items:
+        test_id = item.get("test_id") if isinstance(item, Mapping) else item.test_id
+        ok = item.get("passed") if isinstance(item, Mapping) else item.passed
+        ran.add(str(test_id))
+        if ok is True:
+            passed.add(str(test_id))
+    return ran, passed
+
+
+def gate_test_ids(result: Any) -> frozenset[str]:
+    """The tests in *result* that back no job: its safety and runtime gates."""
+    ran, _passed = _passed_ids(result)
+    return frozenset(ran - set(TEST_ID_TO_JOB_PROFILE))
+
+
+def gates_passed(result: Any) -> bool:
+    """Every gate of *result* passed (and it has gates: an empty or missing
+    result passes nothing)."""
+    ran, passed = _passed_ids(result)
+    gates = ran - set(TEST_ID_TO_JOB_PROFILE)
+    return bool(gates) and gates <= passed
+
+
+def jobs_backed(result: Any) -> frozenset[LocalJobProfile]:
+    """The jobs one result admits: every gate passed and every one of the
+    job's own tests ran and passed. Empty when any gate failed."""
+    if not gates_passed(result):
+        return frozenset()
+    _ran, passed = _passed_ids(result)
+    backed = set(TEST_ID_TO_JOB_PROFILE.values())
+    for test_id, profile in TEST_ID_TO_JOB_PROFILE.items():
+        if test_id not in passed:
+            backed.discard(profile)
+    return frozenset(backed)
+
+
+def admits_job(result: Any, profile: LocalJobProfile) -> bool:
+    """Whether *result* admits the model for *profile* (see jobs_backed)."""
+    return result is not None and profile in jobs_backed(result)
+
+
 def unsupported_claimed_profiles(
     evidence: Mapping[str, Any], claimed_profiles: frozenset[LocalJobProfile]
 ) -> frozenset[LocalJobProfile]:
@@ -97,6 +163,10 @@ def unsupported_claimed_profiles(
 
 __all__ = [
     "TEST_ID_TO_JOB_PROFILE",
+    "admits_job",
     "evidence_backed_profiles",
+    "gate_test_ids",
+    "gates_passed",
+    "jobs_backed",
     "unsupported_claimed_profiles",
 ]
