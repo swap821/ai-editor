@@ -109,6 +109,6 @@ extend({ DecayAuraMaterial });
 
 declare module '@react-three/fiber' {
   interface ThreeElements {
-    decayAuraMaterial: any;
+    decayAuraMaterial: Record<string, unknown>;
   }
 }
