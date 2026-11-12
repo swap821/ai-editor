@@ -42,6 +42,16 @@ _TEST_RUNNER_PAIRS: tuple[tuple[str, ...], ...] = (
     ("npm", "run", "test"),
     ("yarn", "test"),
 )
+#: A runner's own entry script, launched by ``node`` at the program position
+#: (``node node_modules/vitest/vitest.mjs related ...``): how GAGOS's sandbox
+#: runs vitest (2026-11-12). Matched on the script's exact path tail, so
+#: ``node echo.js`` or ``node vitest-like.js`` stays WEAK.
+_NODE_PROGRAMS: frozenset[str] = frozenset({"node", "nodejs"})
+_NODE_RUNNER_SCRIPTS: tuple[str, ...] = (
+    "node_modules/vitest/vitest.mjs",
+    "node_modules/jest/bin/jest.js",
+    "node_modules/mocha/bin/mocha.js",
+)
 _CHECKER_TOKENS: frozenset[str] = frozenset(
     {"mypy", "pyright", "tsc", "ruff", "flake8", "eslint", "pylint", "tslint"}
 )
@@ -118,6 +128,13 @@ def _is_test_runner(command: str) -> bool:
         and tokens[2] in _DASH_M_RUNNERS
     ):
         return True
+    if base in _NODE_PROGRAMS and len(tokens) >= 2:
+        script = tokens[1].replace("\\", "/")
+        if any(
+            script == tail or script.endswith("/" + tail)
+            for tail in _NODE_RUNNER_SCRIPTS
+        ):
+            return True
     return _program_starts_with(tokens, base, _TEST_RUNNER_PAIRS)
 
 
