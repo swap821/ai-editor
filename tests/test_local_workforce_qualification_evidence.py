@@ -198,3 +198,26 @@ def test_the_service_refuses_a_profile_its_evidence_does_not_back() -> None:
 
     assert "unsupported_profile_claims" in source
     assert "UnsupportedJobProfileClaim" in source
+
+
+def test_triage_is_backed_only_when_both_of_its_tests_pass() -> None:
+    def runs(escalates, routine):
+        return {
+            "runs": [
+                {
+                    "result": {
+                        "test_results": [
+                            {"test_id": "triage_escalates", "passed": escalates},
+                            {"test_id": "triage_routine", "passed": routine},
+                            {"test_id": "briefing", "passed": True},
+                        ]
+                    }
+                }
+            ]
+        }
+
+    assert LocalJobProfile.TRIAGE in evidence_backed_profiles(runs(True, True))
+    assert LocalJobProfile.TRIAGE not in evidence_backed_profiles(runs(True, False))
+    assert LocalJobProfile.PREPARE_BRIEFING in evidence_backed_profiles(
+        runs(False, False)
+    )

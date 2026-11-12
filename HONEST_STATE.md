@@ -1,9 +1,30 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-11 ("2026-11-11, GAGOS's PR body outgrew GitHub's limit" below;
+**Last updated:** 2026-11-12 ("2026-11-12, GAGOS's goals go through the clerk" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, GAGOS's goals go through the clerk (branch `feat/clerk-qualification-briefing`, PR #627)
+
+- **What runs now.** Each hour, before the writers, up to three of the operator's open goals go to the local clerk's own governed service (`LocalWorkforceService.run_advisory_job`): triage, then a briefing. Each job is in the clerk's provenance store, recorded by that service. The outcome is in the workshop ledger's new `goal_intake` table, and the report says where the clerk is with each goal.
+- **One builder, two callers.** The prompts, the declared output and the reading of the answer live in `aios/domain/local_workforce/goal_jobs.py`, as `skill_selection.py` does for the reuse job. Organ 37's triage and briefing cases are built from it, so a model granted a job was measured on exactly that job.
+- **The clerk blocks nothing.** It is advisory. A briefed goal's writer reads the clerk's constraints and "done when" beside the operator's words, labelled as the clerk's, with his task deciding. A goal the clerk cannot brief is worked on as before.
+- **What the clerk produces for the next phases.** A briefed goal also becomes the Queen Council's own `CouncilMissionRequest`: his files only, never the clerk's; goal, constraints and "done when" from the briefing; `created_by` `gagos_clerk`. It is stored for phase 2 (the council plans it). **Nothing reads it yet.**
+- **Measured, not yet live.** No model is granted TRIAGE or PREPARE_BRIEFING. Until the operator approves qwen2.5:3b, the qualification runs and he grants the jobs, every goal waits with "No admitted healthy local model for profile", and that refusal is on the clerk's record.
+- **Not asked, and why.** `check_context_completeness`'s qualification case hands the model its answer ("Return exactly complete=false and missing=[...]"), so a grant would not show judgment. It needs the treatment skill selection and triage got (paired cases from one builder) before GAGOS asks it. That is open.
+- **Tests:** 25 new in `tests/test_goal_intake.py`, including the real clerk service with its provenance store in both directions (granted → briefed and recorded; nothing granted → waiting, refusal recorded), his words scrubbed before the clerk reads them, and the writer prompt with and without a briefing. Two were shown to fail when their behaviour was broken (a writer without the briefing; the council's scope taken from the clerk).
+
+## 2026-11-11, the clerk can be qualified to triage and to brief (master `a79a4030`+, branch `feat/clerk-qualification-briefing`)
+
+- **Why.** The operator was disappointed that GAGOS's work runs beside its organs rather than through them. The honest map (doc "GAGOS as one system: the honest map and the plan") found that only the workshop runs: steps 2, 3, 6, 13 and 14 of the README's mission flow never ran for real work. The plan starts at phase 1, goals through the clerk.
+- **What the registry showed.** The clerk is qualified for one job only, `summarise_disagreement` on qwen3.5:9b. Organ 37's suite had **no test** for TRIAGE, PREPARE_BRIEFING, FORMAT_REPORT or PARAMETERISE_SKILL, so no model could ever be granted the README's step 3 ("the local clerk classifies the task and prepares a briefing").
+- **What changes, in the owning organ:**
+  - `triage_escalates` and `triage_routine` come as a pair, like skill selection, so a constant answer fails one. Both must pass for TRIAGE.
+  - `briefing` checks exact fields; the files exactly as the request names them, in order, none invented; the "not the backend" constraint kept; `done_when` naming the deciding test; and a key given beside the request never repeated (`forbidden_values`). It backs PREPARE_BRIEFING.
+  - `TEST_ID_TO_JOB_PROFILE` maps all three. FORMAT_REPORT and PARAMETERISE_SKILL still have no test.
+- **The operator's decisions the same day:** a daily approval envelope; for GAGOS's code going to his plan brains, only keys and paths hidden; qualify both qwen2.5:3b and qwen3.5:9b; D15 runs to its stopping rule, then folds into the skill system. Approving qwen2.5:3b and granting roles are his acts. Qualifying waits for his go, because of memory.
+- **Tests:** 9 new, and both fake clients answer the new cases. The clerk's test files: 106 passed. Organs 33, 35, 36, 37 and 53 re-gathered at the branch tip.
 
 ## 2026-11-11, GAGOS's PR body outgrew GitHub's limit (master `23b1c4bd`, branch `fix/gagos-pr-body-limit`)
 

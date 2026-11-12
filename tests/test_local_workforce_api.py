@@ -14,6 +14,9 @@ from aios.api.deps import (
 from aios.api.main import app
 from aios.core.llm import LLMError
 from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+from aios.domain.local_workforce.goal_jobs import (
+    qualification_fixture_answer as goal_job_answer,
+)
 from aios.domain.local_workforce.skill_selection import qualification_fixture_answer
 from aios.memory.db import get_connection, init_memory_db
 
@@ -83,7 +86,7 @@ class DeterministicOllama:
             return '{"disagreement_summary": "timeout vs permissions issue"}'
         if "routed to frontier escalation" in prompt:
             return '{"explanation": "the local model failed qualification"}'
-        answer = qualification_fixture_answer(prompt)
+        answer = qualification_fixture_answer(prompt) or goal_job_answer(prompt)
         if answer is not None:
             return answer  # the two r15-v3 skill-selection cases
         if "fix the bug" in prompt:
