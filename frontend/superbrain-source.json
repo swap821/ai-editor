@@ -226,6 +226,7 @@
     "components/canvas/AttentionConductionPulse.test.tsx": "c8de99173e6c05a83a488ab6163d3fe29413f823e343e92bcd2e78e91a8da0dc",
     "components/canvas/BodyIntakeAnchors.test.tsx": "61cf05343791972bac65dcf53626d3598361593c8836b95fa19bb0ff92550a9e",
     "components/canvas/BodySpeech.test.tsx": "5aa311148d3e1c6d5b286070c7019c7571c2502d9e221da04df60f96049bae5a",
-    "components/canvas/BrainPointField.test.tsx": "dde7ad16664a707f36b4e5c6604064d33e1aa01ebb5be828350922d0f863f2b7"
+    "components/canvas/BrainPointField.test.tsx": "dde7ad16664a707f36b4e5c6604064d33e1aa01ebb5be828350922d0f863f2b7",
+    "components/canvas/CognitiveGrasp.test.tsx": "09bfb0919a9f56ece9fde90c21ec6a1a205be4ca87059e6670cd6d0f3481e9da"
   }
 }
