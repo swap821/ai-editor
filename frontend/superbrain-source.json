@@ -42,7 +42,7 @@
     "components/canvas/WebGLErrorBoundary.tsx": "ba9fbf2c076e57e8b1d11b89f8e072e651843af783f67a1e6014aad17460b463",
     "components/canvas/WorkspaceCanvas.rootRecovery.test.tsx": "e08674c840df905d22b8a73b46838e420c26bfec6487e2d1e129a76e666c875a",
     "components/canvas/WorkspaceCanvas.shaderFailure.test.tsx": "d3560709aabf4df399508caabc97ee4aa04a07af8ba1bf917d4717f3d50252c0",
-    "components/canvas/WorkspaceCanvas.tsx": "a0c9c4f0f8877eeb3725559445a514d43603072bca11f72df0099b19e476af45",
+    "components/canvas/WorkspaceCanvas.tsx": "33ad2c0e534b6a2b3f8c245b5f4e9e6470bfa8ee8d6abd609998c27fac737ee3",
     "components/canvas/WorkspaceCanvas.visibility.test.tsx": "fce29784a78e2ad41558ae2c5790ae2cfc0dfe9905e491a9fbfe8e948215bb2c",
     "components/canvas/materializedTab/ApprovalActionButton.tsx": "a3adfbeec1ac40a07b9c2df6b31497cf0b416557b06a861169d15bca6aae6513",
     "components/canvas/materializedTab/WorkTabLiveDashboard.tsx": "d401b09fbaaed690b7b9d8af2c7695dbfba345f036e71d91a63ef99345094f1f",

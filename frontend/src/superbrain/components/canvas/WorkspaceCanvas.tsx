@@ -131,7 +131,7 @@ function WorkspaceInner({ children, booted, physical, inputAttentionActive, atte
   const [shaderFailed, setShaderFailed] = useState(false);
   // Each replacement owns a different token. Retry cannot revive an old
   // queued ready event while R3F's separate-root cleanup is still pending.
-  const generation = useMemo(() => ({ active: false }), [glEpoch]);
+  const generation = useMemo(() => ({ active: false, epoch: glEpoch }), [glEpoch]);
   const releaseRendererRef = useRef<(() => void) | null>(null);
   // The operator's sovereign sky/surface choices still load from storage so
   // the being renders the chosen look; the topbar that wrote them lived in the
