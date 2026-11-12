@@ -1,10 +1,15 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, GAGOS's daily envelope, signed by the operator" below;
+**Last updated:** 2026-11-12 ("2026-11-12, a busy laptop no longer fails a delivery on time" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-12, a busy laptop no longer fails a delivery on time (branch `fix/delivery-smoke-timeout`)
+
+- **UX-05's mystery, solved.** The composer draft passed the sandbox (350 tests) and Opus's review three times; two deliveries failed "the tests related to the frontend targets did not pass". The output #637 now keeps named it: `FixtureJourneyPage.test.tsx` timed out at vitest's default 5 s on the laptop. The same test passes in the sandbox and in CI. In the 17:50 hour it timed out with and without the change, so the change was delivered as not its doing (#642).
+- **The fix.** The delivery smoke's `vitest related` gives each test 30 s (`FRONTEND_TEST_TIMEOUT_MS`). The smoke judges correctness, not speed, and the whole smoke keeps its own deadline. CI's and the sandbox's limits are unchanged.
+- **Tests:** 1 new: the limit reaches vitest's command line.
 ## 2026-11-12, GAGOS's daily envelope, signed by the operator (branch `feat/daily-envelope`)
 
 - **His decision.** On 11-11 he chose that GAGOS's missions are approved once a day, as an envelope. On 11-12 he chose how: "Envelope via organs 9+10". This is move A's first PR (the aliveness map, https://claude.ai/artifact/DemaQfKyGyyaMUTUJCux8L).

@@ -239,6 +239,14 @@ def python_smoke(
 
 
 FRONTEND_SMOKE_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mjs")
+#: Each related test's own time limit, in milliseconds. This smoke runs on the
+#: operator's laptop, often beside a backend, Ollama and the workshop's
+#: sandbox; vitest's default of 5 seconds failed a heavy page test there
+#: (2026-11-12: FixtureJourneyPage.test.tsx "Test timed out in 5000ms") while
+#: the same test passed in the sandbox and in CI, and that failure cost UX-05
+#: two deliveries. The smoke judges correctness, not speed; the whole smoke
+#: keeps its own deadline.
+FRONTEND_TEST_TIMEOUT_MS = 30_000
 #: What the frontend smoke needs from ``frontend/node_modules``.
 _FRONTEND_TOOLS = {
     "typescript": "typescript/package.json",
@@ -348,6 +356,7 @@ def frontend_smoke(
             *rel,
             "--run",
             "--passWithNoTests",
+            f"--testTimeout={FRONTEND_TEST_TIMEOUT_MS}",
         ],
     )
     if not ok:
@@ -357,6 +366,7 @@ def frontend_smoke(
 
 __all__ = [
     "FRONTEND_SMOKE_SUFFIXES",
+    "FRONTEND_TEST_TIMEOUT_MS",
     "SmokeReport",
     "SmokeStep",
     "find_exercising_tests",

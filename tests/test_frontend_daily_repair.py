@@ -259,6 +259,23 @@ def test_a_frontend_target_that_parses_lints_and_tests_clean_passes(
     assert any("related" in argv for argv in seen)
 
 
+def test_related_tests_get_time_on_a_busy_laptop(tmp_path) -> None:
+    """2026-11-12: a heavy page test timed out at vitest's default 5 s during
+    delivery on the laptop, while it passed in the sandbox and in CI. The
+    smoke judges correctness; each related test gets a longer limit."""
+    from aios.application.promotion.smoke import FRONTEND_TEST_TIMEOUT_MS
+
+    root = _frontend(tmp_path)
+    _toolchain(root)
+    seen: list = []
+    python_smoke(
+        root, ["frontend/src/workbench/Panel.jsx"], timeout_s=60, run=_runner(seen=seen)
+    )
+    (related,) = [argv for argv in seen if "related" in argv]
+    assert f"--testTimeout={FRONTEND_TEST_TIMEOUT_MS}" in related
+    assert FRONTEND_TEST_TIMEOUT_MS >= 30_000
+
+
 @pytest.mark.parametrize(
     ("runner", "reason"),
     [
