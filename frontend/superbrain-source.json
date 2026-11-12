@@ -62,7 +62,7 @@
     "components/ui/SwarmHUD.tsx": "a260bbcf07085cd2e9db39f1d5ea5baa47a232b762315804d44fe81fcb60d3ee",
     "core/AccretionCore/CoreGeometry.ts": "6d7e3d4e33ac921d5046c7abebd3e85bf9c277da7ab282aaa828931ac000788a",
     "core/AccretionCore/DecayAura.tsx": "6137b1d039f7da9f82d29297d9eb0c2e8035c7e49659cc72c3691a505ae093db",
-    "core/AccretionCore/MemoryParticles.tsx": "d158c46768e463c26fbdf12761229e711023b99f0d508416e5b06db61b792656",
+    "core/AccretionCore/MemoryParticles.tsx": "f2c9a11c2ab4085ebf3fad3c20a4eb3b71bcdd2b116a3867353b1a5091fa7fff",
     "core/AccretionCore/index.ts": "081faf42981443cb1c034d0ecfc5eed09a19c307feb4210c96466b4bf6d00b71",
     "core/AttentionField/ConductionPaths.ts": "4d184f0fdc266b4fd52d459f0017f1343d40b5bc68090c8435d231122b66b7b5",
     "core/AttentionField/RoutingShader.tsx": "00cfa04485983245a951135d22b17d3f22c365e02ea0c3556bb7e9b89756e08c",
