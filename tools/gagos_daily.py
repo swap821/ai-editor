@@ -424,6 +424,27 @@ def mask_redact(text: str) -> str:
     return "".join(merged)
 
 
+#: How much of a writer's own words a refusal keeps, scrubbed, when it made no edit.
+NO_EDIT_EXCERPT = 240
+
+
+def no_edit_refusal(raw: str) -> str | None:
+    """The refusal for a task's answer with no edit and no fenced file: what the
+    writer is told to give when a task cannot be done in its files
+    (``TASK_SYSTEM``). It keeps the writer's own words, scrubbed and cut short,
+    so the operator and the reviewers can see why. None for any other answer.
+
+    2026-11-12: the PERF-04 goal was refused twice as "expected exactly one
+    fenced code block, got 0", and what the writer said was lost; it had been
+    shown the test file but not the store whose API the test needed."""
+    if is_edit_answer(raw) or "```" in (raw or ""):
+        return None
+    words = egress_redact(" ".join((raw or "").split()))[:NO_EDIT_EXCERPT]
+    return "the writer made no edit" + (
+        f": {words!r}" if words else " (an empty answer)"
+    )
+
+
 def would_be_altered(prompt: str, system: str) -> str | None:
     """Why the prompt would not reach the model as written, if it would not.
     A file the secret policy or the privacy filter would change is not sent:
@@ -699,6 +720,9 @@ def record_task_files(
         print(f"  {pid} {f.rel} ({model}): refused: {why}")
 
     try:
+        why = no_edit_refusal(raw)
+        if why:
+            raise ProposalRefused(why)
         answered = (
             parse_task_edits(raw, [p[2] for p in parts])
             if is_edit_answer(raw)
@@ -1175,6 +1199,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
             shape = (
                 text if f.rule != MISSING_TEST else ("\r\n" if "\r\n" in text else "\n")
             )
+            why = no_edit_refusal(raw) if f.rule == TASK_RULE else None
+            if why:
+                raise ProposalRefused(why)
             answer = (
                 parse_edits(raw, original=masked)
                 if f.rule == TASK_RULE and is_edit_answer(raw)
