@@ -315,3 +315,48 @@ def test_weak_greens_are_still_ineligible(tmp_path: Path) -> None:
     assert row["status"] == "candidate"
     assert row["success_count"] == 0
     assert row["weak_success_count"] == 3
+
+
+# -- a runner's own script launched by node (GAGOS's sandbox, 2026-11-12) -------
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "node node_modules/vitest/vitest.mjs related src/a.test.ts --run",
+        "node frontend/node_modules/vitest/vitest.mjs run",
+        r"node C:\x\node_modules\vitest\vitest.mjs related a",
+        "node node_modules/jest/bin/jest.js",
+    ],
+)
+def test_a_runner_script_launched_by_node_is_a_test_runner(command) -> None:
+    from aios.core.verification_strength import VerificationStrength, derive_strength
+
+    assert (
+        derive_strength(passed=True, passed_count=5, failed_count=0, command=command)
+        is VerificationStrength.STRONG
+    )
+    # A hollow run of the same runner asserts nothing.
+    assert (
+        derive_strength(passed=True, passed_count=0, failed_count=0, command=command)
+        is not VerificationStrength.STRONG
+    )
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "node echo.js 5 passed",
+        "node node_modules/vitest/vitest.mjs.evil x",
+        "node vitest-like.js",
+        "node notnode_modules/vitest/vitest.mjs x",
+        "echo node node_modules/vitest/vitest.mjs",
+    ],
+)
+def test_a_lookalike_node_script_stays_weak(command) -> None:
+    from aios.core.verification_strength import VerificationStrength, derive_strength
+
+    assert (
+        derive_strength(passed=True, passed_count=5, failed_count=0, command=command)
+        is VerificationStrength.WEAK
+    )

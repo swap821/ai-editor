@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from aios.council.queen_verdict import highest_risk
+from aios.council.sandbox_spec import declared, sandbox_files
 from aios.domain.capabilities.envelope import EnvelopeError, normalise_path
 from aios.runtime.contracts import MissionContract, QueenVerdict, RiskLevel
 from aios.security.gateway import Zone, classify
@@ -71,6 +72,29 @@ class SecurityQueen:
             if self._matches_protected_foundation(normalized):
                 deny_reasons.append(f"Protected foundation file is allowed: {rule}")
                 risks.append("RED")
+
+        if declared(contract):
+            # The sandbox verifies only files the mission may change, each
+            # safe and outside the protected foundation; a malformed
+            # declaration is refused, never read as "no sandbox".
+            sandbox = sandbox_files(contract)
+            allowed = {self._normalize_path_rule(r) for r in contract.allowed_files}
+            if not sandbox:
+                deny_reasons.append("Malformed sandbox_verification declaration")
+                risks.append("RED")
+            for path in sandbox:
+                normalized = self._normalize_path_rule(path)
+                if (
+                    self._looks_unsafe_path_rule(normalized)
+                    or self._matches_protected_foundation(normalized)
+                    or normalized not in allowed
+                ):
+                    deny_reasons.append(
+                        f"Sandbox verification names a file outside the mission: {path}"
+                    )
+                    risks.append("RED")
+            if sandbox:
+                checks.append({"kind": "sandbox_verification", "files": list(sandbox)})
 
         for command in contract.verification_commands:
             gateway_command = self._gateway_command_for_verification(command)
