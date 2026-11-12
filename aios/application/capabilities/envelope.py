@@ -118,9 +118,16 @@ class EnvelopeAuthority:
             EmergencyStopHardWiringAuthority.assert_operational(
                 stop, boundary=_BOUNDARY
             )
-            return int(state().generation)
+            # ONE snapshot decides both: engaged, and which generation. Codex's
+            # review of 58834665: read apart, a stop engaged between the check
+            # and the read was recorded as the envelope's own generation, so
+            # the envelope survived the stop's clearing.
+            snapshot = state()
         except Exception as exc:  # noqa: BLE001 - every stop failure refuses
             raise EnvelopeRefused(f"the emergency stop forbids it: {exc}") from exc
+        if getattr(snapshot, "engaged", True):
+            raise EnvelopeRefused("the emergency stop forbids it: it is engaged")
+        return int(snapshot.generation)
 
     # -- reading ----------------------------------------------------------
 
@@ -255,7 +262,7 @@ class EnvelopeAuthority:
             slot = self.store.reserve(
                 envelope_id=envelope.envelope_id,
                 max_slots=envelope.terms.max_missions,
-                now=self.clock(),
+                clock=self.clock,
                 mission_id=mission_id,
                 originator=originator,
                 kind=kind,
@@ -264,10 +271,20 @@ class EnvelopeAuthority:
             )
         except sqlite3.IntegrityError as exc:
             raise EnvelopeRefused(f"{mission_id} already holds a slot") from exc
-        if slot is None:
+        if slot == "ended":
+            raise EnvelopeRefused("the envelope ended while the slot was being taken")
+        if slot == "full":
             raise EnvelopeRefused(
                 f"the envelope's {envelope.terms.max_missions} missions are used"
             )
+        # A stop engaged while the slot was being taken voids it (Codex's
+        # review): the slot stays spent, and held_slot refuses it for ever,
+        # because the envelope's generation no longer matches the stop's.
+        why = self._why_not_live(envelope)
+        if why is not None:
+            raise EnvelopeRefused(f"{why}; the slot just taken is void")
+        if not isinstance(slot, int):
+            raise EnvelopeRefused(f"the envelope's store answered {slot!r}")
         return EnvelopeSlot(
             envelope_id=envelope.envelope_id,
             terms_digest=envelope.terms_digest,

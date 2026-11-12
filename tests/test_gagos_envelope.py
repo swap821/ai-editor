@@ -331,3 +331,116 @@ def test_an_envelope_is_never_ungoverned(tmp_path, stop) -> None:
     authority = EnvelopeAuthority(db_path=tmp_path / "caps.db", emergency_stop=stop)
     with pytest.raises(EnvelopeRefused, match="no emergency stop"):
         authority.sign(_terms(), principal=Who())
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        "aios/security./gateway.py",
+        "aios/security /gateway.py",
+        "aios/SECURI~1/gateway.py",
+        "aios/core/x.py:hidden",
+        "aios/core/x.py::$DATA",
+        "aios/core/x.py.",
+        'aios/core/"x".py',
+        "aios/core/x|y.py",
+    ],
+)
+def test_windows_spellings_of_a_path_are_refused(tmp_path, path) -> None:
+    """Windows reads these as other paths: trailing dots and spaces are
+    dropped (so ``security.`` IS ``security``), ``~1`` names an 8.3 short
+    name, ``:`` an alternate data stream."""
+    authority = _authority(tmp_path)
+    authority.sign(_terms(folders=["aios/"], kinds=["code"]), principal=Who())
+    with pytest.raises(EnvelopeRefused):
+        _admit(authority, files=[path], kind="code")
+    assert authority.status()["missionsUsed"] == 0
+
+
+# -- races (Codex's adversarial review of 58834665) -----------------------------
+
+
+class EngagesBetween:
+    """A stop whose check passes, then reads engaged: the stop engaging between
+    the check and the generation read."""
+
+    def __init__(self, real) -> None:
+        self.real = real
+
+    def assert_operational(self) -> None:
+        self.real.assert_operational()
+
+    def state(self):
+        self.real.engage(
+            EmergencyStopRequest(
+                operator_id="operator-1",
+                authentication_event_id="auth-9",
+                reason="race",
+            )
+        )
+        return self.real.state()
+
+
+def _clear(stop) -> None:
+    token = stop.issue_clear_capability(
+        operator_id="operator-1",
+        authentication_event_id="auth-10",
+        session_id="session-1",
+    )
+    stop.clear(
+        operator_id="operator-1",
+        authentication_event_id="auth-10",
+        session_id="session-1",
+        clear_capability=token,
+    )
+
+
+def test_a_stop_engaging_while_signing_refuses_the_signature(tmp_path) -> None:
+    real = _stop(tmp_path)
+    racing = _authority(tmp_path, stop=EngagesBetween(real))
+    with pytest.raises(EnvelopeRefused, match="engaged"):
+        racing.sign(_terms(), principal=Who())
+    _clear(real)
+    # Nothing was signed that the clearing could revive.
+    assert _authority(tmp_path, stop=real).live() is None
+
+
+def test_a_stop_engaging_while_a_slot_is_taken_voids_the_slot(tmp_path) -> None:
+    stop = _stop(tmp_path)
+    authority = _authority(tmp_path, stop=stop)
+    authority.sign(_terms(), principal=Who())
+    reserve = authority.store.reserve
+
+    def engage_then_reserve(**kw):
+        stop.engage(
+            EmergencyStopRequest(
+                operator_id="operator-1",
+                authentication_event_id="auth-9",
+                reason="race",
+            )
+        )
+        return reserve(**kw)
+
+    authority.store.reserve = engage_then_reserve
+    with pytest.raises(EnvelopeRefused, match="the slot just taken is void"):
+        _admit(authority, "after-stop")
+    _clear(stop)
+    with pytest.raises(EnvelopeRefused, match="engaged after"):
+        authority.held_slot("after-stop")
+
+
+def test_expiry_is_read_once_the_lock_is_held(tmp_path) -> None:
+    clock = Clock()
+    authority = _authority(tmp_path, clock=clock)
+    authority.sign(_terms(hours=1), principal=Who())
+    clock.now += 3600 - 1
+    reserve = authority.store.reserve
+
+    def slow_lock(**kw):
+        clock.now += 2  # the wait for the writer lock outlives the envelope
+        return reserve(**kw)
+
+    authority.store.reserve = slow_lock
+    with pytest.raises(EnvelopeRefused, match="ended while the slot was being taken"):
+        _admit(authority, "late")
+    assert authority.store.slot("late") is None

@@ -22,7 +22,13 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **His doors.** `GET`, `POST /api/gagos/envelope` and `POST /api/gagos/envelope/revoke`, all privileged-operator. They are classified in the policy kernel: signing and ending are YELLOW, like approving a repair; reading is GREEN. His operator id is never echoed.
 - **Not yet.** Nothing admits into it yet. GAGOS's origination through the council (A2) and the mission run with PR-only promotion (A3) come next. Until he signs an envelope and A2 lands, the hour stops at the clerk's briefing, as today.
 - **Organs.** The kernel and the action types are entrypoints of organs 7, 25, 27, 45 and 46, so their evidence is re-gathered at this branch's tip.
-- **Tests:** 53 new, red-team cases included.
+- **Codex's adversarial review** (gpt-6.1-sol, read-only) found four real holes. All are fixed and each is pinned by a test that reproduces it:
+  - **High.** Windows aliases passed the frozen-path check: `aios/security./x.py` (Windows drops the trailing dot) and `aios/security::$INDEX_ALLOCATION/x.py`. Colons, `<>"|`, 8.3 short names (`~1`), and segments ending in a dot or a space are now refused.
+  - **Medium.** A stop engaging between the stop check and reading its generation was recorded as the envelope's own generation, so the envelope survived the clearing. One snapshot now decides both.
+  - **Medium.** A stop engaging while a slot was taken still returned the slot. The slot is now void, and `held_slot` refuses it.
+  - **Medium.** The clock was read before the writer lock, so a slow lock admitted an envelope that had just expired. The clock is now read inside the lock.
+- **Still to hold at the writing layer (A3):** canonical filesystem containment, including reparse points, when a mission's files are actually written.
+- **Tests:** 64 new, red-team and race cases included.
 
 ## 2026-11-12, the clerk's first live intake; it reads goals as written (branch `fix/clerk-reads-goal-as-written`)
 

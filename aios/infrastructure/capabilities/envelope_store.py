@@ -138,18 +138,22 @@ class EnvelopeStore:
         *,
         envelope_id: str,
         max_slots: int,
-        now: float,
+        clock: Any,
         mission_id: str,
         originator: str,
         kind: str,
         files: list[str],
         digest_for: Any,
-    ) -> int | None:
-        """Take the envelope's next slot for *mission_id*, or None when it is
-        revoked, expired or full. *digest_for(slot)* gives the slot's digest."""
+    ) -> int | str:
+        """Take the envelope's next slot for *mission_id*: its number, or
+        ``"ended"`` (revoked or expired) or ``"full"``. *digest_for(slot)*
+        gives the slot's digest. The clock is read only once the writer lock
+        is held (Codex's review: read before, a wait for the lock admitted
+        an envelope that expired meanwhile)."""
         with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
+                now = float(clock())
                 live = conn.execute(
                     "SELECT 1 FROM gagos_envelopes WHERE envelope_id = ? "
                     "AND revoked_at IS NULL AND expires_at > ?",
@@ -161,7 +165,7 @@ class EnvelopeStore:
                 ).fetchone()[0]
                 if live is None or used >= max_slots:
                     conn.execute("ROLLBACK")
-                    return None
+                    return "ended" if live is None else "full"
                 slot = int(used) + 1
                 conn.execute(
                     "INSERT INTO gagos_envelope_slots (envelope_id, slot, mission_id, "

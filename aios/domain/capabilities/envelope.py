@@ -45,7 +45,10 @@ FORBIDDEN_PREFIXES = (
     "data/",
 )
 _TEST_FILE = re.compile(r"(\.test\.(ts|tsx|js|jsx|mjs)$)|(^test_.*\.py$)")
-_UNSAFE = re.compile(r"[*?\[\]\x00-\x1f]")
+#: Wildcards, control characters, and what Windows reads specially: ``:``
+#: (drive letters, alternate data streams), ``<>"|``, and 8.3 short names
+#: (``SECURI~1``), any of which can name a path the rules below never saw.
+_UNSAFE = re.compile(r"[*?\[\]\x00-\x1f:<>\"|]|~\d")
 
 
 class EnvelopeError(ValueError):
@@ -65,6 +68,10 @@ def normalise_path(path: str) -> str:
     parts = PurePosixPath(text).parts
     if any(part in ("..", ".") for part in parts):
         raise EnvelopeError(f"a path may not climb: {path!r}")
+    # Windows drops a name's trailing dots and spaces: "security." IS
+    # "security", so it would slip past the forbidden prefixes.
+    if any(part != part.strip() or part.endswith(".") for part in parts):
+        raise EnvelopeError(f"a path segment may not end in a dot or a space: {path!r}")
     return "/".join(parts)
 
 
