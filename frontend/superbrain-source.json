@@ -266,6 +266,7 @@
     "lib/swarmHUDStore.test.ts": "261d7b21ffa8e5829dbfebb50cada2389515b2598fd3b01f685a990d769d00ac",
     "lib/useBodyWorldFrame.test.ts": "f3de1ffa40b64ceb12d65a30b84bd0f184aea7480ae4e8470eda42f0c27460df",
     "lib/useDomWorkPlane.test.ts": "bce0c2ebb6415ade6de04391db1f8a7a87021681aad25a9878918e9db8afa2ce",
-    "components/canvas/VertebraeRepoMapOverlay.test.tsx": "908e91382b6238e6923ff57e1c0f93cf3122f7016d3afc8232c0114d09dea888"
+    "components/canvas/VertebraeRepoMapOverlay.test.tsx": "908e91382b6238e6923ff57e1c0f93cf3122f7016d3afc8232c0114d09dea888",
+    "components/canvas/WorkspaceCanvas.test.tsx": "50c304ee048db5f677f57dd0b94bc8cdc5a99b5c552311c5cd9cf1731959697f"
   }
 }
