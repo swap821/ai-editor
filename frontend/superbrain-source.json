@@ -269,6 +269,7 @@
     "components/canvas/VertebraeRepoMapOverlay.test.tsx": "908e91382b6238e6923ff57e1c0f93cf3122f7016d3afc8232c0114d09dea888",
     "components/canvas/WorkspaceCanvas.test.tsx": "50c304ee048db5f677f57dd0b94bc8cdc5a99b5c552311c5cd9cf1731959697f",
     "core/CorticalNerves/NerveMesh.test.tsx": "c8f2794257509b96b21cfc4a8eb125a4ca7374ac5ea001c30c301f23d1a3d705",
-    "components/canvas/NeuralAura.test.tsx": "2f2f3c76bf619f38bdfdd5c0e2ba7f68578b0f1be642561e256125518fd6861e"
+    "components/canvas/NeuralAura.test.tsx": "2f2f3c76bf619f38bdfdd5c0e2ba7f68578b0f1be642561e256125518fd6861e",
+    "components/canvas/HorizonGlow.test.tsx": "1366e37796c935602b044f45183ed2c2a2bd8fa5553ece1239be16aedc66edab"
   }
 }
