@@ -30,6 +30,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
+from aios import config
+
 LIVE_DAYS = 2
 RECENT_DAYS = 14
 
@@ -302,7 +304,7 @@ def scan(data_dir: Path, *, now: datetime | None = None) -> Evidence:
                     newest or (had[1] if had else None),
                 )
         con.close()
-    bus = Path(data_dir) / "cortex_bus.db"
+    bus = Path(data_dir) / config.CORTEX_BUS_DB.name
     if bus.is_file():
         try:
             con = _readonly(bus)
@@ -470,8 +472,6 @@ __all__ = [
 
 
 if __name__ == "__main__":  # python -m aios.application.observability.aliveness
-    from aios import config
-
     for r in pulse(Path(config.DATA_DIR)):
         when = r.last.isoformat()[:16] if r.last else "-"
         print(f"{r.status:10s} {when:17s} {r.part.name}  [{r.why}]")
