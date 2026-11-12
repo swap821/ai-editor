@@ -71,7 +71,7 @@
     "core/CortexEngine.tsx": "a7b68b9dc1584e9e788be0bc1ed5c1e3c45d3114c683b02d49ad872ed2726a21",
     "core/CorticalNerves/DeliberationOverlay.tsx": "de6b08e9458e3677beba416799a5072e3539b0494260fec1f065b0dc0d0477df",
     "core/CorticalNerves/NerveMesh.tsx": "3be6920789cb23a451b923cfb9f5c18e765b1cff3e6f053ad01c5e0a66b785a1",
-    "core/CorticalNerves/PulseShader.tsx": "b274e3c73331d5bf9b9039662b69f4372ecf82234eb021c3158b2ac0e16bfd2d",
+    "core/CorticalNerves/PulseShader.tsx": "196de9c0cbd601c6bed8bb8e05a1f73f91a6bed3642c5ce4f71c20b5a6aa928e",
     "core/Performance/EventThrottler.ts": "37a0b3e0d92a3a3f4bdb4b36a8799c754c3ee2eb4f03b364202e209c9865d095",
     "core/Performance/FeatureGate.ts": "71291238eb8c9ef5453a6957637298a8f79bafe73f1d922664f3e5f8efa2fc43",
     "lib/activeBrain.test.ts": "d162633ca6e503f8cc0f561eb12f0607a3e898b7920737fcf3483e962a001dd7",
