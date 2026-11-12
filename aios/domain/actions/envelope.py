@@ -109,6 +109,8 @@ class ActionType(str, Enum):
     MAINTENANCE_REPAIR_RUN = "maintenance_repair_run"
     GAGOS_TASK_ADD = "gagos_task_add"
     GAGOS_TASK_CANCEL = "gagos_task_cancel"
+    GAGOS_ENVELOPE_SIGN = "gagos_envelope_sign"
+    GAGOS_ENVELOPE_REVOKE = "gagos_envelope_revoke"
     CONSTITUTIONAL_AMENDMENT_PROPOSE = "constitutional_amendment_propose"
     CONSTITUTIONAL_AMENDMENT_CRITIQUE = "constitutional_amendment_critique"
     CONSTITUTIONAL_AMENDMENT_SIMULATE = "constitutional_amendment_simulate"
