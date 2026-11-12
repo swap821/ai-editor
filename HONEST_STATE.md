@@ -1,9 +1,20 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, a busy laptop no longer fails a delivery on time" below;
+**Last updated:** 2026-11-12 ("2026-11-12, the Security Queen sees Windows spellings of a protected path" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, the Security Queen sees Windows spellings of a protected path (branch `fix/security-queen-paths`)
+
+- **Found** while building the sandbox verification (#644); fixed at the operator's word.
+  - The queen compared protected paths case-sensitively, so on Windows `AIOS/SECURITY/gateway.py`, which is `aios/security/gateway.py`, passed a mission's review as an allowed file.
+  - Its normaliser's `lstrip("./")` also ate a dotfile's own dot (`.env` was read as `env`).
+- **Fixed** in `aios/council/queens/security.py`, which is not an organ entrypoint:
+  - the protected comparison is case-insensitive;
+  - what Windows reads as another path is unsafe, by the same rules GAGOS's envelope applies (`aios.domain.capabilities.envelope.normalise_path`): `:` streams, 8.3 short names (`SECURI~1`), segments ending in a dot or a space (`security.`), `<>"|`, wildcards;
+  - the normaliser drops only leading `./` segments.
+- **Proof.** 15 new tests. Against the old queen, 14 fail; the one that passes is "ordinary files still pass". 64 pass with the existing council, reasoning and queen-service tests.
 
 ## 2026-11-12, a busy laptop no longer fails a delivery on time (branch `fix/delivery-smoke-timeout`)
 
