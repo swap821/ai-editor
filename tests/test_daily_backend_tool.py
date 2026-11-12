@@ -281,3 +281,91 @@ def test_status_reports_the_face_health_and_pid(face, monkeypatch, capsys) -> No
         "face :5173 health: 200 (started by this tool, pid 4242)"
         in capsys.readouterr().out
     )
+
+
+# --------------------------------------------------------------------------- #
+# Never two backends (2026-11-12): the watchdog read a 3-second silence as
+# "down" and started a second backend beside a slow one, never stopping it;
+# five ran at once, ~1.85 GB committed each. A backend this tool started that
+# still runs is waited for; one that stays silent is stopped before anything
+# new starts; a record that cannot prove the pid is ours is never killed.
+# --------------------------------------------------------------------------- #
+@pytest.fixture()
+def backend_up(face, monkeypatch):
+    work = face.tmp / "repo" / "work" / "ai-editor"
+    work.mkdir(parents=True)
+    monkeypatch.setattr(daily_backend, "REPO", face.tmp / "repo")
+    monkeypatch.setattr(daily_backend, "_face_health", lambda *a, **k: 200)
+    monkeypatch.setattr(daily_backend, "_health", lambda *a, **k: None)
+    monkeypatch.setattr(daily_backend, "_ensure_ollama", lambda: "answers")
+    monkeypatch.setattr(daily_backend, "_ensure_docker", lambda: True)
+    monkeypatch.setattr(daily_backend, "_image_present", lambda tag: True)
+    monkeypatch.setattr(daily_backend, "_stored_keys", lambda: {})
+    monkeypatch.setattr(daily_backend, "staged_root", lambda: face.tmp / "staged")
+    monkeypatch.setattr(daily_backend, "_git", lambda *a, **k: "")
+    monkeypatch.setattr(daily_backend, "status", lambda args: 0)
+    monkeypatch.setattr(daily_backend, "check", lambda args: 0)
+    events: list[tuple] = []
+    monkeypatch.setattr(
+        daily_backend, "_kill_tree", lambda pid: events.append(("kill", pid))
+    )
+    original = _FakePopen.__init__
+
+    def spawned(self, command, **kwargs):
+        events.append(("spawn", command[-1]))
+        original(self, command, **kwargs)
+
+    monkeypatch.setattr(_FakePopen, "__init__", spawned)
+    face.created.update(
+        {5151: "2026-11-12T11:05:35.0000000Z", 5150: "2026-11-12T11:05:34.0000000Z"}
+    )
+    face.events = events
+    return face
+
+
+def _recorded(created: bool = True) -> dict:
+    state = {"pids": {"executor": 5150, "backend": 5151}}
+    if created:
+        state["created"] = {
+            "executor": "2026-11-12T11:05:34.0000000Z",
+            "backend": "2026-11-12T11:05:35.0000000Z",
+        }
+    return state
+
+
+def test_a_slow_backend_it_started_is_waited_for_never_doubled(
+    backend_up, monkeypatch, capsys
+) -> None:
+    daily_backend._write_state(_recorded())
+    monkeypatch.setattr(daily_backend, "_wait_health", lambda port, s: 200)
+    assert daily_backend.main(["up"]) == 0
+    assert backend_up.events == []
+    assert "answered after a wait; not starting another" in capsys.readouterr().out
+
+
+def test_a_hung_backend_is_stopped_before_a_new_one_starts(
+    backend_up, monkeypatch, capsys
+) -> None:
+    daily_backend._write_state(_recorded())
+    waits = iter([None, 200, 200])  # the slow wait, then the new executor and backend
+    monkeypatch.setattr(daily_backend, "_wait_health", lambda port, s: next(waits))
+    daily_backend.main(["up"])
+    kinds = [kind for kind, _ in backend_up.events]
+    assert backend_up.events[:2] == [("kill", 5151), ("kill", 5150)]
+    assert kinds.count("spawn") == 2 and kinds.index("spawn") > 1
+    assert "has not answered for 120s: stopping it" in capsys.readouterr().out
+    # The new record says which processes the next `up` may stop.
+    assert set(daily_backend._read_state()["created"]) == {"executor", "backend"}
+
+
+@pytest.mark.parametrize("record", ["no creation time", "pid now another program's"])
+def test_a_pid_it_cannot_prove_is_ours_is_never_killed(
+    backend_up, monkeypatch, record
+) -> None:
+    state = _recorded(created=record != "no creation time")
+    if record == "pid now another program's":
+        backend_up.created[5151] = "2026-11-12T17:10:02.0000000Z"  # after a reboot
+    daily_backend._write_state(state)
+    monkeypatch.setattr(daily_backend, "_wait_health", lambda port, s: 200)
+    daily_backend.main(["up"])
+    assert [e for e in backend_up.events if e[0] == "kill"] == []

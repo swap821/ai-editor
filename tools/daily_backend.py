@@ -284,6 +284,23 @@ def _kill_tree(pid: int) -> None:
             pass
 
 
+#: How long a backend this tool started, still running, may take to answer
+#: before it is taken for hung (a paged-out backend on a full laptop is slow).
+SLOW_BACKEND_WAIT_S = 120
+
+
+def _running_ours(state: dict[str, Any], name: str) -> Optional[int]:
+    """The pid of the service *name* this tool started, when that very process
+    still runs: recorded with its creation time, and the same pid still has it.
+    A record without one (written before 2026-11-12) is never taken for ours:
+    after a reboot its pid can be any program's."""
+    pid = (state.get("pids") or {}).get(name)
+    created = (state.get("created") or {}).get(name)
+    if not pid or not created:
+        return None
+    return int(pid) if _process_created(int(pid)) == created else None
+
+
 def _wait_health(port: int, seconds: float) -> Optional[int]:
     deadline = time.time() + seconds
     while time.time() < deadline:
@@ -398,6 +415,32 @@ def up(args: argparse.Namespace) -> int:
         status(args)
         return check(args)
 
+    # 2026-11-12: the watchdog read a 3-second silence as "down" and started a
+    # second backend beside a slow one, never stopping it; five were running,
+    # each ~1.85 GB committed, on a 16 GB laptop. A backend this tool started
+    # that still runs is waited for; one that stays silent is stopped, its
+    # whole tree, before anything new starts. Never two.
+    previous = _read_state()
+    backend = _running_ours(previous, "backend")
+    if backend is not None:
+        if _wait_health(BACKEND_PORT, SLOW_BACKEND_WAIT_S) is not None:
+            print(
+                f"the backend this tool started (pid {backend}) answered after a wait; "
+                "not starting another."
+            )
+            status(args)
+            return check(args)
+        print(
+            f"the backend this tool started (pid {backend}) runs but has not answered "
+            f"for {SLOW_BACKEND_WAIT_S}s: stopping it before starting a new one"
+        )
+        for name in ("backend", "executor"):
+            pid = _running_ours(previous, name)
+            if pid is not None:
+                _kill_tree(pid)
+                print(f"stopped {name} (pid {pid})")
+        time.sleep(2)
+
     settings = daily_settings(cloud_tasks=args.cloud_tasks)
     work = REPO / "work" / "ai-editor"
     if not work.is_dir():
@@ -471,6 +514,8 @@ def up(args: argparse.Namespace) -> int:
     state = {
         "started_at": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
         "pids": pids,
+        # Which processes these pids are: the next `up` stops only these.
+        "created": {name: _process_created(pid) for name, pid in pids.items()},
         "code": _git("rev-parse", "HEAD"),
         "work_head": _git("rev-parse", "HEAD", cwd=work),
         "work_clean": _git("status", "--porcelain", cwd=work) == "",

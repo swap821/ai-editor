@@ -1,9 +1,35 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, a writer that makes no edit is heard" below;
+**Last updated:** 2026-11-12 ("2026-11-12, never two backends; the clerk is qualified and granted" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, never two backends; the clerk is qualified and granted (branch `fix/watchdog-no-second-backend`)
+
+- **The memory the laptop lost, measured.**
+  - Five `python -m aios` backends were running, each about 1.85 GB committed, and only one served :8000.
+  - The cause: every 15 minutes the watchdog (`gagos_backend_job.py` → `daily_backend.py up`) asked `/health` with a 3-second timeout. On a full laptop a paged-out backend answers more slowly than that, so `up` started another beside it and never stopped the old one; Windows let the new one bind the busy port.
+  - With the operator's OK, the four extra backends were stopped: committed memory went from 32.1 to 24.7 GB.
+- **The fix (`up`).**
+  - A backend this tool started (pid plus creation time, now recorded) that still runs is waited for, up to 120 s.
+  - If it stays silent, it is stopped, its whole tree and the executor's, before anything new starts.
+  - A record that cannot prove the pid is ours (no creation time, or the pid now another program's after a reboot) is never killed.
+  - Tests: 4 new. Two fail when the guard is disabled.
+- **The laptop's memory, for the record.**
+  - It had not truly restarted since 11-11 00:44: Fast Startup is on, so "Shut down" does not reboot. The operator then did a real restart.
+  - At his choice, `C:\Users\kumar\.wslconfig` now caps Docker's Linux VM at 4 GB; it had been 3.6 GB and growing.
+  - Dell SupportAssist and TechHub plus NVIDIA Share restart themselves when stopped. Disabling them is his call.
+  - About 1 GB of non-paged kernel pool is this machine's baseline, measured right after boot.
+- **The clerk, qualified on master's code** (`ccc6ae19`, 25 tests, triage and briefing included):
+  - **qwen3.5:9b** passed all 25.
+  - **qwen2.5:3b** passed every safety gate and failed only `triage_escalates` (it did not escalate the expired-token security case). Per-job admission (#628) admits it for the 10 jobs its tests back, `prepare_briefing` included and triage not.
+  - 9b was loaded first with a two-token generate. A load Ollama refuses changes nothing, whereas a failed health check inside `qualify` would have rejected 9b and its live job.
+- **The operator granted, by his rule (the lightest qualified model per job):** qwen3.5:9b triage (plus its summarise_disagreement); qwen2.5:3b prepare_briefing. The two blueprint goals are queued again (`gt-fa6fc5025e` UX-05, `gt-e2de45c6f5` PERF-04): the clerk's first live intake.
+- **Codex's gpt-6-luna is back.** It answered through the workshop's own call path; its limit had lifted. GAGOS's next batch probes it and it rejoins.
+- **Findings on the two goals.**
+  - **UX-05:** passed the sandbox and review, then failed delivery. The same `vitest related` run passes now, 350 tests; it had run at 0.5 GB free.
+  - **PERF-04:** the work-surface store refuses to close results past `RECOVERABLE_RESULT_LIMIT` by design (`recoveryIssue` 'capacity'), so the old test's expectation was wrong. Closed workspace panels (one per distinct `file:<path>`) are kept forever; whether they should be is a product decision.
 
 ## 2026-11-12, a writer that makes no edit is heard (branch `fix/task-no-edit-refusal`)
 
