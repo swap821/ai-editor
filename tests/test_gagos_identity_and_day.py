@@ -255,6 +255,7 @@ def test_the_real_service_accepts_the_clerks_right_answer(tmp_path) -> None:
         LocalWorkerModel,
     )
     from aios.domain.local_workforce.registry import LocalWorkforceRegistry
+    from tests.clerk_qualification_fixture import passed_everything
 
     led = dw.DailyLedger(tmp_path / "l.db")
     pid = _proposal(led)
@@ -280,6 +281,7 @@ def test_the_real_service_accepts_the_clerks_right_answer(tmp_path) -> None:
     registry = MagicMock(spec=LocalWorkforceRegistry)
     registry.list_models.return_value = [model]
     registry.get_model.return_value = model
+    registry.get_qualification.return_value = passed_everything()
     llm = MagicMock()
     llm.complete.return_value = json.dumps(
         {"summary": "Codex doubts the JSX runtime.", "crux": "the JSX transform"}
