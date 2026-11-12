@@ -236,7 +236,6 @@ const SPARK_FRAGMENT_SHADER = /* glsl */ `
 
 export default function NeuralAura({
   activity,
-  mode,
   source,
   uniforms,
   shells: shellBudget = 2,
