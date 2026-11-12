@@ -1,10 +1,34 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, a daily aliveness pulse" below;
+**Last updated:** 2026-11-12 ("2026-11-12, GAGOS's daily envelope, signed by the operator" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-12, GAGOS's daily envelope, signed by the operator (branch `feat/daily-envelope`)
+
+- **His decision.** On 11-11 he chose that GAGOS's missions are approved once a day, as an envelope. On 11-12 he chose how: "Envelope via organs 9+10". This is move A's first PR (the aliveness map, https://claude.ai/artifact/DemaQfKyGyyaMUTUJCux8L).
+- **What stood in the way, measured.**
+  - Only a privileged operator can create a council mission (`POST /api/v1/council/missions`).
+  - `MissionAuthority.approve` consumes one human-bound capability per mission.
+  - So GAGOS could neither originate nor be approved without him, one mission at a time.
+- **The envelope** (`aios/domain/capabilities/envelope.py` terms, `aios/application/capabilities/envelope.py` authority, `aios/infrastructure/capabilities/envelope_store.py` store, beside the exact capabilities). It is a capability of its own kind; the one-action capability is not loosened:
+  - **Signing.** Only an operator with a recent strong re-authentication and a recorded authentication event can sign. The terms: folders, kinds (`tests` or `code`), 1 to 20 missions, 1 to 24 hours, delivery by PR only.
+  - **Admission.** A GAGOS mission takes one slot, atomically. Eight missions racing for the last slot: one wins. Its record names the envelope and the slot ("slot k of N").
+  - **Never inside.**
+    - Paths: `aios/security/`, `.git/`, `.github/`, `.aios/`, `data/`, any `.env` file, absolute paths, `..`, wildcards. They are refused even inside a wide folder (`aios/` does not reach `aios/SECURITY/x.py`).
+    - The signer cannot originate inside his own envelope (INVARIANT III).
+  - **Ended** by expiry, by his revocation, or by a newer signature. Any engagement of the emergency stop also ends it, even after the stop is cleared: the stop's generation is recorded at signing. A missing or "ungoverned" stop refuses outright.
+- **His doors.** `GET`, `POST /api/gagos/envelope` and `POST /api/gagos/envelope/revoke`, all privileged-operator. They are classified in the policy kernel: signing and ending are YELLOW, like approving a repair; reading is GREEN. His operator id is never echoed.
+- **Not yet.** Nothing admits into it yet. GAGOS's origination through the council (A2) and the mission run with PR-only promotion (A3) come next. Until he signs an envelope and A2 lands, the hour stops at the clerk's briefing, as today.
+- **Organs.** The kernel and the action types are entrypoints of organs 7, 25, 27, 45 and 46, so their evidence is re-gathered at this branch's tip.
+- **Codex's adversarial review** (gpt-6.1-sol, read-only) found four real holes. All are fixed and each is pinned by a test that reproduces it:
+  - **High.** Windows aliases passed the frozen-path check: `aios/security./x.py` (Windows drops the trailing dot) and `aios/security::$INDEX_ALLOCATION/x.py`. Colons, `<>"|`, 8.3 short names (`~1`), and segments ending in a dot or a space are now refused.
+  - **Medium.** A stop engaging between the stop check and reading its generation was recorded as the envelope's own generation, so the envelope survived the clearing. One snapshot now decides both.
+  - **Medium.** A stop engaging while a slot was taken still returned the slot. The slot is now void, and `held_slot` refuses it.
+  - **Medium.** The clock was read before the writer lock, so a slow lock admitted an envelope that had just expired. The clock is now read inside the lock.
+- **Still to hold at the writing layer (A3):** canonical filesystem containment, including reparse points, when a mission's files are actually written.
+- **Tests:** 64 new, red-team and race cases included.
 ## 2026-11-12, a daily aliveness pulse: which parts of GAGOS do real work (branch `feat/aliveness-pulse`)
 
 - **Why.** The operator: "are we using SWARM infra... there can be many things like this honestly". Measured read-only on master `7bee519a` (every store's rows and newest write, every cortex event type), most of GAGOS was silent, for three causes:

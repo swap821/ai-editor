@@ -479,6 +479,23 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="gagos_task_cancel",
         action_type=ActionType.GAGOS_TASK_CANCEL,
     ),
+    # GAGOS's daily envelope (2026-11-12): his once-a-day signature lets GAGOS
+    # originate missions inside it, so signing is YELLOW, like approving a
+    # repair; ending it only takes authority away, and is YELLOW for its audit.
+    "/api/gagos/envelope": RouteAuthority(
+        "YELLOW",
+        10,
+        "session",
+        audit_event="gagos_envelope_sign",
+        action_type=ActionType.GAGOS_ENVELOPE_SIGN,
+    ),
+    "/api/gagos/envelope/revoke": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="gagos_envelope_revoke",
+        action_type=ActionType.GAGOS_ENVELOPE_REVOKE,
+    ),
     "/api/v1/local-workforce/{model_id}/qualify": RouteAuthority(
         "YELLOW",
         30,
@@ -1003,6 +1020,18 @@ _METHOD_ROUTE_AUTHORITY: dict[tuple[str, str], RouteAuthority] = {
         120,
         "session",
         audit_event="gagos_task_list",
+        action_type=ActionType.PLAN,
+        serves_operator_data=True,
+    ),
+    # GAGOS's daily envelope as it stands (2026-11-12). Read-only.
+    (
+        "GET",
+        "/api/gagos/envelope",
+    ): RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="gagos_envelope_status",
         action_type=ActionType.PLAN,
         serves_operator_data=True,
     ),
