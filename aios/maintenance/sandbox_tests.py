@@ -249,6 +249,10 @@ class SandboxVerdict:
     broken: tuple[str, ...] = ()
     failing_anyway: tuple[str, ...] = ()
     seconds: float = 0.0
+    #: The run's own counts, where it reported them (2026-11-12): what organ
+    #: 15 grades a mission's verification by. 0 where nothing ran.
+    passed_count: int = 0
+    failed_count: int = 0
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=True)
@@ -707,6 +711,8 @@ def _compare(
             broken,
             anyway,
             seconds,
+            passed_count=with_it.passed,
+            failed_count=len(with_it.failing),
         )
     return SandboxVerdict(
         PASSED,
@@ -716,6 +722,8 @@ def _compare(
         (),
         anyway,
         seconds,
+        passed_count=with_it.passed,
+        failed_count=len(anyway),
     )
 
 
@@ -775,6 +783,7 @@ class _PythonPart:
                 f"{run.passed} tests in {len(tests)} files pass{self.of}",
                 tests,
                 seconds=run.seconds,
+                passed_count=run.passed,
             )
         if not run.timed_out and run.exit_code == 5:
             return SandboxVerdict(
@@ -872,6 +881,7 @@ class _WebPart:
                 f"{run.passed} tests in {len(tests)} files pass",
                 tests,
                 seconds=run.seconds,
+                passed_count=run.passed,
             )
         return None
 
@@ -919,6 +929,8 @@ def _combine(
         tuple(t for _, v in results for t in v.broken),
         tuple(t for _, v in results for t in v.failing_anyway),
         seconds,
+        passed_count=sum(v.passed_count for _, v in results),
+        failed_count=sum(v.failed_count for _, v in results),
     )
 
 
@@ -1068,6 +1080,64 @@ def _run_set(
     return _type_gate(combined, types_with, types_without)
 
 
+#: The runners the sandbox's images start, as their own command lines
+#: (``tools/verify_web_run.sh`` runs vitest so; the Python image runs pytest
+#: so). Organ 15 grades a verification by its real runner
+#: (:mod:`aios.core.verification_strength`), so a mission's sandbox check is
+#: recorded under the runner that actually ran, never a wrapper's name.
+WEB_TEST_COMMAND = "node node_modules/vitest/vitest.mjs related"
+PY_TEST_COMMAND = "python -m pytest -q"
+#: Exit codes a ledger entry carries for a sandbox that asserted nothing.
+UNTESTED_EXIT = 5
+UNAVAILABLE_EXIT = 125
+
+
+def ledger_entry(verdict: SandboxVerdict, *, rels: Sequence[str]) -> dict:
+    """A sandbox verdict as one verification command of a worker's run ledger
+    (2026-11-12): what the council's Testing queen reads, and what promotion
+    records with organ 15. Nothing in it is better than the run was:
+
+    * ``command`` is the runner's own command line in the sandbox, over the
+      changed files (vitest's ``related`` takes paths under ``frontend/``; the
+      Python run, the test files it chose). A change spanning both kinds gets
+      a ``sandbox:`` command no runner rule recognises, so it can never be
+      graded above WEAK: its counts cannot be told apart by runner;
+    * ``returncode`` is 0 only for a PASSED verdict; an untested change (no
+      test exercises it) and an unavailable sandbox are not passes;
+    * ``stdout`` states the counts in the runner's words ("N passed",
+      "M failed") and the verdict's summary. Tests that fail without the
+      change too are failures here: a STRONG grade needs none at all.
+    """
+    frontend = [r for r in rels if _is_frontend(r)]
+    others = [r for r in rels if r not in frontend]
+    if frontend and not others:
+        prefix = FRONTEND_DIR + "/"
+        command = " ".join(
+            [WEB_TEST_COMMAND, *(r[len(prefix) :] for r in frontend), "--run"]
+        )
+    elif others and not frontend:
+        command = " ".join([PY_TEST_COMMAND, *(verdict.tests or others)])
+    else:
+        command = "sandbox: " + " ".join(rels)
+    returncode = {
+        PASSED: 0,
+        BROKE: 1,
+        UNTESTED: UNTESTED_EXIT,
+    }.get(verdict.outcome, UNAVAILABLE_EXIT)
+    lines = [
+        f"{verdict.passed_count} passed",
+        f"{verdict.failed_count} failed",
+        f"sandbox {verdict.outcome}: {verdict.summary}",
+    ]
+    return {
+        "command": command,
+        "returncode": returncode,
+        "stdout": "\n".join(lines),
+        "stderr": "",
+        "tool_version": "gagos-sandbox",
+    }
+
+
 __all__ = [
     "BROKE",
     "BROKE_PREFIX",
@@ -1081,11 +1151,14 @@ __all__ = [
     "UNAVAILABLE",
     "UNTESTED",
     "VitestRun",
+    "PY_TEST_COMMAND",
     "WEB_RUNNER",
+    "WEB_TEST_COMMAND",
     "build_hint",
     "client_env",
     "default_runner",
     "image_built",
+    "ledger_entry",
     "parse_pytest",
     "parse_vitest",
     "run_change_tests",
