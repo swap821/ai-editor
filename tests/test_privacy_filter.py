@@ -613,3 +613,52 @@ def test_the_identifier_exemption_requires_a_real_identifier() -> None:
     text = f"def {token}"
 
     assert not _in_code_identifier_context(text, 4, 4 + len(token), token)
+
+
+# ── TypeScript declarations are identifier positions too (2026-11-12) ─────────
+#
+# `export const RECOVERABLE_RESULT_LIMIT = 12` reached GAGOS's writer as
+# `export const [SENSITIVE: 636f2506034a] = 12`; the writer refused, unable to
+# name the very constant its task was about.
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "export const RECOVERABLE_RESULT_LIMIT = 12;",
+        "const RECOVERABLE_TEXT_BYTES_LIMIT = 4 * 1024 * 1024;",
+        "let materializedTabRetractionToken = 0;",
+        "var legacyRecoverableResultsCount;",
+        "export interface MaterializedTabRecordSnapshot {",
+        "enum RecoverableResultIssueKinds {",
+    ],
+)
+def test_typescript_declarations_are_not_redacted(source: str) -> None:
+    from aios.core.privacy_filter import _redact_high_entropy
+
+    redacted, count = _redact_high_entropy(source)
+
+    assert count == 0, f"redaction corrupted source: {redacted}"
+    assert redacted == source
+
+
+@pytest.mark.parametrize(
+    "template",
+    [
+        'const apiKey = "{s}";',
+        "export const token = {s};",
+        "let secret: string = {s};",
+        "type {s}",
+        "please type {s} to log in",
+    ],
+)
+def test_a_secret_beside_a_typescript_declaration_is_still_redacted(
+    template: str,
+) -> None:
+    """The value slot and prose stay redacted; ``type`` is not an exemption."""
+    from aios.core.privacy_filter import _redact_high_entropy
+
+    redacted, count = _redact_high_entropy(template.format(s=_PASSPHRASE))
+
+    assert count >= 1, f"secret escaped redaction: {redacted}"
+    assert _PASSPHRASE not in redacted

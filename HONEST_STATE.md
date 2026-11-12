@@ -1,9 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, the Security Queen sees Windows spellings of a protected path" below;
+**Last updated:** 2026-11-12 ("2026-11-12, a TypeScript constant's name reaches the writer" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, a TypeScript constant's name reaches the writer (branch `fix/privacy-ts-declarations`)
+
+- **Measured.** PERF-04's sixth attempt (`gt-20ee2eaa4b`) was refused by its writer: "the limit is masked in `tabStore.ts` as `GAGOSMASKQQ_0017`". The privacy filter's entropy rule hides any token of 21 or more characters unless it sits in a declaration, import or call position, and TypeScript's declarations were not among them. `export const RECOVERABLE_RESULT_LIMIT = 12` became `export const [SENSITIVE: 636f2506034a] = 12`. That is the same placeholder that garbled the clerk's briefing this morning.
+- **The fix** (`aios/core/privacy_filter.py`, not an organ entrypoint): `const`, `let`, `var`, `interface` and `enum` join `def`, `class`, `function`, `import` and `from` as identifier positions. The name slot is never where a secret goes, and a secret assigned as the value is still redacted.
+  - `type` is left out on purpose: it is too common an English word before a value in prose.
+  - A long identifier named in prose is still hidden; goals name such calls in call syntax.
+- **Not this PR.** The operator's 11-11 decision, plan brains hide only keys, credentials and paths, needs masking per writer family, because jobs are masked before a writer is chosen. It is a separate change.
+- **Proof.** 11 new tests. Against the old filter, the 6 declaration cases fail and the 5 cases that must stay redacted pass: the value slot, `type`, prose. 69 pass in the privacy filter's file.
 
 ## 2026-11-12, the Security Queen sees Windows spellings of a protected path (branch `fix/security-queen-paths`)
 
