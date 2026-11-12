@@ -258,6 +258,7 @@
     "lib/materializationTiming.test.ts": "9c02d698293e5e6349a23acd89b0d4231be10c3300e1dac7db8ffc78cc9dc882",
     "lib/openingTokens.test.ts": "2593cbccc4d74f6d54a1f325ed2e9b4de699c8e2551be9fe51cdffde59d0487a",
     "lib/pointViewportScale.test.ts": "0a1e16e873a892f5ef87865c331332ba6e8ae7a88775fac8a3c8f9eea4a3db61",
-    "lib/reabsorptionTiming.test.ts": "a5ebe0c960862a438d2dc2b66d9552757eb36a1825d7117347f43d16fe4b74e6"
+    "lib/reabsorptionTiming.test.ts": "a5ebe0c960862a438d2dc2b66d9552757eb36a1825d7117347f43d16fe4b74e6",
+    "lib/renderQualityPolicy.test.ts": "8e00014a17c302712e026a4f47b7dcf06179c12eda8a8a9d05f59018cc26581f"
   }
 }
