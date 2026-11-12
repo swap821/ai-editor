@@ -20,6 +20,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - `goal_intake.clerk_redact`: a goal holding a credential the secret policy **names** (a key, a token, a private key) is read scrubbed, so no credential reaches the clerk or its provenance store.
   - Any other goal is read as written; the entropy guess and the path filter are not applied.
   - What a cloud writer reads of the briefing is still scrubbed (`egress_redact` in `task_jobs`).
+- **UX-05's delivery, twice.** In both hours the change passed the sandbox (350 tests) and Opus accepted it, then delivery failed: "the tests related to the frontend targets did not pass". The check runs with and without the change, so the failure was the change's doing in the hour. Yet every reproduction passes with the delivery's own `frontend_smoke`: on master, on the hour's exact delivery tree (`#638`'s head), and in GAGOS's own worktree unchanged. The output that would say why was thrown away (a local `steps` list). Delivery now keeps the failing step's own last lines with the reason, in the local log and ledger only: a named credential is scrubbed; the failing test's path is kept.
 - **Tests:** 2 new, on the live goal's own text: the cloud scrubbers alter it, and the clerk reads it unchanged. A credential still never reaches the clerk, and the hour's test now also requires the file paths to arrive. With the old redaction the hour's test fails.
 
 ## 2026-11-12, never two backends; the clerk is qualified and granted (branch `fix/watchdog-no-second-backend`)

@@ -424,6 +424,35 @@ def mask_redact(text: str) -> str:
     return "".join(merged)
 
 
+#: How much of a failed delivery check's own output is kept with its reason.
+SMOKE_EXCERPT = 600
+
+#: The lines of a check's output that say what failed.
+_FAILED_LINE = re.compile(
+    r"FAIL|Error|×|✗|expected|Timeout|timed out|deadline|exit \d+"
+)
+
+
+def smoke_excerpt(steps: list) -> str:
+    """The failing step's own last words, scrubbed, to keep beside a delivery
+    check's reason: what the hour saw. Empty when no failed step said anything.
+
+    2026-11-12: the UX-05 change failed delivery twice as "the tests related to
+    the frontend targets did not pass", passed every reproduction outside the
+    hour, and the output that would have said why was gone."""
+    failed = next((s for s in steps if not s.passed and (s.detail or "").strip()), None)
+    if failed is None:
+        return ""
+    lines = [
+        " ".join(line.split()) for line in failed.detail.splitlines() if line.strip()
+    ]
+    said = [line for line in lines if _FAILED_LINE.search(line)] or lines
+    # Kept in the local log and ledger only: a named credential is scrubbed, the
+    # failing test's path is not (it is what says why).
+    text = goal_intake.clerk_redact(" | ".join(said[-8:]))
+    return f" ({failed.name}: {text[-SMOKE_EXCERPT:]})"
+
+
 #: How much of a writer's own words a refusal keeps, scrubbed, when it made no edit.
 NO_EDIT_EXCERPT = 240
 
@@ -2298,7 +2327,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                 steps=steps,
             )
             if failure is not None:
-                reasons.append(failure)
+                reasons.append(failure + smoke_excerpt(steps))
         return "; ".join(reasons) if reasons else None
 
     manifest = root / PORT_MANIFEST
