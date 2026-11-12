@@ -254,6 +254,7 @@
     "lib/brainMaterial.test.ts": "9aebb86d39a7c26dcaa60efcb9ae910c7d8f2f46aad38e03d5f4cc3f772234ce",
     "lib/brainScene.test.ts": "e36309b88c38a5782d90c948dad896dc5f9034244c3256281fc33b1c562d896f",
     "lib/constants.test.ts": "e06834a7878270cae241c8bae6530160e7ca943a93d658e909f25fc7025edc52",
-    "lib/funnelAnchorBus.test.ts": "fc809b906d46c3b2fc0091f233dbe5892cb511c52a2dca0755ef537bc4148ccf"
+    "lib/funnelAnchorBus.test.ts": "fc809b906d46c3b2fc0091f233dbe5892cb511c52a2dca0755ef537bc4148ccf",
+    "lib/materializationTiming.test.ts": "9c02d698293e5e6349a23acd89b0d4231be10c3300e1dac7db8ffc78cc9dc882"
   }
 }
