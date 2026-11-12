@@ -230,6 +230,7 @@
     "components/canvas/CognitiveGrasp.test.tsx": "09bfb0919a9f56ece9fde90c21ec6a1a205be4ca87059e6670cd6d0f3481e9da",
     "components/canvas/CommandNerve3D.test.tsx": "67339f12ad5c4d271ad54762a900b890147ee3025c4ae43736deeddd09994f85",
     "components/canvas/CompletionMemoryBead.test.tsx": "51c9bb4b97a018fa29ab1e5ba7f088a3c9c9efdcff10c28130f427164dec436d",
-    "components/canvas/CorticalNerve.test.tsx": "9e87df94736dea2ee88d57cacb8860caf39ec5640890a1a441c3732a8f8df127"
+    "components/canvas/CorticalNerve.test.tsx": "9e87df94736dea2ee88d57cacb8860caf39ec5640890a1a441c3732a8f8df127",
+    "components/canvas/FallbackScene.test.tsx": "531be99913c3a7e88bc813d50d1e0c80a675f3568f80755e06c49c30f2667785"
   }
 }
