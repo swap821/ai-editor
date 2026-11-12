@@ -25,6 +25,17 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Found, not fixed here.** The Security Queen compares protected paths case-sensitively, so `AIOS/SECURITY/x.py` is not seen as protected on Windows. GAGOS's envelope already refuses such paths case-insensitively before any mission is drafted; the queen itself needs its own fix.
 - **Next (A2b, A3).** GAGOS originates council missions inside the operator's envelope, and its worker runs the sandbox and records this entry.
 - **Tests:** 28 new. 228 pass across the 17 existing council, sandbox and verification test files.
+## 2026-11-12, the Security Queen sees Windows spellings of a protected path (branch `fix/security-queen-paths`)
+
+- **Found** while building the sandbox verification (#644); fixed at the operator's word.
+  - The queen compared protected paths case-sensitively, so on Windows `AIOS/SECURITY/gateway.py`, which is `aios/security/gateway.py`, passed a mission's review as an allowed file.
+  - Its normaliser's `lstrip("./")` also ate a dotfile's own dot (`.env` was read as `env`).
+- **Fixed** in `aios/council/queens/security.py`, which is not an organ entrypoint:
+  - the protected comparison is case-insensitive;
+  - what Windows reads as another path is unsafe, by the same rules GAGOS's envelope applies (`aios.domain.capabilities.envelope.normalise_path`): `:` streams, 8.3 short names (`SECURI~1`), segments ending in a dot or a space (`security.`), `<>"|`, wildcards;
+  - the normaliser drops only leading `./` segments.
+- **Proof.** 15 new tests. Against the old queen, 14 fail; the one that passes is "ordinary files still pass". 64 pass with the existing council, reasoning and queen-service tests.
+
 ## 2026-11-12, a busy laptop no longer fails a delivery on time (branch `fix/delivery-smoke-timeout`)
 
 - **UX-05's mystery, solved.** The composer draft passed the sandbox (350 tests) and Opus's review three times; two deliveries failed "the tests related to the frontend targets did not pass". The output #637 now keeps named it: `FixtureJourneyPage.test.tsx` timed out at vitest's default 5 s on the laptop. The same test passes in the sandbox and in CI. In the 17:50 hour it timed out with and without the change, so the change was delivered as not its doing (#642).
