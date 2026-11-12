@@ -37,7 +37,7 @@
     "components/canvas/SubsystemErrorBoundary.tsx": "30d33d9bd293981f1a7a21191eadf1026ea0964d8b69f32eb0d1638eec06bbce",
     "components/canvas/SuperbrainScene.LEGACY.tsx": "a69ab920c9fdafaae191b8cd45986c4d382b2755563f834b0ad52a574e4444bb",
     "components/canvas/TierGovernor.tsx": "b4b7ce783a61b92987cc077e20d6119417deae0ac0f6734d2e1d1a3e18899441",
-    "components/canvas/VertebraeRepoMapOverlay.tsx": "388424bf0f986ee8fb71400ee6bbdcb9a3134e46c299c58b4f2f5dd44e38c8db",
+    "components/canvas/VertebraeRepoMapOverlay.tsx": "fcfd12ea60f5f41b7c9a4d8781c42f1a29d19f5cc8c6e104ef6290158988e2c8",
     "components/canvas/WebGLErrorBoundary.test.tsx": "5d9e2ace6903dabd46a6d3fe34d77a820f9f953da553a40bafa54b2f95462a90",
     "components/canvas/WebGLErrorBoundary.tsx": "ba9fbf2c076e57e8b1d11b89f8e072e651843af783f67a1e6014aad17460b463",
     "components/canvas/WorkspaceCanvas.rootRecovery.test.tsx": "29afdbd1cc4aadaa22600c84eca0a9d85ef94a3d28314a432f757825b5ba357f",
