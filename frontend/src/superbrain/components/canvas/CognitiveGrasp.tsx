@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
-import { getKnownTrails, trailLabel, type TrailRow } from '@/lib/aiosAdapter';
+import { getKnownTrails, type TrailRow } from '@/lib/aiosAdapter';
 
 type Point = readonly [number, number, number];
 

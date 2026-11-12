@@ -9,7 +9,7 @@
     "components/canvas/BodyIntakeAnchors.tsx": "f4704ebfd20a0073c66cb1187901f5aed295f92a8104c79f07590e22ac5d54f7",
     "components/canvas/BodySpeech.tsx": "33136d8ba154372468bec4d6eb71c57aeb3d37b04701560a2d7706b03743027d",
     "components/canvas/BrainPointField.tsx": "1eb0eb1454dc61c93847c2cb4bd28abe22a5d1b620e67fc36ff1f984dd3c2699",
-    "components/canvas/CognitiveGrasp.tsx": "5e33d1f8fc3f8a612b0d939355ce98a9632b9ee3185adf16f72d17af9e0ba1c9",
+    "components/canvas/CognitiveGrasp.tsx": "5d1ba6a9816b9d66c4c6e6c6d8354b2790c028ac0ca1081d8ccdfbc90d7a7a82",
     "components/canvas/CommandNerve3D.tsx": "8568b4f1900ce0bcf238ef9aa3649241dc4d1c23d0331a223a4c3e02cf2b96f7",
     "components/canvas/CompletionMemoryBead.tsx": "a6d3011670ede52dee38c89b40537df99b9d8a0fe96ea76c7c08762a2a6c359a",
     "components/canvas/CorticalNerve.tsx": "655185d43fbfbffd8d46e1fa17fe6b8bbde6c746a843f01d7452dd9a48689dcb",
