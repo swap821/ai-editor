@@ -198,12 +198,13 @@ def test_a_granted_clerk_briefs_the_goal_through_its_own_service(tmp_path) -> No
     out = gi.intake(_task(), service, project_root="C:/p")
     assert out["state"] == gi.BRIEFED, out
     assert out["clerk"]["triage"]["model"] == "qwen2.5:3b"
-    # Each job is in the clerk's own provenance, recorded by its service.
-    for job, profile in (
-        ("goal-gt-1-triage", LocalJobProfile.TRIAGE),
-        ("goal-gt-1-briefing", LocalJobProfile.PREPARE_BRIEFING),
+    # Each job is in the clerk's own provenance, recorded by its service, and
+    # the outcome names it.
+    for step, profile in (
+        ("triage", LocalJobProfile.TRIAGE),
+        ("briefing", LocalJobProfile.PREPARE_BRIEFING),
     ):
-        seen = get_clerk_job_provenance(store, job)
+        seen = get_clerk_job_provenance(store, out["clerk"][step]["job_id"])
         assert seen.request.job_profile == profile.value
         assert seen.result.status == "completed"
 
@@ -215,10 +216,26 @@ def test_with_no_model_granted_the_goal_waits_and_says_why(tmp_path) -> None:
     assert "No admitted healthy local model" in out["reason"]
     assert out["mission_request"] is None
     # Asked once, refused once, and that refusal is on the clerk's record.
-    assert get_clerk_job_provenance(store, "goal-gt-1-triage").result.status == (
-        "rejected"
-    )
-    assert get_clerk_job_provenance(store, "goal-gt-1-briefing").result is None
+    job = out["clerk"]["triage"]["job_id"]
+    assert get_clerk_job_provenance(store, job).result.status == "rejected"
+    assert "briefing" not in out["clerk"]
+
+
+def test_a_waiting_goal_can_be_asked_again_next_hour(tmp_path) -> None:
+    """2026-11-12, the 07:50 UTC hour: the second ask of a waiting goal failed
+    "UNIQUE constraint failed: local_job_requests.job_id" -- the job id was
+    the same every hour. Each attempt is its own job now, each on record."""
+    service, store = _service(tmp_path, [], lambda asked: "{}")
+    first = gi.intake(_task(), service, project_root="C:/p", attempt="h1")
+    second = gi.intake(_task(), service, project_root="C:/p", attempt="h2")
+    assert first["state"] == second["state"] == gi.AWAITING_CLERK
+    ids = {first["clerk"]["triage"]["job_id"], second["clerk"]["triage"]["job_id"]}
+    assert len(ids) == 2
+    for job in ids:
+        assert get_clerk_job_provenance(store, job).result.status == "rejected"
+    # By default each intake stamps its own attempt.
+    third = gi.intake(_task(), service, project_root="C:/p")
+    assert third["clerk"]["triage"]["job_id"] not in ids
 
 
 def test_an_invalid_answer_is_not_used() -> None:
@@ -312,7 +329,7 @@ def test_the_hour_takes_in_a_bounded_number_and_scrubs_his_words(
     clerk.requests.clear()
     tool.goals_hour(led, tmp_path, service=clerk)
     assert {
-        r.job_id.split("-triage")[0] for r in clerk.requests if "triage" in r.job_id
+        r.job_id.rsplit("-", 2)[0] for r in clerk.requests if "triage" in r.job_id
     } == {f"goal-{ids[-1]}"}
 
 

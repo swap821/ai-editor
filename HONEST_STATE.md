@@ -1,9 +1,16 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, masking holds wherever the file lands in the prompt" below;
+**Last updated:** 2026-11-12 ("2026-11-12, a waiting goal can be asked again" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, a waiting goal can be asked again (branch `fix/goal-intake-attempt-ids`)
+
+- **What happened.** In the 07:50 UTC hour, GAGOS asked the clerk again about the goal still waiting from 06:50 (`gt-c295ef7b4f`). The ask failed: "the clerk could not be asked: IntegrityError: UNIQUE constraint failed: local_job_requests.job_id".
+- **The cause, my own (#627).** Each clerk job's id was fixed per goal (`goal-<id>-triage`). The clerk's provenance store keys every job by its id, so a goal could be asked only once. Every goal waiting for the clerk would have failed like this each hour.
+- **The fix.** Each intake is its own attempt, stamped in UTC: `goal-<id>-<stamp>-triage`. Each step's job id is in the outcome, so the ledger points at the clerk's own record.
+- **Evidence.** A new test asks a waiting goal twice through the real service and provenance store: both attempts are on record. With the old fixed id it fails with the hour's exact error. The goal-intake tests pass, 26.
 
 ## 2026-11-12, masking holds wherever the file lands in the prompt (branch `fix/mask-in-prompt-context`)
 

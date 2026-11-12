@@ -129,18 +129,29 @@ def intake(
     *,
     project_root: str,
     redact: Callable[[str], str] = lambda text: text,
+    attempt: str | None = None,
 ) -> dict:
     """The clerk's intake of one goal: ``{"state", "clerk", "reason",
     "mission_request"}``. *service* is the clerk's governed service
-    (``LocalWorkforceService.run_advisory_job``)."""
+    (``LocalWorkforceService.run_advisory_job``).
+
+    Each intake is its own attempt (*attempt*, a UTC stamp by default): a goal
+    waiting for the clerk is asked again in a later hour, and the clerk's
+    provenance store keys every job by its id (2026-11-12: the second hour's
+    ask of a waiting goal failed "UNIQUE constraint failed:
+    local_job_requests.job_id"). Each step's job id is in the outcome, so the
+    ledger points at the clerk's own record of it."""
     from aios.domain.local_workforce.contracts import LocalJobProfile
 
     tid = task["task_id"]
+    attempt = attempt or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    triage_id = f"goal-{tid}-{attempt}-triage"
+    briefing_id = f"goal-{tid}-{attempt}-briefing"
     goal = redact(goal_text(task))
     clerk: dict[str, Any] = {}
 
-    def waiting(step: str, model: str, why: str) -> dict:
-        clerk[step] = {"model": model, "error": why}
+    def waiting(step: str, job_id: str, model: str, why: str) -> dict:
+        clerk[step] = {"job_id": job_id, "model": model, "error": why}
         return {
             "state": AWAITING_CLERK,
             "clerk": clerk,
@@ -150,27 +161,27 @@ def intake(
 
     triage, model, why = _ask(
         service,
-        f"goal-{tid}-triage",
+        triage_id,
         LocalJobProfile.TRIAGE,
         triage_prompt(goal),
         TRIAGE_SCHEMA,
         read_triage,
     )
     if triage is None:
-        return waiting("triage", model, why)
-    clerk["triage"] = {"model": model, **triage}
+        return waiting("triage", triage_id, model, why)
+    clerk["triage"] = {"job_id": triage_id, "model": model, **triage}
 
     briefing, model, why = _ask(
         service,
-        f"goal-{tid}-briefing",
+        briefing_id,
         LocalJobProfile.PREPARE_BRIEFING,
         briefing_prompt(goal),
         BRIEFING_SCHEMA,
         read_briefing,
     )
     if briefing is None:
-        return waiting("briefing", model, why)
-    clerk["briefing"] = {"model": model, **briefing}
+        return waiting("briefing", briefing_id, model, why)
+    clerk["briefing"] = {"job_id": briefing_id, "model": model, **briefing}
     request = mission_request(task, briefing, project_root)
     if triage["escalate"]:
         return {
