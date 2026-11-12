@@ -224,6 +224,7 @@
     "components/QualityTierProvider.test.tsx": "6cfb7514e02f46191e3e81458e3cc052af55cb55bc70cf306f8bd9d0dc3df9b4",
     "components/canvas/AmbientFloat.test.tsx": "b3c9fd820668272cedd51818dd4a252d6846f3ebb8d46495d5d4d4a20ffa63d2",
     "components/canvas/AttentionConductionPulse.test.tsx": "c8de99173e6c05a83a488ab6163d3fe29413f823e343e92bcd2e78e91a8da0dc",
-    "components/canvas/BodyIntakeAnchors.test.tsx": "61cf05343791972bac65dcf53626d3598361593c8836b95fa19bb0ff92550a9e"
+    "components/canvas/BodyIntakeAnchors.test.tsx": "61cf05343791972bac65dcf53626d3598361593c8836b95fa19bb0ff92550a9e",
+    "components/canvas/BodySpeech.test.tsx": "5aa311148d3e1c6d5b286070c7019c7571c2502d9e221da04df60f96049bae5a"
   }
 }
