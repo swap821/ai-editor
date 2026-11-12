@@ -87,11 +87,11 @@ export interface CognitionEvent {
   /** Server-generated spine_id for causality tracking */
   spine_id?: string;
   /** Message body payload for mirror events */
-  body?: any;
+  body?: unknown;
   redacted?: boolean;
   role?: string;
   speaker?: string;
-  metadata?: any;
+  metadata?: unknown;
   code?: string;
   recoverable?: boolean;
 }

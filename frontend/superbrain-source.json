@@ -99,7 +99,7 @@
     "lib/brainAttentionPosture.ts": "cb86d2050fbb5e0d2a9fdbc55adfd41edff770f963d4f283154635158a08495e",
     "lib/brainMaterial.ts": "8a3df57377d171131f2f1bc772f836bd1fad8867f6e2501fac0b94df395e646d",
     "lib/brainScene.ts": "6d8871eb3eeca41f384278d47c427f074d139803c035f7de33e4555111c08b7b",
-    "lib/cognitionBus.ts": "46f8ce4ffa140808c70d4f6ab2376c59ae055a8b255377ec0d722d981e8525a4",
+    "lib/cognitionBus.ts": "bdc8f168e984fa0bb9cb7c45a153d8f149a1dc1b2b0c3082bd1b9c645d6f76cc",
     "lib/commandDockState.test.ts": "6abbe74011899e931315a43fc84c931ce1dacfbeb8fed29e8b96ca5754f3e954",
     "lib/commandDockState.ts": "0d7ed8f3fa4f5bfed581d07008e4450a493f49219fbb045b50bf07cffd1f3670",
     "lib/completionReflex.test.ts": "4f335aafce081eafd6f30f95afdb1997abb743f3745e0c6d7ea4b488574094ec",
