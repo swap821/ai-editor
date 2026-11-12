@@ -170,11 +170,16 @@ def test_a_file_the_writer_does_not_change_is_not_a_member(
 def test_a_task_the_writer_changes_nothing_of_is_one_refused_proposal(
     tmp_path, monkeypatch
 ) -> None:
-    for answer in ("It needs a third file.", _answer((1, "Panel.jsx", BEFORE))):
+    # A reply with no edit says so in the writer's own words (2026-11-12); a
+    # whole file returned unchanged says the task may need more files.
+    for answer, why in (
+        ("It needs a third file.", "the writer made no edit: 'It needs a third file.'"),
+        (_answer((1, "Panel.jsx", BEFORE)), "every file unchanged"),
+    ):
         led, _asked, args, tid = _many(tmp_path / str(len(answer)), monkeypatch, answer)
         assert tool.cmd_propose(args) == 0
         (p,) = led.proposals()
-        assert p["status"] == "refused" and "every file unchanged" in p["refusal"]
+        assert p["status"] == "refused" and why in p["refusal"]
         assert led.task(tid)["proposal_id"] == p["proposal_id"]
         assert led.group_members(tid) == []
 

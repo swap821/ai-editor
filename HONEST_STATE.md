@@ -1,9 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, a waiting goal can be asked again" below;
+**Last updated:** 2026-11-12 ("2026-11-12, a writer that makes no edit is heard" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, a writer that makes no edit is heard (branch `fix/task-no-edit-refusal`)
+
+- **What happened.** The blueprint goal PERF-04 (a 100-cycle bound test for the work-surface store) was refused twice, in the 08:50 and 09:50 UTC hours, as "expected exactly one fenced code block, got 0". In the same hours Sonnet delivered other changes, so the writer was not failing.
+- **The cause.** The task writer is told: "If the task cannot be done in this file alone, reply with no edit at all." My goal showed it `tabStore.test.ts` but not `tabStore.ts`, whose API the test needs, so it made no edit. The workshop read that as a broken whole file, and the writer's words were not kept anywhere.
+- **The fix.**
+  - An answer with no edit and no fenced file is refused as "the writer made no edit: '<its words>'", scrubbed and at most 240 characters, for tasks over one file and over several.
+  - The goal is added again (`gt-7d07ed1f18`) with the store shown so the writer can read its API, and told not to change it.
+- **Tests:** 5 in `tests/test_gagos_task_no_edit.py`. The single-file case fails when the check is removed. One older test now pins its prose case to the new message; its unchanged-file case keeps "every file unchanged". GAGOS's workshop tests and the guards pass.
 
 ## 2026-11-12, a waiting goal can be asked again (branch `fix/goal-intake-attempt-ids`)
 
