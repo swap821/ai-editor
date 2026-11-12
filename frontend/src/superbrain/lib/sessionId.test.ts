@@ -7,7 +7,6 @@ import {
   getSessionIdForBody,
   initSession,
   isCookieBasedSession,
-  SESSION_STORAGE_KEY,
 } from './sessionId';
 
 describe('getSessionId', () => {

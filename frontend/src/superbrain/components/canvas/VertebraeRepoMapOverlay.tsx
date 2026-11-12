@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { useFrame } from '@react-three/fiber';
 import { SEGMENT_ANCHORS, SEGMENT_COUNT } from '@/lib/spineAnatomy';
-import { getRepoMapState, subscribeRepoMap, type RepoMapNode } from '@/lib/repoMapStore';
+import { subscribeRepoMap, type RepoMapNode } from '@/lib/repoMapStore';
 
 const STATUS_COLORS: Record<string, THREE.Color> = {
   editing: new THREE.Color('#19d4f0'),    // cyan

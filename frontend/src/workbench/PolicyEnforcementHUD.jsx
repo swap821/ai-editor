@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Scale, BookOpen, Hand, Play, Pause, HandMetal, AlertTriangle } from 'lucide-react';
+import { Scale, BookOpen, Hand, Play, Pause } from 'lucide-react';
 import { API_BASE, API_HEADERS } from '../config';
 
 async function fetchJson(path, signal) {
@@ -108,7 +108,7 @@ export default function PolicyEnforcementHUD() {
       if (action === 'vote' && !window.confirm(`Vote to approve policy ${policyId}?`)) return;
       await postJson(`/api/v1/policy/${encodeURIComponent(policyId)}/${action}`, body);
       void loadChain();
-    } catch (err) {
+    } catch {
       alert(`Could not ${action} policy`);
     } finally {
       setBusyAction(null);

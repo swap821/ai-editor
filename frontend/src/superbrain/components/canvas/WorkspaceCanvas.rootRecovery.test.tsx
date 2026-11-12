@@ -19,9 +19,11 @@ vi.mock('@react-three/fiber', async () => {
     Canvas: ({ children, onCreated }: { children: ReactNode; onCreated: (state: { gl: WebGLRenderer }) => void }) => {
       if (driver.failRender) throw new Error('controlled root graphics failure');
       const canvas = React.useRef<HTMLCanvasElement>(null);
+      const onCreatedRef = React.useRef(onCreated);
+      onCreatedRef.current = onCreated;
       React.useLayoutEffect(() => {
         const gl = { domElement: canvas.current, capabilities: { isWebGL2: true }, debug: { checkShaderErrors: true, onShaderError: null } } as unknown as WebGLRenderer;
-        driver.renderers.push(gl); onCreated({ gl });
+        driver.renderers.push(gl); onCreatedRef.current({ gl });
       }, []);
       const content = React.Children.toArray(children).filter(child => !React.isValidElement(child) || !['color', 'fog'].includes(String(child.type)));
       return <div><canvas ref={canvas} />{content}</div>;

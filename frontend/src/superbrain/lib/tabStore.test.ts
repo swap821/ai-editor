@@ -41,7 +41,7 @@ describe('tabStore', () => {
 
   it('keeps multiple content tabs without stealing existing focus', () => {
     const first = showContentSurface({ code: 'a', language: 'python', filepath: 'a.py' }, { bornAt: 1, seatIndex: 2 });
-    const second = showContentSurface({ code: 'b', language: 'python', filepath: 'b.py' }, { bornAt: 2, seatIndex: 3 });
+    showContentSurface({ code: 'b', language: 'python', filepath: 'b.py' }, { bornAt: 2, seatIndex: 3 });
     expect(getTabStoreSnapshot().tabs).toHaveLength(2);
     expect(getFirstMaterializedTab()?.id).toBe(first.id);
     expect(getFocusedMaterializedTab()?.id).toBe(first.id);

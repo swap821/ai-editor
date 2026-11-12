@@ -21,7 +21,7 @@ export class EventThrottler {
    * @param callback The function to throttle.
    * @returns A throttled wrapper function.
    */
-  public throttle<T extends (...args: any[]) => void>(callback: T): (...args: Parameters<T>) => void {
+  public throttle<T extends (...args: never[]) => void>(callback: T): (...args: Parameters<T>) => void {
     return (...args: Parameters<T>) => {
       const now = performance.now();
       const remaining = this.limitMs - (now - this.lastFired);

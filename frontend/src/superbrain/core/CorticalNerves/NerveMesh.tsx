@@ -15,7 +15,7 @@ export const COUNCIL_NODES = [
 
 export default function NerveMesh({ activeStates }: { activeStates: Float32Array }) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
-  const materialRef = useRef<any>(null);
+  const materialRef = useRef<{ uTime: number }>(null);
 
   useEffect(() => {
     if (!meshRef.current) return;

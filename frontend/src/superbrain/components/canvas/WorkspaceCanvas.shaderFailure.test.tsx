@@ -13,14 +13,15 @@ vi.mock('@react-three/fiber', async () => {
       if (driver.failRender) throw new Error('controlled scene render failure');
       const canvas = React.useRef<HTMLCanvasElement>(null);
       const content = React.Children.toArray(children).filter(child => !React.isValidElement(child) || !['color', 'fog'].includes(String(child.type)));
+      const initial = React.useRef({ content, onCreated });
       React.useLayoutEffect(() => {
         const gl = { domElement: canvas.current, capabilities: { isWebGL2: true }, debug: { checkShaderErrors: true, onShaderError: driver.previous } } as unknown as WebGLRenderer;
-        driver.renderers.push(gl); onCreated({ gl });
+        driver.renderers.push(gl); initial.current.onCreated({ gl });
         if (driver.delayedCleanup) {
           // Controlled external-renderer lifetime: installed R3F retires its
           // separate reconciler root later than its outer DOM canvas owner.
           const detachedRoot = createRoot(document.createElement('div'));
-          detachedRoot.render(<>{content}</>);
+          detachedRoot.render(<>{initial.current.content}</>);
           return () => { driver.cleanups.push(() => detachedRoot.unmount()); };
         }
       }, []);

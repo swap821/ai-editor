@@ -102,10 +102,6 @@ function isValidSeat(seatIndex: unknown): seatIndex is number {
   return typeof seatIndex === 'number' && seatIndex >= 0 && seatIndex < SEGMENT_ANCHORS.length;
 }
 
-function sideSign(side: AnatomicalRootSide): number {
-  return side === 'right' ? 1 : -1;
-}
-
 function sideLabel(sign: number): AnatomicalRootSide {
   return sign > 0 ? 'right' : 'left';
 }
