@@ -245,6 +245,7 @@
     "components/qualityTierContext.test.ts": "4d29f046b23025cc95c56c9cd17826446bbcd2783b0329a16ca545436247da27",
     "components/ui/SwarmHUD.test.tsx": "19251d85c0bb46bba5ecf4580a34f98e8b6bfc9cf90c050c46946f0362bd3fdf",
     "core/AccretionCore/CoreGeometry.test.ts": "aa7d551fca2463c171e9b98aa763af37394efa40e9ec2f5dbb41a996bb56cb29",
-    "core/AccretionCore/DecayAura.test.tsx": "d85618b6ba3bd984ba55350497e815488acd521a30f41c7b6683bd853a5234ba"
+    "core/AccretionCore/DecayAura.test.tsx": "d85618b6ba3bd984ba55350497e815488acd521a30f41c7b6683bd853a5234ba",
+    "core/AttentionField/ConductionPaths.test.ts": "42ba9fa0f93a5fd4311e3d2dc59b5d15091df25ff01a8deacd6e7b65f62e7b18"
   }
 }
