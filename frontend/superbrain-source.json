@@ -247,6 +247,7 @@
     "core/AccretionCore/CoreGeometry.test.ts": "aa7d551fca2463c171e9b98aa763af37394efa40e9ec2f5dbb41a996bb56cb29",
     "core/AccretionCore/DecayAura.test.tsx": "d85618b6ba3bd984ba55350497e815488acd521a30f41c7b6683bd853a5234ba",
     "core/AttentionField/ConductionPaths.test.ts": "42ba9fa0f93a5fd4311e3d2dc59b5d15091df25ff01a8deacd6e7b65f62e7b18",
-    "core/AttentionField/SignalParticles.test.tsx": "f1ac74dd42a3895e35981a2ce864bd68af764c97de1b4e203fa5b5a08010aa1b"
+    "core/AttentionField/SignalParticles.test.tsx": "f1ac74dd42a3895e35981a2ce864bd68af764c97de1b4e203fa5b5a08010aa1b",
+    "core/CorticalNerves/DeliberationOverlay.test.tsx": "4be1baf12cf84cd1cffde6accbca18560e69847ca5a4b8de83e04b113e7e0fc0"
   }
 }
