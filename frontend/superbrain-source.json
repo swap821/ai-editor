@@ -86,7 +86,7 @@
     "lib/anatomicalConductor.test.ts": "3dde13d8835f0441e4cc81833f0b691ab400b3d476869febef958650f3ff8918",
     "lib/anatomicalConductor.ts": "b0ba6eb56c27130033d90cfb760faf8d375287b149db5c911f29ad5fcb5fa3d7",
     "lib/anatomicalRootSystem.test.ts": "1e44d34d72f78cfd12f3a6f0868f1f99eeb9f5c8ab8422aef678477a4aabb97f",
-    "lib/anatomicalRootSystem.ts": "768aca385e11053252fb9680e53a7c4c8515b5441af38f159385a32d7984cea9",
+    "lib/anatomicalRootSystem.ts": "415925302a756e0c893a8be8f258a6cc5d9bd64e038d2881e3757b2e1cba91c4",
     "lib/attentionConduction.test.ts": "d7b74e5fec48db931b564ca26fdde18acdefaf5085beadf54c723ea28724243b",
     "lib/attentionConduction.ts": "08e7e465a81f731489072e71185f7930dc9772f871f0b0be16d62e921f3cde33",
     "lib/beingMode.test.ts": "b23ac3f355740106ad6a9b878e22385f87d64c38c45e7f3fff622c4c007544f0",
