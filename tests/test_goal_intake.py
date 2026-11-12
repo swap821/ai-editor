@@ -48,6 +48,7 @@ from tests.test_gagos_daily import REL
 from tests.test_gagos_tasks_workshop import WORDS, _reply
 from tests.test_gagos_workforce import _batch
 from tools import gagos_daily as tool
+from tests.clerk_qualification_fixture import passed_everything
 
 TRIAGE = {"severity": "low", "area": "frontend", "escalate": False}
 BRIEF = {
@@ -174,6 +175,7 @@ def _service(tmp_path, models, answer):
     registry = MagicMock(spec=LocalWorkforceRegistry)
     registry.list_models.return_value = models
     registry.get_model.return_value = models[0] if models else None
+    registry.get_qualification.return_value = passed_everything()
     llm = MagicMock()
     llm.complete.side_effect = lambda *a, **k: answer(str(a) + str(k))
     store = LocalWorkforceProvenanceStore(tmp_path / "provenance.db")

@@ -25,6 +25,7 @@ from aios.infrastructure.local_workforce.sqlite_store import (
     LocalWorkforceProvenanceStore,
 )
 from aios.core.autonomy import UNGOVERNED_FIXTURE
+from tests.clerk_qualification_fixture import passed_everything
 
 
 def _admitted_model() -> LocalWorkerModel:
@@ -67,6 +68,7 @@ def _service_with(
     admitted = _admitted_model()
     registry.list_models.return_value = [admitted]
     registry.get_model.return_value = admitted
+    registry.get_qualification.return_value = passed_everything()
     llm = MagicMock()
     llm.complete.return_value = raw_output
     return LocalWorkforceService(
@@ -240,6 +242,7 @@ def test_local_clerk_advisory_enters_compatibility_gateway() -> None:
     admitted = _admitted_model()
     registry.list_models.return_value = [admitted]
     registry.get_model.return_value = admitted
+    registry.get_qualification.return_value = passed_everything()
     service = LocalWorkforceService(
         registry=registry,
         ollama=provider,
