@@ -235,6 +235,7 @@
     "components/canvas/materializedTab/ApprovalActionButton.test.tsx": "055dc81ec9b59f3d6e9c6f6895d571a6c658af61b454fad7e9d583d218c90705",
     "components/canvas/KnowledgeHorizon.test.tsx": "918f880e95a2cdce1dbbbc6a57e7fb6947d4a67d1461664a3990cee9b2b19645",
     "components/canvas/MemoryHalo.test.tsx": "e2705a66c1a3550b1196cb9d9eda742acb5cbf04df31c8c14e85a50018ac48b6",
-    "components/canvas/OrganSurface.test.tsx": "4f4e0fb82bffc67cdd17ee469a219bf4df3aa1fbc322c61b773e619941357189"
+    "components/canvas/OrganSurface.test.tsx": "4f4e0fb82bffc67cdd17ee469a219bf4df3aa1fbc322c61b773e619941357189",
+    "components/canvas/PostFX.test.tsx": "c533f35126d4b47fcad88d08337c38f80301a4685f0a42d30b16f458586c2b0f"
   }
 }
