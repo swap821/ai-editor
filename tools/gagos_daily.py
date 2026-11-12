@@ -2611,6 +2611,75 @@ def goals_hour(led: DailyLedger, root: Path, *, service=None) -> None:
         )
 
 
+#: Goals originated as council missions per hour: each convenes the council
+#: (its King and Planner on the local model).
+MISSIONS_PER_HOUR = 2
+#: Origination outcomes that spent an envelope slot: never tried again.
+SLOT_SPENT = ("awaiting_approval", "blocked", "failed")
+
+
+def missions_hour(
+    led: DailyLedger, root: Path, *, envelope=None, originate=None
+) -> None:
+    """The council's part of the hour (move A2b, 2026-11-12): up to
+    MISSIONS_PER_HOUR goals the clerk briefed are originated as council
+    missions inside the operator's daily envelope
+    (aios.operations.council_origination). Without a live envelope nothing is
+    asked, and the hour says why. Nothing here approves or runs a mission."""
+    if not goals_through_clerk():
+        return
+    from aios.operations import council_origination
+
+    if envelope is None:
+        from aios.application.capabilities.envelope import EnvelopeAuthority
+        from aios.api.deps import get_emergency_stop
+
+        envelope = EnvelopeAuthority(
+            db_path=config.CAPABILITY_DB_PATH, emergency_stop=get_emergency_stop()
+        )
+    intakes, done = led.intakes(), led.originations()
+    todo = [
+        t
+        for t in led.tasks()
+        if intakes.get(t["task_id"], {}).get("state") == goal_intake.BRIEFED
+        and done.get(t["task_id"], {}).get("state") not in SLOT_SPENT
+        and t["status"] in ("open", "taken")
+    ][:MISSIONS_PER_HOUR]
+    if not todo:
+        return
+    status = envelope.status()
+    if not status.get("live"):
+        print(f"  missions: none originated -- {status.get('reason')}")
+        return
+    if originate is None:
+        workspace = council_origination.gagos_workspace(config.COUNCIL_WORKSPACE_ROOT)
+        config.COUNCIL_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
+
+        def originate(task, seen):
+            return council_origination.originate_goal(
+                task,
+                seen,
+                envelope=envelope,
+                workspace_root=workspace,
+                runtime_root=config.COUNCIL_RUNTIME_DIR,
+            )
+
+    for task in todo:
+        try:
+            outcome = originate(task, intakes[task["task_id"]])
+        except Exception as exc:  # said, never hidden; tried again next hour
+            outcome = {
+                "state": "refused",
+                "reason": f"origination failed: {type(exc).__name__}: {exc}"[:400],
+            }
+        led.record_origination(task["task_id"], outcome)
+        print(
+            f"  mission for {task['task_id']}: {outcome['state']}"
+            + (f" {outcome['mission_id']}" if outcome.get("mission_id") else "")
+            + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
+        )
+
+
 def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
     """The report's lines on the operator's tasks: counts by status, and each
     task still moving (open, or taken and not yet delivered). Never his words."""
@@ -2624,6 +2693,7 @@ def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
         + "):"
     ]
     intakes = led.intakes()
+    missions = led.originations()
     for t in progress:
         # A task over several files names each, and each one's proposal.
         files = ", ".join(f"`{scrub(rel)}`" for rel in t["files"])
@@ -2645,6 +2715,11 @@ def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
             else:
                 made = f", proposal `{p['proposal_id']}` {p['status']}" if p else ""
             out.append(f"- `{t['task_id']}` in {files}: taken" + made)
+        if t["task_id"] in missions:
+            m = missions[t["task_id"]]
+            why = f" ({scrub(m['reason'])})" if m.get("reason") else ""
+            what = f"mission `{m['mission_id']}` " if m.get("mission_id") else ""
+            out.append(f"  - with the council: {what}{m['state']}{why}")
     return [*out, ""]
 
 
@@ -3285,6 +3360,11 @@ def cmd_daily(args: argparse.Namespace) -> int:
             print(
                 f"  goals: the clerk's intake failed: {type(exc).__name__}: {exc}"[:400]
             )
+        # Then briefed goals to the council, inside his envelope (move A2b).
+        try:
+            missions_hour(led, root)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(f"  missions: origination failed: {type(exc).__name__}: {exc}"[:400])
         rc = cmd_propose(
             argparse.Namespace(
                 project=str(root),

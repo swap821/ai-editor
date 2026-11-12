@@ -1,9 +1,27 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, a council mission can be verified by the sandbox" below;
+**Last updated:** 2026-11-12 ("2026-11-12, GAGOS originates council missions inside the envelope" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, GAGOS originates council missions inside the envelope (branch `feat/gagos-originates`)
+
+- **Move A2b on the aliveness map**, built on the envelope (#641) and the sandbox verification (#644); its PR follows both.
+- **One deliberation for every originator** (`aios/operations/council_origination.deliberate`). The operator's council route now calls it, so the route and GAGOS build the council the same way.
+- **GAGOS's origination** (`originate_goal`), for a goal the clerk briefed (not escalated):
+  - The goal is his own words. The clerk's briefing rides along as advisory metadata. The goal passes the same injection check as his route (`aios.core.injection_scan`).
+  - It takes one slot of his live envelope first. Outside its folders, kinds or count, or with no envelope signed, it is refused with the envelope's reason, and no council is convened.
+  - The mission is verified by the sandbox (`sandbox_verification`). Its scope is exactly his files, and it carries its slot. Its `operator_id` is the envelope's signer, and `created_by` is `gagos`.
+  - A slot is spent by the attempt. A mission the council blocks, or whose deliberation fails, has used one of the day's missions, so a refused goal cannot be retried past his number.
+  - Nothing here approves or runs a mission.
+- **The hour** (`missions_hour`, after the clerk's intake): up to 2 briefed goals per hour.
+  - Without a live envelope, nothing is asked and the hour says why.
+  - A spent slot is never retried; a refusal is.
+  - The report shows each goal's mission.
+- **Measured.** A real deliberation passes a sandbox-verified GAGOS mission with no verification commands. The Planner does not defer, the Security Queen does not deny, and organ 10 records it awaiting approval.
+- **Until A3**, the workshop's writers also take the goal in the same hour. The mission only waits, and nothing runs twice.
+- **Tests:** 14 new. 325 pass across the 14 existing workshop, intake and council test files.
 
 ## 2026-11-12, a council mission can be verified by the sandbox (branch `feat/council-sandbox-verification`)
 
