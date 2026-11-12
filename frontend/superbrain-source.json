@@ -232,6 +232,7 @@
     "components/canvas/CompletionMemoryBead.test.tsx": "51c9bb4b97a018fa29ab1e5ba7f088a3c9c9efdcff10c28130f427164dec436d",
     "components/canvas/CorticalNerve.test.tsx": "9e87df94736dea2ee88d57cacb8860caf39ec5640890a1a441c3732a8f8df127",
     "components/canvas/FallbackScene.test.tsx": "531be99913c3a7e88bc813d50d1e0c80a675f3568f80755e06c49c30f2667785",
-    "components/canvas/materializedTab/ApprovalActionButton.test.tsx": "055dc81ec9b59f3d6e9c6f6895d571a6c658af61b454fad7e9d583d218c90705"
+    "components/canvas/materializedTab/ApprovalActionButton.test.tsx": "055dc81ec9b59f3d6e9c6f6895d571a6c658af61b454fad7e9d583d218c90705",
+    "components/canvas/KnowledgeHorizon.test.tsx": "918f880e95a2cdce1dbbbc6a57e7fb6947d4a67d1461664a3990cee9b2b19645"
   }
 }
