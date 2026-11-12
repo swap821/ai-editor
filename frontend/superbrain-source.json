@@ -65,7 +65,7 @@
     "core/AccretionCore/MemoryParticles.tsx": "f2c9a11c2ab4085ebf3fad3c20a4eb3b71bcdd2b116a3867353b1a5091fa7fff",
     "core/AccretionCore/index.ts": "081faf42981443cb1c034d0ecfc5eed09a19c307feb4210c96466b4bf6d00b71",
     "core/AttentionField/ConductionPaths.ts": "4d184f0fdc266b4fd52d459f0017f1343d40b5bc68090c8435d231122b66b7b5",
-    "core/AttentionField/RoutingShader.tsx": "00cfa04485983245a951135d22b17d3f22c365e02ea0c3556bb7e9b89756e08c",
+    "core/AttentionField/RoutingShader.tsx": "e84dd48f192bdbc1bcd2cf27184cac728a7666441984037f8af41d225c012767",
     "core/AttentionField/SignalParticles.tsx": "c249f746b3a0a0c03430708bf5e0e090fd8dba380fb64dbb55b942d199075ea4",
     "core/AttentionField/index.ts": "b247b06f39ddae7d5bd17ddc703cc4ba92b9c049299583921add7956191a3c22",
     "core/CortexEngine.tsx": "a7b68b9dc1584e9e788be0bc1ed5c1e3c45d3114c683b02d49ad872ed2726a21",
