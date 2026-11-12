@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import {
   sendDirective,
   sendVoiceTurn,
@@ -30,6 +30,26 @@ import { sanitizeToText } from '../../utils/sanitizeHtml';
 import { isCompleteWorkResult, isEstablishedTurn } from './turnOutcome';
 
 const MAX_MESSAGES = 40;
+// One sessionStorage key: the composer draft is per browser tab and is gone
+// when the tab closes. Storage is best-effort; any error means nothing is stored.
+const DRAFT_STORAGE_KEY = 'gagos.composer.draft';
+
+function readStoredDraft() {
+  try {
+    return window.sessionStorage.getItem(DRAFT_STORAGE_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function writeStoredDraft(draft) {
+  try {
+    if (draft) window.sessionStorage.setItem(DRAFT_STORAGE_KEY, draft);
+    else window.sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+  } catch {
+    // Private mode, quota, or no window: the draft simply is not kept.
+  }
+}
 // Surface IDs can be reused by another mounted shell for the same filepath.
 // At most one current surface per hook instance; this tracks writers, not state.
 const workSurfaceOwners = new Map();
@@ -125,7 +145,10 @@ export function useWorkMaterialization({
 }) {
   const [messages, setMessages] = useState(/** @type {ConversationMessage[]} */ ([]));
   const [busy, setBusy] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(readStoredDraft);
+  useEffect(() => {
+    writeStoredDraft(draft);
+  }, [draft]);
 
   const msgSeqRef = useRef(0);
   const turnTokenRef = useRef(0);

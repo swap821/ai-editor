@@ -25,6 +25,25 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Found, not fixed here.** The Security Queen compares protected paths case-sensitively, so `AIOS/SECURITY/x.py` is not seen as protected on Windows. GAGOS's envelope already refuses such paths case-insensitively before any mission is drafted; the queen itself needs its own fix.
 - **Next (A2b, A3).** GAGOS originates council missions inside the operator's envelope, and its worker runs the sandbox and records this entry.
 - **Tests:** 28 new. 228 pass across the 17 existing council, sandbox and verification test files.
+## 2026-11-12, a daily aliveness pulse: which parts of GAGOS do real work (branch `feat/aliveness-pulse`)
+
+- **Why.** The operator: "are we using SWARM infra... there can be many things like this honestly". Measured read-only on master `7bee519a` (every store's rows and newest write, every cortex event type), most of GAGOS was silent, for three causes:
+  - **no conversation turns** since 10-30, and those came from the proof scripts, not from him: 13 organs, memory, the reflex and the swarm at the counter;
+  - **work never runs as missions**: the 9 mission organs last ran on 10-19, the vulture repair;
+  - **no producer**: 8 organs and the knowledge base have never held a row; 37 of 104 distinct stores are empty.
+- **A correction.** I had told him the swarm is refused in production. It is not: since 11-09 it runs through the Foundry (`swarm_foundry`), and only the role pass is refused. It is unused, because only a counter turn asks for it, and his data holds no swarm run at all.
+- **The pulse** (`aios/application/observability/aliveness.py`, organ 52) makes that measurement daily:
+  - each organ and subsystem declares the evidence it leaves when it works (tables, event types, which Foundry workers);
+  - each one's status: live (2 days), recent (14), stale, never, or undated; guards, face surfaces and evaluation organs leave nothing to measure and are named so;
+  - it opens every database read-only and changes nothing.
+- **Where it shows.** GAGOS's daily report and PR body carry it: the counts, then every silent part by name with its last real activity. A pulse that cannot be measured says so; the report still goes out.
+- **On his data today:** live 16, recent 17, stale 13, never 11, guard 7, face 4, evaluation 4.
+- **Kept honest:**
+  - A test requires every organ of the ledger, exactly once, by its own name, so a new organ cannot go silent unseen.
+  - Worker kind is read from the worker's own strategy and contract, never from the files it touches. A first draft counted workshop writers editing `swarm_patterns.py` as swarm runs.
+- **Bandit:** 2 B608 findings, budget raised. The table and column names come from each database's own catalog, opened read-only, and are quoted with any `"` doubled.
+- **Not done here:** bringing the silent parts to life. The map's moves A (goals as missions), B (his own use of the counter) and C (producers) follow, in the order he set: D, then A, then C.
+- **Tests:** 10 new.
 
 ## 2026-11-12, the clerk's first live intake; it reads goals as written (branch `fix/clerk-reads-goal-as-written`)
 
