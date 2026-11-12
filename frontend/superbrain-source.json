@@ -239,6 +239,7 @@
     "components/canvas/PostFX.test.tsx": "c533f35126d4b47fcad88d08337c38f80301a4685f0a42d30b16f458586c2b0f",
     "components/canvas/PresenceViewport.test.tsx": "fab7f5c1ddf57813d355ff9a992f59f66654274d1fa428f797ee9ef48358ff11",
     "components/canvas/ReabsorptionParticles.test.tsx": "5b907a30b5ce20c698495f4246d17ad22709289bcc268c394b0d63b075b0a2c7",
-    "components/canvas/RenderFrameLoop.test.tsx": "b2a70a4253a8fff95e41ec10306d7745977999c2f41d35f67410656d87e6d8b7"
+    "components/canvas/RenderFrameLoop.test.tsx": "b2a70a4253a8fff95e41ec10306d7745977999c2f41d35f67410656d87e6d8b7",
+    "components/canvas/TierGovernor.test.tsx": "b7febe752dd579aa53a2e8505c6c62d5aacc844738c3a9db6f5287c99afdc5c1"
   }
 }
