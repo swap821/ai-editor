@@ -260,6 +260,7 @@
     "lib/pointViewportScale.test.ts": "0a1e16e873a892f5ef87865c331332ba6e8ae7a88775fac8a3c8f9eea4a3db61",
     "lib/reabsorptionTiming.test.ts": "a5ebe0c960862a438d2dc2b66d9552757eb36a1825d7117347f43d16fe4b74e6",
     "lib/renderQualityPolicy.test.ts": "8e00014a17c302712e026a4f47b7dcf06179c12eda8a8a9d05f59018cc26581f",
-    "lib/spineAnatomyData.test.ts": "f73e88d5e70a24b2e0a12d4f8f2fa0b4a8af234867a4c3d7b7f54e14574943d4"
+    "lib/spineAnatomyData.test.ts": "f73e88d5e70a24b2e0a12d4f8f2fa0b4a8af234867a4c3d7b7f54e14574943d4",
+    "lib/spineFusionState.test.ts": "8999fb36bf8b9525df431081b6ceaac4ae3ce2b8f018f432dcab87b1a7d68cdc"
   }
 }
