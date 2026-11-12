@@ -138,7 +138,7 @@ export default function RuntimeSurfaceHUD() {
     try {
       await postJson('/api/v1/runtime/surface/sweep');
       void loadSurface();
-    } catch (err) {
+    } catch {
       alert('Sweep failed');
     } finally {
       setSweepBusy(false);
@@ -149,7 +149,7 @@ export default function RuntimeSurfaceHUD() {
     try {
       await deleteJson(`/api/v1/runtime/surface/${encodeURIComponent(signalId)}`);
       void loadSurface();
-    } catch (err) {
+    } catch {
       alert('Failed to delete signal');
     }
   };
