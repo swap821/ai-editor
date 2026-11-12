@@ -324,7 +324,9 @@ def test_the_hour_takes_in_a_bounded_number_and_scrubs_his_words(
     assert len(led.intakes()) == tool.GOALS_PER_HOUR
     assert set(led.intakes()) == set(ids[: tool.GOALS_PER_HOUR])
     assert clerk.requests
+    # A credential never reaches the clerk; his file paths do, as written.
     assert all(secret not in r.redacted_payload for r in clerk.requests)
+    assert all(REL in r.redacted_payload for r in clerk.requests)
     # Next hour: only the one not yet taken in.
     clerk.requests.clear()
     tool.goals_hour(led, tmp_path, service=clerk)
@@ -422,3 +424,25 @@ def test_the_intake_runs_before_the_writers_each_hour() -> None:
 
     src = executable_source(tool.cmd_daily)
     assert src.index("goals_hour(led, root)") < src.index("rc = cmd_propose(")
+
+
+# 2026-11-12, the clerk's first live goals: the cloud scrubbers took a document
+# path for a secret and removed every file path, and the briefing carried the
+# debris. The clerk is local; only a named credential is kept from it.
+LIVE_GOAL = (
+    "Blueprint PERF-04 (docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md: "
+    "resource bounds and endurance). Add one test to tabStore.test.ts. "
+    "(files: frontend/src/superbrain/lib/tabStore.test.ts, "
+    "frontend/src/superbrain/lib/tabStore.ts)"
+)
+
+
+def test_the_clerk_reads_a_goal_as_he_wrote_it() -> None:
+    assert tool.egress_redact(LIVE_GOAL) != LIVE_GOAL  # what the cloud scrubbers do
+    assert gi.clerk_redact(LIVE_GOAL) == LIVE_GOAL
+
+
+def test_a_credential_in_a_goal_never_reaches_the_clerk() -> None:
+    secret = "AKIAIOSFODNN7EXAMPLE"
+    seen = gi.clerk_redact(f"{LIVE_GOAL} Use the key {secret}.")
+    assert secret not in seen

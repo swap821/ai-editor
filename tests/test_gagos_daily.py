@@ -1725,3 +1725,54 @@ def test_a_body_still_over_the_limit_is_cut_saying_so(tmp_path, monkeypatch) -> 
 
 def test_the_limit_leaves_room_under_githubs() -> None:
     assert tool.PR_BODY_LIMIT < 65_536
+
+
+def test_a_failed_delivery_check_keeps_what_the_hour_saw(
+    tmp_path, monkeypatch, origin_and_worktree
+) -> None:
+    """2026-11-12: the UX-05 change failed delivery twice as "the tests related
+    to the frontend targets did not pass", passed every reproduction outside
+    the hour, and the output that would have said why was gone. The failing
+    step's own last words, scrubbed, are kept with the reason."""
+    _seed, work = origin_and_worktree
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    from aios.application.promotion import smoke
+
+    secret = "AKIAIOSFODNN7EXAMPLE"
+
+    def fails_with_it(root, paths, *, steps, **k):
+        if paths[0].read_text(encoding="utf-8") != AFTER:
+            return None
+        steps.append(
+            smoke.SmokeStep(
+                "vitest related",
+                False,
+                "exit 1\n RUN v5.1.0\n FAIL src/workbench/Panel.test.jsx > draft\n"
+                f" AssertionError: expected 'key {secret}' to be ''\n Tests 1 failed\n",
+            )
+        )
+        return "the tests related to the frontend targets did not pass"
+
+    monkeypatch.setattr(smoke, "frontend_smoke", fails_with_it)
+    _accepted(led)
+    assert tool.cmd_deliver(_deliver_args(work)) == 0
+    (outcome,) = [
+        r[0] for r in led._db().__enter__().execute("select outcome from deliveries")
+    ]
+    assert outcome.startswith("failed checks: the tests related to the frontend")
+    assert "(vitest related: " in outcome
+    assert "FAIL src/workbench/Panel.test.jsx > draft" in outcome
+    assert "AssertionError" in outcome
+    assert secret not in outcome
+
+
+def test_an_excerpt_is_bounded_and_empty_when_nothing_was_said() -> None:
+    from aios.application.promotion.smoke import SmokeStep
+
+    assert tool.smoke_excerpt([SmokeStep("eslint", True, "")]) == ""
+    assert tool.smoke_excerpt([SmokeStep("vitest related", False, "")]) == ""
+    long = "\n".join(f"FAIL case {n} " + "x" * 200 for n in range(50))
+    excerpt = tool.smoke_excerpt([SmokeStep("vitest related", False, long)])
+    assert excerpt.startswith(" (vitest related: ")
+    assert len(excerpt) <= len(" (vitest related: )") + tool.SMOKE_EXCERPT
