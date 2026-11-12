@@ -271,6 +271,13 @@
     "core/CorticalNerves/NerveMesh.test.tsx": "c8f2794257509b96b21cfc4a8eb125a4ca7374ac5ea001c30c301f23d1a3d705",
     "components/canvas/NeuralAura.test.tsx": "2f2f3c76bf619f38bdfdd5c0e2ba7f68578b0f1be642561e256125518fd6861e",
     "components/canvas/HorizonGlow.test.tsx": "1366e37796c935602b044f45183ed2c2a2bd8fa5553ece1239be16aedc66edab",
-    "components/canvas/IdentityReadout.test.tsx": "1baf858acec96b6fb6a266d32ca3ab811ea35487f57a827d3425e4461056e852"
+    "components/canvas/IdentityReadout.test.tsx": "1baf858acec96b6fb6a266d32ca3ab811ea35487f57a827d3425e4461056e852",
+    "lib/cognitionBus.test.ts": "a2c657466a4755ecd1e053273f87a5b7ce05706067ef16b459e5f2ef4d88b4d9",
+    "components/canvas/MemoryGalaxy.test.tsx": "d2c57245756e80f92a9a69cc1588ada5812f1bb2c1128e04d7371d673a497270",
+    "components/canvas/materializedTab/WorkTabLiveDashboard.test.tsx": "9e1e2adcc302319ff142723d41f3e3b72ac8fa28495359e99b9af848b52d58f5",
+    "components/canvas/SubsystemErrorBoundary.test.tsx": "c6aff521661af9c3941855ef0d4c2b790e68d074ad72e09328d28651f3042c7b",
+    "components/canvas/useBackdropControlMask.test.ts": "89c5ac808a4ea42233db66162abdf2c817f780ebd4c72b370f53371caf30dfb2",
+    "components/ui/ApprovalPanel.test.tsx": "a8c09b4dc215a832e29008706efae8dad1b875cdcc3e099bb3fdc18a2b3da457",
+    "components/ui/BootSequence.test.tsx": "f940a90d6345adfc6d0f145fc4a647456939315e05d07e049d21a9c040bba441"
   }
 }

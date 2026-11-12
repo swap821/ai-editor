@@ -67,6 +67,7 @@
     "B606:aios/api/routes/system.py": 1,
     "B607:aios/application/governance/organ_ledger.py": 2,
     "B607:aios/runtime/worktree_backend.py": 1,
+    "B608:aios/application/observability/aliveness.py": 2,
     "B608:aios/application/read_models/projection.py": 4,
     "B608:aios/core/approvals.py": 2,
     "B608:aios/core/autonomy.py": 2,
