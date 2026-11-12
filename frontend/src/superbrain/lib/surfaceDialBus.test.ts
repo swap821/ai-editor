@@ -83,7 +83,7 @@ describe('installSurfaceDialWindow', () => {
   it('wires window.__SURFACE assignment and dot-mutation through setSurfaceDial', () => {
     const fake = {} as unknown as typeof globalThis;
     installSurfaceDialWindow(fake);
-    const win = fake as unknown as Record<string, unknown> & { __SURFACE: any };
+    const win = fake as unknown as Record<string, unknown> & { __SURFACE: Record<string, unknown> };
 
     // full-object assignment merges
     win.__SURFACE = { membrane: true, membraneOpacity: 0.7 };
