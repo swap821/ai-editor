@@ -40,7 +40,7 @@
     "components/canvas/VertebraeRepoMapOverlay.tsx": "fcfd12ea60f5f41b7c9a4d8781c42f1a29d19f5cc8c6e104ef6290158988e2c8",
     "components/canvas/WebGLErrorBoundary.test.tsx": "5d9e2ace6903dabd46a6d3fe34d77a820f9f953da553a40bafa54b2f95462a90",
     "components/canvas/WebGLErrorBoundary.tsx": "ba9fbf2c076e57e8b1d11b89f8e072e651843af783f67a1e6014aad17460b463",
-    "components/canvas/WorkspaceCanvas.rootRecovery.test.tsx": "29afdbd1cc4aadaa22600c84eca0a9d85ef94a3d28314a432f757825b5ba357f",
+    "components/canvas/WorkspaceCanvas.rootRecovery.test.tsx": "e08674c840df905d22b8a73b46838e420c26bfec6487e2d1e129a76e666c875a",
     "components/canvas/WorkspaceCanvas.shaderFailure.test.tsx": "00ffed62d0ee89a3ae68dccf018f6363a9b5c5c198a92a569607491630960750",
     "components/canvas/WorkspaceCanvas.tsx": "a0c9c4f0f8877eeb3725559445a514d43603072bca11f72df0099b19e476af45",
     "components/canvas/WorkspaceCanvas.visibility.test.tsx": "fce29784a78e2ad41558ae2c5790ae2cfc0dfe9905e491a9fbfe8e948215bb2c",
