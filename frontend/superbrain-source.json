@@ -220,6 +220,7 @@
     "lib/voyageDrift.ts": "25f8b499c3312bb08019ed2ed6a605944376a4dd8ffdd9b8616203fe31526802",
     "lib/websocketAdapter.js": "5821f95e3d845d891e9db0f9348e7ee75b539b88ba1c3420f5cb8f25f5c04e5e",
     "lib/websocketAdapter.test.js": "6864ae45e4bcdf7eb0299caae975c1aa1886d30c0ceeef51f3d9ec5a7db0fd73",
-    "superbrain.css": "0013264c6c1d6f036fc1c8ae00dbe22018935823f5f69569ac038ca5c9856c52"
+    "superbrain.css": "0013264c6c1d6f036fc1c8ae00dbe22018935823f5f69569ac038ca5c9856c52",
+    "components/QualityTierProvider.test.tsx": "6cfb7514e02f46191e3e81458e3cc052af55cb55bc70cf306f8bd9d0dc3df9b4"
   }
 }
