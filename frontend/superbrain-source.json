@@ -264,6 +264,7 @@
     "lib/spineFusionState.test.ts": "8999fb36bf8b9525df431081b6ceaac4ae3ce2b8f018f432dcab87b1a7d68cdc",
     "lib/surfacePlacement.test.ts": "2e8832debbe27953ca7d47819b9efd15d38db5a069ba3fb7d99cf71dd4d68d71",
     "lib/swarmHUDStore.test.ts": "261d7b21ffa8e5829dbfebb50cada2389515b2598fd3b01f685a990d769d00ac",
-    "lib/useBodyWorldFrame.test.ts": "f3de1ffa40b64ceb12d65a30b84bd0f184aea7480ae4e8470eda42f0c27460df"
+    "lib/useBodyWorldFrame.test.ts": "f3de1ffa40b64ceb12d65a30b84bd0f184aea7480ae4e8470eda42f0c27460df",
+    "lib/useDomWorkPlane.test.ts": "bce0c2ebb6415ade6de04391db1f8a7a87021681aad25a9878918e9db8afa2ce"
   }
 }
