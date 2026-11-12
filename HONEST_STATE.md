@@ -5,9 +5,9 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
-## 2026-11-12, GAGOS originates council missions inside the envelope (branch `feat/gagos-originates`)
+## 2026-11-12, GAGOS originates council missions inside the envelope (branch `feat/gagos-originates-pr`)
 
-- **Move A2b on the aliveness map**, built on the envelope (#641) and the sandbox verification (#644); its PR follows both.
+- **Move A2b on the aliveness map**, built on the envelope (#641) and the sandbox verification (#644), both merged.
 - **One deliberation for every originator** (`aios/operations/council_origination.deliberate`). The operator's council route now calls it, so the route and GAGOS build the council the same way.
 - **GAGOS's origination** (`originate_goal`), for a goal the clerk briefed (not escalated):
   - The goal is his own words. The clerk's briefing rides along as advisory metadata. The goal passes the same injection check as his route (`aios.core.injection_scan`).
@@ -20,8 +20,12 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - A spent slot is never retried; a refusal is.
   - The report shows each goal's mission.
 - **Measured.** A real deliberation passes a sandbox-verified GAGOS mission with no verification commands. The Planner does not defer, the Security Queen does not deny, and organ 10 records it awaiting approval.
+- **Found while rebasing onto master: the planner's model would have blocked every GAGOS mission.**
+  - `reconcile_plan` merges any verification command the council's reasoning model proposes. For a frontend goal that command is something like `npx vitest run …`, which the gateway classifies RED, so the Security Queen denies the mission.
+  - Reasoning switches on with the operator's enrolment, so this is the production path. The full test batch showed it, through another test's enrolled operator.
+  - Now a sandbox-declared mission keeps its own verification (the sandbox) and the operator's files. The model can still raise risk, add forbidden files, require approval and add steps.
 - **Until A3**, the workshop's writers also take the goal in the same hour. The mission only waits, and nothing runs twice.
-- **Tests:** 14 new. 325 pass across the 14 existing workshop, intake and council test files.
+- **Tests:** 15 new. 349 pass across the workshop, intake, council, envelope, pulse and consistency test files.
 
 ## 2026-11-12, a council mission can be verified by the sandbox (branch `feat/council-sandbox-verification`)
 

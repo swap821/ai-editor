@@ -200,13 +200,25 @@ class PlannerQueen:
 
         metadata = dict(contract.metadata)
         metadata["council_plan"] = reconciled.steps
+        allowed_files = reconciled.allowed_files
+        verification = reconciled.verification_commands
+        if sandbox_files(contract):
+            # A sandbox-verified mission (GAGOS's, inside the operator's
+            # envelope, 2026-11-12): its verification is the sandbox it
+            # declares, and its files are the ones he named. A command the
+            # model proposes is a frontend test command the gateway classifies
+            # RED, so taking it would block every such mission; narrowing his
+            # files would put the sandbox outside the mission. Risk, forbidden
+            # files, approval and steps still narrow as for any mission.
+            allowed_files = list(contract.allowed_files)
+            verification = list(contract.verification_commands)
         reasoned = contract.model_copy(
             update={
-                "allowed_files": reconciled.allowed_files,
+                "allowed_files": allowed_files,
                 "forbidden_files": reconciled.forbidden_files,
                 "risk_level": reconciled.risk_level,
                 "requires_approval": reconciled.requires_approval,
-                "verification_commands": reconciled.verification_commands,
+                "verification_commands": verification,
                 "metadata": metadata,
             }
         )

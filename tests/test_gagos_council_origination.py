@@ -169,10 +169,17 @@ def test_the_operators_route_deliberates_through_the_same_function(
     assert seen == [request]
 
 
-def test_a_real_deliberation_passes_a_sandbox_verified_gagos_mission(tmp_path) -> None:
+def test_a_real_deliberation_passes_a_sandbox_verified_gagos_mission(
+    tmp_path, monkeypatch
+) -> None:
     """The real council: no verification commands, the sandbox declared; the
     Planner does not defer, the Security Queen does not deny, and organ 10
-    records the mission awaiting approval."""
+    records the mission awaiting approval. The council's reasoning model is
+    held off here (another test's enrolled operator would switch it on); the
+    test below gives it a model that misbehaves."""
+    import aios.council.gateway_reasoning as reasoning
+
+    monkeypatch.setattr(reasoning, "build_council_llm_client", lambda **kw: None)
     from aios.application.missions.mission_service import MissionAuthority
     from aios.domain.missions.mission_state import MissionState
     from aios.infrastructure.missions.sqlite_mission_repository import (
@@ -278,3 +285,55 @@ def test_the_hour_is_off_with_the_clerk(hour, tmp_path, monkeypatch) -> None:
         originate=lambda t, s: asked.append(t),
     )
     assert asked == []
+
+
+class _ProposingPlanner:
+    """A council reasoning model that proposes what models do: a frontend
+    test command (RED at the gateway) and a narrower file list."""
+
+    def complete(self, prompt, system=None, **kw):
+        import json
+
+        return json.dumps(
+            {
+                "files_to_touch": [],
+                "verification_commands": ["npx vitest run src/superbrain/lib"],
+                "risk_level": "YELLOW",
+                "steps": ["write the test", "run it"],
+                "confidence": 0.7,
+            }
+        )
+
+
+def test_the_planners_model_cannot_block_a_sandbox_verified_mission(
+    tmp_path, monkeypatch
+) -> None:
+    """A proposed command the gateway classifies RED would have blocked every
+    GAGOS mission once the operator's enrolment switched reasoning on."""
+    import aios.council.gateway_reasoning as reasoning
+    from aios import config
+    from aios.council.queens.planner import PlannerQueen
+
+    monkeypatch.setattr(
+        reasoning, "build_council_llm_client", lambda **kw: _ProposingPlanner()
+    )
+    monkeypatch.setattr(config, "COUNCIL_REASONING", True)
+    draft = PlannerQueen(llm=_ProposingPlanner()).draft(
+        __import__(
+            "aios.council", fromlist=["CouncilMissionRequest"]
+        ).CouncilMissionRequest(
+            mission_id="mission-0123456789ab",
+            goal=WORDS,
+            workspace_root=str(tmp_path),
+            allowed_files=[TEST, CODE],
+            allowed_tools=["read_file", "write_file"],
+            metadata={SANDBOX_KEY: {"files": [TEST, CODE]}},
+        )
+    )
+    contract = draft.contract
+    assert contract.verification_commands == []  # the model's RED command is not taken
+    assert contract.allowed_files == [TEST, CODE]  # his files, not narrowed
+    assert contract.metadata["council_plan"] == ["write the test", "run it"]
+    from aios.council.queens.security import SecurityQueen
+
+    assert SecurityQueen().review(contract).verdict != "deny"
