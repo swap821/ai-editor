@@ -25,6 +25,11 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Found, not fixed here.** The Security Queen compares protected paths case-sensitively, so `AIOS/SECURITY/x.py` is not seen as protected on Windows. GAGOS's envelope already refuses such paths case-insensitively before any mission is drafted; the queen itself needs its own fix.
 - **Next (A2b, A3).** GAGOS originates council missions inside the operator's envelope, and its worker runs the sandbox and records this entry.
 - **Tests:** 28 new. 228 pass across the 17 existing council, sandbox and verification test files.
+## 2026-11-12, a busy laptop no longer fails a delivery on time (branch `fix/delivery-smoke-timeout`)
+
+- **UX-05's mystery, solved.** The composer draft passed the sandbox (350 tests) and Opus's review three times; two deliveries failed "the tests related to the frontend targets did not pass". The output #637 now keeps named it: `FixtureJourneyPage.test.tsx` timed out at vitest's default 5 s on the laptop. The same test passes in the sandbox and in CI. In the 17:50 hour it timed out with and without the change, so the change was delivered as not its doing (#642).
+- **The fix.** The delivery smoke's `vitest related` gives each test 30 s (`FRONTEND_TEST_TIMEOUT_MS`). The smoke judges correctness, not speed, and the whole smoke keeps its own deadline. CI's and the sandbox's limits are unchanged.
+- **Tests:** 1 new: the limit reaches vitest's command line.
 ## 2026-11-12, GAGOS's daily envelope, signed by the operator (branch `feat/daily-envelope`)
 
 - **His decision.** On 11-11 he chose that GAGOS's missions are approved once a day, as an envelope. On 11-12 he chose how: "Envelope via organs 9+10". This is move A's first PR (the aliveness map, https://claude.ai/artifact/DemaQfKyGyyaMUTUJCux8L).
