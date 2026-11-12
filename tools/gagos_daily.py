@@ -388,6 +388,42 @@ def egress_redact(text: str) -> str:
     return str(safe[0]["content"]) if safe else ""
 
 
+#: The secret scanner's sliding window starts at every fifth character of the
+#: WHOLE payload (``_sliding_window_entropy_scan``, frozen core), so whether a
+#: span is redacted depends on where it lands in the prompt, modulo this.
+SCAN_ALIGNMENTS = 5
+
+
+def mask_redact(text: str) -> str:
+    """The oracle masking asks: *text* as the egress scrubbers would leave it
+    wherever it lands in a prompt. Each line is taken as redacted at the first
+    of the scanner's window alignments that changes it; the whole text is
+    redacted at each alignment, so every exemption still sees its context.
+
+    2026-11-12: the operator's goal gt-838f049241 was refused unsent because
+    ``ownsWorkSurface(writingTab.id, token)`` is scrubbed at offset 2 mod 5 and
+    not at 0 -- the file was masked at one alignment, and the prompt checked at
+    another."""
+    lines = text.splitlines(keepends=True)
+    merged = list(lines)
+    changed = [False] * len(lines)
+    for shift in range(SCAN_ALIGNMENTS):
+        pad = " " * shift
+        whole = egress_redact(pad + text)
+        found = whole[shift:].splitlines(keepends=True)
+        if not whole.startswith(pad) or len(found) != len(lines):
+            # A redaction took the padding or joined lines: judge each line
+            # alone at this alignment.
+            found = []
+            for line in lines:
+                alone = egress_redact(pad + line)
+                found.append(alone[shift:] if alone.startswith(pad) else alone)
+        for i, (line, other) in enumerate(zip(lines, found)):
+            if not changed[i] and other != line:
+                merged[i], changed[i] = other, True
+    return "".join(merged)
+
+
 def would_be_altered(prompt: str, system: str) -> str | None:
     """Why the prompt would not reach the model as written, if it would not.
     A file the secret policy or the privacy filter would change is not sent:
@@ -565,7 +601,7 @@ def task_jobs(
                 refused = True
                 break
             try:
-                masked, mapping = mask_lines(text, egress_redact, min_width=floor)
+                masked, mapping = mask_lines(text, mask_redact, min_width=floor)
             except MaskingFailed as exc:
                 refuse(str(exc))
                 refused = True
@@ -921,7 +957,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
             continue
         # What the scrubbers would redact stays here, behind placeholders.
         try:
-            masked, mapping = mask_lines(text, egress_redact)
+            masked, mapping = mask_lines(text, mask_redact)
         except MaskingFailed as exc:
             led.record_proposal(
                 f,
@@ -1247,7 +1283,7 @@ def _example_test(texts: dict[str, str], test_rel: str) -> str | None:
     )
     for _size, rel in near:
         try:
-            masked, mapping = mask_lines(texts[rel], egress_redact)
+            masked, mapping = mask_lines(texts[rel], mask_redact)
         except MaskingFailed:
             continue
         if not mapping:
@@ -1417,12 +1453,10 @@ def _group_evidence(p: dict, facts: list) -> tuple[str, bool, bool]:
         raise MaskingFailed(f"{UNSHOWABLE}: the task of this proposal is unknown")
     parts, floor, hidden, hid_added = [], 1, False, False
     for m in led.group_members(p["group_id"]):
-        masked_base, mapping = mask_lines(
-            m["base_text"], egress_redact, min_width=floor
-        )
+        masked_base, mapping = mask_lines(m["base_text"], mask_redact, min_width=floor)
         floor = _mask_floor(mapping, floor)
         masked_new = mask_aligned(m["new_text"], m["base_text"], masked_base, mapping)
-        masked_new, added = mask_lines(masked_new, egress_redact, min_width=floor)
+        masked_new, added = mask_lines(masked_new, mask_redact, min_width=floor)
         floor = _mask_floor(added, floor)
         diff = unified_diff(Path(m["rel"]).name, masked_base, masked_new)
         parts.append((m["rel"], masked_base, diff))
@@ -1444,7 +1478,7 @@ def review_evidence(p: dict, finding: Finding) -> str:
             facts += [f for f in json.loads(m.get("facts") or "[]") if f not in facts]
         prompt, mapping, added = _group_evidence(p, facts)
         return _review_notes(prompt, p, mapping, added)
-    masked_base, mapping = mask_lines(p["base_text"], egress_redact)
+    masked_base, mapping = mask_lines(p["base_text"], mask_redact)
     if finding.rule == MISSING_TEST:
         # The module and the whole new test, under the module's mask.
         masked_new = mask_like(p["new_text"], mapping)
@@ -1456,7 +1490,7 @@ def review_evidence(p: dict, finding: Finding) -> str:
     # placeholders of its own (2026-11-03: three new test files by Sonnet and
     # Haiku could not be shown, for a relative import, a regex the filter took
     # for a path, and a fixed test UUID, none of them in the module).
-    masked_new, added = mask_lines(masked_new, egress_redact)
+    masked_new, added = mask_lines(masked_new, mask_redact)
     if finding.rule == MISSING_TEST:
         prompt = first_test_review_prompt(finding, masked_base, masked_new, facts=facts)
     elif finding.rule == TASK_RULE:

@@ -1,9 +1,27 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, the clerk is admitted per job" below;
+**Last updated:** 2026-11-12 ("2026-11-12, masking holds wherever the file lands in the prompt" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-12, masking holds wherever the file lands in the prompt (branch `fix/mask-in-prompt-context`)
+
+- **What happened.** In the 06:50 UTC hour, the first with real goals, the clerk took in both blueprint goals. Both waited, because no model is granted triage yet. The writers then refused `gt-838f049241` (UX-05) unsent: "the secret policy would scrub this file, so it is not sent".
+- **The cause, measured.**
+  - The frozen secret scanner's sliding window starts at every fifth character of the whole payload, so whether a span is scrubbed depends on where it lands.
+  - The ordinary line `if (turnTokenRef.current !== token || !ownsWorkSurface(writingTab.id, token)) return;` is scrubbed at offsets 2 and 7, and at no other offset from 0 to 9.
+  - GAGOS masked each file alone, at offset 0, then checked the assembled prompt, where the line sat at 2 mod 5.
+- **The fix, in the workshop; the frozen scanner is untouched.**
+  - `mask_redact` asks the scrubbers at all five alignments and takes each line as the first alignment that changes it.
+  - Every `mask_lines` call uses it (7), for writers and reviewers alike.
+  - The egress gate (`would_be_altered`) is unchanged and still refuses anything the scrubbers would alter.
+- **Evidence.** The exact prompt the hour refused, rebuilt with his direction notes:
+  - the old masking gives the same refusal;
+  - the new masking passes the gate unchanged.
+
+  14 tests (`tests/test_gagos_mask_alignment.py`) cover the scanner's offset dependence, the old oracle missing it, the masked file surviving at offsets 0 to 9, and exact restoration. All GAGOS workshop tests plus the consistency and source guards pass: 484.
+- **After merge:** the UX-05 goal is added again (a refused task stays refused).
 
 ## 2026-11-12, the clerk is admitted per job (branch `feat/clerk-per-job-admission`)
 
