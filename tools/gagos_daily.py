@@ -2116,15 +2116,37 @@ def _branch_prs(root: Path, branch: str, app) -> list[dict]:
 PR_BODY_LIMIT = 60_000
 
 
+def aliveness_lines() -> list[str]:
+    """The aliveness pulse's report lines (aios.application.observability
+    .aliveness), measured now on GAGOS's data; none, said, when it cannot be."""
+    try:
+        from aios.application.observability import aliveness
+
+        return aliveness.report_lines(aliveness.pulse(Path(config.DATA_DIR)))
+    except Exception as exc:  # the report goes out without it, saying why
+        return [f"**Aliveness**: not measured ({type(exc).__name__}: {exc})"[:300], ""]
+
+
 def pr_body(led: DailyLedger, ids: list[str], footer: str) -> str:
     """The PR's body: the day's whole report while it fits GitHub's limit;
     else this PR's own proposals in full and the day's others counted; cut at
     the limit, saying so, only if even that is too long."""
     day = _today()
-    body = report(led, day=day, in_pr=ids, footer=footer, scrub=egress_redact)
+    alive = aliveness_lines()
+    body = report(
+        led, day=day, in_pr=ids, footer=footer, scrub=egress_redact, aliveness=alive
+    )
     if len(body) <= PR_BODY_LIMIT:
         return body
-    body = report(led, day=day, in_pr=ids, footer=footer, scrub=egress_redact, only=ids)
+    body = report(
+        led,
+        day=day,
+        in_pr=ids,
+        footer=footer,
+        scrub=egress_redact,
+        only=ids,
+        aliveness=alive,
+    )
     if len(body) <= PR_BODY_LIMIT:
         return body
     cut = (
@@ -2656,6 +2678,7 @@ def report(
     footer: str = "",
     scrub=None,
     only: list[str] | None = None,
+    aliveness: list[str] | None = None,
 ) -> str:
     """The day's work, every proposal and what happened to it (refused and
     rejected ones too: an honest day shows its misses), then D14's running
@@ -2715,6 +2738,9 @@ def report(
         "",
     ]
     out += task_section(led, s)
+    # 2026-11-12: which parts of GAGOS did real work (organ 52's pulse), so a
+    # silent organ is seen every day, not found by accident.
+    out += [s(line) for line in aliveness or []]
     month = _month()
     spent = led.month_spend(month)
     out += [
@@ -2805,7 +2831,7 @@ def report(
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    text = report(ledger(), day=args.day)
+    text = report(ledger(), day=args.day, aliveness=aliveness_lines())
     if args.out:
         Path(args.out).write_text(text, encoding="utf-8")
         print(f"wrote {args.out}")
