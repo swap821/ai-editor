@@ -23,6 +23,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from aios.domain.local_workforce.contracts import LocalJobProfile
 from aios.domain.local_workforce.qualifier import QualificationResult
 
 DispatchDecision = Literal[
@@ -47,8 +48,15 @@ class ClerkDispatcherAuthority:
         qualification: QualificationResult | None,
         confidence: float | None = None,
         confidence_floor: float = 0.6,
+        job_profile: LocalJobProfile | None = None,
     ) -> DispatchDecision:
         """Decide how one clerical job should be handled.
+
+        With *job_profile* (2026-11-12, per-job admission) the model must have
+        passed every safety gate AND this job's own tests
+        (``qualification_evidence.admits_job``): a model that failed skill
+        selection is still escalated for skill selection, but may triage.
+        Without it, the whole suite must have passed, as before.
 
         Order matters: deterministic code wins whenever it is actually capable
         of answering (checked first, so Granite is never consulted for
@@ -61,11 +69,23 @@ class ClerkDispatcherAuthority:
         """
         if deterministic_available:
             return "deterministic"
-        if qualification is None or not qualification.passed:
+        if not _qualified(qualification, job_profile):
             return "frontier_escalation"
         if confidence is not None and confidence < confidence_floor:
             return "human_clarification"
         return "local_clerk"
+
+
+def _qualified(
+    qualification: QualificationResult | None, job_profile: LocalJobProfile | None
+) -> bool:
+    if qualification is None:
+        return False
+    if job_profile is None:
+        return qualification.passed
+    from aios.application.local_workforce.qualification_evidence import admits_job
+
+    return admits_job(qualification, job_profile)
 
 
 _CLERK_DISPATCHER = ClerkDispatcherAuthority()
@@ -77,8 +97,10 @@ def dispatch_clerical_job(
     qualification: QualificationResult | None,
     confidence: float | None = None,
     confidence_floor: float = 0.6,
+    job_profile: LocalJobProfile | None = None,
 ) -> DispatchDecision:
     return _CLERK_DISPATCHER.dispatch(
+        job_profile=job_profile,
         deterministic_available=deterministic_available,
         qualification=qualification,
         confidence=confidence,

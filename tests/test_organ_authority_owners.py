@@ -67,6 +67,7 @@ from aios.infrastructure.missions.transition_journal_store import (
 from aios.memory.facts import SemanticFacts
 from tests.source_rules import executable_source
 from aios.core.autonomy import UNGOVERNED_FIXTURE
+from tests.clerk_qualification_fixture import passed_everything
 
 
 # --------------------------------------------------------------------------- #
@@ -573,6 +574,7 @@ def test_the_provenance_authority_is_what_run_advisory_job_writes_through(
     admitted = _admitted_model()
     registry.list_models.return_value = [admitted]
     registry.get_model.return_value = admitted
+    registry.get_qualification.return_value = passed_everything()
     llm = MagicMock()
     llm.complete.return_value = '{"applicable": true, "confidence": 0.9}'
 
@@ -664,6 +666,7 @@ def test_organ_38_job_provenance_is_reached_after_advisory_job(
     admitted = _admitted_model()
     registry.list_models.return_value = [admitted]
     registry.get_model.return_value = admitted
+    registry.get_qualification.return_value = passed_everything()
     llm = MagicMock()
     llm.complete.return_value = '{"applicable": true, "confidence": 0.9}'
 

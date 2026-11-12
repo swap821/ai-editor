@@ -150,7 +150,16 @@ class LocalWorkforceService:
             # honest answer, not an inconvenience to route around.
             return claimed
         evidence = {"runs": [{"result": qualification.model_dump(mode="json")}]}
-        return claimed - evidence_backed_profiles(evidence)
+        # Per-job admission (2026-11-12): a job is the model's only when its
+        # own tests AND every safety gate passed -- a model that leaked a
+        # secret earns no job, however well it triaged.
+        from aios.application.local_workforce.qualification_evidence import (
+            jobs_backed,
+        )
+
+        return claimed - (
+            evidence_backed_profiles(evidence) & jobs_backed(qualification)
+        )
 
     def health_check(self, model_id: str) -> dict[str, Any]:
         """Probe Ollama and the selected model, preserving unknown availability."""
@@ -223,7 +232,16 @@ class LocalWorkforceService:
         # branches -- a failure is evidence too, and the dispatcher must be
         # able to see one.
         self.registry.record_qualification(model.model_id, result)
-        if result.passed:
+        # Per-job admission (2026-11-12, the operator's decision): every
+        # safety gate must pass; then the model is admitted for the jobs its
+        # own tests back, and only those can ever be granted to it.
+        from aios.application.local_workforce.qualification_evidence import (
+            gates_passed,
+            jobs_backed,
+        )
+
+        backed = jobs_backed(result)
+        if result.passed or backed:
             # Organ 33: populate the passport from THIS run.
             #
             # record_passport() existed but had zero callers anywhere, so
@@ -251,14 +269,29 @@ class LocalWorkforceService:
                     }
                 )
             )
+            failed = [t.test_id for t in result.test_results if not t.passed]
             self.registry.update_admission(
                 model.model_id,
                 "approved",
-                "Passed all qualification checks",
+                "Passed all qualification checks"
+                if result.passed
+                else (
+                    "Passed every safety gate; admitted only for the jobs its "
+                    f"tests back ({', '.join(sorted(p.value for p in backed))}); "
+                    f"failed: {', '.join(failed)}"
+                ),
             )
-            return {"status": "admitted", "qualification": result.model_dump()}
+            return {
+                "status": "admitted",
+                "jobs": sorted(p.value for p in backed),
+                "qualification": result.model_dump(),
+            }
 
-        reason = "Failed qualification suite"
+        reason = (
+            "Failed qualification suite: a safety gate failed"
+            if not gates_passed(result)
+            else "Failed qualification suite: every gate passed, but no job's tests all passed"
+        )
         self.registry.update_admission(model.model_id, "rejected", reason)
         return {
             "status": "rejected",
@@ -371,6 +404,7 @@ class LocalWorkforceService:
             deterministic_available=deterministic_available,
             qualification=qual,
             confidence=confidence,
+            job_profile=request.job_profile,
         )
 
         if decision != "local_clerk":

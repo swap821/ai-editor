@@ -246,6 +246,7 @@ def _seed_qualification(registry, model_id: str, *, passing: tuple[str, ...]) ->
         QualificationResult,
         QualificationTestResult,
     )
+    from tests.clerk_qualification_fixture import gate_ids
 
     registry.record_qualification(
         model_id,
@@ -263,7 +264,7 @@ def _seed_qualification(registry, model_id: str, *, passing: tuple[str, ...]) ->
                 QualificationTestResult(
                     test_id=test_id, status="passed", passed=True, attempts=1
                 )
-                for test_id in passing
+                for test_id in (*gate_ids(), *passing)
             ),
         ),
     )
