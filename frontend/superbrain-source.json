@@ -251,6 +251,7 @@
     "core/CorticalNerves/DeliberationOverlay.test.tsx": "4be1baf12cf84cd1cffde6accbca18560e69847ca5a4b8de83e04b113e7e0fc0",
     "lib/seededRandom.test.ts": "c20e2edb04453e86ac9a0321829e40510affd67273c3864b9f28ecefb40d9ca2",
     "lib/spineAnatomy.test.ts": "7874cbcbf3521c1d9ae28ca68d6c709aa00de0fb9bbdb55490e4e5264f9de71b",
-    "lib/brainMaterial.test.ts": "9aebb86d39a7c26dcaa60efcb9ae910c7d8f2f46aad38e03d5f4cc3f772234ce"
+    "lib/brainMaterial.test.ts": "9aebb86d39a7c26dcaa60efcb9ae910c7d8f2f46aad38e03d5f4cc3f772234ce",
+    "lib/brainScene.test.ts": "e36309b88c38a5782d90c948dad896dc5f9034244c3256281fc33b1c562d896f"
   }
 }
