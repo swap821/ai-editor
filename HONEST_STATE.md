@@ -16,6 +16,15 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Not fixed here, and seen in the same case.** The privacy filter hid the reset function where it stood alone in a multi-line import list, but not where it was called. So the same name was hidden on one line and shown on another. That belongs to the privacy filter and follows #647.
 - **Tests:** 1 new, which fails on the old code. 237 pass across 8 existing workshop test files (1 skipped).
 - **Also found and fixed, by this PR's own CI (Windows).** The playbook listed a rule's entries oldest first by time, then by random id. Entries kept within one tick of the clock tied on time, so "oldest" was a coin toss: the curator test failed, and in use the curator could retire an entry out of turn. Ties now go by the order the entries were kept. 1 new test pins it with a frozen clock; it fails on the old code.
+## 2026-11-12, a TypeScript constant's name reaches the writer (branch `fix/privacy-ts-declarations`)
+
+- **Measured.** PERF-04's sixth attempt (`gt-20ee2eaa4b`) was refused by its writer: "the limit is masked in `tabStore.ts` as `GAGOSMASKQQ_0017`". The privacy filter's entropy rule hides any token of 21 or more characters unless it sits in a declaration, import or call position, and TypeScript's declarations were not among them. `export const RECOVERABLE_RESULT_LIMIT = 12` became `export const [SENSITIVE: 636f2506034a] = 12`. That is the same placeholder that garbled the clerk's briefing this morning.
+- **The fix** (`aios/core/privacy_filter.py`, not an organ entrypoint): `const`, `let`, `var`, `interface` and `enum` join `def`, `class`, `function`, `import` and `from` as identifier positions. The name slot is never where a secret goes, and a secret assigned as the value is still redacted.
+  - `type` is left out on purpose: it is too common an English word before a value in prose.
+  - A long identifier named in prose is still hidden; goals name such calls in call syntax.
+- **Not this PR.** The operator's 11-11 decision, plan brains hide only keys, credentials and paths, needs masking per writer family, because jobs are masked before a writer is chosen. It is a separate change.
+- **Proof.** 11 new tests. Against the old filter, the 6 declaration cases fail and the 5 cases that must stay redacted pass: the value slot, `type`, prose. 69 pass in the privacy filter's file.
+
 ## 2026-11-12, a council mission can be verified by the sandbox (branch `feat/council-sandbox-verification`)
 
 - **Why (move A2a on the aliveness map).** Measured:
