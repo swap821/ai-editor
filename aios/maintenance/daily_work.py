@@ -187,6 +187,20 @@ def findings(
 
 # --------------------------------------------------------------------- proposing
 
+#: Said to every writer (2026-11-13): the gateway's secret scanner (frozen
+#: core) scrubs ``token = <12+ characters>`` and its kin from a model's answer
+#: on its way back, code or not. A correct PERF-04 test by GPT-6.1 Terra
+#: (gd-dded5807ee) came back with ``const <REDACTED:ASSIGNED_SECRET:...>`` and
+#: was refused as unparseable. The names are said in words, never assigned
+#: here, so this sentence itself passes the scanners.
+SCANNER_NAMES_NOTE = (
+    "GAGOS's secret scanner scrubs any line where the word password, passwd, "
+    "secret, token, apikey or api_key is given a value of 12 or more "
+    "characters, even in code, and the scrubbed answer is refused. So never "
+    "give a variable or a property exactly one of those names; use a longer "
+    "one, such as retractionToken."
+)
+
 PROPOSER_SYSTEM = (
     "You are GAGOS's frontend maintainer. You fix exactly the ESLint warnings "
     "you are given in one file of a React + TypeScript codebase, and nothing "
@@ -194,7 +208,7 @@ PROPOSER_SYSTEM = (
     "names or tests. Never add eslint-disable, @ts-ignore, @ts-nocheck or "
     "@ts-expect-error. Do not reformat, reorder or rename anything you were not "
     "asked to fix. Reply with the complete corrected file in ONE fenced code "
-    "block and nothing else."
+    "block and nothing else. " + SCANNER_NAMES_NOTE
 )
 
 PYTHON_PROPOSER_SYSTEM = (
@@ -205,7 +219,8 @@ PYTHON_PROPOSER_SYSTEM = (
     "unused variable, keep any call on its right-hand side whose effect "
     "matters. Never add noqa, type: ignore, nosec or pragma comments. Do not "
     "reformat, reorder or rename anything you were not asked to fix. Reply "
-    "with the complete corrected file in ONE fenced code block and nothing else."
+    "with the complete corrected file in ONE fenced code block and nothing else. "
+    + SCANNER_NAMES_NOTE
 )
 
 
@@ -506,6 +521,32 @@ class ProposalRefused(ValueError):
     """The model's answer is not a usable proposal."""
 
 
+#: What an egress scrubber leaves in place of what it hid: the gateway's
+#: secret policy (``<REDACTED:KIND:hash>``) and the privacy filter
+#: (``[SENSITIVE: hash]``, ``[CREDENTIAL REDACTED]``, ``[PATH REDACTED]``).
+_SCRUB_MARK = re.compile(
+    r"<REDACTED:([A-Z_]+):[0-9a-f]+>|\[SENSITIVE: [0-9a-f]+\]"
+    r"|\[CREDENTIAL REDACTED\]|\[PATH REDACTED\]"
+)
+
+
+def refuse_scrubbed(new_text: str, shown: str) -> None:
+    """Refuse a change that holds a scrubber's mark the file it was made from
+    did not: the answer was altered on its way back from the writer, and is not
+    what the writer wrote (2026-11-13: ``const token = ...`` came back as
+    ``const <REDACTED:ASSIGNED_SECRET:...>``, refused as unparseable, and the
+    report blamed the writer)."""
+    known = {m.group(0) for m in _SCRUB_MARK.finditer(shown or "")}
+    new = [m for m in _SCRUB_MARK.finditer(new_text or "") if m.group(0) not in known]
+    if new:
+        kinds = sorted({m.group(1) or m.group(0).strip("[]<>") for m in new})
+        raise ProposalRefused(
+            "the answer was scrubbed on its way back from the writer "
+            f"({', '.join(kinds)}): a scanner took part of the code for a secret, "
+            "so it is not what the writer wrote"
+        )
+
+
 def parse_proposal(raw: str, *, original: str) -> str:
     """The whole corrected file from the model's answer, in the original's
     line endings and final-newline convention."""
@@ -521,6 +562,7 @@ def parse_proposal(raw: str, *, original: str) -> str:
         body += "\n"
     if not body.strip():
         raise ProposalRefused("the proposed file is empty")
+    refuse_scrubbed(body, original)
     return body.replace("\n", newline)
 
 
@@ -809,7 +851,10 @@ TASK_SYSTEM = (
     "reformat, reorder or rename anything the task does not need changed. Your "
     "change must add no ESLint warning or error. Never add eslint-disable, "
     "@ts-ignore, @ts-nocheck or @ts-expect-error. If the task cannot be done "
-    "in this file alone, reply with no edit at all. " + EDIT_FORMAT
+    "in this file alone, reply with no edit at all. "
+    + SCANNER_NAMES_NOTE
+    + " "
+    + EDIT_FORMAT
 )
 
 PYTHON_TASK_SYSTEM = (
@@ -820,7 +865,7 @@ PYTHON_TASK_SYSTEM = (
     "every public name other modules import from this file. Your change must "
     "add no ruff warning or error. Never add noqa, type: ignore, nosec or "
     "pragma comments. If the task cannot be done in this file alone, reply "
-    "with no edit at all. " + EDIT_FORMAT
+    "with no edit at all. " + SCANNER_NAMES_NOTE + " " + EDIT_FORMAT
 )
 
 
@@ -1023,7 +1068,7 @@ def task_files_system(rels: Sequence[str]) -> str:
         + ". For each file you change, write a line `File N: name` exactly as "
         "the file is labelled, then that file's edits. Leave out every file you "
         "do not change. If the task cannot be done in these files, reply with no "
-        "edit at all. " + EDIT_FORMAT
+        "edit at all. " + SCANNER_NAMES_NOTE + " " + EDIT_FORMAT
     )
 
 
@@ -1173,7 +1218,9 @@ def parse_edits(raw: str, original: str) -> str:
     pairs = _edits(raw or "")
     if not pairs:
         raise ProposalRefused("the answer has no edit")
-    return apply_edits(original, pairs)
+    new_text = apply_edits(original, pairs)
+    refuse_scrubbed(new_text, original)
+    return new_text
 
 
 def parse_task_edits(raw: str, originals: Sequence[str]) -> dict[int, str]:
@@ -1200,6 +1247,7 @@ def parse_task_edits(raw: str, originals: Sequence[str]) -> dict[int, str]:
         if not pairs:
             raise ProposalRefused(f"File {n} is labelled but has no edit")
         out[n - 1] = apply_edits(originals[n - 1], pairs)
+        refuse_scrubbed(out[n - 1], originals[n - 1])
     return out
 
 
@@ -1307,7 +1355,7 @@ TESTER_SYSTEM = (
     f"{MAX_TEST_LINES} lines. A placeholder (GAGOSMASK...) stands for a hidden "
     "span of the module: use it only where that span could appear, never as a "
     "name of your own. Reply with the complete test file in ONE fenced code "
-    "block and nothing else."
+    "block and nothing else. " + SCANNER_NAMES_NOTE
 )
 
 
