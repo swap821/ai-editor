@@ -953,6 +953,29 @@ def task_verdict(
     return StaticVerdict(True, "parses; nothing new", changed)
 
 
+#: What a reviewer asks of every test it reads (2026-11-13). A first test for
+#: EventThrottler.ts (#665) was accepted because each assertion would pass;
+#: one, under a name promising "fires the final call at the trailing edge",
+#: asserted the burst's middle call instead -- what the module does, against
+#: its own comment ("guarantees the final event in a burst is always
+#: executed"). Passing is not enough: a test that pins behaviour its code's
+#: documentation rules out makes the defect's fix look like a regression.
+TEST_INTENT = (
+    "- every test says in its name what its assertions check, and what it "
+    "asserts agrees with what the code's own comments and documentation say "
+    "it does. A test asserting behaviour the documentation rules out locks a "
+    "defect in: if the code does not do what it says, REJECT and name the "
+    "defect, so it is fixed and not tested as correct;"
+)
+#: The same, for a change the operator asked for: his words may ask for the
+#: behaviour a test pins, and then they decide.
+TASK_TEST_INTENT = (
+    "- any test it adds or changes says in its name what its assertions "
+    "check, and asserts nothing the code's own comments and documentation rule "
+    "out, unless the operator's task asks for exactly that behaviour;"
+)
+
+
 def task_review_prompt(
     rel: str,
     task_text: str,
@@ -989,6 +1012,7 @@ def task_review_prompt(
             "- it breaks nothing: behaviour and public names the task did not "
             "ask to change are as before, and nothing is silenced (no disable, "
             "ts-ignore, noqa or type: ignore comments);",
+            TASK_TEST_INTENT,
             "- the code is correct and would pass review in this codebase.",
             "Otherwise REJECT, and say exactly why in one or two sentences.",
             f"Automated checks already passed: it parses and adds no {linter} message.",
@@ -1295,6 +1319,7 @@ def task_files_review_prompt(
         "- it breaks nothing: behaviour and public names the task did not ask "
         "to change are as before, and nothing is silenced (no disable, "
         "ts-ignore, noqa or type: ignore comments);",
+        TASK_TEST_INTENT,
         "- the code is correct and would pass review in this codebase.",
         "Otherwise REJECT, and say exactly why in one or two sentences.",
         f"Automated checks already passed: every file parses and adds no {linters} message.",
@@ -1608,6 +1633,7 @@ def first_test_review_prompt(
             "module did;",
             "- judged assertion by assertion against the module exactly as shown, "
             "it would pass;",
+            TEST_INTENT,
             "- it is deterministic: no real timers, randomness, dates or ordering "
             "it does not control;",
             "- it reaches no network, filesystem, process or global state it does "
@@ -1745,6 +1771,10 @@ CREATE TABLE IF NOT EXISTS goal_missions (
     envelope_id TEXT,
     slot INTEGER,
     created_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS council_goals (
+    task_id TEXT PRIMARY KEY,
+    held_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS playbook (
     entry_id TEXT PRIMARY KEY,
@@ -2739,12 +2769,24 @@ class DailyLedger:
 
     # tasks the operator writes
     def add_task(
-        self, rel: str, text: str, *, said_by: str, also: Sequence[str] = ()
+        self,
+        rel: str,
+        text: str,
+        *,
+        said_by: str,
+        also: Sequence[str] = (),
+        council: bool = False,
     ) -> str:
         """Queue the operator's task on one file, and on up to
         ``MAX_TASK_FILES - 1`` more (*also*); returns its id. Refuses an empty
         or over-long text, a path that is not project-relative, a file named
-        twice, or more files than the bound."""
+        twice, or more files than the bound.
+
+        With *council*, the goal is the council's alone (2026-11-13): the
+        workshop's writers never take it, and it waits, open, for a slot of
+        the operator's envelope. Without, a goal finding no live envelope goes
+        to the writers within the hour, so his goals measured nothing of the
+        council."""
         body = (text or "").strip()
         if not body:
             raise TaskRefused("a task needs words")
@@ -2773,7 +2815,38 @@ class DailyLedger:
                 "VALUES (?, ?, ?, ?, ?, 'open', NULL, NULL, ?, ?)",
                 (task_id, now, first, body, who[:200], now, json.dumps(more)),
             )
+            if council:
+                db.execute(
+                    "INSERT INTO council_goals (task_id, held_at) VALUES (?, ?)",
+                    (task_id, now),
+                )
         return task_id
+
+    def held_for_council(self) -> set[str]:
+        """The goals queued for the council alone (``add_task(council=True)``)."""
+        with self._db() as db:
+            return {
+                r["task_id"] for r in db.execute("SELECT task_id FROM council_goals")
+            }
+
+    def missions(self) -> list[dict]:
+        """Every council mission a goal became, each by its latest record, in
+        the order they were sent: the goal, its mission, the envelope, the
+        state and why, and the day it was sent (2026-11-13: the measure of
+        how many of the operator's goals the council completes)."""
+        with self._db() as db:
+            rows = db.execute(
+                "SELECT * FROM goal_missions WHERE mission_id IS NOT NULL ORDER BY id"
+            ).fetchall()
+        first: dict[str, str] = {}
+        latest: dict[str, dict] = {}
+        for r in rows:
+            first.setdefault(r["mission_id"], r["created_at"])
+            latest[r["mission_id"]] = dict(r)
+        return [
+            {**latest[m], "sent_at": sent}
+            for m, sent in sorted(first.items(), key=lambda item: item[1])
+        ]
 
     # Goals through the clerk (2026-11-11, the one-system plan's phase 1).
     def record_intake(self, task_id: str, outcome: Mapping[str, Any]) -> None:

@@ -645,7 +645,8 @@ def task_jobs(
 
     A goal the council has (move A3, 2026-11-13: originated as a mission, or
     run as one) is withheld: its mission's worker is the writer, never a
-    second one beside it."""
+    second one beside it. So is a goal queued for the council alone, while it
+    waits for a slot of the operator's envelope."""
     jobs: list[tuple] = []
     editable: dict[bool, set[str] | Exception] = {}
     held: set[str] = set()
@@ -653,7 +654,7 @@ def task_jobs(
     # briefing beside the operator's words. The clerk is advisory: a goal it
     # has not briefed (no model qualified yet) is worked on as before.
     intakes = led.intakes() if goals_through_clerk() else {}
-    with_council = council_goals(led)
+    with_council = council_goals(led) | led.held_for_council()
     for task in led.tasks(status="open"):
         if len(jobs) >= budget:
             break
@@ -1154,7 +1155,9 @@ def cmd_propose(args: argparse.Namespace) -> int:
             + ", ".join(f"{rule} {n}" for rule, n in sorted(waiting.items(), key=str))
         )
     if args.dry_run:
-        for t in led.tasks(status="open")[: args.budget]:
+        theirs = council_goals(led) | led.held_for_council()
+        open_tasks = [t for t in led.tasks(status="open") if t["task_id"] not in theirs]
+        for t in open_tasks[: args.budget]:
             print(f"  would take task {t['task_id']} in {t['rel']}")
         for f in work[: args.budget]:
             print(f"  would propose: {f.rule} in {f.rel} ({len(f.warnings)})")
@@ -2853,7 +2856,11 @@ def missions_hour(
         for t in led.tasks(status="open")
         if intakes.get(t["task_id"], {}).get("state") == goal_intake.BRIEFED
         and done.get(t["task_id"], {}).get("state") not in (*SLOT_SPENT, *RUN_STATES)
-    ][:MISSIONS_PER_HOUR]
+    ]
+    # The goals queued for the council alone first, each group oldest first:
+    # the writers would take any other goal, the council's would wait a day.
+    theirs = led.held_for_council()
+    todo = sorted(todo, key=lambda t: t["task_id"] not in theirs)[:MISSIONS_PER_HOUR]
     if not todo:
         return
     status = envelope.status()
@@ -3219,17 +3226,20 @@ def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
     ]
     intakes = led.intakes()
     missions = led.originations()
+    theirs = led.held_for_council()
     for t in progress:
         # A task over several files names each, and each one's proposal.
         files = ", ".join(f"`{scrub(rel)}`" for rel in t["files"])
+        council = " (the council's goal)" if t["task_id"] in theirs else ""
         if t["status"] == "open" and t["task_id"] in intakes:
             seen = intakes[t["task_id"]]
             why = f" ({scrub(seen['reason'])})" if seen.get("reason") else ""
             out.append(
-                f"- `{t['task_id']}` in {files}: with the clerk, {seen['state']}{why}"
+                f"- `{t['task_id']}` in {files}{council}: with the clerk, "
+                f"{seen['state']}{why}"
             )
         elif t["status"] == "open":
-            out.append(f"- `{t['task_id']}` in {files}: open")
+            out.append(f"- `{t['task_id']}` in {files}{council}: open")
         elif t["status"] == "taken":
             p = t["proposal"]
             if len(t["proposals"]) > 1:
@@ -3246,6 +3256,60 @@ def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
             what = f"mission `{m['mission_id']}` " if m.get("mission_id") else ""
             out.append(f"  - with the council: {what}{m['state']}{why}")
     return [*out, ""]
+
+
+#: A mission's latest state, as the report says it (RUN_STATES and SLOT_SPENT).
+MISSION_STATES = {
+    "completed": "completed",
+    "failed": "failed in deliberation",
+    "blocked": "blocked by the council",
+    "run_failed": "failed in its run",
+    "run_refused": "refused at its run by the envelope",
+    "awaiting_approval": "not yet run",
+}
+
+
+def mission_section(led: DailyLedger) -> list[str]:
+    """How many of the operator's goals the council completed (2026-11-13):
+    every mission a goal became, by its latest state, in all and by the day it
+    was sent. Completed is written, verified in the sandbox, accepted by the
+    reviewer and promoted; the rate is of the missions decided, not of those
+    still to run. Descriptive: the operator writes the goals and signs the
+    envelopes, so it measures the council on his goals and nothing else."""
+    every = led.missions()
+    if not every:
+        return []
+
+    def counts(missions: list[dict]) -> str:
+        by = Counter(m["state"] for m in missions)
+        decided = len(missions) - by["awaiting_approval"]
+        rate = (
+            f" ({100 * by['completed'] // decided}% of {decided} decided)"
+            if decided
+            else ""
+        )
+        named = [
+            f"{label} {by[state]}"
+            for state, label in MISSION_STATES.items()
+            if by[state] and state != "completed"
+        ]
+        other = sum(n for state, n in by.items() if state not in MISSION_STATES)
+        return (
+            f"sent {len(missions)}; completed {by['completed']}{rate}"
+            + "".join(f"; {part}" for part in named)
+            + (f"; other {other}" if other else "")
+        )
+
+    days: dict[str, list[dict]] = {}
+    for m in every:
+        days.setdefault(m["sent_at"][:10], []).append(m)
+    return [
+        "**The council's missions** (the operator's goals, each sent inside his "
+        "envelope; by its latest state):",
+        f"- in all: {counts(every)}",
+        *(f"- {day}: {counts(ms)}" for day, ms in sorted(days.items())),
+        "",
+    ]
 
 
 def report(
@@ -3316,6 +3380,7 @@ def report(
         "",
     ]
     out += task_section(led, s)
+    out += mission_section(led)
     # 2026-11-12: which parts of GAGOS did real work (organ 52's pulse), so a
     # silent organ is seen every day, not found by accident.
     out += [s(line) for line in aliveness or []]
@@ -3962,6 +4027,7 @@ def cmd_task(args: argparse.Namespace) -> int:
                 args.text,
                 said_by="the operator (command line)",
                 also=getattr(args, "also", None) or (),
+                council=bool(getattr(args, "council", False)),
             )
         except TaskRefused as exc:
             print(f"refused: {exc}")
@@ -4105,6 +4171,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="FILE",
         help=f"one more file the task changes together with the first (repeat; at "
         f"most {MAX_TASK_FILES - 1})",
+    )
+    ka.add_argument(
+        "--council",
+        action="store_true",
+        help="the council's goal alone: the writers never take it; it waits for "
+        "a slot of the operator's envelope",
     )
     ka.add_argument("text", help="the change, in plain words")
     ksub.add_parser("list", help="every task and what became of it")
