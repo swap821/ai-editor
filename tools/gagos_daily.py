@@ -379,13 +379,27 @@ def cloud_coding_allowed() -> tuple[bool, str]:
 
 def egress_redact(text: str) -> str:
     """What GAGOS's egress scrubbers would send in place of *text*: the
-    gateway's secret policy, then Bedrock's privacy filter. The oracle for
-    :func:`mask_lines`, never a copy of their patterns."""
+    gateway's secret policy, then the privacy filter every route but the
+    operator's plans keeps (Bedrock's). The oracle for :func:`mask_lines`,
+    never a copy of their patterns."""
+    return _egress(text, identifiers_shown=False)
+
+
+def plan_egress_redact(text: str) -> str:
+    """:func:`egress_redact` on the operator's plans' route for GAGOS's tracked
+    code (his decision of 2026-11-11): keys, credentials and local paths
+    hidden, identifiers shown (``PrivacyFilter(identifiers_shown=True)``)."""
+    return _egress(text, identifiers_shown=True)
+
+
+def _egress(text: str, *, identifiers_shown: bool) -> str:
     from aios.core.privacy_filter import PrivacyFilter
     from aios.runtime.secret_policy import SecretPolicy
 
     scrubbed = SecretPolicy().inspect_text(text).scrubbed
-    safe, _audit = PrivacyFilter().filter([{"role": "user", "content": scrubbed}])
+    safe, _audit = PrivacyFilter(identifiers_shown=identifiers_shown).filter(
+        [{"role": "user", "content": scrubbed}]
+    )
     return str(safe[0]["content"]) if safe else ""
 
 
@@ -405,6 +419,19 @@ def mask_redact(text: str) -> str:
     ``ownsWorkSurface(writingTab.id, token)`` is scrubbed at offset 2 mod 5 and
     not at 0 -- the file was masked at one alignment, and the prompt checked at
     another."""
+    return _aligned_redact(text, egress_redact)
+
+
+def plan_mask_redact(text: str) -> str:
+    """:func:`mask_redact` on the operator's plans' route: what his Claude and
+    Codex plans may not be shown of GAGOS's code (keys, credentials, local
+    paths), wherever it lands in a prompt."""
+    return _aligned_redact(text, plan_egress_redact)
+
+
+def _aligned_redact(text: str, egress_redact) -> str:
+    """*text* as *egress_redact* leaves it at the first of the scanner's
+    window alignments that changes each line (see :func:`mask_redact`)."""
     lines = text.splitlines(keepends=True)
     merged = list(lines)
     changed = [False] * len(lines)
@@ -479,6 +506,16 @@ def would_be_altered(prompt: str, system: str) -> str | None:
     """Why the prompt would not reach the model as written, if it would not.
     A file the secret policy or the privacy filter would change is not sent:
     the model would be proposing against a different file."""
+    return _altered(prompt, system, identifiers_shown=False)
+
+
+def plan_would_be_altered(prompt: str, system: str) -> str | None:
+    """:func:`would_be_altered` as the operator's plans' route filters it
+    (identifiers shown)."""
+    return _altered(prompt, system, identifiers_shown=True)
+
+
+def _altered(prompt: str, system: str, *, identifiers_shown: bool) -> str | None:
     from aios.core.privacy_filter import PrivacyFilter
     from aios.runtime.secret_policy import SecretPolicy
 
@@ -490,7 +527,7 @@ def would_be_altered(prompt: str, system: str) -> str | None:
         *([{"role": "system", "content": system}] if system else []),
         {"role": "user", "content": prompt},
     ]
-    safe, _audit = PrivacyFilter().filter(messages)
+    safe, _audit = PrivacyFilter(identifiers_shown=identifiers_shown).filter(messages)
     if safe != messages:
         return "the privacy filter would redact this file, so it is not sent"
     return None
@@ -504,7 +541,7 @@ def plan_writer(model: str):
     """One of GAGOS's writers on the operator's plans: the counter's own
     :class:`~aios.core.plan_cli.PlanCliClient`, sealed the same way (no tools,
     no session, none of his MCP servers or plugins, an empty directory, the
-    privacy filter first). A call that gives no answer raises, and is recorded
+    privacy filter first, on his plans' route: identifiers shown). A call that gives no answer raises, and is recorded
     as a failed call, never as the model's work."""
     from aios.core.plan_cli import PlanCliClient
 
@@ -512,6 +549,9 @@ def plan_writer(model: str):
         claude_models=(model,) if model in CLAUDE_WRITERS else (),
         codex_models=(model,) if model in CODEX_WRITERS else (),
         timeout_s=WRITER_TIMEOUT_S,
+        # GAGOS's own tracked code, to the operator's own plans: identifiers
+        # shown, keys, credentials and paths hidden (his decision, 11-11).
+        identifiers_shown=True,
     )
 
 
@@ -579,13 +619,14 @@ def task_jobs(
     budget: int,
 ) -> list[tuple]:
     """The operator's open tasks made ready, oldest first, as the same jobs the
-    batch makes of lint findings (the last two elements are the task's id and,
-    for a task over several files, every file's ``(rel, text, masked, mapping,
-    facts)``; None for a task over one). What GAGOS cannot do is refused here
-    with a reason, and no model is asked. A task one of whose files another
-    unmerged GAGOS change or an earlier task of this batch holds waits, open,
-    for a later hour. Every file of a task must be one GAGOS may edit, readable,
-    within the bound, maskable; the files together within
+    batch makes of lint findings (elements 8 and 9 are the task's id and, for a
+    task over several files, every file's ``(rel, text, masked, mapping,
+    facts)``; None for a task over one; the tenth is the job as the full
+    filter shows it, see :func:`job_for`). What GAGOS cannot do is refused
+    here with a reason, and no model is asked. A task one of whose files
+    another unmerged GAGOS change or an earlier task of this batch holds waits,
+    open, for a later hour. Every file of a task must be one GAGOS may edit,
+    readable, within the bound, maskable; the files together within
     ``MAX_TASK_TOTAL_CHARS``: the writer returns every changed file whole in one
     answer (:func:`build_task_job`).
 
@@ -606,16 +647,21 @@ def task_jobs(
         tid = task["task_id"]
         if tid in with_council:
             continue
-        kind, value = build_task_job(
-            root,
-            head,
-            task,
-            notes=notes,
-            facts=facts,
-            intakes=intakes,
-            editable=editable,
-            busy=busy | held,
-        )
+        made = {
+            plan: build_task_job(
+                root,
+                head,
+                task,
+                notes=notes,
+                facts=facts,
+                intakes=intakes,
+                editable=editable,
+                busy=busy | held,
+                plan=plan,
+            )
+            for plan in (True, False)
+        }
+        kind, value = both_routes(made[True], made[False])
         if kind == "refuse":
             led.refuse_task(tid, value)
             print(f"  task {tid} refused: {value}")
@@ -625,6 +671,20 @@ def task_jobs(
             held.update(task["files"])
             jobs.append(value)
     return jobs
+
+
+def both_routes(plan: tuple[str, Any], full: tuple[str, Any]) -> tuple[str, Any]:
+    """One job of a task built for both routes (:func:`build_task_job`):
+    ``("job", job)`` with the plans' build first and the full one as its tenth
+    element (:func:`job_for`), the full build for every writer when only it
+    could be made, or the full build's refusal or wait."""
+    if full[0] == "wait":
+        return full
+    if plan[0] == "job":
+        return "job", (*plan[1], full[1])
+    if full[0] == "job":
+        return "job", (*full[1], None)
+    return full
 
 
 def build_task_job(
@@ -637,13 +697,15 @@ def build_task_job(
     intakes: dict,
     editable: dict[bool, set[str] | Exception],
     busy: set[str] = frozenset(),
+    plan: bool = False,
 ) -> tuple[str, Any]:
     """One of the operator's tasks made ready as a writer's job: ``("job",
     job)``, or ``("refuse", reason)`` for what GAGOS cannot do, or ``("wait",
     reason)`` while another unmerged GAGOS change holds one of its files.
     *editable* caches which files GAGOS may edit, by kind, across calls. No
-    model is asked here. The batch's tasks and a council mission's writer
-    (move A3) are made ready the same way."""
+    model is asked here. *plan*: masked as the operator's plans' route filters
+    GAGOS's code (identifiers shown); else under the full filter. The operator's
+    own words are scrubbed with the full filter on either route."""
     tid = task["task_id"]
     files = task["files"]
     parts: list[tuple[str, str, str, dict, tuple[str, ...]]] = []
@@ -685,7 +747,9 @@ def build_task_job(
                 f"changes is {MAX_TASK_FILE_CHARS}"
             )
         try:
-            masked, mapping = mask_lines(text, mask_redact, min_width=floor)
+            masked, mapping = mask_lines(
+                text, plan_mask_redact if plan else mask_redact, min_width=floor
+            )
         except MaskingFailed as exc:
             return "refuse", str(exc)
         if mapping:
@@ -728,7 +792,7 @@ def build_task_job(
             briefing=briefing,
         )
         system = task_files_system(files)
-    altered = would_be_altered(prompt, system)
+    altered = (plan_would_be_altered if plan else would_be_altered)(prompt, system)
     if altered:
         return "refuse", altered
     common = dict(base_text=text, base_commit=head, facts=known)
@@ -950,6 +1014,18 @@ def record_one_file(
     )
 
 
+def job_for(job: tuple, model: str) -> tuple | str:
+    """The job as *model*'s route may be shown it. A job is built for the
+    operator's plans (identifiers shown) and for every other route (the full
+    filter); its tenth element is the other build: the full one, a refusal
+    when the full filter could not show it, or None when both are the same.
+    Returns the nine-element job, or why this writer may not take it."""
+    primary, other = tuple(job[:9]), job[9] if len(job) > 9 else None
+    if model in PLAN_WRITERS or other is None:
+        return primary
+    return other
+
+
 def job_files(job: tuple) -> list[str]:
     """The files one batch job writes: a task's several, or its finding's one."""
     parts = job[8]
@@ -1111,60 +1187,79 @@ def cmd_propose(args: argparse.Namespace) -> int:
                 f"whole-file proposal is {MAX_FILE_CHARS}",
             )
             continue
-        # What the scrubbers would redact stays here, behind placeholders.
-        try:
-            masked, mapping = mask_lines(text, mask_redact)
-        except MaskingFailed as exc:
+        # What the scrubbers would redact stays here, behind placeholders: for
+        # the operator's plans as his plans' route filters GAGOS's code
+        # (identifiers shown), and for every other writer under the full
+        # filter (job_for picks).
+        refusals = [egress_redact(r) for r in led.refusal_reasons(f.rule)]
+
+        def built(plan: bool) -> tuple[str, Any]:
+            try:
+                masked, mapping = mask_lines(
+                    text, plan_mask_redact if plan else mask_redact
+                )
+            except MaskingFailed as exc:
+                return "masking", str(exc)
+            if f.rule == MISSING_TEST:
+                system = TESTER_SYSTEM
+                prompt = first_test_prompt(
+                    f,
+                    masked,
+                    example=_example_test(texts, f.rel),
+                    prior_refusals=refusals,
+                    masked=bool(mapping),
+                    facts=known,
+                    playbook=shown,
+                )
+            else:
+                system = proposer_system(f.rel)
+                prompt = proposal_prompt(
+                    f,
+                    masked,
+                    prior_refusals=refusals,
+                    masked=bool(mapping),
+                    facts=known,
+                    playbook=shown,
+                )
+            altered = (plan_would_be_altered if plan else would_be_altered)(
+                prompt, system
+            )
+            if altered:
+                return "altered", altered
+            return "job", (masked, mapping, prompt, system)
+
+        for_plan, full = built(True), built(False)
+        if for_plan[0] != "job" and full[0] != "job":
+            if full[0] == "altered":
+                common.update(
+                    arm=arm,
+                    playbook_seen=[e["entry_id"] for e in shown],
+                    playbook_active=len(active),
+                )
             led.record_proposal(
                 f,
                 **common,
                 model=NO_MODEL,
                 new_text=None,
                 verdict=None,
-                refusal=str(exc),
+                refusal=full[1],
             )
-            print(f"  skipped {f.rel}: {exc}")
+            print(f"  skipped {f.rel}: {full[1]}")
             continue
-        refusals = [egress_redact(r) for r in led.refusal_reasons(f.rule)]
-        if f.rule == MISSING_TEST:
-            system = TESTER_SYSTEM
-            prompt = first_test_prompt(
-                f,
-                masked,
-                example=_example_test(texts, f.rel),
-                prior_refusals=refusals,
-                masked=bool(mapping),
-                facts=known,
-                playbook=shown,
-            )
-        else:
-            system = proposer_system(f.rel)
-            prompt = proposal_prompt(
-                f,
-                masked,
-                prior_refusals=refusals,
-                masked=bool(mapping),
-                facts=known,
-                playbook=shown,
-            )
         common.update(
             arm=arm,
             playbook_seen=[e["entry_id"] for e in shown],
             playbook_active=len(active),
         )
-        altered = would_be_altered(prompt, system)
-        if altered:
-            led.record_proposal(
-                f,
-                **common,
-                model=NO_MODEL,
-                new_text=None,
-                verdict=None,
-                refusal=altered,
+        first, second = (for_plan, full) if for_plan[0] == "job" else (full, None)
+        other = None
+        if second is not None:
+            other = (
+                (f, text, *second[1], common, None, None)
+                if second[0] == "job"
+                else second[1]
             )
-            print(f"  skipped {f.rel}: {altered}")
-            continue
-        jobs.append((f, text, masked, mapping, prompt, system, common, None, None))
+        jobs.append((f, text, *first[1], common, None, None, other))
     if args.model:
         roster, probe = (args.model,), None
     else:
@@ -1256,6 +1351,20 @@ def cmd_propose(args: argparse.Namespace) -> int:
     completers = {m: governed_completer(m, args.region) for m in dict.fromkeys(writers)}
 
     def attempt(n: int, job: tuple, model: str) -> None:
+        picked = job_for(job, model)
+        if isinstance(picked, str):
+            # Masked for the operator's plans only: what the full filter
+            # would hide cannot be shown to this writer.
+            led.record_proposal(
+                job[0],
+                **dict(job[6], model=model),
+                new_text=None,
+                verdict=None,
+                refusal=picked,
+            )
+            print(f"  {job[0].rel} ({model}): refused: {picked}")
+            return
+        job = picked
         f, text, masked, mapping, prompt, system, common, task_id, parts = job
         common = dict(common, model=model)
 
@@ -1543,10 +1652,12 @@ def _group_evidence(p: dict, facts: list) -> tuple[str, bool, bool]:
         raise MaskingFailed(f"{UNSHOWABLE}: the task of this proposal is unknown")
     parts, floor, hidden, hid_added = [], 1, False, False
     for m in led.group_members(p["group_id"]):
-        masked_base, mapping = mask_lines(m["base_text"], mask_redact, min_width=floor)
+        masked_base, mapping = mask_lines(
+            m["base_text"], plan_mask_redact, min_width=floor
+        )
         floor = _mask_floor(mapping, floor)
         masked_new = mask_aligned(m["new_text"], m["base_text"], masked_base, mapping)
-        masked_new, added = mask_lines(masked_new, mask_redact, min_width=floor)
+        masked_new, added = mask_lines(masked_new, plan_mask_redact, min_width=floor)
         floor = _mask_floor(added, floor)
         diff = unified_diff(Path(m["rel"]).name, masked_base, masked_new)
         parts.append((m["rel"], masked_base, diff))
@@ -1568,7 +1679,9 @@ def review_evidence(p: dict, finding: Finding) -> str:
             facts += [f for f in json.loads(m.get("facts") or "[]") if f not in facts]
         prompt, mapping, added = _group_evidence(p, facts)
         return _review_notes(prompt, p, mapping, added)
-    masked_base, mapping = mask_lines(p["base_text"], mask_redact)
+    # Both reviewers are the operator's plans (Claude Code, Codex): the
+    # change is shown as his plans' route filters GAGOS's code.
+    masked_base, mapping = mask_lines(p["base_text"], plan_mask_redact)
     if finding.rule == MISSING_TEST:
         # The module and the whole new test, under the module's mask.
         masked_new = mask_like(p["new_text"], mapping)
@@ -1585,7 +1698,7 @@ def review_evidence(p: dict, finding: Finding) -> str:
     # 2026-11-13 a correct first test (gd-f98e938baf) was rejected for
     # importing what the reviewer read as the name in the module's comment.
     masked_new, added = mask_lines(
-        masked_new, mask_redact, min_width=_mask_floor(mapping, 1)
+        masked_new, plan_mask_redact, min_width=_mask_floor(mapping, 1)
     )
     if finding.rule == MISSING_TEST:
         prompt = first_test_review_prompt(finding, masked_base, masked_new, facts=facts)
@@ -1635,7 +1748,7 @@ def _review_notes(prompt: str, p: dict, mapping, added) -> str:
             "tests' pass was earned (advisory; it decides nothing), says "
             f"{word.get('verdict')}: {word.get('reason')}"
         )
-    altered = would_be_altered(prompt, "")
+    altered = plan_would_be_altered(prompt, "")
     if altered:
         raise MaskingFailed(f"{UNSHOWABLE}: {altered}")
     return prompt
@@ -2835,6 +2948,8 @@ class MissionWork:
             f"The operator's direction: {egress_redact(note)}"
             for note in direction.notes
         )
+        # Shown as the writer's own route shows GAGOS's code: the operator's
+        # plans see identifiers (his decision of 2026-11-11, #651).
         kind, job = build_task_job(
             self.root,
             self.head,
@@ -2843,6 +2958,7 @@ class MissionWork:
             facts=project_facts(self.root) + notes,
             intakes=intakes,
             editable={},
+            plan=self.model in PLAN_WRITERS,
         )
         if kind != "job":
             raise WriterRefused(job)

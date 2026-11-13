@@ -119,7 +119,8 @@ def test_the_batch_leaves_the_councils_goals_to_their_missions(
 
     monkeypatch.setattr(tool, "build_task_job", build)
     tool.task_jobs(led, tmp_path, "head", set(), (), (), budget=5)
-    assert made == [free] and with_council not in made
+    # Each task is made for both routes (#651); the council's never.
+    assert set(made) == {free} and with_council not in made
 
 
 def test_a_goal_the_council_ran_is_never_originated_again(led, tmp_path) -> None:
@@ -155,11 +156,13 @@ def _job(led, tid):
 def workshop(led, monkeypatch):
     """The workshop's steps with no model, no linter and no container: the
     writer answers NEW, the static checks pass, the tests pass."""
-    monkeypatch.setattr(
-        tool,
-        "build_task_job",
-        lambda root, head, task, **kw: ("job", _job(led, task["task_id"])),
-    )
+    built = []
+
+    def build(root, head, task, **kw):
+        built.append(kw.get("plan"))
+        return "job", _job(led, task["task_id"])
+
+    monkeypatch.setattr(tool, "build_task_job", build)
     monkeypatch.setattr(tool, "project_facts", lambda root: ())
 
     def record_one_file(led_, root, lint, job, *, model, raw, took, started):
@@ -185,7 +188,7 @@ def workshop(led, monkeypatch):
 
     monkeypatch.setattr(tool, "run_change_tests", run_change_tests)
     monkeypatch.setattr(tool, "review_evidence", lambda p, finding: "evidence")
-    return tested
+    return tested, built
 
 
 def _work(led, tid, root, *, word="accept"):
@@ -223,7 +226,10 @@ def test_the_hour_runs_a_real_mission_and_its_change_is_delivered(
     assert sb.SandboxVerdict.from_json(p["sandbox"]).outcome == sb.PASSED
     assert led.reviews(p["proposal_id"])["claude"]["verdict"] == "accept"
     assert led.task(tid)["status"] == "taken"
-    assert workshop == [{TEST: NEW}]
+    tested, built = workshop
+    assert tested == [{TEST: NEW}]
+    # The mission's writer is on the operator's plan: its route's build (#651).
+    assert built == [True]
     assert Path(record.contract.workspace_root, TEST).read_text(encoding="utf-8") == NEW
 
 

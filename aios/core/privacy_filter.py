@@ -355,7 +355,18 @@ def scrub_exception(exc: BaseException | str) -> str:
 
 
 class PrivacyFilter:
-    """Stateful filter that sanitizes message lists before cloud transmission."""
+    """Stateful filter that sanitizes message lists before cloud transmission.
+
+    *identifiers_shown* is the operator's own plans' policy for GAGOS's tracked
+    code (his decision of 2026-11-11, wired 2026-11-13): to his Claude and
+    Codex plans, credentials and local paths are hidden and identifiers are
+    shown. Its one difference is that the high-entropy layer is skipped. That
+    layer hides any 21-character run that looks random, and in code most such
+    runs are identifiers: GAGOS's writers were refused tasks whose names they
+    could not see, and its reviewers were shown a name hidden on one line and
+    plain on the next. Keys stay hidden on this route too: the known
+    credential patterns here, and the gateway's secret policy (its own entropy
+    scan) on every prompt. Every other route keeps the full filter."""
 
     def __init__(
         self,
@@ -366,7 +377,9 @@ class PrivacyFilter:
         max_request_size: int = _MAX_REQUEST_SIZE,
         max_response_size: int = _MAX_RESPONSE_SIZE,
         max_messages: int = _MAX_MESSAGES_PER_REQUEST,
+        identifiers_shown: bool = False,
     ) -> None:
+        self.identifiers_shown = bool(identifiers_shown)
         base_history_window = (
             _HISTORY_WINDOW if history_window is None else history_window
         )
@@ -548,7 +561,7 @@ class PrivacyFilter:
             content_str = str(content)
             content_str, n_cred = _redact_credentials(content_str)
             audit["redacted_credentials"] += n_cred
-            content_str, n_sec = _redact_high_entropy(content_str)
+            content_str, n_sec = self._redact_high_entropy(content_str)
             audit["redacted_secrets"] += n_sec
             content_str, n_path = _redact_paths(content_str)
             audit["redacted_paths"] += n_path
@@ -563,7 +576,7 @@ class PrivacyFilter:
             audit["redacted_tool_files"] += n_file
             content_str, n_cred = _redact_credentials(content_str)
             audit["redacted_credentials"] += n_cred
-            content_str, n_sec = _redact_high_entropy(content_str)
+            content_str, n_sec = self._redact_high_entropy(content_str)
             audit["redacted_secrets"] += n_sec
             content_str, n_path = _redact_paths(content_str)
             audit["redacted_paths"] += n_path
@@ -572,7 +585,7 @@ class PrivacyFilter:
             content_str = str(content)
             content_str, n_cred = _redact_credentials(content_str)
             audit["redacted_credentials"] += n_cred
-            content_str, n_sec = _redact_high_entropy(content_str)
+            content_str, n_sec = self._redact_high_entropy(content_str)
             audit["redacted_secrets"] += n_sec
             content_str, n_path = _redact_paths(content_str)
             audit["redacted_paths"] += n_path
@@ -585,6 +598,13 @@ class PrivacyFilter:
             return clean, audit
         audit["dropped_messages"] = 1
         return None, audit
+
+    def _redact_high_entropy(self, text: str) -> tuple[str, int]:
+        """The high-entropy layer, or nothing on the operator's plans' route
+        (*identifiers_shown*)."""
+        if self.identifiers_shown:
+            return text, 0
+        return _redact_high_entropy(text)
 
     def _redact_file_content(self, text: str) -> tuple[str, int]:
         count = 0
@@ -625,7 +645,7 @@ class PrivacyFilter:
         if len(head) > _LARGE_BLOB_CHAR_LIMIT:
             head = head[:_LARGE_BLOB_CHAR_LIMIT].rstrip()
         head, _ = _redact_credentials(head)
-        head, _ = _redact_high_entropy(head)
+        head, _ = self._redact_high_entropy(head)
         head, _ = _redact_paths(head)
         return f"{head}\n{_LARGE_BLOB_TRUNCATION_MARKER}"
 

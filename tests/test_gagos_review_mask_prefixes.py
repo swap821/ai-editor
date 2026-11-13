@@ -42,7 +42,8 @@ def _redact(text: str) -> str:
 
 
 def _shown(monkeypatch) -> str:
-    monkeypatch.setattr(tool, "mask_redact", _redact)
+    # The reviewers are the operator's plans: their route's oracle.
+    monkeypatch.setattr(tool, "plan_mask_redact", _redact)
     p = {
         "proposal_id": "gd-0000000000",
         "rel": "frontend/src/workbench/spineFlashBridge.test.ts",

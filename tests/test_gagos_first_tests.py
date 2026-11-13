@@ -175,10 +175,16 @@ def test_what_a_new_test_adds_that_may_not_leave_is_hidden_not_refused(
     )
     [p] = led.proposals()
     evidence = tool.review_evidence(p, FIRST)
+    # The reviewers are the operator's plans (his decision of 2026-11-11):
+    # the local path stays hidden; a fixed test UUID is no key, and is shown.
     assert "qualityTierContext" not in evidence
-    assert "00000000-0000-4000-8000-000000000001" not in evidence
+    assert "00000000-0000-4000-8000-000000000001" in evidence
     assert "GAGOSMASK" in evidence and "something the writer added" in evidence
     assert "describe('Panel'" in evidence, "the rest of the test is shown"
+    # Every other route (Bedrock's) still hides both.
+    full = tool.egress_redact(added)
+    assert "qualityTierContext" not in full
+    assert "00000000-0000-4000-8000-000000000001" not in full
 
 
 @pytest.fixture()
