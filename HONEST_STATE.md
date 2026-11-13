@@ -1,10 +1,22 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, GAGOS's missions are on the cortex bus" below;
+**Last updated:** 2026-11-13 ("2026-11-13, GAGOS keeps its own documents in its knowledge base" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, GAGOS keeps its own documents in its knowledge base (branch `feat/self-knowledge`)
+
+- **Why (move C on the aliveness map: producers).** The knowledge base the counter's corrective retrieval (CRAG, `AIOS_CRAG_DOCUMENTS`, on by default) reads had one way in, the operator's upload route. Nothing ever came through it: 0 sources, 0 chunks.
+- **His word (2026-11-13): "GAGOS's own docs".**
+- **What.**
+  - `aios/memory/self_knowledge.py` keeps the README, AGENTS.md, HONEST_STATE.md and every `docs/architecture/*.md` in the knowledge tables as `gagos:<path>`, as the checkout has them.
+  - It goes through the one ingestor, `DocumentIngestor`, which gains `replace`: unchanged text is left alone, and changed text replaces the old chunks.
+  - A document that is gone is taken out. The operator's own uploads are never touched.
+  - GAGOS's hour refreshes it every run from its checkout of master.
+  - Everything stays on the laptop, in the memory database.
+- **Measured on master.** 14 documents and 285 chunks. 0.6 s the first time and 0.17 s when nothing changed.
+- **Tests:** 7 new, including the counter's own retrieval (`_crag_document_source`) returning GAGOS's text. 283 pass across the knowledge, CRAG, aliveness, workshop, origination, architecture and gateway-enforcement test files. No organ entrypoint is touched.
 ## 2026-11-13, GAGOS's missions are on the cortex bus (branch `feat/missions-on-the-bus`)
 
 - **Why (move C on the aliveness map: producers).** The face's system portrait (organ 47's read-model of active turns, missions and workers) reads the cortex bus. The hour's two council steps, originating a goal and running a mission, both ran with no bus. So the portrait could never count one of GAGOS's missions, though the hour's writers already post there.

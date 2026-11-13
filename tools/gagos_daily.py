@@ -3156,6 +3156,29 @@ def _envelope_authority():
     )
 
 
+def knowledge_hour(root: Path, *, ingestor=None) -> dict:
+    """GAGOS's own documents kept in its knowledge base (move C, the operator's
+    word of 2026-11-13: "GAGOS's own docs"): the README, AGENTS.md,
+    HONEST_STATE.md and the architecture docs, as this hour's checkout of master
+    has them, where the counter's corrective retrieval reads
+    (aios.memory.self_knowledge). Unchanged documents cost a hash; the
+    operator's own uploads are never touched; nothing leaves the laptop."""
+    from aios.memory import self_knowledge
+
+    if ingestor is None:
+        from aios.memory.doc_ingest import DocumentIngestor
+
+        ingestor = DocumentIngestor()
+    out = self_knowledge.refresh(root, ingestor=ingestor)
+    print(
+        f"  knowledge: {len(out['kept']) + len(out['changed'])} of GAGOS's documents "
+        f"in its knowledge base ({len(out['changed'])} changed, "
+        f"{len(out['removed'])} removed)"
+        + (f"; not read: {'; '.join(out['failed'])}" if out["failed"] else "")
+    )
+    return out
+
+
 def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
     """The report's lines on the operator's tasks: counts by status, and each
     task still moving (open, or taken and not yet delivered). Never his words."""
@@ -3851,6 +3874,11 @@ def cmd_daily(args: argparse.Namespace) -> int:
             runs_hour(led, root, region=args.region)
         except Exception as exc:  # the hour's other work goes on; said
             print(f"  missions: the runs failed: {type(exc).__name__}: {exc}"[:400])
+        # GAGOS's own documents, kept current in its knowledge base (move C).
+        try:
+            knowledge_hour(root)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(f"  knowledge: the refresh failed: {type(exc).__name__}: {exc}"[:400])
         rc = cmd_propose(
             argparse.Namespace(
                 project=str(root),

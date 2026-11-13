@@ -170,6 +170,25 @@ class DocumentIngestor:
             "duplicate": False,
         }
 
+    def replace(self, filename: str, raw: bytes, mime_type: str) -> dict[str, Any]:
+        """Keep *filename* in the knowledge tables as *raw* says it is now: the
+        same text is left alone (``unchanged``); a changed text replaces every
+        earlier source of that name, chunks and all. For documents a producer
+        keeps current, as an upload is not (2026-11-13: GAGOS's own docs)."""
+        text = extract_text(filename, raw, mime_type)
+        doc_hash = _content_hash(text)
+        init_memory_db(self.db_path)
+        with get_connection(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT id, content_hash FROM knowledge_sources WHERE filename = ?",
+                (filename,),
+            ).fetchall()
+        if len(rows) == 1 and rows[0]["content_hash"] == doc_hash:
+            return {"source_id": rows[0]["id"], "filename": filename, "unchanged": True}
+        for row in rows:
+            self.delete_source(row["id"])
+        return {**self.ingest(filename, raw, mime_type), "unchanged": False}
+
     def list_sources(self) -> list[dict[str, Any]]:
         """List all ingested document sources."""
         init_memory_db(self.db_path)
