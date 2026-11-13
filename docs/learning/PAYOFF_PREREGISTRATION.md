@@ -1217,3 +1217,35 @@ arm is still fixed by the finding alone.
 **Unchanged.** Treatment, randomisation, outcome, population, hypotheses and the
 stopping rule. Every rule with a verdict had a playbook before D15's first batch,
 so the seed's pace affects no proposal in the analysis.
+
+### D17 — 2026-11-13 — the reviewer judges what a first test means, during D15
+
+**Applies to** D15, recorded in the PR that changes the reviewer (#666) and
+before it merges, with D15's population at 204 decided proposals (ON 105,
+OFF 99) of the 240 at which it stops.
+
+**What happened.** #665 delivered a first test for `EventThrottler.ts` that the
+reviewer had accepted because every assertion would pass. One of its tests,
+named "fires the final call at the trailing edge", asserted the burst's middle
+call: what the module does, against its own comment. The operator chose to make
+the reviewer judge intent.
+
+**Changed, from the merge of #666.** The reviewer of a first test (rule
+`gagos/missing-test`, which has a playbook and is in D15's population) is also
+told that every test must say in its name what its assertions check, and agree
+with the code's own comments and documentation, and to reject and name a
+defect rather than test it as correct. The reviewer of a lint fix is unchanged.
+Replayed on three first tests the old reviewer accepted, one review each: two
+rejected (#665's, and #646's `presenceProjection.test.ts`, whose name claims
+more than it checks), one still accepted. Acceptance of first tests is expected
+to fall.
+
+**Effect on D15.** The arm is fixed by the finding, so the change reaches both
+arms alike and the comparison of H1 stays a fair one. The outcome's instrument
+changes partway, though, so the analysis also reports, for each arm, the first
+tests decided before and after this PR's merge (by the time each was reviewed),
+and says so beside the result. A difference that holds in one period only is
+reported as such.
+
+**Unchanged.** Treatment, randomisation, outcome, population, hypotheses and the
+stopping rule.

@@ -22,6 +22,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - the report marks it "the council's goal".
 - **The measure.** The daily report's new "The council's missions" section counts every mission by its latest state, in all and by the day it was sent. Completed means written, sandbox-verified, accepted and promoted; the rate is of the missions decided. On the live ledger today: sent 6, completed 2 (33%), failed in deliberation 2 (no verification key, #659), blocked by the council 2 (the Memory queen, #661).
 - **Also today.** #663, #664 and #665 were merged by the operator. The main checkout was fast-forwarded to 8a22fb5e, and the daily backend restarted on it (backend, executor and face healthy) at his word.
+- **D15 runs while this changes.** First tests (`gagos/missing-test`) are in D15's population, which stood at 204 of its 240 decided proposals. The change reaches both arms alike; deviation D17 in `docs/learning/PAYOFF_PREREGISTRATION.md` records it before merge, and the analysis will report first tests before and after it.
 - **Tests:** 8 new. Every `test_gagos*` and `test_daily*` file passes, with the architecture, gateway-enforcement and consistency guards. No organ entrypoint is touched.
 ## 2026-11-13, the operator's envelope tool (branch `feat/envelope-tool`)
 
