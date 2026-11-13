@@ -296,3 +296,45 @@ def test_without_its_keys_no_mission_runs_and_the_hour_says_which(
     assert "AIOS_PROMOTION_AUTHORITY_KEY" in capsys.readouterr().out
     assert led.originations()  # nothing recorded beyond the origination
     assert {o["state"] for o in led.originations().values()} == {"awaiting_approval"}
+
+
+# -- the council's events reach the cortex bus ----------------------------------------
+
+
+def test_the_hours_missions_and_originations_post_to_the_cortex_bus(
+    led, tmp_path, monkeypatch
+) -> None:
+    """2026-11-13: both ran with no bus, so the face's portrait never saw a
+    GAGOS mission. They now post where the hour's writers do."""
+    from aios.operations import council_origination
+
+    bus = object()
+    monkeypatch.setattr(tool, "cortex_bus", lambda: bus)
+    monkeypatch.setattr(tool, "mission_keys_missing", lambda: [])
+    monkeypatch.setattr(tool, "_git", lambda r, *a: "head")
+    seen = {}
+
+    def run_gagos_mission(mission_id, **kw):
+        seen["run"] = kw.get("bus")
+        return {"state": "completed", "reason": "", "files": {}}
+
+    def originate_goal(task, intake, **kw):
+        seen["originate"] = kw.get("bus")
+        return {"state": "refused", "reason": "test", "mission_id": None}
+
+    monkeypatch.setattr(council_origination, "run_gagos_mission", run_gagos_mission)
+    monkeypatch.setattr(council_origination, "originate_goal", originate_goal)
+    _originated(led)
+    tool.runs_hour(led, tmp_path, region="r", envelope=object())
+    assert seen["run"] is bus
+
+    class Live:
+        def status(self):
+            return {"live": True}
+
+    fresh = led.add_task(
+        "frontend/src/superbrain/lib/other.ts", "x", said_by="operator"
+    )
+    led.record_intake(fresh, {**_briefed(), "reason": "", "mission_request": None})
+    tool.missions_hour(led, tmp_path, envelope=Live())
+    assert seen["originate"] is bus
