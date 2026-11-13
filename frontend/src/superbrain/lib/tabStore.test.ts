@@ -17,6 +17,7 @@ import {
   getTabStoreSnapshot,
   isWorkMaterializationClaimed,
   releaseWorkMaterialization,
+  reopenMaterializedTab,
   RECOVERABLE_RESULT_LIMIT,
   setMaterializedTabLifecycle,
   showApprovalSurface,
@@ -63,6 +64,31 @@ describe('tabStore', () => {
       expect(began).toBe(true);
       expect(snapshot.tabs).toHaveLength(startingLength);
     }
+  });
+
+  it('reopens a closed content tab with its identity, content and focus intact', () => {
+    const tab = showContentSurface({ code: 'print(1)', language: 'python', filepath: 'kept.py' });
+    const id = tab.id;
+
+    beginRetractingMaterializedTab(id);
+    const retiring = getTabStoreSnapshot().tabs.find((candidate) => candidate.id === id);
+    expect(retiring).toBeDefined();
+    finishMaterializedTabRetraction(id, retiring!.retractionToken);
+
+    const saved = getTabStoreSnapshot().recoverableTabs?.find((candidate) => candidate.id === id);
+    expect(saved).toBeDefined();
+    expect(saved?.content).toEqual({ code: 'print(1)', language: 'python', filepath: 'kept.py' });
+
+    expect(reopenMaterializedTab(id)).toBe(true);
+
+    const snapshot = getTabStoreSnapshot();
+    const reopened = snapshot.tabs.filter((candidate) => candidate.id === id);
+    expect(reopened).toHaveLength(1);
+    expect(reopened[0]?.content?.code).toBe('print(1)');
+    expect(reopened[0]?.content?.language).toBe('python');
+    expect(reopened[0]?.content?.filepath).toBe('kept.py');
+    expect(snapshot.focusId).toBe(id);
+    expect(snapshot.recoverableTabs?.some((candidate) => candidate.id === id) ?? false).toBe(false);
   });
 
   it('keeps multiple content tabs without stealing existing focus', () => {
