@@ -1688,6 +1688,16 @@ CREATE TABLE IF NOT EXISTS goal_intake (
     mission_request TEXT,
     updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS goal_missions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    state TEXT NOT NULL,
+    reason TEXT,
+    mission_id TEXT,
+    envelope_id TEXT,
+    slot INTEGER,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS playbook (
     entry_id TEXT PRIMARY KEY,
     rule TEXT NOT NULL,
@@ -2737,6 +2747,33 @@ class DailyLedger:
                     _now(),
                 ),
             )
+
+    def record_origination(self, task_id: str, outcome: Mapping[str, Any]) -> None:
+        """One attempt to originate the goal *task_id* as a council mission
+        (aios.operations.council_origination.originate_goal's outcome). Every
+        attempt is kept: a refusal spends no slot and is tried again."""
+        with self._db() as db:
+            db.execute(
+                "INSERT INTO goal_missions (task_id, state, reason, mission_id, "
+                "envelope_id, slot, created_at) VALUES (?,?,?,?,?,?,?)",
+                (
+                    task_id,
+                    outcome["state"],
+                    outcome.get("reason") or None,
+                    outcome.get("mission_id"),
+                    outcome.get("envelope_id"),
+                    outcome.get("slot"),
+                    _now(),
+                ),
+            )
+
+    def originations(self) -> dict[str, dict]:
+        """Each goal's latest origination attempt, by task id."""
+        with self._db() as db:
+            out: dict[str, dict] = {}
+            for r in db.execute("SELECT * FROM goal_missions ORDER BY id"):
+                out[r["task_id"]] = dict(r)
+            return out
 
     def intakes(self) -> dict[str, dict]:
         """Every goal's intake, by task id."""
