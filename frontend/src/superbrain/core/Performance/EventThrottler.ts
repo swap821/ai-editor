@@ -22,6 +22,7 @@ export class EventThrottler {
    * @returns A throttled wrapper function.
    */
   public throttle<T extends (...args: never[]) => void>(callback: T): (...args: Parameters<T>) => void {
+    let latestArgs: Parameters<T>;
     return (...args: Parameters<T>) => {
       const now = performance.now();
       const remaining = this.limitMs - (now - this.lastFired);
@@ -33,12 +34,15 @@ export class EventThrottler {
         }
         this.lastFired = now;
         callback(...args);
-      } else if (!this.timer) {
-        this.timer = window.setTimeout(() => {
-          this.lastFired = performance.now();
-          this.timer = null;
-          callback(...args);
-        }, remaining);
+      } else {
+        latestArgs = args;
+        if (!this.timer) {
+          this.timer = window.setTimeout(() => {
+            this.lastFired = performance.now();
+            this.timer = null;
+            callback(...latestArgs);
+          }, remaining);
+        }
       }
     };
   }

@@ -72,7 +72,7 @@
     "core/CorticalNerves/DeliberationOverlay.tsx": "de6b08e9458e3677beba416799a5072e3539b0494260fec1f065b0dc0d0477df",
     "core/CorticalNerves/NerveMesh.tsx": "81b4de2367a2e22b1eeec1ebff0fd7b647427f9a12f0eb341bcedb75e8df8a19",
     "core/CorticalNerves/PulseShader.tsx": "196de9c0cbd601c6bed8bb8e05a1f73f91a6bed3642c5ce4f71c20b5a6aa928e",
-    "core/Performance/EventThrottler.ts": "6ee6116bc3556f2be0882aaf0fc2f216ed3d1e175eccacff3084760e2457d5a8",
+    "core/Performance/EventThrottler.ts": "26c3e332e31cab7a59b0cdf3a824550bf69b44802f4b0e43c7fc5134fdbd0847",
     "core/Performance/FeatureGate.ts": "71291238eb8c9ef5453a6957637298a8f79bafe73f1d922664f3e5f8efa2fc43",
     "lib/activeBrain.test.ts": "d162633ca6e503f8cc0f561eb12f0607a3e898b7920737fcf3483e962a001dd7",
     "lib/activeBrain.ts": "025678bc67a2a326f073195aa6c653f007b0e364c84882f73a8f6508c05b8dcd",
@@ -282,7 +282,7 @@
     "lib/presenceProjection.test.ts": "c2b03991a606f9d729295a303fb0cc366a6a8c70badce05b620eeee4beebf752",
     "lib/rendererShaderFailure.test.ts": "4843a1f500593214f3fd1cbee703bc2722820f5b229a2a0f4896cb8c7f65bca8",
     "core/AccretionCore/MemoryParticles.test.tsx": "f08765b744f0719a7a67d05f3f36fc3e7b9761d2129a9b5e298374b1ddec8084",
-    "core/Performance/EventThrottler.test.ts": "fc862f5ef168c6308ef4fcd515653c1516e6e7022b2a29072bf27dcc883ca1bf",
+    "core/Performance/EventThrottler.test.ts": "61261a3c01f26a82e696c9b8da0726aa6e2ff1af1d04663d4ff5248e3ca35fa0",
     "components/canvas/NervousSystem.test.tsx": "b5c13b77f47115cfc50e27d6fe94f9423af594567f84f7d915ae7c45a9fe831b"
   }
 }

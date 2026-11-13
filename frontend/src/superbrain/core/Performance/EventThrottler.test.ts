@@ -33,7 +33,24 @@ describe('EventThrottler', () => {
     vi.advanceTimersByTime(30);
 
     expect(callback).toHaveBeenCalledTimes(2);
-    expect(callback).toHaveBeenLastCalledWith('middle');
+    expect(callback).toHaveBeenLastCalledWith('final');
+  });
+
+  it('leaves no pending calls after the trailing edge', () => {
+    vi.useFakeTimers();
+    vi.spyOn(performance, 'now').mockReturnValue(100);
+
+    const callback = vi.fn();
+    const throttled = new EventThrottler(30).throttle(callback);
+
+    throttled('first');
+    throttled('middle');
+    throttled('final');
+
+    vi.advanceTimersByTime(30);
+    vi.runOnlyPendingTimers();
+
+    expect(callback).toHaveBeenCalledTimes(2);
   });
 
   it('fires a new call immediately after the limit and cancels a pending trailing call', () => {
