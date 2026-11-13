@@ -65,8 +65,13 @@ class MemoryQueen:
         try:
             # Plan Phase 4c: the mission's operator is the principal whose
             # verified failures are consulted.
+            # The mission's own files name its code, so a lesson is weighed
+            # only when it is about that code (D13's rule): the goal alone may
+            # name a file without its directory, and shared words then made
+            # five backend lessons "relevant" to a frontend test (2026-11-13).
+            query = "\n".join([contract.goal, *contract.allowed_files])
             result = self._retriever.retrieve(
-                contract.goal, principal=getattr(contract, "operator_id", None)
+                query, principal=getattr(contract, "operator_id", None)
             )
         except Exception as exc:  # noqa: BLE001 - retrieval must not break deliberation
             _LOGGER.warning("memory_queen_retrieval_fallback", exc_info=exc)
