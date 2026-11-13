@@ -2821,12 +2821,16 @@ def missions_hour(
     if envelope is None:
         envelope = _envelope_authority()
     intakes, done = led.intakes(), led.originations()
+    # Only a goal still open: a taken one already has the workshop's writer's
+    # proposal, delivered or refused (TASK_STATUSES has no "delivered"), and a
+    # mission for it would spend a slot of the operator's envelope on finished
+    # work. Found before the first envelope was signed (2026-11-13): every
+    # briefed goal in his ledger was taken, PERF-04 and UX-05 delivered.
     todo = [
         t
-        for t in led.tasks()
+        for t in led.tasks(status="open")
         if intakes.get(t["task_id"], {}).get("state") == goal_intake.BRIEFED
         and done.get(t["task_id"], {}).get("state") not in (*SLOT_SPENT, *RUN_STATES)
-        and t["status"] in ("open", "taken")
     ][:MISSIONS_PER_HOUR]
     if not todo:
         return

@@ -274,6 +274,33 @@ def test_the_hour_originates_once_per_spent_slot_and_retries_refusals(
     assert "with the council: mission `mission-0123456789ab` awaiting_approval" in lines
 
 
+def test_a_goal_the_workshop_already_took_is_never_originated(hour, tmp_path) -> None:
+    """2026-11-13, before the first envelope: every briefed goal in the
+    operator's ledger was taken (PERF-04 and UX-05 delivered); a mission for
+    one would spend a slot of his envelope on finished work."""
+    from aios.maintenance.daily_work import TASK_RULE, Finding
+
+    tool, led, tid = hour
+    pid = led.record_proposal(
+        Finding(TEST, TASK_RULE, ()),
+        base_text="",
+        base_commit="c" * 40,
+        model="m",
+        new_text="x",
+        verdict=None,
+        refusal="refused",
+    )
+    assert led.take_task(tid, pid)
+    asked = []
+    tool.missions_hour(
+        led,
+        tmp_path,
+        envelope=_envelope(tmp_path),
+        originate=lambda task, seen: asked.append(task) or {"state": "refused"},
+    )
+    assert asked == [] and led.originations() == {}
+
+
 def test_the_hour_is_off_with_the_clerk(hour, tmp_path, monkeypatch) -> None:
     tool, led, _tid = hour
     monkeypatch.setattr(tool, "goals_through_clerk", lambda: False)
