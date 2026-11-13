@@ -1,10 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, an answer scrubbed on its way back is refused for that" below;
+**Last updated:** 2026-11-13 ("2026-11-13, only an open goal goes to the council" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, only an open goal goes to the council (branch `fix/missions-open-goals-only`)
+
+- **Found** before the operator signed his first envelope, after the backend was restarted on master `29c355c6`. The hour originated council missions for briefed goals whose task was `open` or `taken`.
+  - `taken` means the workshop's writer already made a proposal, whether delivered or refused. `TASK_STATUSES` has no `delivered`.
+  - Every briefed goal in his ledger was `taken`, and PERF-04 (#654) and UX-05 (#642) were already delivered.
+  - So his first envelope would have spent its slots on finished work.
+- **Fixed.** Only an `open` goal is originated.
+- **Tests:** 1 new, which fails on the old code. The 16 origination tests pass.
 ## 2026-11-13, an answer scrubbed on its way back is refused for that (branch `fix/answer-scrubbed-in-transit`)
 
 - **Found** in GAGOS's 02:50 UTC hour. GPT-6.1 Terra's PERF-04 test (gd-dded5807ee) was refused as "the proposal does not parse".
