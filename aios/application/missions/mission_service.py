@@ -126,6 +126,42 @@ class MissionAuthority:
             session_id=session_id,
         )
 
+    def approve_within_envelope(
+        self, mission_id: str, *, envelope: Any
+    ) -> MissionRecord:
+        """Approve a GAGOS mission with the operator's daily envelope (his
+        choice, "Envelope via organs 9+10", 2026-11-12): each approval uses the
+        one slot the mission took when it was originated.
+
+        The slot is checked here, at this moment, by organ 9's envelope
+        authority itself (``held_slot``: the envelope still live, the stop's
+        generation unchanged, the slot's digest untampered), and the mission's
+        own contract must name that very slot. The record's actor is the
+        envelope, never the operator: he signed the envelope, not this mission.
+        Its capability is the slot's digest; its human authentication is the
+        one he signed the envelope with."""
+        slot = envelope.held_slot(mission_id)
+        record = self.repository.get(mission_id)
+        named = dict((record.contract.metadata or {}).get("envelope") or {})
+        if (
+            named.get("envelope_id") != slot.envelope_id
+            or named.get("slot_digest") != slot.slot_digest
+        ):
+            raise MissionTransitionError(
+                "the mission's contract does not name the envelope slot it holds"
+            )
+        signer = envelope.signature(slot.envelope_id)
+        return self.repository.apply_transition(
+            mission_id,
+            MissionState.APPROVED,
+            actor=f"envelope:{slot.envelope_id}",
+            reason=slot.approval_reason(),
+            capability_digest=slot.slot_digest,
+            contract_digest=record.contract_digest,
+            authentication_event_id=signer["authentication_event_id"],
+            session_id=signer["session_id"],
+        )
+
     def reject(
         self,
         mission_id: str,
