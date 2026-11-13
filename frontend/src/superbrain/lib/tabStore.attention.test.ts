@@ -4,6 +4,7 @@ import {
   beginRetractingMaterializedTab,
   clearMaterializedTab,
   closeWorkspace,
+  focusMaterializedTab,
   focusWorkspace,
   focusNextMaterializedTab,
   focusPreviousMaterializedTab,
@@ -144,4 +145,26 @@ it('keeps conversation unselected until an explicit conductor command enters sea
   expect(getFocusedMaterializedTab()).toBeNull();
   expect(focusNextMaterializedTab()?.id).toBe(first.id);
   expect(focusPreviousMaterializedTab()?.id).toBe(last.id);
+});
+
+it('keeps every content tab reachable and never lets a new tab steal focus', () => {
+  const first = showContentSurface({ filepath: 'a.py', code: 'first', language: 'python' });
+  expect(getFocusedMaterializedTab()?.id).toBe(first.id);
+  const second = showContentSurface({ filepath: 'b.py', code: 'second', language: 'python' });
+  expect(getFocusedMaterializedTab()?.id).toBe(first.id);
+  const third = showContentSurface({ filepath: 'c.py', code: 'third', language: 'python' });
+  expect(getFocusedMaterializedTab()?.id).toBe(first.id);
+
+  for (const [id, filepath] of [[first.id, 'a.py'], [second.id, 'b.py'], [third.id, 'c.py']] as const) {
+    focusMaterializedTab(id);
+    expect(getFocusedMaterializedTab()?.id).toBe(id);
+    expect(getFocusedMaterializedTab()?.content?.filepath).toBe(filepath);
+    const tabs = getTabStoreSnapshot().tabs;
+    expect(tabs).toHaveLength(3);
+    expect(tabs.map((tab) => [tab.id, tab.content?.filepath])).toEqual([
+      [first.id, 'a.py'],
+      [second.id, 'b.py'],
+      [third.id, 'c.py'],
+    ]);
+  }
 });
