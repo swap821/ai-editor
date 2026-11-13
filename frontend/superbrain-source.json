@@ -280,6 +280,7 @@
     "components/ui/ApprovalPanel.test.tsx": "a8c09b4dc215a832e29008706efae8dad1b875cdcc3e099bb3fdc18a2b3da457",
     "components/ui/BootSequence.test.tsx": "f940a90d6345adfc6d0f145fc4a647456939315e05d07e049d21a9c040bba441",
     "lib/presenceProjection.test.ts": "c2b03991a606f9d729295a303fb0cc366a6a8c70badce05b620eeee4beebf752",
-    "lib/rendererShaderFailure.test.ts": "4843a1f500593214f3fd1cbee703bc2722820f5b229a2a0f4896cb8c7f65bca8"
+    "lib/rendererShaderFailure.test.ts": "4843a1f500593214f3fd1cbee703bc2722820f5b229a2a0f4896cb8c7f65bca8",
+    "core/AccretionCore/MemoryParticles.test.tsx": "f08765b744f0719a7a67d05f3f36fc3e7b9761d2129a9b5e298374b1ddec8084"
   }
 }
