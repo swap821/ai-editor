@@ -1674,8 +1674,14 @@ def review_evidence(p: dict, finding: Finding) -> str:
     # What the writer added that the scrubbers would redact is hidden too, behind
     # placeholders of its own (2026-11-03: three new test files by Sonnet and
     # Haiku could not be shown, for a relative import, a regex the filter took
-    # for a path, and a fixed test UUID, none of them in the module).
-    masked_new, added = mask_lines(masked_new, plan_mask_redact)
+    # for a path, and a fixed test UUID, none of them in the module). Under a
+    # prefix of their own: with the module's, the first added span took the
+    # module's GAGOSMASKQ_0000, one placeholder for two values, and on
+    # 2026-11-13 a correct first test (gd-f98e938baf) was rejected for
+    # importing what the reviewer read as the name in the module's comment.
+    masked_new, added = mask_lines(
+        masked_new, plan_mask_redact, min_width=_mask_floor(mapping, 1)
+    )
     if finding.rule == MISSING_TEST:
         prompt = first_test_review_prompt(finding, masked_base, masked_new, facts=facts)
     elif finding.rule == TASK_RULE:

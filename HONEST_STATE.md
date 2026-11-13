@@ -28,6 +28,17 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - Three tests now name the route their stand-in scrubber or check belongs to: the reviewers are the plans' route.
   - One assertion follows the decision: a fixed test UUID is shown to the plans, and Bedrock still hides it.
   - 912 pass and 6 are skipped across the privacy, cloud-provider, plan, architecture, gateway-enforcement and workshop test files. Bandit is unchanged.
+## 2026-11-13, a placeholder in a review stands for one value (branch `fix/review-mask-collision`)
+
+- **Found** in GAGOS's 00:50 UTC hour. Claude rejected a first test, gd-f98e938baf for `spineFlashBridge.test.ts`, whose sandbox run had passed. Its reason: the test imports `GAGOSMASKQ_0000`, which "appears in the module only in a doc comment".
+- **Cause, reproduced from the proposal itself.** A first test's review shows the module under its mask and the new test under the module's mask. It then hides what the writer added behind placeholders of its own. Those were numbered under the module's prefix again whenever the module's placeholders did not occur in the test.
+  - In the module, `GAGOSMASKQ_0000` hid a name in a doc comment.
+  - In the test, it hid the reset function the test imports.
+  - One placeholder stood for two values. The reviewer was told a placeholder means the same text everywhere, so it read the import as the comment's name.
+- **Fix.** The added spans start at a prefix past the module's, which `_mask_floor` computes. The review of a task over several files already did this; the single-file review did not.
+- **Not fixed here, and seen in the same case.** The privacy filter hid the reset function where it stood alone in a multi-line import list, but not where it was called. So the same name was hidden on one line and shown on another. That belongs to the privacy filter and follows #647.
+- **Tests:** 1 new, which fails on the old code. 237 pass across 8 existing workshop test files (1 skipped).
+- **Also found and fixed, by this PR's own CI (Windows).** The playbook listed a rule's entries oldest first by time, then by random id. Entries kept within one tick of the clock tied on time, so "oldest" was a coin toss: the curator test failed, and in use the curator could retire an entry out of turn. Ties now go by the order the entries were kept. 1 new test pins it with a frozen clock; it fails on the old code.
 ## 2026-11-12, GAGOS originates council missions inside the envelope (branch `feat/gagos-originates-pr`)
 
 - **Move A2b on the aliveness map**, built on the envelope (#641) and the sandbox verification (#644), both merged.
