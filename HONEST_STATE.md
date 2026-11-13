@@ -1,10 +1,20 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, a council mission can be verified by the sandbox" below;
+**Last updated:** 2026-11-13 ("2026-11-13, a placeholder in a review stands for one value" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, a placeholder in a review stands for one value (branch `fix/review-mask-collision`)
+
+- **Found** in GAGOS's 00:50 UTC hour. Claude rejected a first test, gd-f98e938baf for `spineFlashBridge.test.ts`, whose sandbox run had passed. Its reason: the test imports `GAGOSMASKQ_0000`, which "appears in the module only in a doc comment".
+- **Cause, reproduced from the proposal itself.** A first test's review shows the module under its mask and the new test under the module's mask. It then hides what the writer added behind placeholders of its own. Those were numbered under the module's prefix again whenever the module's placeholders did not occur in the test.
+  - In the module, `GAGOSMASKQ_0000` hid a name in a doc comment.
+  - In the test, it hid the reset function the test imports.
+  - One placeholder stood for two values. The reviewer was told a placeholder means the same text everywhere, so it read the import as the comment's name.
+- **Fix.** The added spans start at a prefix past the module's, which `_mask_floor` computes. The review of a task over several files already did this; the single-file review did not.
+- **Not fixed here, and seen in the same case.** The privacy filter hid the reset function where it stood alone in a multi-line import list, but not where it was called. So the same name was hidden on one line and shown on another. That belongs to the privacy filter and follows #647.
+- **Tests:** 1 new, which fails on the old code. 237 pass across 8 existing workshop test files (1 skipped).
 ## 2026-11-12, a council mission can be verified by the sandbox (branch `feat/council-sandbox-verification`)
 
 - **Why (move A2a on the aliveness map).** Measured:
