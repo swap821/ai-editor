@@ -284,6 +284,7 @@
     "core/AccretionCore/MemoryParticles.test.tsx": "f08765b744f0719a7a67d05f3f36fc3e7b9761d2129a9b5e298374b1ddec8084",
     "core/Performance/EventThrottler.test.ts": "61261a3c01f26a82e696c9b8da0726aa6e2ff1af1d04663d4ff5248e3ca35fa0",
     "components/canvas/NervousSystem.test.tsx": "b5c13b77f47115cfc50e27d6fe94f9423af594567f84f7d915ae7c45a9fe831b",
-    "components/canvas/materializedTab/WorkspaceEdgeDust.test.tsx": "811ec8fa17ea3cd5a72744d94111f209eb8526bada2ff5f0ef755570ba262515"
+    "components/canvas/materializedTab/WorkspaceEdgeDust.test.tsx": "811ec8fa17ea3cd5a72744d94111f209eb8526bada2ff5f0ef755570ba262515",
+    "core/Performance/FeatureGate.test.ts": "0e9e3e21c9b2b9d883ea1e4cf2d60f6d6b05ba4badf47c3d1315c9d642985188"
   }
 }
