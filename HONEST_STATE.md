@@ -1,10 +1,21 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, organ evidence re-gathered at master after A3" below;
+**Last updated:** 2026-11-13 ("2026-11-13, an answer scrubbed on its way back is refused for that" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, an answer scrubbed on its way back is refused for that (branch `fix/answer-scrubbed-in-transit`)
+
+- **Found** in GAGOS's 02:50 UTC hour. GPT-6.1 Terra's PERF-04 test (gd-dded5807ee) was refused as "the proposal does not parse".
+  - The test was right. It kept the store's retraction token in `const token = getTabStoreSnapshot()…`.
+  - The gateway's secret scanner (frozen core, `ASSIGNED_SECRET`) reads `token = <12+ characters>` as a leaked key, and scrubbed it from the answer on its way back.
+  - The file arrived as `const <REDACTED:ASSIGNED_SECRET:622dfa91>().tabs…`. Reproduced with the real secret policy: same mark, same hash.
+- **Fixed** in the workshop; the frozen scanner is untouched.
+  - A change holding a scrubber's mark that the file it was made from did not hold is refused as "scrubbed on its way back from the writer (KIND)". This covers the secret policy's `<REDACTED:…>` and the privacy filter's `[SENSITIVE: …]`, `[CREDENTIAL REDACTED]` and `[PATH REDACTED]`. It applies to whole-file answers, edits, and tasks over several files. A mark the file already held, as in the privacy filter's own tests, is the file's own.
+  - Every writer's instructions (lint, Python, task, several-file task and first test) now say never to give a variable or property the bare name of a credential word, and to use a longer one such as `retractionToken`. The sentence names the words and assigns nothing, so it passes the scanners itself, as the tests check.
+- **PERF-04** is queued again as gt-6cb687d23a. The task itself asks for the handle in a variable called `retraction`, so the next hour need not wait for this PR.
+- **Tests:** 10 new; 8 fail on the old code. 377 pass and 6 are skipped across 17 workshop test files.
 ## 2026-11-13, organ evidence re-gathered at master after A3 (branch `chore/organs-a3-master-tip`)
 
 - **Why.** #652 (A3) was squash-merged as `d5b748bf`. Its organ evidence had been gathered at the branch commit `3f20a781`, which is not in master's history. So 42 non-spine organs cited a commit master does not contain.
