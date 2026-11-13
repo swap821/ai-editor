@@ -71,6 +71,7 @@ import uuid
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
@@ -586,7 +587,11 @@ def task_jobs(
     for a later hour. Every file of a task must be one GAGOS may edit, readable,
     within the bound, maskable; the files together within
     ``MAX_TASK_TOTAL_CHARS``: the writer returns every changed file whole in one
-    answer."""
+    answer (:func:`build_task_job`).
+
+    A goal the council has (move A3, 2026-11-13: originated as a mission, or
+    run as one) is withheld: its mission's worker is the writer, never a
+    second one beside it."""
     jobs: list[tuple] = []
     editable: dict[bool, set[str] | Exception] = {}
     held: set[str] = set()
@@ -594,132 +599,150 @@ def task_jobs(
     # briefing beside the operator's words. The clerk is advisory: a goal it
     # has not briefed (no model qualified yet) is worked on as before.
     intakes = led.intakes() if goals_through_clerk() else {}
+    with_council = council_goals(led)
     for task in led.tasks(status="open"):
         if len(jobs) >= budget:
             break
         tid = task["task_id"]
-        files = task["files"]
-
-        def refuse(reason: str) -> None:
-            led.refuse_task(tid, reason)
-            print(f"  task {tid} refused: {reason}")
-
-        parts: list[tuple[str, str, str, dict, tuple[str, ...]]] = []
-        waits: str | None = None
-        refused = False
-        # Each file under a prefix of its own: a placeholder moved between
-        # files is never restored as the wrong span.
-        floor = 1
-        for rel in files:
-            python = is_python(rel)
-            if python not in editable:
-                # The same files its lint work may change: never the frozen core
-                # nor an organ's entrypoint.
-                try:
-                    editable[python] = set(
-                        editable_python_files(root)
-                        if python
-                        else editable_frontend_files(root)
-                    )
-                except (StaticCheckUnavailable, subprocess.CalledProcessError) as exc:
-                    editable[python] = exc
-            allowed = editable[python]
-            if isinstance(allowed, Exception):
-                waits = f"which files GAGOS may edit is unknown: {allowed}"
-                break
-            if rel not in allowed:
-                refuse(
-                    f"{rel} is not a file GAGOS may edit: it does not exist here, or it "
-                    "is frozen core or an organ's entrypoint"
-                )
-                refused = True
-                break
-            if rel in busy or rel in held:
-                waits = waits or f"another GAGOS change holds {rel}"
-                continue
-            try:
-                text = (root / rel).read_bytes().decode("utf-8")
-            except (OSError, UnicodeDecodeError) as exc:
-                refuse(f"{rel} cannot be read as text: {exc}")
-                refused = True
-                break
-            if len(text) > MAX_TASK_FILE_CHARS:
-                refuse(
-                    f"{rel} is {len(text)} characters; the bound for a file a task "
-                    f"changes is {MAX_TASK_FILE_CHARS}"
-                )
-                refused = True
-                break
-            try:
-                masked, mapping = mask_lines(text, mask_redact, min_width=floor)
-            except MaskingFailed as exc:
-                refuse(str(exc))
-                refused = True
-                break
-            if mapping:
-                floor = next(iter(mapping))[:-4].count("Q") + 1
-            parts.append((rel, text, masked, mapping, notes if python else facts))
-        if refused:
+        if tid in with_council:
             continue
-        if waits:
-            print(f"  task {tid} waits: {waits}")
-            continue
-        if len(files) > 1:
-            # Measured as sent: a placeholder can be longer than what it hides,
-            # so the masked texts are what must fit one answer (a reviewer of
-            # D14, 2026-11-03).
-            total = max(
-                sum(len(part[1]) for part in parts),
-                sum(len(part[2]) for part in parts),
-            )
-            if total > MAX_TASK_TOTAL_CHARS:
-                refuse(
-                    f"the task's {len(files)} files are {total} characters together; "
-                    f"the bound for a task over several files is "
-                    f"{MAX_TASK_TOTAL_CHARS} (what one writer's prompt may carry)"
-                )
-                continue
-        rel, text, masked, mapping, known = parts[0]
-        # His words are scrubbed like his direction notes before any model
-        # reads them.
-        said = egress_redact(task["text"])
-        briefing = egress_redact(goal_intake.writer_briefing(intakes.get(tid)))
-        if len(files) == 1:
-            prompt = task_prompt(
-                rel, said, masked, masked=bool(mapping), facts=known, briefing=briefing
-            )
-            system = task_system(rel)
-        else:
-            prompt = task_files_prompt(
-                said,
-                [(p[0], p[2]) for p in parts],
-                masked=any(p[3] for p in parts),
-                # Facts that fit every file: a mix of kinds gets the frontend's,
-                # which hold the operator's notes too.
-                facts=notes if all(is_python(p[0]) for p in parts) else facts,
-                briefing=briefing,
-            )
-            system = task_files_system(files)
-        altered = would_be_altered(prompt, system)
-        if altered:
-            refuse(altered)
-            continue
-        common = dict(base_text=text, base_commit=head, facts=known)
-        held.update(files)
-        jobs.append(
-            (
-                Finding(rel, TASK_RULE, ()),
-                text,
-                masked,
-                mapping,
-                prompt,
-                system,
-                common,
-                tid,
-                parts if len(files) > 1 else None,
-            )
+        kind, value = build_task_job(
+            root,
+            head,
+            task,
+            notes=notes,
+            facts=facts,
+            intakes=intakes,
+            editable=editable,
+            busy=busy | held,
         )
+        if kind == "refuse":
+            led.refuse_task(tid, value)
+            print(f"  task {tid} refused: {value}")
+        elif kind == "wait":
+            print(f"  task {tid} waits: {value}")
+        else:
+            held.update(task["files"])
+            jobs.append(value)
     return jobs
+
+
+def build_task_job(
+    root: Path,
+    head: str,
+    task: dict,
+    *,
+    notes: tuple[str, ...],
+    facts: tuple[str, ...],
+    intakes: dict,
+    editable: dict[bool, set[str] | Exception],
+    busy: set[str] = frozenset(),
+) -> tuple[str, Any]:
+    """One of the operator's tasks made ready as a writer's job: ``("job",
+    job)``, or ``("refuse", reason)`` for what GAGOS cannot do, or ``("wait",
+    reason)`` while another unmerged GAGOS change holds one of its files.
+    *editable* caches which files GAGOS may edit, by kind, across calls. No
+    model is asked here. The batch's tasks and a council mission's writer
+    (move A3) are made ready the same way."""
+    tid = task["task_id"]
+    files = task["files"]
+    parts: list[tuple[str, str, str, dict, tuple[str, ...]]] = []
+    waits: str | None = None
+    # Each file under a prefix of its own: a placeholder moved between
+    # files is never restored as the wrong span.
+    floor = 1
+    for rel in files:
+        python = is_python(rel)
+        if python not in editable:
+            # The same files its lint work may change: never the frozen core
+            # nor an organ's entrypoint.
+            try:
+                editable[python] = set(
+                    editable_python_files(root)
+                    if python
+                    else editable_frontend_files(root)
+                )
+            except (StaticCheckUnavailable, subprocess.CalledProcessError) as exc:
+                editable[python] = exc
+        allowed = editable[python]
+        if isinstance(allowed, Exception):
+            return "wait", f"which files GAGOS may edit is unknown: {allowed}"
+        if rel not in allowed:
+            return "refuse", (
+                f"{rel} is not a file GAGOS may edit: it does not exist here, or it "
+                "is frozen core or an organ's entrypoint"
+            )
+        if rel in busy:
+            waits = waits or f"another GAGOS change holds {rel}"
+            continue
+        try:
+            text = (root / rel).read_bytes().decode("utf-8")
+        except (OSError, UnicodeDecodeError) as exc:
+            return "refuse", f"{rel} cannot be read as text: {exc}"
+        if len(text) > MAX_TASK_FILE_CHARS:
+            return "refuse", (
+                f"{rel} is {len(text)} characters; the bound for a file a task "
+                f"changes is {MAX_TASK_FILE_CHARS}"
+            )
+        try:
+            masked, mapping = mask_lines(text, mask_redact, min_width=floor)
+        except MaskingFailed as exc:
+            return "refuse", str(exc)
+        if mapping:
+            floor = next(iter(mapping))[:-4].count("Q") + 1
+        parts.append((rel, text, masked, mapping, notes if python else facts))
+    if waits:
+        return "wait", waits
+    if len(files) > 1:
+        # Measured as sent: a placeholder can be longer than what it hides,
+        # so the masked texts are what must fit one answer (a reviewer of
+        # D14, 2026-11-03).
+        total = max(
+            sum(len(part[1]) for part in parts),
+            sum(len(part[2]) for part in parts),
+        )
+        if total > MAX_TASK_TOTAL_CHARS:
+            return "refuse", (
+                f"the task's {len(files)} files are {total} characters together; "
+                f"the bound for a task over several files is "
+                f"{MAX_TASK_TOTAL_CHARS} (what one writer's prompt may carry)"
+            )
+    rel, text, masked, mapping, known = parts[0]
+    # His words are scrubbed like his direction notes before any model
+    # reads them.
+    said = egress_redact(task["text"])
+    briefing = egress_redact(goal_intake.writer_briefing(intakes.get(tid)))
+    if len(files) == 1:
+        prompt = task_prompt(
+            rel, said, masked, masked=bool(mapping), facts=known, briefing=briefing
+        )
+        system = task_system(rel)
+    else:
+        prompt = task_files_prompt(
+            said,
+            [(p[0], p[2]) for p in parts],
+            masked=any(p[3] for p in parts),
+            # Facts that fit every file: a mix of kinds gets the frontend's,
+            # which hold the operator's notes too.
+            facts=notes if all(is_python(p[0]) for p in parts) else facts,
+            briefing=briefing,
+        )
+        system = task_files_system(files)
+    altered = would_be_altered(prompt, system)
+    if altered:
+        return "refuse", altered
+    common = dict(base_text=text, base_commit=head, facts=known)
+    return "job", (
+        Finding(rel, TASK_RULE, ()),
+        text,
+        masked,
+        mapping,
+        prompt,
+        system,
+        common,
+        tid,
+        parts if len(files) > 1 else None,
+    )
 
 
 def record_task_files(
@@ -844,6 +867,86 @@ def record_task_files(
     print(
         f"  {ids[0]} {TASK_RULE} in {len(changed)} file(s) from {f.rel} ({model}): "
         f"{state} ({lines} lines, {time.monotonic() - started:.0f}s)"
+    )
+
+
+def record_one_file(
+    led: DailyLedger,
+    root: Path,
+    lint: threading.Lock,
+    job: tuple,
+    *,
+    model: str,
+    raw: str,
+    took,
+    started: float,
+) -> None:
+    """A writer's answer to a job over one file (a lint finding, a first test,
+    or a task over one file), read, checked and recorded as one proposal: the
+    proposal is *took* when the model answered, passed or refused. The batch
+    and a council mission's writer (move A3) record answers the same way."""
+    f, text, masked, mapping, _prompt, _system, common, task_id, _parts = job
+    common = dict(common, model=model)
+    try:
+        # A new test takes its module's line endings, and ends with one.
+        shape = text if f.rule != MISSING_TEST else ("\r\n" if "\r\n" in text else "\n")
+        why = no_edit_refusal(raw) if f.rule == TASK_RULE else None
+        if why:
+            raise ProposalRefused(why)
+        answer = (
+            parse_edits(raw, original=masked)
+            if f.rule == TASK_RULE and is_edit_answer(raw)
+            else parse_proposal(raw, original=shape)
+        )
+        new_text = unmask(answer, mapping, masked=masked, repeat=f.rule == MISSING_TEST)
+    except ProposalRefused as exc:
+        pid = led.record_proposal(
+            f, **common, new_text=None, verdict=None, refusal=str(exc)
+        )
+        took(pid)
+        print(f"  {pid} {f.rel} ({model}): refused: {exc}")
+        return
+    try:
+        if is_python(f.rel):
+            # The layout the required format gate accepts (2026-11-04).
+            new_text = format_python_text(root, f.rel, new_text)
+        # Both texts once more, each also with inline configuration off,
+        # so what disable comments hide can be compared (static_verdict).
+        check = check_python_texts if is_python(f.rel) else check_texts
+        with lint:
+            if f.rule == MISSING_TEST:
+                before = None
+            else:
+                before = check(root, {f.rel: text}, inline_off=True)[f.rel]
+            after = check(root, {f.rel: new_text}, inline_off=True)[f.rel]
+    except StaticCheckUnavailable as exc:
+        pid = led.record_proposal(
+            f,
+            **common,
+            new_text=new_text,
+            verdict=None,
+            refusal=f"static checks unavailable: {exc}",
+        )
+        took(pid)
+        print(f"  {pid} {f.rel} ({model}): {exc}")
+        return
+    if task_id:
+        verdict = task_verdict(f.rel, text, new_text, before, after)
+    elif before is None:
+        verdict = first_test_verdict(f, new_text, after)
+    else:
+        verdict = static_verdict(f, text, new_text, before, after)
+    if verdict.passed and is_python(f.rel):
+        # Ruff sees one file; what other modules take from it is checked here.
+        taken = import_refusal(root, f.rel, text, new_text)
+        if taken:
+            verdict = StaticVerdict(False, taken, verdict.changed_lines)
+    pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
+    took(pid)
+    state = "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
+    print(
+        f"  {pid} {f.rule} in {f.rel} ({model}): {state} "
+        f"({verdict.changed_lines} lines, {time.monotonic() - started:.0f}s)"
     )
 
 
@@ -1218,77 +1321,8 @@ def cmd_propose(args: argparse.Namespace) -> int:
             chars_in=chars_in,
             chars_out=len(raw),
         )
-        if parts:
-            record_task_files(
-                led, root, lint, job, model=model, raw=raw, took=took, started=started
-            )
-            return
-        try:
-            # A new test takes its module's line endings, and ends with one.
-            shape = (
-                text if f.rule != MISSING_TEST else ("\r\n" if "\r\n" in text else "\n")
-            )
-            why = no_edit_refusal(raw) if f.rule == TASK_RULE else None
-            if why:
-                raise ProposalRefused(why)
-            answer = (
-                parse_edits(raw, original=masked)
-                if f.rule == TASK_RULE and is_edit_answer(raw)
-                else parse_proposal(raw, original=shape)
-            )
-            new_text = unmask(
-                answer, mapping, masked=masked, repeat=f.rule == MISSING_TEST
-            )
-        except ProposalRefused as exc:
-            pid = led.record_proposal(
-                f, **common, new_text=None, verdict=None, refusal=str(exc)
-            )
-            took(pid)
-            print(f"  {pid} {f.rel} ({model}): refused: {exc}")
-            return
-        try:
-            if is_python(f.rel):
-                # The layout the required format gate accepts (2026-11-04).
-                new_text = format_python_text(root, f.rel, new_text)
-            # Both texts once more, each also with inline configuration off,
-            # so what disable comments hide can be compared (static_verdict).
-            check = check_python_texts if is_python(f.rel) else check_texts
-            with lint:
-                if f.rule == MISSING_TEST:
-                    before = None
-                else:
-                    before = check(root, {f.rel: text}, inline_off=True)[f.rel]
-                after = check(root, {f.rel: new_text}, inline_off=True)[f.rel]
-        except StaticCheckUnavailable as exc:
-            pid = led.record_proposal(
-                f,
-                **common,
-                new_text=new_text,
-                verdict=None,
-                refusal=f"static checks unavailable: {exc}",
-            )
-            took(pid)
-            print(f"  {pid} {f.rel} ({model}): {exc}")
-            return
-        if task_id:
-            verdict = task_verdict(f.rel, text, new_text, before, after)
-        elif before is None:
-            verdict = first_test_verdict(f, new_text, after)
-        else:
-            verdict = static_verdict(f, text, new_text, before, after)
-        if verdict.passed and is_python(f.rel):
-            # Ruff sees one file; what other modules take from it is checked here.
-            taken = import_refusal(root, f.rel, text, new_text)
-            if taken:
-                verdict = StaticVerdict(False, taken, verdict.changed_lines)
-        pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
-        took(pid)
-        state = (
-            "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
-        )
-        print(
-            f"  {pid} {f.rule} in {f.rel} ({model}): {state} "
-            f"({verdict.changed_lines} lines, {time.monotonic() - started:.0f}s)"
+        (record_task_files if parts else record_one_file)(
+            led, root, lint, job, model=model, raw=raw, took=took, started=started
         )
 
     if jobs:
@@ -2638,6 +2672,19 @@ def goals_hour(led: DailyLedger, root: Path, *, service=None) -> None:
 MISSIONS_PER_HOUR = 2
 #: Origination outcomes that spent an envelope slot: never tried again.
 SLOT_SPENT = ("awaiting_approval", "blocked", "failed")
+#: What became of a mission GAGOS ran (move A3): its worker's change was
+#: promoted, the run failed, or the envelope no longer approved it.
+RUN_STATES = ("completed", "run_failed", "run_refused")
+
+
+def council_goals(led: DailyLedger) -> set[str]:
+    """The goals the council has: originated as missions (a slot spent) or run
+    as one. The workshop's writers leave them to the mission's worker."""
+    return {
+        tid
+        for tid, o in led.originations().items()
+        if o.get("state") in (*SLOT_SPENT, *RUN_STATES)
+    }
 
 
 def missions_hour(
@@ -2653,18 +2700,13 @@ def missions_hour(
     from aios.operations import council_origination
 
     if envelope is None:
-        from aios.application.capabilities.envelope import EnvelopeAuthority
-        from aios.api.deps import get_emergency_stop
-
-        envelope = EnvelopeAuthority(
-            db_path=config.CAPABILITY_DB_PATH, emergency_stop=get_emergency_stop()
-        )
+        envelope = _envelope_authority()
     intakes, done = led.intakes(), led.originations()
     todo = [
         t
         for t in led.tasks()
         if intakes.get(t["task_id"], {}).get("state") == goal_intake.BRIEFED
-        and done.get(t["task_id"], {}).get("state") not in SLOT_SPENT
+        and done.get(t["task_id"], {}).get("state") not in (*SLOT_SPENT, *RUN_STATES)
         and t["status"] in ("open", "taken")
     ][:MISSIONS_PER_HOUR]
     if not todo:
@@ -2700,6 +2742,250 @@ def missions_hour(
             + (f" {outcome['mission_id']}" if outcome.get("mission_id") else "")
             + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
         )
+
+
+#: The writer of a GAGOS mission: the workshop's own, on the operator's plan.
+MISSION_WRITER = CLAUDE_WRITERS[0]
+#: How long the mission's reviewer may take, as the hour's reviews.
+MISSION_REVIEW_TIMEOUT_S = 900
+
+
+class MissionWork:
+    """What GAGOS's writer does as a council mission's worker (move A3,
+    2026-11-13): the workshop's own steps, recorded in the workshop's ledger
+    as for any task, so its report and delivery see them.
+
+    * :meth:`write` makes the goal ready (:func:`build_task_job`), asks the
+      writer, and reads and records its answer (:func:`record_task_files` /
+      :func:`record_one_file`); a change its static checks refuse is no change;
+    * :meth:`verify` runs the change's tests in the sandbox against the base,
+      recorded on the proposals (:func:`run_change_tests`);
+    * :meth:`review` is the chief reviewer judging the change against the
+      operator's words, the same evidence and the same runner as the hour's
+      reviews (:func:`review_evidence`, :func:`run_claude`).
+
+    The worker writes into its stage; delivery is the workshop's, once the
+    council promoted the change and the reviewer accepted it."""
+
+    def __init__(
+        self,
+        led: DailyLedger,
+        root: Path,
+        head: str,
+        task: dict,
+        *,
+        region: str,
+        model: str = MISSION_WRITER,
+        complete=None,
+        reviewer=None,
+    ) -> None:
+        self.led, self.root, self.head, self.task = led, root, head, task
+        self.model, self.region = model, region
+        self.complete = complete
+        self.reviewer = reviewer or functools.partial(
+            run_claude, model=None, timeout_s=MISSION_REVIEW_TIMEOUT_S
+        )
+        self.proposal_ids: list[str] = []
+
+    def _rows(self) -> list[dict]:
+        if not self.proposal_ids:
+            return []
+        first = next(
+            p for p in self.led.proposals() if p["proposal_id"] == self.proposal_ids[0]
+        )
+        gid = first.get("group_id")
+        return self.led.group_members(gid) if gid else [first]
+
+    def write(self, contract) -> dict[str, str]:
+        from aios.runtime.gagos_writer import WriterRefused
+
+        intakes = self.led.intakes() if goals_through_clerk() else {}
+        direction = load_direction(_direction_path())
+        notes = tuple(
+            f"The operator's direction: {egress_redact(note)}"
+            for note in direction.notes
+        )
+        kind, job = build_task_job(
+            self.root,
+            self.head,
+            self.task,
+            notes=notes,
+            facts=project_facts(self.root) + notes,
+            intakes=intakes,
+            editable={},
+        )
+        if kind != "job":
+            raise WriterRefused(job)
+        prompt, system = job[4], job[5]
+        complete = self.complete or governed_completer(self.model, self.region)
+        # Held and settled as the batch's calls are; on the operator's plan a
+        # call costs nothing against the AWS ceiling.
+        on_aws = self.model not in PLAN_WRITERS
+        chars_in = len(prompt) + len(system)
+        hold = self.led.reserve_spend(
+            month=_month(),
+            model=self.model,
+            purpose=f"mission {contract.mission_id} for task {self.task['task_id']}",
+            usd=worst_case_usd(chars_in) if on_aws else 0.0,
+            ceiling=MONTHLY_AWS_USD if on_aws else float("inf"),
+        )
+        if hold is None:
+            raise WriterRefused("the writer would pass this month's AWS ceiling")
+        started = time.monotonic()
+        raw = ""
+        try:
+            raw = complete(prompt, system, f"gagos:{contract.mission_id}:spend-{hold}")
+        finally:
+            self.led.settle_spend(
+                hold,
+                usd=estimate_usd(chars_in, len(raw)) if on_aws else 0.0,
+                chars_in=chars_in,
+                chars_out=len(raw),
+            )
+
+        def took(pid: str) -> None:
+            self.proposal_ids.append(pid)
+            self.led.take_task(self.task["task_id"], pid)
+
+        record = record_task_files if job[8] else record_one_file
+        record(
+            self.led,
+            self.root,
+            threading.Lock(),
+            job,
+            model=self.model,
+            raw=raw,
+            took=took,
+            started=started,
+        )
+        rows = self._rows()
+        if not rows:
+            raise WriterRefused("the writer's answer was not recorded")
+        refused = [r for r in rows if r["status"] != "proposed"]
+        if refused:
+            raise WriterRefused(refused[0].get("refusal") or refused[0]["status"])
+        return {r["rel"]: r["new_text"] for r in rows}
+
+    def verify(self, edits) -> SandboxVerdict:
+        with BaseTrees(self.root) as trees:
+            verdict = run_change_tests(
+                trees, base_commit=self.head, changes=dict(edits)
+            )
+        for r in self._rows():
+            self.led.record_sandbox(
+                r["proposal_id"], verdict.to_json(), refusal=verdict.refusal
+            )
+        return verdict
+
+    def review(self, edits, verdict) -> tuple[bool, str]:
+        rows = self._rows()
+        p = rows[0]
+        finding = Finding(rel=p["rel"], rule=p["rule"], warnings=())
+        try:
+            prompt = review_evidence(p, finding)
+        except MaskingFailed as exc:
+            return False, str(exc)
+        word, reason, used = self.reviewer(prompt)
+        for r in rows:
+            self.led.record_review(
+                r["proposal_id"], "claude", model=used, verdict=word, reason=reason
+            )
+        return word == "accept", reason
+
+    def withdraw(self, reason: str) -> None:
+        """The council did not promote the change: none of it is delivered."""
+        for r in self._rows():
+            if r["status"] in ("proposed", "accepted", "rejected"):
+                self.led.refuse(r["proposal_id"], reason)
+
+
+def runs_hour(
+    led: DailyLedger, root: Path, *, region: str, envelope=None, run=None
+) -> None:
+    """The missions' part of the hour (move A3, 2026-11-13): up to
+    MISSIONS_PER_HOUR goals the council deliberated and GAGOS originated are
+    run, each approved by the slot it holds in the operator's envelope and
+    executed by the council with GAGOS's writer as the worker
+    (aios.operations.council_origination.run_gagos_mission). A change the
+    council promoted and the reviewer accepted is delivered with the hour's
+    work; anything else is withdrawn, and the hour says why."""
+    if not goals_through_clerk():
+        return
+    waiting = [
+        (tid, o)
+        for tid, o in led.originations().items()
+        if o.get("state") == "awaiting_approval" and o.get("mission_id")
+    ][:MISSIONS_PER_HOUR]
+    if not waiting:
+        return
+    allowed, why = cloud_coding_allowed()
+    if not allowed:
+        print(f"  missions wait: the '{TASK}' task may not go to the cloud ({why})")
+        return
+    head = _git(root, "rev-parse", "HEAD")
+    if run is None:
+        from aios.operations import council_origination
+
+        if envelope is None:
+            envelope = _envelope_authority()
+
+        def run(task, mission_id, work):
+            return council_origination.run_gagos_mission(
+                mission_id,
+                envelope=envelope,
+                runtime_root=config.COUNCIL_RUNTIME_DIR,
+                repo_root=root,
+                base_commit=head,
+                write=work.write,
+                verify=work.verify,
+                review=work.review,
+            )
+
+    states = {
+        "completed": "completed",
+        "failed": "run_failed",
+        "refused": "run_refused",
+    }
+    for tid, o in waiting:
+        task = led.task(tid)
+        work = MissionWork(led, root, head, task, region=region)
+        try:
+            outcome = run(task, o["mission_id"], work)
+        except Exception as exc:  # said, never hidden; the goal stays with the council
+            outcome = {
+                "state": "failed",
+                "reason": f"the run failed: {type(exc).__name__}: {exc}"[:400],
+            }
+        state = states.get(outcome.get("state"), "run_failed")
+        if state != "completed":
+            work.withdraw(
+                f"the council's mission {o['mission_id']}: {outcome.get('reason')}"
+            )
+        led.record_origination(
+            tid,
+            {
+                "state": state,
+                "reason": outcome.get("reason") or None,
+                "mission_id": o["mission_id"],
+                "envelope_id": o.get("envelope_id"),
+                "slot": o.get("slot"),
+            },
+        )
+        print(
+            f"  mission {o['mission_id']} for {tid}: {state}"
+            + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
+        )
+
+
+def _envelope_authority():
+    """Organ 9's envelope authority over the capabilities store, under the
+    operator's emergency stop."""
+    from aios.api.deps import get_emergency_stop
+    from aios.application.capabilities.envelope import EnvelopeAuthority
+
+    return EnvelopeAuthority(
+        db_path=config.CAPABILITY_DB_PATH, emergency_stop=get_emergency_stop()
+    )
 
 
 def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
@@ -3391,6 +3677,12 @@ def cmd_daily(args: argparse.Namespace) -> int:
             missions_hour(led, root)
         except Exception as exc:  # the hour's other work goes on; said
             print(f"  missions: origination failed: {type(exc).__name__}: {exc}"[:400])
+        # Then the missions the council deliberated run, inside his envelope
+        # (move A3), before the batch: their goals are withheld from it.
+        try:
+            runs_hour(led, root, region=args.region)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(f"  missions: the runs failed: {type(exc).__name__}: {exc}"[:400])
         rc = cmd_propose(
             argparse.Namespace(
                 project=str(root),
