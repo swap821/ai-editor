@@ -1,10 +1,28 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, the operator's envelope tool" below;
+**Last updated:** 2026-11-13 ("2026-11-13, the council's own goals and a reviewer that judges intent" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, the council's own goals and a reviewer that judges intent (branch `feat/review-intent`)
+
+- **Why.** The operator asked whether GAGOS came alive, honestly. The answer: the council path worked end to end once (6 missions sent today, 2 completed), while its judgment was the weak part. He chose the two next steps: make the reviewer judge what a test means, and give the council a few days of real goals with a measured completion rate.
+- **The reviewer judges intent.** #665's first test for `EventThrottler.ts` was accepted because every assertion would pass. One test, named "fires the final call at the trailing edge", asserted the burst's middle call. That is what the module does, against its own comment ("guarantees the final event in a burst is always executed").
+  - The first-test reviewer is now told that every test must say in its name what it checks and agree with the code's documentation, and to reject and name a defect rather than test it as correct (`TEST_INTENT`).
+  - The task reviewers get the same check, except where the operator's words ask for the behaviour (`TASK_TEST_INTENT`). One clause in `aios/maintenance/daily_work.py` feeds the workshop and the council's missions alike.
+- **Replayed live, one Claude review each, through the real masking path:**
+  - #665's test: **rejected**, naming the defect and the fix (it was accepted live).
+  - `MemoryParticles.test.tsx` (merged): accepted.
+  - `presenceProjection.test.ts` (merged #646): **rejected**. Its first test is named "removes them independently", but the second camera never holds a frame. A correct catch, and stricter than before, so the workshop's acceptance rate may fall.
+- **The council's own goals.** A goal finding no live envelope went to the workshop's writers within the hour, so the operator's goals measured nothing of the council. `task add --council` queues a goal for the council alone, in the new `council_goals` table:
+  - the writers never take it (`task_jobs`, and the dry run);
+  - it waits, open, for an envelope slot;
+  - the council's goals take the slots first;
+  - the report marks it "the council's goal".
+- **The measure.** The daily report's new "The council's missions" section counts every mission by its latest state, in all and by the day it was sent. Completed means written, sandbox-verified, accepted and promoted; the rate is of the missions decided. On the live ledger today: sent 6, completed 2 (33%), failed in deliberation 2 (no verification key, #659), blocked by the council 2 (the Memory queen, #661).
+- **Also today.** #663, #664 and #665 were merged by the operator. The main checkout was fast-forwarded to 8a22fb5e, and the daily backend restarted on it (backend, executor and face healthy) at his word.
+- **Tests:** 8 new. Every `test_gagos*` and `test_daily*` file passes, with the architecture, gateway-enforcement and consistency guards. No organ entrypoint is touched.
 ## 2026-11-13, the operator's envelope tool (branch `feat/envelope-tool`)
 
 - **Why.** The operator signed three envelopes on 2026-11-13 with a script kept outside the repository. Signing is daily.
