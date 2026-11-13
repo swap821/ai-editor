@@ -207,7 +207,7 @@
     "lib/swarmHUDStore.ts": "51cd9ed8dc57f4735cb765d2bf3765f272bf1d52e8dbe61c27ba364e39571559",
     "lib/tabStore.attention.test.ts": "305b90d09a7f28830808da137f313ba8453620e532d610bb0bd564b97efa1001",
     "lib/tabStore.streaming.test.ts": "17a68cc2650841f0e3c59ce32fa85c88e47efbb34725be3b2b3e73257eb7df8f",
-    "lib/tabStore.test.ts": "1f99cbebdc70ff61bfa060cc2545ebc2a264708379eb3f91fa0941d6f052dc11",
+    "lib/tabStore.test.ts": "e190603adc087eb0fd43e8dbee9f1fad5e882133ddddccbb4f8ace9cea0661ec",
     "lib/tabStore.ts": "d901b2d1674051db711698039130431795b85fff4a28a7b9901161634c5e9c5d",
     "lib/troikaConfig.ts": "16ef8bac37290e9d83c94c0d1fcce1e140556872fa33d187dbcfcb9b995ff286",
     "lib/turnMetabolism.test.ts": "8fea9dd3e1f216c120798ad3216767eecb1b6dc1088e04f2e4311955206b10d2",

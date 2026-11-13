@@ -8,6 +8,8 @@ import {
   focusNextMaterializedTab,
   focusPreviousMaterializedTab,
   focusWorkspace,
+  forgetRecoverableMaterializedTab,
+  finishMaterializedTabRetraction,
   getFocusedMaterializedTab,
   getFirstMaterializedTab,
   getMaterializedTabByKind,
@@ -15,6 +17,7 @@ import {
   getTabStoreSnapshot,
   isWorkMaterializationClaimed,
   releaseWorkMaterialization,
+  RECOVERABLE_RESULT_LIMIT,
   setMaterializedTabLifecycle,
   showApprovalSurface,
   showContentSurface,
@@ -37,6 +40,29 @@ describe('tabStore', () => {
     expect(tab.lifecycle).toBe('reaching');
     expect(tab.bornAt).toBe(123);
     expect(getFirstMaterializedTab()?.content?.filepath).toBe('demo.py');
+  });
+
+  it('bounds recoverable tabs over 100 workspace cycles', () => {
+    const startingLength = getTabStoreSnapshot().tabs.length;
+
+    for (let i = 0; i < 100; i += 1) {
+      const tab = showContentSurface({ code: 'a', language: 'python', filepath: `cycle-${i}.py` });
+      const recoverableTabs = getTabStoreSnapshot().recoverableTabs ?? [];
+      const oldest = recoverableTabs[0];
+      if (recoverableTabs.length >= RECOVERABLE_RESULT_LIMIT && oldest) {
+        forgetRecoverableMaterializedTab(oldest.id);
+      }
+
+      const began = beginRetractingMaterializedTab(tab.id);
+      const retiring = getTabStoreSnapshot().tabs.find((candidate) => candidate.id === tab.id);
+      expect(retiring).toBeDefined();
+      finishMaterializedTabRetraction(tab.id, retiring!.retractionToken);
+
+      const snapshot = getTabStoreSnapshot();
+      expect(snapshot.recoverableTabs?.length ?? 0).toBeLessThanOrEqual(RECOVERABLE_RESULT_LIMIT);
+      expect(began).toBe(true);
+      expect(snapshot.tabs).toHaveLength(startingLength);
+    }
   });
 
   it('keeps multiple content tabs without stealing existing focus', () => {
