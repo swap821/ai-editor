@@ -62,6 +62,7 @@ from aios.infrastructure.missions.transition_journal_store import (
 )
 from aios.council.queen_verdict import has_blocking_verdict
 from aios.council.queens.planner import PlannerQueen
+from aios.operations import council_origination
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
 from aios.runtime.cortex_bus import CortexBus
 from aios.api.deps import (
@@ -478,27 +479,13 @@ def _journal_append_best_effort(mission_id: str, transition: str) -> None:
 def _run_council_deliberation(
     runtime_root: Path, request: CouncilMissionRequest, bus: CortexBus | None = None
 ) -> None:
-    """Background: deliberate only (no worker). Failures surface as a failed report."""
+    """Background: deliberate only (no worker). Failures surface as a failed report.
+
+    The deliberation itself is :func:`aios.operations.council_origination
+    .deliberate`, the one construction every originator uses (the operator
+    here; GAGOS inside his envelope)."""
     try:
-        council_state, council_memory, memory_authority = get_council_memory_scope(
-            runtime_root
-        )
-        emergency_stop = get_emergency_stop()
-        council_llm = build_council_llm_client(emergency_stop=emergency_stop)
-        planner = PlannerQueen(llm=council_llm) if council_llm is not None else None
-        CouncilOrchestrator(
-            runtime_root=runtime_root,
-            council_state=council_state,
-            council_memory=council_memory,
-            memory_authority=memory_authority,
-            bus=bus,
-            emergency_stop=emergency_stop,
-            planner=planner,
-            king_complete=council_llm.complete if council_llm is not None else None,
-            mission_journal=MissionTransitionJournal(
-                config.MISSION_TRANSITION_JOURNAL_DB_PATH
-            ),
-        ).deliberate(request)
+        council_origination.deliberate(request, runtime_root=runtime_root, bus=bus)
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
         logger.warning(
             "council_deliberation_failed", mission_id=request.mission_id, exc_info=exc
