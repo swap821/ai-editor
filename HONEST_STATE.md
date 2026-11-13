@@ -1,10 +1,31 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, GAGOS originates council missions inside the envelope" below;
+**Last updated:** 2026-11-13 ("2026-11-13, a GAGOS mission runs through the council" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, a GAGOS mission runs through the council (branch `feat/gagos-missions-run`)
+
+- **Move A3 on the aliveness map**, the next step after #648. A goal GAGOS originated inside the operator's envelope now runs, in the hour, exactly as his own council missions do. Nothing new decides anything.
+- **The run.**
+  1. **Approval** (organ 10). `MissionAuthority.approve_within_envelope` checks the slot the mission holds in his envelope again at that moment. The actor is the envelope, never him, and the approval is journaled.
+  2. **The mission's folder** holds exactly its files at the base commit (read through GitPython). The Foundry stages that folder (organ 14).
+  3. **The worker** is GAGOS's writer, in `aios/runtime/gagos_writer.py`. It writes only the mission's own files, as plain repo-relative paths, with no link or Windows reparse point on the way down the stage. It checks again after the folders exist.
+  4. **Checks.** The workshop's sandbox runs the change's tests; the result is the run ledger's verification, so the Testing queen and organ 15 grade it. For a change whose tests pass, the chief reviewer judges it against his words.
+  5. **Promotion** (organs 16 and 41) writes the change back to GAGOS's folder only, never a checkout. The change reaches him as the hour's PR, after the reviewer accepts it.
+- **One construction.** `council_origination.execute` builds the council's execution for every originator; his route calls it, as with `deliberate` in #648.
+- **The hour.** `runs_hour` runs up to two originated missions before the workshop's batch.
+  - The worker is the workshop's own (`MissionWork`): the batch's own job builder and answer reader, with the sandbox's and the reviewer's verdicts recorded on its proposals.
+  - A change the council promoted goes out with the hour's PR; anything else is withdrawn, and the hour says why.
+  - A goal the council has is withheld from the batch's writers, and a goal it ran is never originated again.
+- **Keys.** A run signs its verification and its promotion. At the operator's word ("Yes Proceed", 13 Nov), the hour loads `AIOS_VERIFICATION_AUTHORITY_KEY` and `AIOS_PROMOTION_AUTHORITY_KEY` from his keystore into its own process, each by name, never printed. If one is missing, no mission runs and the hour names it.
+- **Found and fixed on the way.**
+  - **The council could promote a worker that did not complete.** It now never does; a reviewer's rejection of a change whose tests pass would otherwise have been promoted.
+  - **Two failure-path log calls crashed the run.** The orchestrator's best-effort journal and its promotion-failure path passed structlog keywords to a stdlib logger, so a TypeError crashed the run instead of recording the failure. Guard: `tests/test_stdlib_logger_keywords.py`.
+  - **A completed mission's stage could not be removed on Windows.** `SnapshotManager` left GitPython's `cat-file` processes running in the stage; it now closes the repository after use.
+- **Not live yet.** No envelope has been signed, so no mission has run outside the tests. Signing it is his act, as is any route change.
+- **Tests.** 36 new: 5 for the approval, 17 for the run, 11 for the hour and 3 for the logger guard. 844 pass and 7 are skipped across 44 council, mission, promotion, rollback, staged-workspace, envelope, architecture, gateway-enforcement and workshop test files.
 ## 2026-11-12, GAGOS originates council missions inside the envelope (branch `feat/gagos-originates-pr`)
 
 - **Move A2b on the aliveness map**, built on the envelope (#641) and the sandbox verification (#644), both merged.
