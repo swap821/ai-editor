@@ -464,3 +464,26 @@ def test_without_a_bedrock_key_the_other_writers_still_work(
     assert tool.cmd_propose(args) == 0
     assert asked == [tool.CLAUDE_WRITERS[0]] * 2
     assert "the Bedrock writers wait" in capsys.readouterr().out
+
+
+def test_bedrock_writers_are_out_of_the_workforce_unless_turned_back_on(
+    monkeypatch,
+) -> None:
+    """The operator, 2026-11-13: "Bedrock is not available from now"."""
+    monkeypatch.delenv("AIOS_GAGOS_BEDROCK_WRITERS", raising=False)
+    assert not set(tool.WORKFORCE) & set(tool.BEDROCK_WRITERS)
+    assert tool.bedrock_writers() == ()
+    monkeypatch.setenv("AIOS_GAGOS_BEDROCK_WRITERS", "1")
+    assert tool.bedrock_writers() == tool.BEDROCK_WRITERS
+
+
+def test_with_bedrock_off_no_finding_goes_to_a_bedrock_writer(
+    tmp_path, monkeypatch
+) -> None:
+    from aios.core import bedrock
+
+    monkeypatch.delenv("AIOS_GAGOS_BEDROCK_WRITERS", raising=False)
+    led, asked, args, _ids = _batch(tmp_path, monkeypatch)
+    monkeypatch.setattr(bedrock, "credentials_available", lambda region: True)
+    assert tool.cmd_propose(args) == 0
+    assert asked and not set(asked) & set(tool.BEDROCK_WRITERS), asked

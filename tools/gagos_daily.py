@@ -232,8 +232,21 @@ BEDROCK_WRITERS = (
     "mistral.mistral-large-3-675b-instruct",
     "moonshotai.kimi-k2.5",
 )
-#: GAGOS's writers, several working at once.
-WORKFORCE = (*CLAUDE_WRITERS, *CODEX_WRITERS, *BEDROCK_WRITERS)
+#: GAGOS's writers, several working at once: the operator's plans. The Bedrock
+#: writers are out of it since his word of 2026-11-13 ("Bedrock is not
+#: available from now"; AWS refused the account's key, and each hour one
+#: finding went to a writer that could not answer). They come back only with
+#: AIOS_GAGOS_BEDROCK_WRITERS=1 (:func:`bedrock_writers`).
+WORKFORCE = (*CLAUDE_WRITERS, *CODEX_WRITERS)
+
+
+def bedrock_writers() -> tuple[str, ...]:
+    """The Bedrock writers, when the operator has turned them back on."""
+    return (
+        BEDROCK_WRITERS if os.environ.get("AIOS_GAGOS_BEDROCK_WRITERS") == "1" else ()
+    )
+
+
 #: GAGOS's work when the operator names none (2026-11-02): the lint rules
 #: whose fix keeps behaviour, in its frontend and in its Python (its backend and
 #: itself), then a first test for each frontend module that has none.
@@ -1272,7 +1285,7 @@ def cmd_propose(args: argparse.Namespace) -> int:
     if args.model:
         roster, probe = (args.model,), None
     else:
-        workforce = WORKFORCE
+        workforce = (*WORKFORCE, *bedrock_writers())
         if any(m in BEDROCK_WRITERS for m in workforce):
             from aios.core.bedrock import credentials_available
 
