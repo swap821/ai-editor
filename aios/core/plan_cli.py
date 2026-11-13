@@ -237,7 +237,11 @@ class PlanCliClient:
         run: Callable[..., Any] = subprocess.run,
         claude: Optional[str] = None,
         codex: Optional[str] = None,
+        identifiers_shown: bool = False,
     ) -> None:
+        """*identifiers_shown*: GAGOS's workshop sending its own tracked code
+        (the operator's decision of 2026-11-11; see :class:`PrivacyFilter`).
+        The counter, which carries his words, keeps the full filter."""
         self.claude = claude if claude is not None else claude_executable()
         self.codex = codex if codex is not None else codex_executable()
         # A plan whose tool is not installed offers nothing.
@@ -246,7 +250,7 @@ class PlanCliClient:
         self.timeout_s = timeout_s
         self.codex_effort = codex_effort
         self._run = run
-        self._privacy_filter = PrivacyFilter()
+        self._privacy_filter = PrivacyFilter(identifiers_shown=identifiers_shown)
         self._privacy_audit_tracker = privacy_audit_tracker
         # The configured default, offered or not: a missing tool is said by
         # name when the model is asked for, not as an empty model (CI, 11-03).

@@ -629,8 +629,10 @@ def test_a_reviewer_sees_the_file_under_the_same_mask(tmp_path, monkeypatch) -> 
     led = dw.DailyLedger(tmp_path / "ledger.db")
     monkeypatch.setattr(tool, "ledger", lambda: led)
     monkeypatch.setattr(tool, "cloud_coding_allowed", lambda: (True, ""))
-    monkeypatch.setattr(tool, "egress_redact", _redact)
-    monkeypatch.setattr(tool, "would_be_altered", lambda prompt, system: None)
+    # The reviewers are the operator's plans: the change is shown as their
+    # route scrubs GAGOS's code.
+    monkeypatch.setattr(tool, "plan_egress_redact", _redact)
+    monkeypatch.setattr(tool, "plan_would_be_altered", lambda prompt, system: None)
     secret_before = "const k = 's3cr3t-value';\nconst unused = 1;\nexport default k;\n"
     secret_after = "const k = 's3cr3t-value';\nexport default k;\n"
     verdict = dw.StaticVerdict(True, "ok", 1)

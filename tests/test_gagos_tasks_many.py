@@ -659,9 +659,10 @@ def test_a_group_that_cannot_be_shown_is_refused_whole_and_reopened_whole(
     tmp_path, monkeypatch
 ) -> None:
     led, tid = _proposed_group(tmp_path, monkeypatch)
-    real = tool.would_be_altered
+    # The reviewers are the operator's plans: their route's check.
+    real = tool.plan_would_be_altered
     monkeypatch.setattr(
-        tool, "would_be_altered", lambda p, s: "a span would be redacted"
+        tool, "plan_would_be_altered", lambda p, s: "a span would be redacted"
     )
     monkeypatch.setitem(
         tool.REVIEWER_RUNNERS, "claude", lambda *a, **k: pytest.fail("not shown")
@@ -670,7 +671,7 @@ def test_a_group_that_cannot_be_shown_is_refused_whole_and_reopened_whole(
     members = led.group_members(tid)
     assert {p["status"] for p in members} == {"refused"}
     assert all(p["refusal"].startswith(dw.UNSHOWABLE) for p in members)
-    monkeypatch.setattr(tool, "would_be_altered", real)
+    monkeypatch.setattr(tool, "plan_would_be_altered", real)
     monkeypatch.setitem(
         tool.REVIEWER_RUNNERS,
         "claude",
