@@ -283,6 +283,7 @@
     "lib/rendererShaderFailure.test.ts": "4843a1f500593214f3fd1cbee703bc2722820f5b229a2a0f4896cb8c7f65bca8",
     "core/AccretionCore/MemoryParticles.test.tsx": "f08765b744f0719a7a67d05f3f36fc3e7b9761d2129a9b5e298374b1ddec8084",
     "core/Performance/EventThrottler.test.ts": "61261a3c01f26a82e696c9b8da0726aa6e2ff1af1d04663d4ff5248e3ca35fa0",
-    "components/canvas/NervousSystem.test.tsx": "b5c13b77f47115cfc50e27d6fe94f9423af594567f84f7d915ae7c45a9fe831b"
+    "components/canvas/NervousSystem.test.tsx": "b5c13b77f47115cfc50e27d6fe94f9423af594567f84f7d915ae7c45a9fe831b",
+    "components/canvas/materializedTab/WorkspaceEdgeDust.test.tsx": "811ec8fa17ea3cd5a72744d94111f209eb8526bada2ff5f0ef755570ba262515"
   }
 }
