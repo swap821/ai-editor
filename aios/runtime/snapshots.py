@@ -33,9 +33,12 @@ class SnapshotManager:
     def create_snapshot(self, contract: MissionContract) -> str:
         workspace_root = Path(contract.workspace_root).resolve()
         engine = self._engine_for(workspace_root)
-        snapshot = engine.create_snapshot(
-            f"council pre-action snapshot: {contract.mission_id}"
-        )
+        try:
+            snapshot = engine.create_snapshot(
+                f"council pre-action snapshot: {contract.mission_id}"
+            )
+        finally:
+            _close(engine)
         snapshot_id = snapshot.sha
         self.snapshot_dir.mkdir(parents=True, exist_ok=True)
         payload: dict[str, Any] = {
@@ -58,7 +61,10 @@ class SnapshotManager:
     ) -> RollbackResult:
         """Restore a Council-owned workspace to a recorded rollback snapshot."""
         engine = self._engine_for(Path(workspace_root).resolve())
-        return engine.rollback(snapshot_id)
+        try:
+            return engine.rollback(snapshot_id)
+        finally:
+            _close(engine)
 
     def _engine_for(self, workspace_root: Path) -> RollbackEngine:
         """Build the rollback engine for a Council workspace.
@@ -99,6 +105,19 @@ class SnapshotManager:
             git_dir=git_dir,
             lock_path=self.runtime_root / "rollback_git" / f"{key}.lock",
         )
+
+
+def _close(engine: RollbackEngine) -> None:
+    """Stop the git processes an engine's repository keeps open (2026-11-13).
+
+    GitPython keeps ``git cat-file`` running in the workspace until its
+    repository is collected, and a repository sits in reference cycles, so
+    that waits for the cycle collector. On Windows a process working in a
+    folder keeps the folder from being removed: a staged workspace's cleanup
+    after its mission completed failed with "being used by another process"."""
+    repo = getattr(engine, "repo", None)
+    if repo is not None:
+        repo.close()
 
 
 __all__ = ["SnapshotManager"]

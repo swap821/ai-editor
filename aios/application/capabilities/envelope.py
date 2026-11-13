@@ -297,6 +297,19 @@ class EnvelopeAuthority:
             slot_digest=digest(slot),
         )
 
+    def signature(self, envelope_id: str) -> dict[str, str]:
+        """Who signed *envelope_id* and how: the operator, his authentication
+        event and his session -- what a mission approved within it records as
+        the human authentication behind the approval."""
+        row = self.store.envelope(envelope_id)
+        if row is None:
+            raise EnvelopeRefused(f"no envelope {envelope_id}")
+        return {
+            "operator_id": str(row["operator_id"]),
+            "authentication_event_id": str(row["authentication_event_id"]),
+            "session_id": str(row["session_id"]),
+        }
+
     def held_slot(self, mission_id: str) -> EnvelopeSlot:
         """The slot *mission_id* holds, while its envelope is still live --
         what a later approval checks; else :class:`EnvelopeRefused`."""

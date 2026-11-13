@@ -1335,15 +1335,22 @@ def test_organ_17_cortex_bus_is_what_api_lifespan_constructs(
 def test_organ_21_queen_council_is_reached_by_council_deliberation_path(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Organ 21: council deliberation constructs QueenCouncilAuthority."""
+    """Organ 21: council deliberation constructs QueenCouncilAuthority.
+
+    Since 2026-11-12 (#648) the operator's route and GAGOS reach the council
+    through one construction, :mod:`aios.operations.council_origination`
+    (``deliberate``, and ``execute`` since A3); the route calls it."""
+    import aios.council.gateway_reasoning as reasoning
     from aios.api.routes import council as council_routes
+    from aios.council import CouncilMissionRequest
     from aios.council.council_orchestrator import (
         CouncilOrchestrator,
         QueenCouncilAuthority,
     )
+    from aios.operations import council_origination
 
     assert CouncilOrchestrator is QueenCouncilAuthority
-    assert council_routes.CouncilOrchestrator is QueenCouncilAuthority
+    monkeypatch.setattr(reasoning, "build_council_llm_client", lambda **kw: None)
 
     constructed: list[type] = []
     original_init = QueenCouncilAuthority.__init__
@@ -1353,9 +1360,28 @@ def test_organ_21_queen_council_is_reached_by_council_deliberation_path(
         original_init(self, *args, **kwargs)
 
     monkeypatch.setattr(QueenCouncilAuthority, "__init__", spy_init)
-    authority = council_routes.CouncilOrchestrator(runtime_root=tmp_path / "council")
+    reached: list[object] = []
+    real_deliberate = council_origination.deliberate
+
+    def through(request, *, runtime_root, bus=None):
+        reached.append(request.mission_id)
+        return real_deliberate(request, runtime_root=runtime_root, bus=bus)
+
+    monkeypatch.setattr(council_origination, "deliberate", through)
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    runtime = tmp_path / "council"
+    runtime.mkdir()
+    request = CouncilMissionRequest(
+        mission_id="mission-0123456789ab",
+        goal="Add a docstring to the helper.",
+        workspace_root=str(workspace),
+        allowed_files=["helper.py"],
+        allowed_tools=["read_file", "write_file"],
+    )
+    council_routes._run_council_deliberation(runtime, request)
+    assert reached == ["mission-0123456789ab"]
     assert constructed == [QueenCouncilAuthority]
-    assert type(authority) is QueenCouncilAuthority
 
 
 # --------------------------------------------------------------------------- #

@@ -518,7 +518,23 @@ class QueenCouncilAuthority:
 
         promotion_result: PromotionResult | None = None
         promotion_bundle_digest: str | None = None
-        if has_blocking_verdict(verdicts):
+        # A worker that did not complete is never promoted, whatever its
+        # ledger's commands say (2026-11-13): its own account of its run is
+        # part of the evidence, e.g. a reviewer that rejected a change whose
+        # tests pass.
+        worker_status = str(getattr(worker_run.result, "status", "completed"))
+        if worker_status != "completed":
+            self.mission_service.start_verification(contract.mission_id)
+            self.mission_service.fail(
+                contract.mission_id,
+                reason=(
+                    f"The worker did not complete ({worker_status}): "
+                    f"{getattr(worker_run.result, 'summary', '')}"
+                )[:1000],
+                retain_workspace=True,
+            )
+            self._journal_append(contract.mission_id, "FAILED")
+        elif has_blocking_verdict(verdicts):
             self.mission_service.start_verification(contract.mission_id)
             self.mission_service.fail(
                 contract.mission_id,
@@ -534,9 +550,12 @@ class QueenCouncilAuthority:
                     worker_run=worker_run,
                 )
             except Exception as exc:  # noqa: BLE001 - promotion fails closed
+                # A standard-library logger: fields go in ``extra`` (a keyword
+                # of its own raised TypeError here, so a failed promotion
+                # crashed the run instead of failing the mission, 2026-11-13).
                 _LOGGER.warning(
                     "council_promotion_failed_closed",
-                    mission_id=contract.mission_id,
+                    extra={"mission_id": contract.mission_id},
                     exc_info=exc,
                 )
                 self.mission_service.fail(
@@ -1048,8 +1067,7 @@ class QueenCouncilAuthority:
         except Exception as exc:  # noqa: BLE001 - journal is additive, not authority
             _LOGGER.warning(
                 "mission_transition_journal_append_failed",
-                mission_id=mission_id,
-                transition=transition,
+                extra={"mission_id": mission_id, "transition": transition},
                 exc_info=exc,
             )
 

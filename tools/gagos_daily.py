@@ -628,7 +628,11 @@ def task_jobs(
     open, for a later hour. Every file of a task must be one GAGOS may edit,
     readable, within the bound, maskable; the files together within
     ``MAX_TASK_TOTAL_CHARS``: the writer returns every changed file whole in one
-    answer (:func:`build_task_job`)."""
+    answer (:func:`build_task_job`).
+
+    A goal the council has (move A3, 2026-11-13: originated as a mission, or
+    run as one) is withheld: its mission's worker is the writer, never a
+    second one beside it."""
     jobs: list[tuple] = []
     editable: dict[bool, set[str] | Exception] = {}
     held: set[str] = set()
@@ -636,10 +640,13 @@ def task_jobs(
     # briefing beside the operator's words. The clerk is advisory: a goal it
     # has not briefed (no model qualified yet) is worked on as before.
     intakes = led.intakes() if goals_through_clerk() else {}
+    with_council = council_goals(led)
     for task in led.tasks(status="open"):
         if len(jobs) >= budget:
             break
         tid = task["task_id"]
+        if tid in with_council:
+            continue
         made = {
             plan: build_task_job(
                 root,
@@ -924,6 +931,86 @@ def record_task_files(
     print(
         f"  {ids[0]} {TASK_RULE} in {len(changed)} file(s) from {f.rel} ({model}): "
         f"{state} ({lines} lines, {time.monotonic() - started:.0f}s)"
+    )
+
+
+def record_one_file(
+    led: DailyLedger,
+    root: Path,
+    lint: threading.Lock,
+    job: tuple,
+    *,
+    model: str,
+    raw: str,
+    took,
+    started: float,
+) -> None:
+    """A writer's answer to a job over one file (a lint finding, a first test,
+    or a task over one file), read, checked and recorded as one proposal: the
+    proposal is *took* when the model answered, passed or refused. The batch
+    and a council mission's writer (move A3) record answers the same way."""
+    f, text, masked, mapping, _prompt, _system, common, task_id, _parts = job
+    common = dict(common, model=model)
+    try:
+        # A new test takes its module's line endings, and ends with one.
+        shape = text if f.rule != MISSING_TEST else ("\r\n" if "\r\n" in text else "\n")
+        why = no_edit_refusal(raw) if f.rule == TASK_RULE else None
+        if why:
+            raise ProposalRefused(why)
+        answer = (
+            parse_edits(raw, original=masked)
+            if f.rule == TASK_RULE and is_edit_answer(raw)
+            else parse_proposal(raw, original=shape)
+        )
+        new_text = unmask(answer, mapping, masked=masked, repeat=f.rule == MISSING_TEST)
+    except ProposalRefused as exc:
+        pid = led.record_proposal(
+            f, **common, new_text=None, verdict=None, refusal=str(exc)
+        )
+        took(pid)
+        print(f"  {pid} {f.rel} ({model}): refused: {exc}")
+        return
+    try:
+        if is_python(f.rel):
+            # The layout the required format gate accepts (2026-11-04).
+            new_text = format_python_text(root, f.rel, new_text)
+        # Both texts once more, each also with inline configuration off,
+        # so what disable comments hide can be compared (static_verdict).
+        check = check_python_texts if is_python(f.rel) else check_texts
+        with lint:
+            if f.rule == MISSING_TEST:
+                before = None
+            else:
+                before = check(root, {f.rel: text}, inline_off=True)[f.rel]
+            after = check(root, {f.rel: new_text}, inline_off=True)[f.rel]
+    except StaticCheckUnavailable as exc:
+        pid = led.record_proposal(
+            f,
+            **common,
+            new_text=new_text,
+            verdict=None,
+            refusal=f"static checks unavailable: {exc}",
+        )
+        took(pid)
+        print(f"  {pid} {f.rel} ({model}): {exc}")
+        return
+    if task_id:
+        verdict = task_verdict(f.rel, text, new_text, before, after)
+    elif before is None:
+        verdict = first_test_verdict(f, new_text, after)
+    else:
+        verdict = static_verdict(f, text, new_text, before, after)
+    if verdict.passed and is_python(f.rel):
+        # Ruff sees one file; what other modules take from it is checked here.
+        taken = import_refusal(root, f.rel, text, new_text)
+        if taken:
+            verdict = StaticVerdict(False, taken, verdict.changed_lines)
+    pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
+    took(pid)
+    state = "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
+    print(
+        f"  {pid} {f.rule} in {f.rel} ({model}): {state} "
+        f"({verdict.changed_lines} lines, {time.monotonic() - started:.0f}s)"
     )
 
 
@@ -1343,77 +1430,8 @@ def cmd_propose(args: argparse.Namespace) -> int:
             chars_in=chars_in,
             chars_out=len(raw),
         )
-        if parts:
-            record_task_files(
-                led, root, lint, job, model=model, raw=raw, took=took, started=started
-            )
-            return
-        try:
-            # A new test takes its module's line endings, and ends with one.
-            shape = (
-                text if f.rule != MISSING_TEST else ("\r\n" if "\r\n" in text else "\n")
-            )
-            why = no_edit_refusal(raw) if f.rule == TASK_RULE else None
-            if why:
-                raise ProposalRefused(why)
-            answer = (
-                parse_edits(raw, original=masked)
-                if f.rule == TASK_RULE and is_edit_answer(raw)
-                else parse_proposal(raw, original=shape)
-            )
-            new_text = unmask(
-                answer, mapping, masked=masked, repeat=f.rule == MISSING_TEST
-            )
-        except ProposalRefused as exc:
-            pid = led.record_proposal(
-                f, **common, new_text=None, verdict=None, refusal=str(exc)
-            )
-            took(pid)
-            print(f"  {pid} {f.rel} ({model}): refused: {exc}")
-            return
-        try:
-            if is_python(f.rel):
-                # The layout the required format gate accepts (2026-11-04).
-                new_text = format_python_text(root, f.rel, new_text)
-            # Both texts once more, each also with inline configuration off,
-            # so what disable comments hide can be compared (static_verdict).
-            check = check_python_texts if is_python(f.rel) else check_texts
-            with lint:
-                if f.rule == MISSING_TEST:
-                    before = None
-                else:
-                    before = check(root, {f.rel: text}, inline_off=True)[f.rel]
-                after = check(root, {f.rel: new_text}, inline_off=True)[f.rel]
-        except StaticCheckUnavailable as exc:
-            pid = led.record_proposal(
-                f,
-                **common,
-                new_text=new_text,
-                verdict=None,
-                refusal=f"static checks unavailable: {exc}",
-            )
-            took(pid)
-            print(f"  {pid} {f.rel} ({model}): {exc}")
-            return
-        if task_id:
-            verdict = task_verdict(f.rel, text, new_text, before, after)
-        elif before is None:
-            verdict = first_test_verdict(f, new_text, after)
-        else:
-            verdict = static_verdict(f, text, new_text, before, after)
-        if verdict.passed and is_python(f.rel):
-            # Ruff sees one file; what other modules take from it is checked here.
-            taken = import_refusal(root, f.rel, text, new_text)
-            if taken:
-                verdict = StaticVerdict(False, taken, verdict.changed_lines)
-        pid = led.record_proposal(f, **common, new_text=new_text, verdict=verdict)
-        took(pid)
-        state = (
-            "PASSED static checks" if verdict.passed else f"REFUSED: {verdict.reason}"
-        )
-        print(
-            f"  {pid} {f.rule} in {f.rel} ({model}): {state} "
-            f"({verdict.changed_lines} lines, {time.monotonic() - started:.0f}s)"
+        (record_task_files if parts else record_one_file)(
+            led, root, lint, job, model=model, raw=raw, took=took, started=started
         )
 
     if jobs:
@@ -2773,6 +2791,19 @@ def goals_hour(led: DailyLedger, root: Path, *, service=None) -> None:
 MISSIONS_PER_HOUR = 2
 #: Origination outcomes that spent an envelope slot: never tried again.
 SLOT_SPENT = ("awaiting_approval", "blocked", "failed")
+#: What became of a mission GAGOS ran (move A3): its worker's change was
+#: promoted, the run failed, or the envelope no longer approved it.
+RUN_STATES = ("completed", "run_failed", "run_refused")
+
+
+def council_goals(led: DailyLedger) -> set[str]:
+    """The goals the council has: originated as missions (a slot spent) or run
+    as one. The workshop's writers leave them to the mission's worker."""
+    return {
+        tid
+        for tid, o in led.originations().items()
+        if o.get("state") in (*SLOT_SPENT, *RUN_STATES)
+    }
 
 
 def missions_hour(
@@ -2788,18 +2819,13 @@ def missions_hour(
     from aios.operations import council_origination
 
     if envelope is None:
-        from aios.application.capabilities.envelope import EnvelopeAuthority
-        from aios.api.deps import get_emergency_stop
-
-        envelope = EnvelopeAuthority(
-            db_path=config.CAPABILITY_DB_PATH, emergency_stop=get_emergency_stop()
-        )
+        envelope = _envelope_authority()
     intakes, done = led.intakes(), led.originations()
     todo = [
         t
         for t in led.tasks()
         if intakes.get(t["task_id"], {}).get("state") == goal_intake.BRIEFED
-        and done.get(t["task_id"], {}).get("state") not in SLOT_SPENT
+        and done.get(t["task_id"], {}).get("state") not in (*SLOT_SPENT, *RUN_STATES)
         and t["status"] in ("open", "taken")
     ][:MISSIONS_PER_HOUR]
     if not todo:
@@ -2835,6 +2861,284 @@ def missions_hour(
             + (f" {outcome['mission_id']}" if outcome.get("mission_id") else "")
             + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
         )
+
+
+#: The writer of a GAGOS mission: the workshop's own, on the operator's plan.
+MISSION_WRITER = CLAUDE_WRITERS[0]
+#: How long the mission's reviewer may take, as the hour's reviews.
+MISSION_REVIEW_TIMEOUT_S = 900
+#: The keys a mission's run signs with: its verification (organ 15) and its
+#: promotion (organ 16). The daily backend loads the same two from the
+#: operator's keystore (tools/daily_backend.py KEYS); the hour has no others.
+MISSION_KEYS = ("AIOS_VERIFICATION_AUTHORITY_KEY", "AIOS_PROMOTION_AUTHORITY_KEY")
+
+
+def mission_keys_missing(store=None) -> list[str]:
+    """Load into this process, and no further, the mission keys it lacks, from
+    the operator's keystore (each by its name, nothing else read); return the
+    names still missing. A value is never printed, logged or recorded."""
+    lacking = [name for name in MISSION_KEYS if not os.environ.get(name)]
+    if lacking:
+        try:
+            if store is None:
+                from aios.operations.keystore import default_keystore
+
+                store = default_keystore()
+            for name in lacking:
+                value = store.get(name)
+                if value:
+                    os.environ[name] = value
+        except Exception:  # noqa: BLE001 - no keystore: said as missing below
+            pass
+    return [name for name in MISSION_KEYS if not os.environ.get(name)]
+
+
+class MissionWork:
+    """What GAGOS's writer does as a council mission's worker (move A3,
+    2026-11-13): the workshop's own steps, recorded in the workshop's ledger
+    as for any task, so its report and delivery see them.
+
+    * :meth:`write` makes the goal ready (:func:`build_task_job`), asks the
+      writer, and reads and records its answer (:func:`record_task_files` /
+      :func:`record_one_file`); a change its static checks refuse is no change;
+    * :meth:`verify` runs the change's tests in the sandbox against the base,
+      recorded on the proposals (:func:`run_change_tests`);
+    * :meth:`review` is the chief reviewer judging the change against the
+      operator's words, the same evidence and the same runner as the hour's
+      reviews (:func:`review_evidence`, :func:`run_claude`).
+
+    The worker writes into its stage; delivery is the workshop's, once the
+    council promoted the change and the reviewer accepted it."""
+
+    def __init__(
+        self,
+        led: DailyLedger,
+        root: Path,
+        head: str,
+        task: dict,
+        *,
+        region: str,
+        model: str = MISSION_WRITER,
+        complete=None,
+        reviewer=None,
+    ) -> None:
+        self.led, self.root, self.head, self.task = led, root, head, task
+        self.model, self.region = model, region
+        self.complete = complete
+        self.reviewer = reviewer or functools.partial(
+            run_claude, model=None, timeout_s=MISSION_REVIEW_TIMEOUT_S
+        )
+        self.proposal_ids: list[str] = []
+
+    def _rows(self) -> list[dict]:
+        if not self.proposal_ids:
+            return []
+        first = next(
+            p for p in self.led.proposals() if p["proposal_id"] == self.proposal_ids[0]
+        )
+        gid = first.get("group_id")
+        return self.led.group_members(gid) if gid else [first]
+
+    def write(self, contract) -> dict[str, str]:
+        from aios.runtime.gagos_writer import WriterRefused
+
+        intakes = self.led.intakes() if goals_through_clerk() else {}
+        direction = load_direction(_direction_path())
+        notes = tuple(
+            f"The operator's direction: {egress_redact(note)}"
+            for note in direction.notes
+        )
+        # Shown as the writer's own route shows GAGOS's code: the operator's
+        # plans see identifiers (his decision of 2026-11-11, #651).
+        kind, job = build_task_job(
+            self.root,
+            self.head,
+            self.task,
+            notes=notes,
+            facts=project_facts(self.root) + notes,
+            intakes=intakes,
+            editable={},
+            plan=self.model in PLAN_WRITERS,
+        )
+        if kind != "job":
+            raise WriterRefused(job)
+        prompt, system = job[4], job[5]
+        complete = self.complete or governed_completer(self.model, self.region)
+        # Held and settled as the batch's calls are; on the operator's plan a
+        # call costs nothing against the AWS ceiling.
+        on_aws = self.model not in PLAN_WRITERS
+        chars_in = len(prompt) + len(system)
+        hold = self.led.reserve_spend(
+            month=_month(),
+            model=self.model,
+            purpose=f"mission {contract.mission_id} for task {self.task['task_id']}",
+            usd=worst_case_usd(chars_in) if on_aws else 0.0,
+            ceiling=MONTHLY_AWS_USD if on_aws else float("inf"),
+        )
+        if hold is None:
+            raise WriterRefused("the writer would pass this month's AWS ceiling")
+        started = time.monotonic()
+        raw = ""
+        try:
+            raw = complete(prompt, system, f"gagos:{contract.mission_id}:spend-{hold}")
+        finally:
+            self.led.settle_spend(
+                hold,
+                usd=estimate_usd(chars_in, len(raw)) if on_aws else 0.0,
+                chars_in=chars_in,
+                chars_out=len(raw),
+            )
+
+        def took(pid: str) -> None:
+            self.proposal_ids.append(pid)
+            self.led.take_task(self.task["task_id"], pid)
+
+        record = record_task_files if job[8] else record_one_file
+        record(
+            self.led,
+            self.root,
+            threading.Lock(),
+            job,
+            model=self.model,
+            raw=raw,
+            took=took,
+            started=started,
+        )
+        rows = self._rows()
+        if not rows:
+            raise WriterRefused("the writer's answer was not recorded")
+        refused = [r for r in rows if r["status"] != "proposed"]
+        if refused:
+            raise WriterRefused(refused[0].get("refusal") or refused[0]["status"])
+        return {r["rel"]: r["new_text"] for r in rows}
+
+    def verify(self, edits) -> SandboxVerdict:
+        with BaseTrees(self.root) as trees:
+            verdict = run_change_tests(
+                trees, base_commit=self.head, changes=dict(edits)
+            )
+        for r in self._rows():
+            self.led.record_sandbox(
+                r["proposal_id"], verdict.to_json(), refusal=verdict.refusal
+            )
+        return verdict
+
+    def review(self, edits, verdict) -> tuple[bool, str]:
+        rows = self._rows()
+        p = rows[0]
+        finding = Finding(rel=p["rel"], rule=p["rule"], warnings=())
+        try:
+            prompt = review_evidence(p, finding)
+        except MaskingFailed as exc:
+            return False, str(exc)
+        word, reason, used = self.reviewer(prompt)
+        for r in rows:
+            self.led.record_review(
+                r["proposal_id"], "claude", model=used, verdict=word, reason=reason
+            )
+        return word == "accept", reason
+
+    def withdraw(self, reason: str) -> None:
+        """The council did not promote the change: none of it is delivered."""
+        for r in self._rows():
+            if r["status"] in ("proposed", "accepted", "rejected"):
+                self.led.refuse(r["proposal_id"], reason)
+
+
+def runs_hour(
+    led: DailyLedger, root: Path, *, region: str, envelope=None, run=None
+) -> None:
+    """The missions' part of the hour (move A3, 2026-11-13): up to
+    MISSIONS_PER_HOUR goals the council deliberated and GAGOS originated are
+    run, each approved by the slot it holds in the operator's envelope and
+    executed by the council with GAGOS's writer as the worker
+    (aios.operations.council_origination.run_gagos_mission). A change the
+    council promoted and the reviewer accepted is delivered with the hour's
+    work; anything else is withdrawn, and the hour says why."""
+    if not goals_through_clerk():
+        return
+    waiting = [
+        (tid, o)
+        for tid, o in led.originations().items()
+        if o.get("state") == "awaiting_approval" and o.get("mission_id")
+    ][:MISSIONS_PER_HOUR]
+    if not waiting:
+        return
+    allowed, why = cloud_coding_allowed()
+    if not allowed:
+        print(f"  missions wait: the '{TASK}' task may not go to the cloud ({why})")
+        return
+    head = _git(root, "rev-parse", "HEAD")
+    if run is None:
+        missing = mission_keys_missing()
+        if missing:
+            print(
+                "  missions wait: a run signs its evidence and promotion with keys "
+                f"not in the operator's keystore: {', '.join(missing)}"
+            )
+            return
+        from aios.operations import council_origination
+
+        if envelope is None:
+            envelope = _envelope_authority()
+
+        def run(task, mission_id, work):
+            return council_origination.run_gagos_mission(
+                mission_id,
+                envelope=envelope,
+                runtime_root=config.COUNCIL_RUNTIME_DIR,
+                repo_root=root,
+                base_commit=head,
+                write=work.write,
+                verify=work.verify,
+                review=work.review,
+            )
+
+    states = {
+        "completed": "completed",
+        "failed": "run_failed",
+        "refused": "run_refused",
+    }
+    for tid, o in waiting:
+        task = led.task(tid)
+        work = MissionWork(led, root, head, task, region=region)
+        try:
+            outcome = run(task, o["mission_id"], work)
+        except Exception as exc:  # said, never hidden; the goal stays with the council
+            outcome = {
+                "state": "failed",
+                "reason": f"the run failed: {type(exc).__name__}: {exc}"[:400],
+            }
+        state = states.get(outcome.get("state"), "run_failed")
+        if state != "completed":
+            work.withdraw(
+                f"the council's mission {o['mission_id']}: {outcome.get('reason')}"
+            )
+        led.record_origination(
+            tid,
+            {
+                "state": state,
+                "reason": outcome.get("reason") or None,
+                "mission_id": o["mission_id"],
+                "envelope_id": o.get("envelope_id"),
+                "slot": o.get("slot"),
+            },
+        )
+        print(
+            f"  mission {o['mission_id']} for {tid}: {state}"
+            + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
+        )
+
+
+def _envelope_authority():
+    """Organ 9's envelope authority over the capabilities store, under the
+    operator's emergency stop."""
+    from aios.api.deps import get_emergency_stop
+    from aios.application.capabilities.envelope import EnvelopeAuthority
+
+    return EnvelopeAuthority(
+        db_path=config.CAPABILITY_DB_PATH, emergency_stop=get_emergency_stop()
+    )
 
 
 def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
@@ -3526,6 +3830,12 @@ def cmd_daily(args: argparse.Namespace) -> int:
             missions_hour(led, root)
         except Exception as exc:  # the hour's other work goes on; said
             print(f"  missions: origination failed: {type(exc).__name__}: {exc}"[:400])
+        # Then the missions the council deliberated run, inside his envelope
+        # (move A3), before the batch: their goals are withheld from it.
+        try:
+            runs_hour(led, root, region=args.region)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(f"  missions: the runs failed: {type(exc).__name__}: {exc}"[:400])
         rc = cmd_propose(
             argparse.Namespace(
                 project=str(root),

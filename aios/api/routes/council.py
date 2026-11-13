@@ -11,7 +11,6 @@ classification — are imported from ``main`` rather than duplicated.
 
 from __future__ import annotations
 
-import asyncio
 import json
 import os
 import re
@@ -51,23 +50,15 @@ from aios.runtime.contracts import KingReport, RunLedger
 from aios.runtime.king_report import KingReportStore
 from aios.runtime.run_ledger import RunLedgerStore
 from aios.runtime.snapshots import SnapshotManager
-from aios.council import CouncilMissionRequest, CouncilOrchestrator
-from aios.council.gateway_reasoning import (
-    build_council_llm_client,
-    build_dissent_llm_client,
-)
-from aios.infrastructure.intelligence.deliberation_store import DeliberationStore
+from aios.council import CouncilMissionRequest
 from aios.infrastructure.missions.transition_journal_store import (
     MissionTransitionJournal,
 )
-from aios.council.queen_verdict import has_blocking_verdict
-from aios.council.queens.planner import PlannerQueen
 from aios.operations import council_origination
 from aios.council.royal_decree import apply_royal_decree, should_use_royal_decree
 from aios.runtime.cortex_bus import CortexBus
 from aios.api.deps import (
     get_action_broker,
-    get_council_memory_scope,
     get_emergency_stop,
     require_privileged_operator,
 )
@@ -497,45 +488,12 @@ def _run_council_execution(
     runtime_root: Path, mission_id: str, bus: CortexBus | None = None
 ) -> None:
     """Background: run the approved worker — reads the deliberated ledger for the
-    contract + verdicts, executes (worker acts), and writes the final report."""
+    contract + verdicts, executes (worker acts), and writes the final report.
+
+    The execution itself is :func:`aios.operations.council_origination
+    .execute`, the one construction every originator's mission runs through."""
     try:
-        ledger = RunLedgerStore(runtime_root).read(mission_id)
-        # Defense in depth: never execute a ledger that carries a blocking verdict
-        # (guards against an on-disk ledger tampered between deliberate and approve).
-        if has_blocking_verdict(list(ledger.council_verdicts)):
-            raise RuntimeError("ledger carries a blocking verdict; refusing to execute")
-        council_state, council_memory, memory_authority = get_council_memory_scope(
-            runtime_root
-        )
-        emergency_stop = get_emergency_stop()
-        council_llm = build_council_llm_client(emergency_stop=emergency_stop)
-        planner = PlannerQueen(llm=council_llm) if council_llm is not None else None
-        # Organ 39: a genuinely independent second reviewer, real cloud
-        # provider only (never Ollama -- that's always the King's own
-        # provider). None when no cloud provider is configured or no
-        # operator is enrolled; deliberation then simply never fires,
-        # matching king_complete's own "None -> off" convention.
-        dissent = build_dissent_llm_client(emergency_stop=emergency_stop)
-        orchestrator = CouncilOrchestrator(
-            runtime_root=runtime_root,
-            council_state=council_state,
-            council_memory=council_memory,
-            memory_authority=memory_authority,
-            bus=bus,
-            emergency_stop=emergency_stop,
-            planner=planner,
-            king_complete=council_llm.complete if council_llm is not None else None,
-            dissent_complete=dissent[0].complete if dissent is not None else None,
-            dissent_provider=dissent[1] if dissent is not None else "",
-            dissent_exact_model_id=dissent[2] if dissent is not None else "",
-            deliberation_store=DeliberationStore(config.DELIBERATION_DB_PATH),
-            mission_journal=MissionTransitionJournal(
-                config.MISSION_TRANSITION_JOURNAL_DB_PATH
-            ),
-        )
-        asyncio.run(
-            orchestrator.execute(ledger.contract, list(ledger.council_verdicts))
-        )
+        council_origination.execute(mission_id, runtime_root=runtime_root, bus=bus)
     except Exception as exc:  # noqa: BLE001 - background task must not crash the server
         logger.warning("council_execution_failed", mission_id=mission_id, exc_info=exc)
         _write_failed_council_report(runtime_root, mission_id, str(exc))
