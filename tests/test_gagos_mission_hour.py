@@ -22,11 +22,14 @@ from aios.maintenance import sandbox_tests as sb
 from aios.maintenance.daily_work import TASK_RULE, DailyLedger, Finding, StaticVerdict
 from aios.api.routes import council as council_route
 from tests.test_gagos_council_origination import TEST, WORDS, _briefed
-from tests.test_gagos_mission_run import BASE, NEW, repo, world  # noqa: F401 - fixtures
+from tests import test_gagos_mission_run as run_tests
 
 from tools import gagos_daily as tool
 
 MissionWork = tool.MissionWork  # the real class, before a test stands in for it
+BASE, NEW = run_tests.BASE, run_tests.NEW
+# The real council mission of the run's tests, as fixtures here too.
+repo, world = run_tests.repo, run_tests.world
 
 
 @pytest.fixture()
