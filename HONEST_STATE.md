@@ -1,10 +1,21 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, GAGOS keeps its own documents in its knowledge base" below;
+**Last updated:** 2026-11-13 ("2026-11-13, the first live envelope: no slot before the council's keys" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, the first live envelope: no slot before the council's keys (branch `fix/council-keys-before-slots`)
+
+- **What happened.** The operator signed his first envelope (envelope-5655ec9d7aee4f78: superbrain and workbench, code and tests, 2 missions, 8 hours).
+  - At 08:50 UTC the clerk briefed both new goals: UX-02 (gt-638f3c6510) and UX-03 (gt-4b89873bf9).
+  - The hour originated both inside the envelope. Both deliberations failed at once: `AIOS_VERIFICATION_AUTHORITY_KEY must be set`.
+  - Each attempt spent its slot, so the envelope has none left.
+  - Nothing was written or run, and no PR was touched.
+- **Cause, A3's (#652).** The hour loads the two signing keys from the operator's keystore only for the runs. The council's deliberation, one step earlier, already builds its verification authority, which signs with one of them.
+- **Fixed.** The hour loads both keys before it originates anything. If one is not in the keystore, no slot is taken and the hour names the missing key. Both keys load from his keystore (checked by name only).
+- **Open.** The two goals' failed originations count as spent, so they are not originated again, and they stay withheld from the batch. They need his fresh envelope and the goals queued again.
+- **Tests:** 1 new, which fails on the old code. The 29 hour and origination tests pass.
 ## 2026-11-13, GAGOS keeps its own documents in its knowledge base (branch `feat/self-knowledge`)
 
 - **Why (move C on the aliveness map: producers).** The knowledge base the counter's corrective retrieval (CRAG, `AIOS_CRAG_DOCUMENTS`, on by default) reads had one way in, the operator's upload route. Nothing ever came through it: 0 sources, 0 chunks.

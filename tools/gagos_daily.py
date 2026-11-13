@@ -2848,6 +2848,19 @@ def missions_hour(
         print(f"  missions: none originated -- {status.get('reason')}")
         return
     if originate is None:
+        # The council's deliberation builds its verification authority, which
+        # signs with a key: loaded here, before any slot is taken (2026-11-13:
+        # the first envelope's two slots were spent on deliberations that
+        # failed at once for want of AIOS_VERIFICATION_AUTHORITY_KEY, loaded
+        # only for the runs, one step later).
+        missing = mission_keys_missing()
+        if missing:
+            print(
+                "  missions: none originated -- the council signs its "
+                "verification with keys not in the operator's keystore: "
+                f"{', '.join(missing)}"
+            )
+            return
         workspace = council_origination.gagos_workspace(config.COUNCIL_WORKSPACE_ROOT)
         config.COUNCIL_RUNTIME_DIR.mkdir(parents=True, exist_ok=True)
 
