@@ -338,3 +338,30 @@ def test_the_hours_missions_and_originations_post_to_the_cortex_bus(
     led.record_intake(fresh, {**_briefed(), "reason": "", "mission_request": None})
     tool.missions_hour(led, tmp_path, envelope=Live())
     assert seen["originate"] is bus
+
+
+def test_no_slot_is_taken_before_the_councils_keys_are_loaded(
+    led, tmp_path, monkeypatch, capsys
+) -> None:
+    """2026-11-13, the first live envelope: both slots were spent on
+    deliberations that failed at once for want of the verification key, which
+    the hour loaded only for the runs, one step later."""
+    from aios.operations import council_origination
+
+    tid = led.add_task("frontend/src/superbrain/lib/other.ts", "x", said_by="operator")
+    led.record_intake(tid, {**_briefed(), "reason": "", "mission_request": None})
+    monkeypatch.setattr(
+        tool, "mission_keys_missing", lambda: ["AIOS_VERIFICATION_AUTHORITY_KEY"]
+    )
+    asked = []
+    monkeypatch.setattr(
+        council_origination, "originate_goal", lambda *a, **k: asked.append(a)
+    )
+
+    class Live:
+        def status(self):
+            return {"live": True}
+
+    tool.missions_hour(led, tmp_path, envelope=Live())
+    assert asked == [] and led.originations() == {}
+    assert "AIOS_VERIFICATION_AUTHORITY_KEY" in capsys.readouterr().out
