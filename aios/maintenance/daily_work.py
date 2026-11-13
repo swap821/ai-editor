@@ -2925,10 +2925,14 @@ class DailyLedger:
         return datetime.now(timezone.utc) - last >= timedelta(hours=RETRY_AFTER_HOURS)
 
     def playbook(self, rule: str, *, active_only: bool = True) -> list[dict]:
-        """A rule's playbook entries, oldest first."""
+        """A rule's playbook entries, oldest first: by time, then in the order
+        they were kept. Two entries kept within one tick of the clock tie on
+        time, and the tie was broken by their random ids, so "oldest" was a
+        coin toss (CI on Windows, 2026-11-13), and with it which entry the
+        curator retires first."""
         with self._db() as db:
             rows = db.execute(
-                "SELECT * FROM playbook WHERE rule = ? ORDER BY created_at, entry_id",
+                "SELECT * FROM playbook WHERE rule = ? ORDER BY created_at, rowid",
                 (rule,),
             ).fetchall()
         return [

@@ -15,6 +15,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Fix.** The added spans start at a prefix past the module's, which `_mask_floor` computes. The review of a task over several files already did this; the single-file review did not.
 - **Not fixed here, and seen in the same case.** The privacy filter hid the reset function where it stood alone in a multi-line import list, but not where it was called. So the same name was hidden on one line and shown on another. That belongs to the privacy filter and follows #647.
 - **Tests:** 1 new, which fails on the old code. 237 pass across 8 existing workshop test files (1 skipped).
+- **Also found and fixed, by this PR's own CI (Windows).** The playbook listed a rule's entries oldest first by time, then by random id. Entries kept within one tick of the clock tied on time, so "oldest" was a coin toss: the curator test failed, and in use the curator could retire an entry out of turn. Ties now go by the order the entries were kept. 1 new test pins it with a frozen clock; it fails on the old code.
 ## 2026-11-12, a council mission can be verified by the sandbox (branch `feat/council-sandbox-verification`)
 
 - **Why (move A2a on the aliveness map).** Measured:
