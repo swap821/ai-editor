@@ -278,6 +278,8 @@
     "components/canvas/SubsystemErrorBoundary.test.tsx": "c6aff521661af9c3941855ef0d4c2b790e68d074ad72e09328d28651f3042c7b",
     "components/canvas/useBackdropControlMask.test.ts": "89c5ac808a4ea42233db66162abdf2c817f780ebd4c72b370f53371caf30dfb2",
     "components/ui/ApprovalPanel.test.tsx": "a8c09b4dc215a832e29008706efae8dad1b875cdcc3e099bb3fdc18a2b3da457",
-    "components/ui/BootSequence.test.tsx": "f940a90d6345adfc6d0f145fc4a647456939315e05d07e049d21a9c040bba441"
+    "components/ui/BootSequence.test.tsx": "f940a90d6345adfc6d0f145fc4a647456939315e05d07e049d21a9c040bba441",
+    "lib/presenceProjection.test.ts": "c2b03991a606f9d729295a303fb0cc366a6a8c70badce05b620eeee4beebf752",
+    "lib/rendererShaderFailure.test.ts": "4843a1f500593214f3fd1cbee703bc2722820f5b229a2a0f4896cb8c7f65bca8"
   }
 }
