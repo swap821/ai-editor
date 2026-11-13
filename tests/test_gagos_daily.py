@@ -1785,3 +1785,16 @@ def test_an_excerpt_is_bounded_and_empty_when_nothing_was_said() -> None:
     excerpt = tool.smoke_excerpt([SmokeStep("vitest related", False, long)])
     assert excerpt.startswith(" (vitest related: ")
     assert len(excerpt) <= len(" (vitest related: )") + tool.SMOKE_EXCERPT
+
+
+def test_entries_kept_in_one_tick_of_the_clock_stay_in_the_order_kept(
+    tmp_path, monkeypatch
+) -> None:
+    """On a coarse clock every entry ties on time; oldest-first is then the
+    order they were kept, never their random ids (CI on Windows, 2026-11-13)."""
+    monkeypatch.setattr(dw, "_now", lambda: "2026-11-13T00:00:00+00:00")
+    led = dw.DailyLedger(tmp_path / "l.db")
+    texts = [f"Distinct pitfall number {i} {'z' * (i + 1)}" for i in range(6)]
+    for text in texts:
+        led.add_playbook_entries(RULE, [("pitfall", text)], sources=[])
+    assert [e["text"] for e in led.playbook(RULE, active_only=False)] == texts
