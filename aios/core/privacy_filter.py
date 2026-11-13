@@ -85,8 +85,16 @@ _SECRET_ENTROPY_THRESHOLD: Final[int] = 20
 #: `test_divide_by_zero_raises` are indistinguishable by length, character
 #: class and Shannon entropy alike (both ~3.5 bits/char), but only one of them
 #: ever appears immediately after `def`.
+#: TypeScript's ``const``/``let``/``var``/``interface``/``enum`` declarations are
+#: the same kind of position (2026-11-12): ``export const
+#: RECOVERABLE_RESULT_LIMIT = 12`` reached GAGOS's writer as ``export const
+#: [SENSITIVE: 636f2506034a] = 12``, and the writer could not name the very
+#: constant its task was about. The name slot is never where a secret goes; a
+#: secret assigned as the VALUE (after ``=``) is still redacted. ``type`` is left
+#: out on purpose: it is too common an English word before a value in prose.
 _CODE_IDENTIFIER_PREFIX_RE: Final[re.Pattern[str]] = re.compile(
-    r"(?:^|[\s(,\[])(?:async\s+)?(?:def|class|function|import|from)\s+$"
+    r"(?:^|[\s(,\[])(?:async\s+)?"
+    r"(?:def|class|function|import|from|const|let|var|interface|enum)\s+$"
 )
 
 #: Maximum response body size we'll accept from a cloud provider (bytes).
