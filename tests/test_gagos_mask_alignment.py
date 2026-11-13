@@ -65,5 +65,7 @@ def test_every_masking_call_asks_the_alignment_aware_oracle() -> None:
 
     from tests.source_rules import executable_source
 
+    # Both routes' oracles (the operator's plans' since 2026-11-13) are the one
+    # alignment-aware implementation, each over its own route's scrubbers.
     calls = re.findall(r"mask_lines\(\s*[^,]+,\s*(\w+)", executable_source(tool))
-    assert calls and set(calls) == {"mask_redact"}, calls
+    assert calls and set(calls) == {"mask_redact", "plan_mask_redact"}, calls

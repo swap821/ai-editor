@@ -1,10 +1,33 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-12 ("2026-11-12, a TypeScript constant's name reaches the writer" below;
+**Last updated:** 2026-11-13 ("2026-11-13, the operator's plans see GAGOS's identifiers" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, the operator's plans see GAGOS's identifiers (branch `feat/plan-masking`)
+
+- **His decision (2026-11-11, "Yes Proceed" 2026-11-13).** For GAGOS's tracked code sent to his Claude and Codex plans, hide only keys, credentials and local paths, and show identifiers. Bedrock and every other route keep the full filter.
+- **Why.** The privacy filter's high-entropy layer hid any 21-character run it did not recognise as code, and in code most such runs are identifiers.
+  - Writers were refused tasks whose names they could not see (PERF-04).
+  - A reviewer was shown the reset function a test imports hidden on its import line and plain where it was called (gd-f98e938baf).
+- **What.**
+  - `PrivacyFilter(identifiers_shown=True)` skips only the high-entropy layer. The known credential patterns and the local-path patterns still apply.
+  - On every route, the gateway's secret policy (its own entropy scan, frozen core) still scrubs every prompt.
+  - `PlanCliClient(identifiers_shown=...)` defaults to False, so the counter, which carries the operator's words, keeps the full filter.
+  - The workshop:
+    - Its plan writers send with identifiers shown.
+    - Each job is built for both routes. A Bedrock writer is given the full build, or refused when the full filter cannot show the file (`job_for`, `both_routes`).
+    - The reviews (Claude Code and Codex, his plans) mask the change as the plans' route filters it.
+  - His own words (task text, direction notes) keep the full filter on every route: the decision covers code.
+- **Measured on real files.**
+  - `tabStore.ts`: the full filter hides 66 spans and the plans' route 18. The 18 are relative paths, `retractionToken: …` fields that the credential pattern takes for `token =`, and two names the frozen scanner flags.
+  - The rejected `spineFlashBridge` test: the plans' route hides nothing in it.
+- **Tests.**
+  - 17 new.
+  - Three tests now name the route their stand-in scrubber or check belongs to: the reviewers are the plans' route.
+  - One assertion follows the decision: a fixed test UUID is shown to the plans, and Bedrock still hides it.
+  - 912 pass and 6 are skipped across the privacy, cloud-provider, plan, architecture, gateway-enforcement and workshop test files. Bandit is unchanged.
 ## 2026-11-12, a TypeScript constant's name reaches the writer (branch `fix/privacy-ts-declarations`)
 
 - **Measured.** PERF-04's sixth attempt (`gt-20ee2eaa4b`) was refused by its writer: "the limit is masked in `tabStore.ts` as `GAGOSMASKQQ_0017`". The privacy filter's entropy rule hides any token of 21 or more characters unless it sits in a declaration, import or call position, and TypeScript's declarations were not among them. `export const RECOVERABLE_RESULT_LIMIT = 12` became `export const [SENSITIVE: 636f2506034a] = 12`. That is the same placeholder that garbled the clerk's briefing this morning.
