@@ -2748,6 +2748,30 @@ def missions_hour(
 MISSION_WRITER = CLAUDE_WRITERS[0]
 #: How long the mission's reviewer may take, as the hour's reviews.
 MISSION_REVIEW_TIMEOUT_S = 900
+#: The keys a mission's run signs with: its verification (organ 15) and its
+#: promotion (organ 16). The daily backend loads the same two from the
+#: operator's keystore (tools/daily_backend.py KEYS); the hour has no others.
+MISSION_KEYS = ("AIOS_VERIFICATION_AUTHORITY_KEY", "AIOS_PROMOTION_AUTHORITY_KEY")
+
+
+def mission_keys_missing(store=None) -> list[str]:
+    """Load into this process, and no further, the mission keys it lacks, from
+    the operator's keystore (each by its name, nothing else read); return the
+    names still missing. A value is never printed, logged or recorded."""
+    lacking = [name for name in MISSION_KEYS if not os.environ.get(name)]
+    if lacking:
+        try:
+            if store is None:
+                from aios.operations.keystore import default_keystore
+
+                store = default_keystore()
+            for name in lacking:
+                value = store.get(name)
+                if value:
+                    os.environ[name] = value
+        except Exception:  # noqa: BLE001 - no keystore: said as missing below
+            pass
+    return [name for name in MISSION_KEYS if not os.environ.get(name)]
 
 
 class MissionWork:
@@ -2924,6 +2948,13 @@ def runs_hour(
         return
     head = _git(root, "rev-parse", "HEAD")
     if run is None:
+        missing = mission_keys_missing()
+        if missing:
+            print(
+                "  missions wait: a run signs its evidence and promotion with keys "
+                f"not in the operator's keystore: {', '.join(missing)}"
+            )
+            return
         from aios.operations import council_origination
 
         if envelope is None:

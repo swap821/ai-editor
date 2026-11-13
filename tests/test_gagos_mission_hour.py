@@ -250,3 +250,43 @@ def test_a_rejected_change_is_withdrawn_and_the_mission_fails(
         mission_id
     )
     assert record.state is MissionState.FAILED
+
+
+# -- the keys a run signs with -------------------------------------------------------
+
+
+class _Store:
+    def __init__(self, **values) -> None:
+        self.values, self.asked = values, []
+
+    def get(self, name):
+        self.asked.append(name)
+        return self.values.get(name)
+
+
+def test_a_run_loads_only_its_two_keys_from_the_keystore(monkeypatch) -> None:
+    # Set empty through monkeypatch, so what the load puts in the environment
+    # is taken out again after the test.
+    for name in tool.MISSION_KEYS:
+        monkeypatch.setenv(name, "")
+    store = _Store(
+        AIOS_VERIFICATION_AUTHORITY_KEY="v" * 40,
+        AIOS_PROMOTION_AUTHORITY_KEY="p" * 40,
+        AWS_BEARER_TOKEN_BEDROCK="never asked",
+    )
+    assert tool.mission_keys_missing(store) == []
+    assert sorted(store.asked) == sorted(tool.MISSION_KEYS)
+
+
+def test_without_its_keys_no_mission_runs_and_the_hour_says_which(
+    led, tmp_path, monkeypatch, capsys
+) -> None:
+    _originated(led)
+    monkeypatch.setattr(tool, "_git", lambda r, *a: "head")
+    monkeypatch.setattr(
+        tool, "mission_keys_missing", lambda: ["AIOS_PROMOTION_AUTHORITY_KEY"]
+    )
+    tool.runs_hour(led, tmp_path, region="r")
+    assert "AIOS_PROMOTION_AUTHORITY_KEY" in capsys.readouterr().out
+    assert led.originations()  # nothing recorded beyond the origination
+    assert {o["state"] for o in led.originations().values()} == {"awaiting_approval"}
