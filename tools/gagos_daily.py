@@ -1032,16 +1032,25 @@ def job_files(job: tuple) -> list[str]:
     return [part[0] for part in parts] if parts else [job[0].rel]
 
 
+def cortex_bus():
+    """The cortex bus's outbox the backend reads, or None when the bus is off:
+    where the hour's writers and the council's missions it runs post their
+    events, so the face's portrait sees GAGOS's work (2026-11-13: the missions
+    ran with no bus, and the portrait could not count one)."""
+    from aios.runtime.cortex_bus import CortexBus
+
+    return CortexBus() if config.CORTEX_BUS else None
+
+
 def writers_foundry() -> WorkshopFoundry:
     """The Worker Foundry the batch's writers are admitted by: under the
     operator's durable emergency stop (the one the gateway already obeys) and on
     the cortex bus's outbox, which the backend reads."""
     from aios.api.deps import get_emergency_stop
-    from aios.runtime.cortex_bus import CortexBus
 
     return WorkshopFoundry(
         emergency_stop=get_emergency_stop(),
-        bus=CortexBus() if config.CORTEX_BUS else None,
+        bus=cortex_bus(),
         writers_at_once=writers_at_once(),
     )
 
@@ -2849,6 +2858,7 @@ def missions_hour(
                 envelope=envelope,
                 workspace_root=workspace,
                 runtime_root=config.COUNCIL_RUNTIME_DIR,
+                bus=cortex_bus(),
             )
 
     for task in todo:
@@ -3096,6 +3106,7 @@ def runs_hour(
                 write=work.write,
                 verify=work.verify,
                 review=work.review,
+                bus=cortex_bus(),
             )
 
     states = {

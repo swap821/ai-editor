@@ -1,10 +1,20 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, only an open goal goes to the council" below;
+**Last updated:** 2026-11-13 ("2026-11-13, GAGOS's missions are on the cortex bus" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, GAGOS's missions are on the cortex bus (branch `feat/missions-on-the-bus`)
+
+- **Why (move C on the aliveness map: producers).** The face's system portrait (organ 47's read-model of active turns, missions and workers) reads the cortex bus. The hour's two council steps, originating a goal and running a mission, both ran with no bus. So the portrait could never count one of GAGOS's missions, though the hour's writers already post there.
+- **What.**
+  - `originate_goal` takes the bus and hands it to the deliberation.
+  - The hour gives the bus to both steps through one `cortex_bus()`, the same outbox `writers_foundry` uses, and none when `AIOS_CORTEX_BUS` is off.
+- **Tests.**
+  - The hour gives both steps its bus: 1 new test, which fails on the old code.
+  - A real mission run with a real bus: the worker's lifecycle events are there, carrying the mission's id, and the portrait applies every event.
+  - The 45 mission and origination tests pass.
 ## 2026-11-13, only an open goal goes to the council (branch `fix/missions-open-goals-only`)
 
 - **Found** before the operator signed his first envelope, after the backend was restarted on master `29c355c6`. The hour originated council missions for briefed goals whose task was `open` or `taken`.

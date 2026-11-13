@@ -94,7 +94,7 @@ def _passed() -> sb.SandboxVerdict:
     )
 
 
-def _run(world, *, write=None, verify=None, review=None):
+def _run(world, *, write=None, verify=None, review=None, bus=None):
     envelope, runtime, mission_id, (root, base) = world
     seen: dict = {}
 
@@ -114,6 +114,7 @@ def _run(world, *, write=None, verify=None, review=None):
         write=write or writer,
         verify=verify or (lambda edits: _passed()),
         review=review or (lambda edits, verdict: (True, "it does what he asked")),
+        bus=bus,
     )
     record = SqliteMissionRepository(runtime / council_route.MISSIONS_DB_NAME).get(
         mission_id
@@ -132,6 +133,26 @@ def test_a_mission_runs_in_its_stage_and_is_promoted_to_gagoss_folder(world) -> 
     # and read the file as it was at the base commit.
     assert Path(seen["root"]).resolve() != folder.resolve()
     assert seen["base"] == BASE
+
+
+def test_a_missions_work_is_on_the_cortex_bus_for_the_portrait(world, tmp_path) -> None:
+    """2026-11-13: the hour ran missions with no bus, so the face's system
+    portrait never saw GAGOS's work. With the bus, the mission's worker
+    lifecycle is there for the portrait to read."""
+    from aios.application.read_models.projection import IncrementalSystemProjection
+    from aios.runtime.cortex_bus import CortexBus
+
+    _envelope, _runtime, mission_id, _repo = world
+    bus = CortexBus(tmp_path / "cortex_bus.db")
+    out, _record, _seen = _run(world, bus=bus)
+    assert out["state"] == "completed", out
+    events = bus.fetch_since(0)
+    mine = [e for e in events if e.payload.get("missionId") == mission_id]
+    assert any(str(e.event_type).startswith("worker.") for e in mine), [
+        e.event_type for e in events
+    ]
+    portrait = IncrementalSystemProjection(tmp_path / "system_portrait.db")
+    assert portrait.process_available(bus) == len(events)
 
 
 def test_the_approval_is_the_envelopes_slot(world) -> None:

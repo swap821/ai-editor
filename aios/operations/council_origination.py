@@ -100,6 +100,7 @@ def originate_goal(
     deliberate_with: Callable[..., Any] = deliberate,
     detect_injection: Callable[[str], str | None] | None = None,
     constitution_digest: Callable[[], str | None] = lambda: None,
+    bus: Any | None = None,
 ) -> dict[str, Any]:
     """GAGOS originates the council mission for one briefed goal, inside the
     operator's envelope: ``{"state", "reason", "mission_id", ...}`` where state
@@ -108,7 +109,8 @@ def originate_goal(
     it) or ``awaiting_approval``. *seen* is the clerk's intake of the goal.
 
     *envelope* is organ 9's :class:`EnvelopeAuthority`; *workspace_root* the
-    council workspace GAGOS's missions use."""
+    council workspace GAGOS's missions use; *bus* the cortex bus the council's
+    events go to, as the operator's route's do."""
     from aios.council import CouncilMissionRequest
     from aios.council.sandbox_spec import SANDBOX_KEY
     from aios.application.capabilities.envelope import EnvelopeRefused
@@ -171,7 +173,7 @@ def originate_goal(
         },
     )
     try:
-        run = deliberate_with(request, runtime_root=runtime_root)
+        run = deliberate_with(request, runtime_root=runtime_root, bus=bus)
     except Exception as exc:  # noqa: BLE001 - recorded with its slot, never raised into the hour
         return {
             "state": "failed",

@@ -65,7 +65,7 @@ class Council:
         self.status = status
         self.raises = raises
 
-    def __call__(self, request, *, runtime_root):
+    def __call__(self, request, *, runtime_root, bus=None):
         self.asked.append(request)
         if self.raises:
             raise self.raises
