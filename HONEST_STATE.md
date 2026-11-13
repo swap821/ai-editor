@@ -1,10 +1,24 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, the first live envelope: no slot before the council's keys" below;
+**Last updated:** 2026-11-13 ("2026-11-13, the council's Memory queen weighs only lessons about the mission's code" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, the council's Memory queen weighs only lessons about the mission's code (branch `fix/memory-queen-code-scoped`)
+
+- **What happened.** The operator signed his second envelope (envelope-e5add0aaeac748a3). At 09:50 UTC the hour briefed and originated UX-02 and UX-03 again; the keys loaded (#659), and the council truly deliberated both.
+  - The Planner, the Security queen and the Project-Understanding queen allowed.
+  - The Memory queen deferred both: "5 relevant prior failure(s) to weigh". A defer blocks, so both slots were spent.
+- **Its five lessons were about other code.** They were all verified pin-test lessons about backend modules: `aios.memory.relevance`, `institutional_skills`, `model_availability`, `model_calls.read_ledger` and `tool_handlers.create_file`. They matched a frontend test goal only by shared words.
+- **Why D13's rule did not apply.** The rule says a task that names code recalls only lessons about that code. But the queen looked up by the goal alone, which names `tabStore.test.ts` with no directory. And a `.ts` path did not count as code at all.
+- **Fixed.**
+  - The Memory queen looks up with the mission's own files (`allowed_files`) beside its goal.
+  - Frontend sources (`.ts`, `.tsx`, `.js`, `.jsx`, `.mjs` with a directory) are code to the recall rules (`aios/memory/relevance.py`).
+  - A lesson about the mission's own file is still weighed, and still defers.
+  - This holds for every council mission, the operator's own as much as GAGOS's.
+- **Tests:** 3 new, with the real goal and the real five lesson texts. All 3 fail on the old code, which defers with exactly those 5 cautions. 432 pass across the recall, relevance, lessons, curriculum, cerebellum, memory, CRAG and council test files.
+- **Open.** The two goals' blocked originations count as spent, so they need his third envelope and the goals queued again. The cause is fixed above; the slot rule itself is unchanged, and the council still counts every attempt.
 ## 2026-11-13, the first live envelope: no slot before the council's keys (branch `fix/council-keys-before-slots`)
 
 - **What happened.** The operator signed his first envelope (envelope-5655ec9d7aee4f78: superbrain and workbench, code and tests, 2 missions, 8 hours).

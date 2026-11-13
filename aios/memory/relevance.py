@@ -165,10 +165,16 @@ def specific_relevance(query: str, document: str) -> float:
 #: Where practice records a lesson's code: ``<kind>:<run>:<module>.py::<function>``.
 #: Searched, not anchored: a redacted run id can itself contain colons.
 _TASK_HOME = re.compile(r"(?P<module>[\w./-]*\w\.py)?::(?P<function>[A-Za-z_]\w*)")
-#: A module path (``aios/council/reasoning.py``). Only one with a directory
+#: A module path (``aios/council/reasoning.py``,
+#: ``frontend/src/superbrain/lib/tabStore.ts``). Only one with a directory
 #: counts: a bare ``auth.py`` in prose, or the ``ce.py`` the secret scanner
-#: left of ``…/provenance.py``, names no particular code.
-_PATH = re.compile(r"[\w./-]*\w\.py\b")
+#: left of ``…/provenance.py``, names no particular code. The frontend's
+#: sources count since 2026-11-13: the council's Memory queen deferred GAGOS's
+#: first two tabStore missions on five lessons about backend modules, matched
+#: by shared words because a ``.ts`` path named no code.
+_PATH = re.compile(r"[\w./-]*\w\.(?:py|tsx?|jsx?|mjs)\b")
+#: The frontend's source suffixes a module path may end in.
+_FRONTEND_SUFFIXES = (".ts", ".tsx", ".js", ".jsx", ".mjs")
 #: A dotted name a lesson's text names (``aios.agents.tool_handlers.verify_command``).
 _TEXT_DOTTED = re.compile(r"\baios(?:\.\w+)+")
 
@@ -237,6 +243,10 @@ def names_the_same_code(query: str, task_id: str, texts: Iterable[str]) -> bool:
             if _mentions(query, module) or _mentions(
                 query, module[:-3].replace("/", ".")
             ):
+                return True
+            continue
+        if module.endswith(_FRONTEND_SUFFIXES):
+            if _mentions(query, module):
                 return True
             continue
         parts = module.split(".")
