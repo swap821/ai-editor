@@ -1,10 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, Bedrock is out of GAGOS's workforce" below;
+**Last updated:** 2026-11-13 ("2026-11-13, the operator's envelope tool" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, the operator's envelope tool (branch `feat/envelope-tool`)
+
+- **Why.** The operator signed three envelopes on 2026-11-13 with a script kept outside the repository. Signing is daily.
+- **The first live council missions completed with the third envelope.** UX-02 (mission-533d7fc8a43f) and UX-03 (mission-110c05b54325) were both deliberated, approved by their slots, staged, written, sandbox-verified (21 and 17 tests pass), accepted by Claude and promoted. Organ 10 records deliberating, awaiting approval, approved (by `envelope:envelope-69c4543404214699`), running, verifying and completed. GAGOS delivered both in #663.
+- **What.** `tools/gagos_envelope.py status | sign | revoke`, beside `tools/activate_skills.py` and on the same authenticated path: `ProbeSession` logs in, then re-authenticates fresh.
+  - The credential is read from `AIOS_OPERATOR_CREDENTIAL` or a hidden prompt. It is held in memory only and never used to enroll.
+  - `sign` with no flags signs the terms of 2026-11-13: superbrain and workbench, code and tests, 2 missions, 8 hours. `--folders`, `--kinds`, `--missions` and `--hours` change them.
+- **Tests:** 5 new. The architecture, gateway-enforcement, consistency and envelope test files pass. Bandit is unchanged.
 ## 2026-11-13, Bedrock is out of GAGOS's workforce (branch `chore/no-bedrock-writers`)
 
 - **The operator (2026-11-13): "Bedrock is not available from now."**
