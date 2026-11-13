@@ -1,10 +1,15 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, a GAGOS mission runs through the council" below;
+**Last updated:** 2026-11-13 ("2026-11-13, organ evidence re-gathered at master after A3" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, organ evidence re-gathered at master after A3 (branch `chore/organs-a3-master-tip`)
+
+- **Why.** #652 (A3) was squash-merged as `d5b748bf`. Its organ evidence had been gathered at the branch commit `3f20a781`, which is not in master's history. So 42 non-spine organs cited a commit master does not contain.
+- **Done.** Live evidence was gathered at `d5b748bf` with `scripts/phase4_live_evidence.py`. Every claimed organ passed and Docker was available. The evidence was attached to the ledger without `--allow-branch-tip` (and never with `--operator-spine`). The ledger doc and the release manifest were rebuilt.
+- **Checked.** Every green organ is current, and every evidence commit is an ancestor of HEAD. The spine organs (1 to 5) are untouched.
 ## 2026-11-13, a GAGOS mission runs through the council (branch `feat/gagos-missions-run`)
 
 - **Move A3 on the aliveness map**, the next step after #648. A goal GAGOS originated inside the operator's envelope now runs, in the hour, exactly as his own council missions do. Nothing new decides anything.
