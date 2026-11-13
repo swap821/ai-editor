@@ -28,6 +28,27 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - Three tests now name the route their stand-in scrubber or check belongs to: the reviewers are the plans' route.
   - One assertion follows the decision: a fixed test UUID is shown to the plans, and Bedrock still hides it.
   - 912 pass and 6 are skipped across the privacy, cloud-provider, plan, architecture, gateway-enforcement and workshop test files. Bandit is unchanged.
+## 2026-11-12, GAGOS originates council missions inside the envelope (branch `feat/gagos-originates-pr`)
+
+- **Move A2b on the aliveness map**, built on the envelope (#641) and the sandbox verification (#644), both merged.
+- **One deliberation for every originator** (`aios/operations/council_origination.deliberate`). The operator's council route now calls it, so the route and GAGOS build the council the same way.
+- **GAGOS's origination** (`originate_goal`), for a goal the clerk briefed (not escalated):
+  - The goal is his own words. The clerk's briefing rides along as advisory metadata. The goal passes the same injection check as his route (`aios.core.injection_scan`).
+  - It takes one slot of his live envelope first. Outside its folders, kinds or count, or with no envelope signed, it is refused with the envelope's reason, and no council is convened.
+  - The mission is verified by the sandbox (`sandbox_verification`). Its scope is exactly his files, and it carries its slot. Its `operator_id` is the envelope's signer, and `created_by` is `gagos`.
+  - A slot is spent by the attempt. A mission the council blocks, or whose deliberation fails, has used one of the day's missions, so a refused goal cannot be retried past his number.
+  - Nothing here approves or runs a mission.
+- **The hour** (`missions_hour`, after the clerk's intake): up to 2 briefed goals per hour.
+  - Without a live envelope, nothing is asked and the hour says why.
+  - A spent slot is never retried; a refusal is.
+  - The report shows each goal's mission.
+- **Measured.** A real deliberation passes a sandbox-verified GAGOS mission with no verification commands. The Planner does not defer, the Security Queen does not deny, and organ 10 records it awaiting approval.
+- **Found while rebasing onto master: the planner's model would have blocked every GAGOS mission.**
+  - `reconcile_plan` merges any verification command the council's reasoning model proposes. For a frontend goal that command is something like `npx vitest run …`, which the gateway classifies RED, so the Security Queen denies the mission.
+  - Reasoning switches on with the operator's enrolment, so this is the production path. The full test batch showed it, through another test's enrolled operator.
+  - Now a sandbox-declared mission keeps its own verification (the sandbox) and the operator's files. The model can still raise risk, add forbidden files, require approval and add steps.
+- **Until A3**, the workshop's writers also take the goal in the same hour. The mission only waits, and nothing runs twice.
+- **Tests:** 15 new. 349 pass across the workshop, intake, council, envelope, pulse and consistency test files.
 ## 2026-11-12, a TypeScript constant's name reaches the writer (branch `fix/privacy-ts-declarations`)
 
 - **Measured.** PERF-04's sixth attempt (`gt-20ee2eaa4b`) was refused by its writer: "the limit is masked in `tabStore.ts` as `GAGOSMASKQQ_0017`". The privacy filter's entropy rule hides any token of 21 or more characters unless it sits in a declaration, import or call position, and TypeScript's declarations were not among them. `export const RECOVERABLE_RESULT_LIMIT = 12` became `export const [SENSITIVE: 636f2506034a] = 12`. That is the same placeholder that garbled the clerk's briefing this morning.
