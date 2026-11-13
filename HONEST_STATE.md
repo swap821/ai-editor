@@ -1,10 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, the council's Memory queen weighs only lessons about the mission's code" below;
+**Last updated:** 2026-11-13 ("2026-11-13, Bedrock is out of GAGOS's workforce" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-13, Bedrock is out of GAGOS's workforce (branch `chore/no-bedrock-writers`)
+
+- **The operator (2026-11-13): "Bedrock is not available from now."**
+  - AWS has refused the account's key since 11-02, and every hour one finding still went to a Bedrock writer that could not answer.
+  - The 09:50 UTC hour logged it again: `Authentication failed: Please make sure your API Key is valid`.
+- **What.** GAGOS's workforce is the operator's plans: Claude Sonnet and Haiku, and GPT-6.1 Terra and GPT-6 Luna. The five Bedrock writers come back only with `AIOS_GAGOS_BEDROCK_WRITERS=1`. Asking one by name with `--model` still works.
+- **Where else Bedrock could be reached.** Only the hour reaches Bedrock, with the key from GAGOS's keystore. His user environment has no Bedrock key, and the daily backend does not load one. Removing the key from GAGOS's keystore is his act, and it is not needed for this change.
+- **Tests:** 2 new; the roster test fails on the old code. 236 pass across the workforce, workshop, plan-route and task test files.
 ## 2026-11-13, the council's Memory queen weighs only lessons about the mission's code (branch `fix/memory-queen-code-scoped`)
 
 - **What happened.** The operator signed his second envelope (envelope-e5add0aaeac748a3). At 09:50 UTC the hour briefed and originated UX-02 and UX-03 again; the keys loaded (#659), and the council truly deliberated both.
