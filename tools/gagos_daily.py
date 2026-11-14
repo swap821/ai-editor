@@ -756,6 +756,7 @@ def build_task_job(
     editable: dict[bool, set[str] | Exception],
     busy: set[str] = frozenset(),
     plan: bool = False,
+    grouped: bool = False,
 ) -> tuple[str, Any]:
     """One of the operator's tasks made ready as a writer's job: ``("job",
     job)``, or ``("refuse", reason)`` for what GAGOS cannot do, or ``("wait",
@@ -763,7 +764,9 @@ def build_task_job(
     *editable* caches which files GAGOS may edit, by kind, across calls. No
     model is asked here. *plan*: masked as the operator's plans' route filters
     GAGOS's code (identifiers shown); else under the full filter. The operator's
-    own words are scrubbed with the full filter on either route."""
+    own words are scrubbed with the full filter on either route. *grouped*: a
+    job over one file is asked and recorded as one over several, under the
+    task's id, as a colony's part is (:meth:`MissionWork.write`)."""
     tid = task["task_id"]
     files = task["files"]
     parts: list[tuple[str, str, str, dict, tuple[str, ...]]] = []
@@ -834,7 +837,7 @@ def build_task_job(
     # reads them.
     said = egress_redact(task["text"])
     briefing = egress_redact(goal_intake.writer_briefing(intakes.get(tid)))
-    if len(files) == 1:
+    if len(files) == 1 and not grouped:
         prompt = task_prompt(
             rel, said, masked, masked=bool(mapping), facts=known, briefing=briefing
         )
@@ -863,7 +866,7 @@ def build_task_job(
         system,
         common,
         tid,
-        parts if len(files) > 1 else None,
+        parts if len(files) > 1 or grouped else None,
     )
 
 
@@ -2967,6 +2970,29 @@ def missions_hour(
 MISSION_WRITER = CLAUDE_WRITERS[0]
 #: How long the mission's reviewer may take, as the hour's reviews.
 MISSION_REVIEW_TIMEOUT_S = 900
+#: How long one colony leg (the decomposer, or one writer) may take before the
+#: Foundry frees its slot: a writer's call on a long file, with room.
+COLONY_LEG_TIMEOUT_S = 900
+
+
+def colony_on() -> bool:
+    """Whether a council goal over several files is worked by the ant colony
+    (2026-11-14): on, unless ``AIOS_GAGOS_COLONY=0``."""
+    return os.environ.get("AIOS_GAGOS_COLONY", "1").strip() != "0"
+
+
+def _colony_admission(mission_id: str):
+    """Each colony leg admitted as a worker of the mission by the swarm's
+    Foundry: the emergency stop checked at admission, the scheduler's bound,
+    and the leg's lifecycle on the cortex bus, as every swarm leg's."""
+    from aios.api.deps import get_swarm_foundry
+
+    foundry = get_swarm_foundry()
+    return lambda caste, run: foundry.admit(
+        mission_id, caste, run, timeout_seconds=COLONY_LEG_TIMEOUT_S
+    )
+
+
 #: The keys a mission's run signs with: its verification (organ 15) and its
 #: promotion (organ 16). The daily backend loads the same two from the
 #: operator's keystore (tools/daily_backend.py KEYS); the hour has no others.
@@ -3008,7 +3034,15 @@ class MissionWork:
       reviews (:func:`review_evidence`, :func:`run_claude`).
 
     The worker writes into its stage; delivery is the workshop's, once the
-    council promoted the change and the reviewer accepted it."""
+    council promoted the change and the reviewer accepted it.
+
+    A goal over several files is worked by the ant colony (2026-11-14, the
+    operator: "writers can be within colony as it was meant";
+    :func:`aios.agents.swarm.run_writer_colony`): a verified split is reused or
+    the decomposer splits the goal over its files, and one writer per part
+    writes side by side, each leg admitted by the swarm's Foundry. Every part
+    is recorded in the task's one group, so the sandbox, the reviewer and the
+    delivery see one change; any part refused refuses all of it."""
 
     def __init__(
         self,
@@ -3021,6 +3055,8 @@ class MissionWork:
         model: str = MISSION_WRITER,
         complete=None,
         reviewer=None,
+        admit=None,
+        patterns=None,
     ) -> None:
         self.led, self.root, self.head, self.task = led, root, head, task
         self.model, self.region = model, region
@@ -3028,55 +3064,74 @@ class MissionWork:
         self.reviewer = reviewer or functools.partial(
             run_claude, model=None, timeout_s=MISSION_REVIEW_TIMEOUT_S
         )
+        self.admit = admit
+        self.patterns = patterns
+        #: What the colony did, when the goal was worked by one.
+        self.colony = None
         self.proposal_ids: list[str] = []
 
     def _rows(self) -> list[dict]:
+        """Every proposal the mission's writers recorded: each one's whole
+        group, and an unreadable answer (recorded outside any group) too, so
+        no part's refusal goes unseen."""
         if not self.proposal_ids:
             return []
-        first = next(
-            p for p in self.led.proposals() if p["proposal_id"] == self.proposal_ids[0]
-        )
-        gid = first.get("group_id")
-        return self.led.group_members(gid) if gid else [first]
+        by_id = {p["proposal_id"]: p for p in self.led.proposals()}
+        rows: dict[str, dict] = {}
+        for pid in list(self.proposal_ids):
+            p = by_id[pid]
+            gid = p.get("group_id")
+            for r in self.led.group_members(gid) if gid else [p]:
+                rows.setdefault(r["proposal_id"], r)
+        return list(rows.values())
 
-    def write(self, contract) -> dict[str, str]:
-        from aios.runtime.gagos_writer import WriterRefused
-
+    def _context(self) -> dict:
         intakes = self.led.intakes() if goals_through_clerk() else {}
         direction = load_direction(_direction_path())
         notes = tuple(
             f"The operator's direction: {egress_redact(note)}"
             for note in direction.notes
         )
+        return dict(
+            notes=notes, facts=project_facts(self.root) + notes, intakes=intakes
+        )
+
+    def _job(self, task: dict, context: dict, *, grouped: bool = False):
+        from aios.runtime.gagos_writer import WriterRefused
+
         # Shown as the writer's own route shows GAGOS's code: the operator's
         # plans see identifiers (his decision of 2026-11-11, #651).
         kind, job = build_task_job(
             self.root,
             self.head,
-            self.task,
-            notes=notes,
-            facts=project_facts(self.root) + notes,
-            intakes=intakes,
+            task,
             editable={},
             plan=self.model in PLAN_WRITERS,
+            grouped=grouped,
+            **context,
         )
         if kind != "job":
             raise WriterRefused(job)
-        prompt, system = job[4], job[5]
+        return job
+
+    def _ask(self, contract, prompt: str, system: str, who: str) -> tuple[str, float]:
+        """One model call of the mission, as the batch's are held and settled;
+        on the operator's plan a call costs nothing against the AWS ceiling."""
+        from aios.runtime.gagos_writer import WriterRefused
+
         complete = self.complete or governed_completer(self.model, self.region)
-        # Held and settled as the batch's calls are; on the operator's plan a
-        # call costs nothing against the AWS ceiling.
         on_aws = self.model not in PLAN_WRITERS
         chars_in = len(prompt) + len(system)
         hold = self.led.reserve_spend(
             month=_month(),
             model=self.model,
-            purpose=f"mission {contract.mission_id} for task {self.task['task_id']}",
+            purpose=f"mission {contract.mission_id} for task {self.task['task_id']}"
+            f" ({who})",
             usd=worst_case_usd(chars_in) if on_aws else 0.0,
             ceiling=MONTHLY_AWS_USD if on_aws else float("inf"),
         )
         if hold is None:
-            raise WriterRefused("the writer would pass this month's AWS ceiling")
+            raise WriterRefused(f"{who} would pass this month's AWS ceiling")
         started = time.monotonic()
         raw = ""
         try:
@@ -3088,7 +3143,9 @@ class MissionWork:
                 chars_in=chars_in,
                 chars_out=len(raw),
             )
+        return raw, started
 
+    def _record(self, job, raw: str, started: float, lint: threading.Lock) -> None:
         def took(pid: str) -> None:
             self.proposal_ids.append(pid)
             self.led.take_task(self.task["task_id"], pid)
@@ -3097,13 +3154,17 @@ class MissionWork:
         record(
             self.led,
             self.root,
-            threading.Lock(),
+            lint,
             job,
             model=self.model,
             raw=raw,
             took=took,
             started=started,
         )
+
+    def _edits(self) -> dict[str, str]:
+        from aios.runtime.gagos_writer import WriterRefused
+
         rows = self._rows()
         if not rows:
             raise WriterRefused("the writer's answer was not recorded")
@@ -3111,6 +3172,59 @@ class MissionWork:
         if refused:
             raise WriterRefused(refused[0].get("refusal") or refused[0]["status"])
         return {r["rel"]: r["new_text"] for r in rows}
+
+    def write(self, contract) -> dict[str, str]:
+        context = self._context()
+        if colony_on() and len(self.task["files"]) > 1:
+            return self._colony_write(contract, context)
+        job = self._job(self.task, context)
+        raw, started = self._ask(contract, job[4], job[5], "the writer")
+        self._record(job, raw, started, threading.Lock())
+        return self._edits()
+
+    def _colony_write(self, contract, context: dict) -> dict[str, str]:
+        from aios.agents.swarm import COLONY_DECOMPOSER_SYSTEM, run_writer_colony
+        from aios.agents.swarm_patterns import SwarmPatternMemory
+
+        whole = self._job(self.task, context, grouped=True)
+        lint = threading.Lock()
+
+        def decompose() -> str:
+            # The goal and every file, masked as the writers see them.
+            return self._ask(
+                contract, whole[4], COLONY_DECOMPOSER_SYSTEM, "the colony's decomposer"
+            )[0]
+
+        def write_part(part) -> None:
+            if list(part.files) == list(self.task["files"]):
+                task = self.task  # one part over every file: the goal as it is
+            else:
+                task = dict(
+                    self.task,
+                    rel=part.files[0],
+                    also=list(part.files[1:]),
+                    files=list(part.files),
+                    text=f"{self.task['text']}\n\nYour part of this goal, the only "
+                    "one you do; the colony's other writers do the rest, in their "
+                    f"own files: {part.work}",
+                )
+            job = self._job(task, context, grouped=True)
+            raw, started = self._ask(
+                contract, job[4], job[5], f"a colony writer on {', '.join(part.files)}"
+            )
+            self._record(job, raw, started, lint)
+
+        self.patterns = self.patterns or SwarmPatternMemory()
+        self.colony = run_writer_colony(
+            str(self.task["text"]),
+            list(self.task["files"]),
+            decompose=decompose,
+            write_part=write_part,
+            admit=self.admit or _colony_admission(contract.mission_id),
+            pattern_memory=self.patterns,
+            concurrency=writers_at_once(),
+        )
+        return self._edits()
 
     def verify(self, edits) -> SandboxVerdict:
         with BaseTrees(self.root) as trees:
@@ -3215,6 +3329,7 @@ def runs_hour(
             work.withdraw(
                 f"the council's mission {o['mission_id']}: {outcome.get('reason')}"
             )
+        colony_trail(led, tid, o["mission_id"], work, completed=state == "completed")
         led.record_origination(
             tid,
             {
@@ -3229,6 +3344,46 @@ def runs_hour(
             f"  mission {o['mission_id']} for {tid}: {state}"
             + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
         )
+
+
+def colony_trail(
+    led: DailyLedger, task_id: str, mission_id: str, work, *, completed: bool
+) -> None:
+    """After the council decided a mission the colony worked: the run is
+    recorded, and a split it found or reused lays its trail in the swarm's
+    pattern memory, a success only when the change was verified in the sandbox,
+    accepted by the reviewer and promoted (strong evidence), a failure
+    otherwise. A goal worked as one part lays no trail: nothing was split."""
+    colony = getattr(work, "colony", None)
+    if colony is None:
+        return
+    led.record_colony(
+        task_id,
+        mission_id,
+        scout=colony.scout,
+        parts=[part.files for part in colony.parts],
+        pattern_id=colony.pattern_id,
+        outcome="completed" if completed else "failed",
+    )
+    print(
+        f"    the colony for {task_id}: {len(colony.parts)} part(s), "
+        + {"reused": "a verified split reused", "fresh": "split by the decomposer"}.get(
+            colony.scout, "worked as one part"
+        )
+    )
+    if colony.scout == "single" or work.patterns is None:
+        return
+    from aios.core.verification_strength import VerificationStrength
+
+    try:
+        work.patterns.record_attempt(
+            str(work.task["text"]),
+            [part.subtask() for part in colony.parts],
+            success=completed,
+            strength=VerificationStrength.STRONG,
+        )
+    except Exception as exc:  # the trail is memory, not the mission: said
+        print(f"    the colony's trail was not laid: {type(exc).__name__}: {exc}"[:300])
 
 
 def _envelope_authority():
@@ -3361,7 +3516,25 @@ def mission_section(led: DailyLedger) -> list[str]:
         "envelope; by its latest state):",
         f"- in all: {counts(every)}",
         *(f"- {day}: {counts(ms)}" for day, ms in sorted(days.items())),
+        *colony_lines(led),
         "",
+    ]
+
+
+def colony_lines(led: DailyLedger) -> list[str]:
+    """The ant colony's part in the missions (2026-11-14): goals over several
+    files it worked, how their parts were found, and how they ended."""
+    runs = led.colony_runs()
+    if not runs:
+        return []
+    split = [r for r in runs if r["scout"] != "single"]
+    done = sum(1 for r in split if r["outcome"] == "completed")
+    return [
+        f"- the colony: {len(runs)} goal(s) over several files; "
+        f"{len(split)} split into parts ({sum(len(r['parts']) for r in split)} "
+        f"parts in all, {sum(1 for r in split if r['scout'] == 'reused')} by a "
+        f"verified split reused), {done} of them completed; "
+        f"{len(runs) - len(split)} worked as one part"
     ]
 
 

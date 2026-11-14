@@ -1,9 +1,34 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-14 ("2026-11-14, a goal may repeat a hidden name, Bedrock is out of the whole hour, and the council's dissent is his plan" below;
+**Last updated:** 2026-11-14 ("2026-11-14, the ant colony works the council's goals over several files" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-14, the ant colony works the council's goals over several files (branch `feat/colony-missions`)
+
+- **Why.** The operator: "lets begin multi-file diff works SWARM, etc so that we can use honestly GAGOS as it was manifested", then "writers can be within colony as it was meant".
+  - On 11-12, move A was meant to run GAGOS's goals as missions, with the swarm doing goals that have several parts. The missions part was built; the swarm part never was.
+  - Until now the swarm ran only from a conversation at the counter, and never on GAGOS's own work.
+- **Multi-file missions, proven live first (no code).** Goal gt-29e497cb80 named four files. Its mission, mission-fa70b5ed3623, ran under the operator's sixth envelope:
+  - one writer changed 3 of the 4 files, giving both remaining shader materials the precise R3F type;
+  - the sandbox passed 208 tests in 20 files, tsc clean, and Opus accepted;
+  - delivered as #675.
+- **What changed.** A council goal over several files is now worked by the colony (`aios/agents/swarm.py`, `run_writer_colony`; `tools/gagos_daily.py`, `MissionWork`):
+  - **Scout:** reuses a verified split from the swarm's pattern memory, when it names only this goal's files.
+  - **Decomposer:** otherwise splits the goal into parts over disjoint files. It sees the goal and every file, masked as the writers see them. An answer that is not a clean split leaves one part.
+  - **Workers:** one writer per part, the mission's own (GAGOS's masked writer on his Claude plan), writing side by side. The width is the workshop's memory-aware cap (`writers_at_once`).
+  - **Admission:** every leg (the decomposer and each writer) is admitted by the swarm's Foundry. It checks the emergency stop and reports each leg's lifecycle on the cortex bus.
+  - **One change:** every part records into the task's one group, so the mission's sandbox, reviewer, promotion and PR see a single change. Any part refused refuses all of it.
+  - **The trail:** after the council decides, the run is recorded (`colony_runs`). A split lays its trail in `swarm_patterns`: a success only when the change was verified, accepted and promoted, a failure otherwise. A goal worked as one part lays none.
+  - **The report:** the council's section counts the colony's goals, parts, reused splits and completions.
+  - **Switch:** `AIOS_GAGOS_COLONY=0` turns it off.
+- **What this is not, honestly.**
+  - The colony's workers are GAGOS's single-shot writers. They are not the counter's tool-using agents, and each sees only its own files. Tool-using workers in a mission still need a design of their own, not built: a write grant in organ 57's authority code, a round trip for hidden names, and a mission mode for the forced verify.
+  - The counter's swarm is unchanged.
+  - **The colony has not run live yet.** The next council goal over several files after this merges will be its first.
+- **Untouched:** no organ entrypoint, the executor and the frozen core. D15 is unaffected, since tasks are not in its population.
+- **Tests:** 20 new (`tests/test_gagos_colony.py`). They cover the split parsing, side-by-side writers, a failure raised only after every leg, scout reuse, the mission path on a real tmp repository, and the trail. The mission, task, workforce, swarm, swarm Foundry, reachability, consistency, gateway-enforcement and architecture tests all pass.
 
 ## 2026-11-14, a goal may repeat a hidden name, Bedrock is out of the whole hour, and the council's dissent is his plan (branch `fix/task-placeholder-repeat`)
 
