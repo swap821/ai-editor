@@ -247,6 +247,50 @@ def bedrock_writers() -> tuple[str, ...]:
     )
 
 
+#: Where the hour finds GAGOS's Bedrock key: its scheduled job copies it there
+#: from GAGOS's keystore.
+BEDROCK_KEY_ENV = "AWS_BEARER_TOKEN_BEDROCK"
+
+
+def withhold_bedrock_key() -> bool:
+    """Take GAGOS's Bedrock key out of the hour unless the operator has turned
+    the Bedrock writers back on; whether one was taken.
+
+    Bedrock is out of the hour, not only out of its writers. On 2026-11-14 the
+    council's dissent reasoner took the first configured cloud brain in the
+    registry's order, and that was still Bedrock, on the keystore's key AWS has
+    refused since 2026-11-02. The deliberation report went to AWS, was refused
+    ("Authentication failed"), and the mission went on without its second
+    opinion. Without the key no Bedrock client is built, so nothing the hour
+    asks reaches Bedrock."""
+    if bedrock_writers():
+        return False
+    return os.environ.pop(BEDROCK_KEY_ENV, None) is not None
+
+
+#: The council's dissent reasoner in the hour: the operator's Claude plan (his
+#: word of 2026-11-14), the first of his Claude writers.
+COUNCIL_DISSENT_PLAN = CLAUDE_WRITERS[:1]
+
+
+def offer_plan_to_council() -> bool:
+    """Offer the operator's Claude plan to the hour's council for its dissent,
+    unless a plan is already configured; whether it was offered now.
+
+    Inside the hour only the council's dissent reasoner asks the registry for
+    a cloud brain (``build_dissent_llm_client``): the King is Ollama, and the
+    writers, the reviewer and D15's reflector already ask his plans directly.
+    With Bedrock out and no other cloud key, that reasoner found no brain at
+    all (measured 2026-11-14), and missions were deliberated without a second
+    opinion. The plan client keeps the full privacy filter, as the counter's
+    does: the deliberation report carries his goal's words."""
+    if config.PLAN_ENABLED:
+        return False
+    config.PLAN_CLAUDE_MODELS = COUNCIL_DISSENT_PLAN
+    config.PLAN_ENABLED = True
+    return True
+
+
 #: GAGOS's work when the operator names none (2026-11-02): the lint rules
 #: whose fix keeps behaviour, in its frontend and in its Python (its backend and
 #: itself), then a first test for each frontend module that has none.
@@ -861,7 +905,9 @@ def record_task_files(
         changed: dict[int, str] = {}
         for i, new in sorted(answered.items()):
             rel, text, masked, mapping, _facts = parts[i]
-            new_text = unmask(new, mapping, masked=masked)
+            # Each file's own placeholders may repeat, as in a task over one
+            # file (record_one_file); another file's are refused just below.
+            new_text = unmask(new, mapping, masked=masked, repeat=True)
             # A placeholder of another file's mask stays in the text, unrestored:
             # the writer moved it, and it would be written into the file.
             strange = set(MASK_TOKEN.findall(new_text)) - set(MASK_TOKEN.findall(text))
@@ -976,7 +1022,14 @@ def record_one_file(
             if f.rule == TASK_RULE and is_edit_answer(raw)
             else parse_proposal(raw, original=shape)
         )
-        new_text = unmask(answer, mapping, masked=masked, repeat=f.rule == MISSING_TEST)
+        # A first test and a task may repeat a placeholder the file holds: a
+        # test calls the module's functions again, and a hidden name is hidden
+        # at every call (2026-11-14: the council's goal gt-15f3457c24 asked for
+        # five more calls of a name the secret scanner hides, and every
+        # correct answer was refused). A lint fix still may not.
+        new_text = unmask(
+            answer, mapping, masked=masked, repeat=f.rule in (MISSING_TEST, TASK_RULE)
+        )
     except ProposalRefused as exc:
         pid = led.record_proposal(
             f, **common, new_text=None, verdict=None, refusal=str(exc)
@@ -3925,6 +3978,12 @@ def cmd_daily(args: argparse.Namespace) -> int:
     led = ledger()
     today = _today()
     slot = _slot()
+    if withhold_bedrock_key():
+        print(
+            "  Bedrock is out of this hour: the key in GAGOS's keystore is not used "
+            "(AIOS_GAGOS_BEDROCK_WRITERS=1 brings it back)"
+        )
+    offer_plan_to_council()
     # Work an earlier hour committed but could not publish comes first: it is
     # published (or its PR found) before anything new is delivered.
     held = publish_pending(led, root)

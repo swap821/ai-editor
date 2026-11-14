@@ -22,6 +22,7 @@ work both reviewers accept. Pinned here, without a model or a network:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 import threading
@@ -487,3 +488,44 @@ def test_with_bedrock_off_no_finding_goes_to_a_bedrock_writer(
     monkeypatch.setattr(bedrock, "credentials_available", lambda region: True)
     assert tool.cmd_propose(args) == 0
     assert asked and not set(asked) & set(tool.BEDROCK_WRITERS), asked
+
+
+def test_with_bedrock_off_its_key_is_withheld_from_everything_the_hour_asks(
+    monkeypatch,
+) -> None:
+    """2026-11-14: the council's dissent reasoner still reached Bedrock on the
+    keystore's refused key. Without the key no Bedrock client is built
+    (``aios.core.bedrock.credentials_available``)."""
+    monkeypatch.delenv("AIOS_GAGOS_BEDROCK_WRITERS", raising=False)
+    monkeypatch.setenv(tool.BEDROCK_KEY_ENV, "a-refused-key")
+    assert tool.withhold_bedrock_key() is True
+    assert tool.BEDROCK_KEY_ENV not in os.environ
+    assert tool.withhold_bedrock_key() is False, "nothing left to withhold"
+
+
+def test_the_council_is_offered_the_operators_claude_plan_for_its_dissent(
+    monkeypatch,
+) -> None:
+    """2026-11-14: with Bedrock out, the hour's dissent reasoner found no cloud
+    brain at all. The operator: offer it his Claude plan."""
+    monkeypatch.setattr(tool.config, "PLAN_ENABLED", False)
+    monkeypatch.setattr(tool.config, "PLAN_CLAUDE_MODELS", ())
+    assert tool.offer_plan_to_council() is True
+    assert tool.config.PLAN_ENABLED is True
+    assert tool.config.PLAN_CLAUDE_MODELS == tool.COUNCIL_DISSENT_PLAN
+    assert set(tool.COUNCIL_DISSENT_PLAN) <= set(tool.CLAUDE_WRITERS)
+    assert tool.offer_plan_to_council() is False, "offered once"
+
+
+def test_a_plan_already_configured_is_left_as_it_is(monkeypatch) -> None:
+    monkeypatch.setattr(tool.config, "PLAN_ENABLED", True)
+    monkeypatch.setattr(tool.config, "PLAN_CLAUDE_MODELS", ("claude-haiku-5-5",))
+    assert tool.offer_plan_to_council() is False
+    assert tool.config.PLAN_CLAUDE_MODELS == ("claude-haiku-5-5",)
+
+
+def test_with_bedrock_writers_back_on_the_key_stays(monkeypatch) -> None:
+    monkeypatch.setenv("AIOS_GAGOS_BEDROCK_WRITERS", "1")
+    monkeypatch.setenv(tool.BEDROCK_KEY_ENV, "a-key")
+    assert tool.withhold_bedrock_key() is False
+    assert os.environ[tool.BEDROCK_KEY_ENV] == "a-key"

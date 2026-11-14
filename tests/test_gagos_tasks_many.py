@@ -408,6 +408,65 @@ def test_a_placeholder_moved_into_another_file_is_refused(
     assert led.task(tid)["status"] == "taken"
 
 
+def _one_file_text(prompt: str) -> str:
+    return re.search(r"The file:\n```\n(.*?)\n```", prompt, re.S).group(1)
+
+
+def test_a_tasks_answer_may_repeat_a_placeholder_its_file_holds(
+    tmp_path, monkeypatch
+) -> None:
+    """2026-11-14: the council's goal gt-15f3457c24 asked for five more calls
+    of ``deriveTurnMetabolismSnapshot``, a name the secret scanner hides, and
+    every correct answer was refused for repeating its placeholder. A task's
+    answer may repeat a placeholder its own file already holds, as a first
+    test may (#581): the span is already in that file in the repository."""
+
+    def answer(prompt):
+        text = _one_file_text(prompt)
+        [token] = set(dw.MASK_TOKEN.findall(text))
+        return f'```jsx\n{text}\nconst again = "{token}";\n```'
+
+    led, _asked, args, tid = _many(tmp_path, monkeypatch, answer, also=())
+    _with_docs_example_id(args)
+    assert tool.cmd_propose(args) == 0
+    (p,) = led.proposals()
+    assert p["status"] == "proposed", p["refusal"]
+    assert p["new_text"].count(DOCS_EXAMPLE_ID) == 2, "both restored"
+    assert "GAGOSMASK" not in p["new_text"]
+
+
+def test_a_task_over_several_files_may_repeat_each_files_own_placeholder(
+    tmp_path, monkeypatch
+) -> None:
+    def answer(prompt):
+        first = _file_text(prompt, 1)
+        [token] = set(dw.MASK_TOKEN.findall(first))
+        return _answer((1, "Panel.jsx", f'{first}\nconst again = "{token}";\n'))
+
+    led, _asked, args, tid = _many(tmp_path, monkeypatch, answer)
+    _with_docs_example_id(args)
+    assert tool.cmd_propose(args) == 0
+    (p,) = led.proposals()
+    assert p["status"] == "proposed", p["refusal"]
+    assert p["new_text"].count(DOCS_EXAMPLE_ID) == 2
+    assert "GAGOSMASK" not in p["new_text"]
+
+
+def test_a_tasks_answer_still_may_not_invent_a_placeholder(
+    tmp_path, monkeypatch
+) -> None:
+    def answer(prompt):
+        text = _one_file_text(prompt)
+        [token] = set(dw.MASK_TOKEN.findall(text))
+        return f'```jsx\n{text}\nconst made = "{token[:-4]}0099";\n```'
+
+    led, _asked, args, tid = _many(tmp_path, monkeypatch, answer, also=())
+    _with_docs_example_id(args)
+    assert tool.cmd_propose(args) == 0
+    (p,) = led.proposals()
+    assert p["status"] == "refused" and "invents the placeholder" in p["refusal"]
+
+
 # ------------------------------------------------------------- the checks, all or nothing
 
 
