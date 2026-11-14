@@ -1,9 +1,32 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, a completed mission becomes a candidate skill" below;
+**Last updated:** 2026-11-15 ("2026-11-15, the local writer goes first on a goal a skill guides" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, the local writer goes first on a goal a skill guides (branch `feat/mission-skills-local`)
+
+- **Why.** This is the other half of the operator's "best of both", and the README's steps 16 and 17:
+  - 16: "the local clerk may reuse the skill under matching conditions";
+  - 17: failure escalates to the frontier.
+- **What changed** (`MissionWork._local_first`, `local_completer`).
+  - **The attempt.** A mission whose goal an admitted skill guides is offered first to the operator's local writer (`qwen3.5:9b`, the model he kept on 2026-10-20; `AIOS_GAGOS_LOCAL_WRITER` names another, and empty turns it off). It gets the same job the frontier writer gets, the skill's procedure included.
+  - **The route.** It goes through organ 32's gateway with the local target. Nothing leaves the laptop.
+  - **The client.** Its Ollama client holds 16,384 tokens of context (the default 4,096 would cut a whole-file prompt silently), has 900 seconds, and does not think first.
+  - **When its change is kept.** Only if the static checks and the sandbox pass it. The council verifies the same change again, and the sandbox runs once.
+  - **When it is set aside.** Its proposals are refused, each keeping its own refusal with "the goal escalated to …" added, and the frontier writer takes the goal with the skill's procedure as guidance.
+  - **When it is not tried.** Without a skill, with local-first off, or when the goal's files hold more than 8,000 characters. At about 7 tokens a second, a bigger file would hold his laptop for half an hour.
+  - **The trajectory** names the writer whose change the mission carries (`ollama` when the local writer's passed).
+- **Not working yet:** this half runs only when a skill guides a goal. That needs the clerk granted `select_skill` (the operator's act), and an activated mission skill, which needs a completed mission and so a new envelope.
+- **Tests:** 8 new (`tests/test_gagos_local_first.py`):
+  - the local change kept, and verified once;
+  - a sandbox failure and a writer failure each escalating;
+  - no skill, local-first off, and files too big each skipping the attempt;
+  - the trajectory's writer;
+  - the local client's context, time, thinking and target.
+
+  The GAGOS suites, the gateway-enforcement, Bandit, architecture, reachability and mutation-probe tests pass (672 passed, 14 skipped).
 
 ## 2026-11-15, a completed mission becomes a candidate skill, and an activated one guides its kind (branch `feat/mission-skills`)
 

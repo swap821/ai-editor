@@ -665,6 +665,72 @@ def governed_completer(model: str, region: str):
     return complete
 
 
+#: The local writer a goal a mission skill guides is offered to first
+#: (2026-11-15, the operator: "best of both"): his own local model, the one he
+#: kept (2026-10-20). ``AIOS_GAGOS_LOCAL_WRITER`` names another; empty turns
+#: local-first off.
+LOCAL_WRITER = "qwen3.5:9b"
+#: The most a local first attempt may read and rewrite, in characters: at about
+#: 7 tokens a second on his laptop, a bigger file would hold it half an hour.
+LOCAL_FIRST_MAX_CHARS = 8_000
+#: How long the local writer may take, and the context that holds a whole file,
+#: its instructions and its answer (Ollama's default of 4,096 tokens would cut
+#: the prompt silently).
+LOCAL_WRITER_TIMEOUT_S = 900
+LOCAL_WRITER_NUM_CTX = 16_384
+
+
+def local_writer() -> str:
+    """The local writer's model, or "" when local-first is off."""
+    return os.environ.get("AIOS_GAGOS_LOCAL_WRITER", LOCAL_WRITER).strip()
+
+
+def local_completer(model: str):
+    """``complete(prompt, system, request_id) -> str`` on the operator's own
+    machine (2026-11-15): his Ollama model, through organ 32's gateway as every
+    writer's call goes, with the local target. Nothing leaves the laptop; its
+    thinking is off, so its time goes to the answer."""
+    from aios.api.deps import get_constitution_authority, get_emergency_stop
+    from aios.application.intelligence.gateway import (
+        AdvisoryChatCompletionAdapter,
+        GovernedAdvisoryCompletionClient,
+    )
+    from aios.core.llm import OllamaClient
+    from aios.infrastructure.identity.sqlite_store import credential_digest
+
+    provider = AdvisoryChatCompletionAdapter(
+        OllamaClient(
+            model=model,
+            timeout_s=LOCAL_WRITER_TIMEOUT_S,
+            temperature=0.0,
+            num_ctx=LOCAL_WRITER_NUM_CTX,
+            think=False,
+        ),
+        model=model,
+    )
+    snapshot = get_constitution_authority().get_active_snapshot()
+    emergency_stop = get_emergency_stop()
+
+    def complete(prompt: str, system: str, request_id: str) -> str:
+        client = GovernedAdvisoryCompletionClient(
+            provider,
+            request_id=request_id,
+            operator_identity_digest=credential_digest(
+                snapshot.ratified_by_operator_id
+            ),
+            constitution_digest=snapshot.snapshot_digest,
+            target="local",
+            desired_outcome=(
+                "one proposed change for a goal of a kind GAGOS learned, in GAGOS's "
+                "own code, verified and reviewed before the operator merges"
+            ),
+            emergency_stop=emergency_stop,
+        )
+        return client.complete(prompt, system=system)
+
+    return complete
+
+
 # --------------------------------------------------------------------- propose
 
 
@@ -3051,7 +3117,12 @@ class MissionWork:
     the decomposer splits the goal over its files, and one writer per part
     writes side by side, each leg admitted by the swarm's Foundry. Every part
     is recorded in the task's one group, so the sandbox, the reviewer and the
-    delivery see one change; any part refused refuses all of it."""
+    delivery see one change; any part refused refuses all of it.
+
+    A goal a mission skill guides is offered first to the operator's local
+    writer (2026-11-15, the operator: "best of both"; :meth:`_local_first`):
+    its change must pass the static checks and the sandbox, or the goal goes
+    to the frontier writer with the skill's procedure as its guidance."""
 
     def __init__(
         self,
@@ -3066,10 +3137,18 @@ class MissionWork:
         reviewer=None,
         admit=None,
         patterns=None,
+        local_complete=None,
     ) -> None:
         self.led, self.root, self.head, self.task = led, root, head, task
         self.model, self.region = model, region
         self.complete = complete
+        self.local_complete = local_complete
+        #: Which writer's change the mission carries: the local writer's, when
+        #: its first attempt passed.
+        self.wrote_with = model
+        #: The last change the sandbox verified, and its verdict: the local
+        #: attempt's, verified once, not twice.
+        self._verified: tuple[dict, SandboxVerdict] | None = None
         self.reviewer = reviewer or functools.partial(
             run_claude, model=None, timeout_s=MISSION_REVIEW_TIMEOUT_S
         )
@@ -3162,7 +3241,9 @@ class MissionWork:
             )
         return raw, started
 
-    def _record(self, job, raw: str, started: float, lint: threading.Lock) -> None:
+    def _record(
+        self, job, raw: str, started: float, lint: threading.Lock, *, model=None
+    ) -> None:
         def took(pid: str) -> None:
             self.proposal_ids.append(pid)
             self.led.take_task(self.task["task_id"], pid)
@@ -3173,7 +3254,7 @@ class MissionWork:
             self.root,
             lint,
             job,
-            model=self.model,
+            model=model or self.model,
             raw=raw,
             took=took,
             started=started,
@@ -3192,12 +3273,70 @@ class MissionWork:
 
     def write(self, contract) -> dict[str, str]:
         context = self._context(contract)
+        local = self._local_first(contract, context)
+        if local is not None:
+            return local
         if colony_on() and len(self.task["files"]) > 1:
             return self._colony_write(contract, context)
         job = self._job(self.task, context)
         raw, started = self._ask(contract, job[4], job[5], "the writer")
         self._record(job, raw, started, threading.Lock())
         return self._edits()
+
+    def _local_first(self, contract, context: dict) -> dict[str, str] | None:
+        """The local writer's attempt at a goal a mission skill guides (step 16
+        of the README's flow, the operator's "best of both"): the same job the
+        frontier writer gets, with the skill's procedure in it, on his own
+        machine. Its change is kept only if the static checks and the sandbox
+        pass it; otherwise its proposals are refused, said, and None hands the
+        goal to the frontier writer (step 17, escalation). Not tried without a
+        skill, with local-first off, or on files too big for the laptop."""
+        model = local_writer()
+        if not self.guided or not model:
+            return None
+        files = [str(f) for f in self.task["files"]]
+        size = sum(
+            (self.root / f).stat().st_size for f in files if (self.root / f).is_file()
+        )
+        if size > LOCAL_FIRST_MAX_CHARS:
+            print(
+                f"    local first: not tried -- the goal's files hold {size} "
+                f"characters, more than the {LOCAL_FIRST_MAX_CHARS} a local writer "
+                "rewrites"
+            )
+            return None
+        try:
+            job = self._job(self.task, context, grouped=len(files) > 1)
+            complete = self.local_complete or local_completer(model)
+            started = time.monotonic()
+            raw = complete(job[4], job[5], f"gagos:{contract.mission_id}:local")
+            self._record(job, raw, started, threading.Lock(), model=model)
+            edits = self._edits()
+        except Exception as exc:  # the frontier writer takes the goal; said
+            return self._escalate(model, f"was refused: {type(exc).__name__}: {exc}")
+        verdict = self.verify(edits)
+        if verdict.outcome != PASSED:
+            return self._escalate(
+                model, f"failed the sandbox: {verdict.refusal or verdict.outcome}"
+            )
+        self.wrote_with = model
+        print(f"    local first: {model} wrote it, guided; the sandbox passes")
+        return edits
+
+    def _escalate(self, model: str, why: str) -> None:
+        """The local attempt is set aside: each of its proposals is refused, its
+        own refusal (the static checks', the sandbox's) kept and the escalation
+        added, and the goal goes to the frontier."""
+        reason = f"the local writer {model} {why}"[:600]
+        for r in self._rows():
+            self.led.refuse(
+                r["proposal_id"],
+                f"{r.get('refusal') or reason}; the goal escalated to {self.model}",
+            )
+        self.proposal_ids.clear()
+        self._verified = None
+        print(f"    local first: {reason[:300]}; escalated to {self.model}")
+        return None
 
     def _colony_write(self, contract, context: dict) -> dict[str, str]:
         from aios.agents.swarm import COLONY_DECOMPOSER_SYSTEM, run_writer_colony
@@ -3244,6 +3383,10 @@ class MissionWork:
         return self._edits()
 
     def verify(self, edits) -> SandboxVerdict:
+        # The same change the sandbox already verified (the local attempt's)
+        # keeps its verdict: the council asks once more, and gets it again.
+        if self._verified is not None and self._verified[0] == dict(edits):
+            return self._verified[1]
         with BaseTrees(self.root) as trees:
             verdict = run_change_tests(
                 trees, base_commit=self.head, changes=dict(edits)
@@ -3252,6 +3395,7 @@ class MissionWork:
             self.led.record_sandbox(
                 r["proposal_id"], verdict.to_json(), refusal=verdict.refusal
             )
+        self._verified = (dict(edits), verdict)
         return verdict
 
     def review(self, edits, verdict) -> tuple[bool, str]:
@@ -3517,13 +3661,23 @@ def mission_trajectory(work, origination: dict, head: str, *, capture=None):
         )
     edits = {r["rel"]: r.get("new_text") or "" for r in rows}
     envelope = origination.get("envelope_id")
+    # The writer whose change the mission carries: the local writer's, when
+    # its first attempt passed (2026-11-15).
+    wrote = getattr(work, "wrote_with", None) or work.model
+    provider = (
+        "plan"
+        if wrote in PLAN_WRITERS
+        else "ollama"
+        if wrote != work.model
+        else "bedrock"
+    )
     try:
         record = (capture or _capture_trajectory)(
             origination["mission_id"],
             runtime_root=config.COUNCIL_RUNTIME_DIR,
             observations=observations,
-            expert_provider="plan" if work.model in PLAN_WRITERS else "bedrock",
-            expert_model=work.model,
+            expert_provider=provider,
+            expert_model=wrote,
             project_digest=head,
             context_digest=digest(
                 json.dumps([str(work.task["text"]), list(work.task["files"])])
