@@ -148,7 +148,10 @@ PARTS: tuple[Part, ...] = (
     _organ(
         47,
         "Read-Model and Projection Organ",
-        tables=("active_turns", "active_missions", "active_workers"),
+        # When the projection last applied an event: its active tables empty
+        # the moment work finishes, so they showed only what ran right then
+        # (2026-11-14: the portrait had applied nothing since 07-22, unseen).
+        tables=("projection_applied_events",),
     ),
     _organ(48, "Truthful Living Mirror", kind=FACE),
     _organ(
@@ -216,6 +219,12 @@ _TS = re.compile(
     re.I,
 )
 _SKIP = re.compile(r"backup|rehearsal|probe", re.I)
+#: Tables that keep each row's moment inside a JSON payload, not a column:
+#: the column and the path to it (2026-11-14: a captured mission trajectory
+#: could be counted but never dated).
+_JSON_TIMES: Mapping[str, tuple[str, str]] = {
+    "expert_trajectories": ("payload_json", "$.created_at"),
+}
 
 
 def _when(value: Any) -> datetime | None:
@@ -287,6 +296,17 @@ def scan(data_dir: Path, *, now: datetime | None = None) -> Evidence:
                     moment = _when(
                         con.execute(
                             f"select max({_ident(col)}) from {_ident(table)}"
+                        ).fetchone()[0]
+                    )
+                    if moment and moment <= now and (newest is None or moment > newest):
+                        newest = moment
+                if table in _JSON_TIMES:
+                    column, path = _JSON_TIMES[table]
+                    moment = _when(
+                        con.execute(
+                            f"select max(json_extract({_ident(column)}, ?)) "
+                            f"from {_ident(table)}",
+                            (path,),
                         ).fetchone()[0]
                     )
                     if moment and moment <= now and (newest is None or moment > newest):

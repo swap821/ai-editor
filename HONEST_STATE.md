@@ -1,10 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-14 ("2026-11-14, a completed mission becomes a trajectory" below;
+**Last updated:** 2026-11-14 ("2026-11-14, the pulse sees the read-model and a trajectory truthfully" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-14, the pulse sees the read-model and a trajectory truthfully (branch `fix/pulse-probes`)
+
+- **Organ 47 (Read-Model and Projection).**
+  - **Before:** the pulse read its active tables, and those empty the moment work finishes. So it said "never ran".
+  - **The truth:** the face's portrait projection applied 79 events, the last on 2026-07-22, and 3,461 bus events wait unapplied. The projection replays only when the signed-in face asks for the mirror, and since the backend's restart on 2026-11-13 the face has loaded 34 times without a session (401) and never signed in.
+  - **Now:** the pulse reads when the projection last applied an event. It says stale, last 2026-07-22.
+- **Captured mission trajectories** (`expert_trajectories`, the learning step of #679) keep their time inside their JSON. The pulse counted them but could never date them; it now reads each trajectory's own `created_at`.
+- **Tests:** 2 new. On the operator's data, 47 reads "stale 2026-07-22, projection_applied_events (79 rows)".
 ## 2026-11-14, a completed mission becomes a trajectory (branch `feat/mission-trajectories`)
 
 - **Why.** The operator: "Plz I want them honestly working as per my vision". The README's last steps of a mission never ran for GAGOS's missions: the trajectory is captured, a candidate skill is drafted, the operator activates it, and the clerk reuses it. Two splits stood in the way:
