@@ -259,8 +259,16 @@ def execute(
         from aios.application.promotion.authority import PromotionAuthority
         from aios.application.promotion.runtime import WorkspacePromotionRuntime
 
+        # Organs 15, 16 and 41 keep GAGOS's missions in their own durable
+        # stores, the ones the operator's maintenance route keeps
+        # (aios.api.deps.get_verification_authority / get_promotion_authority).
+        # Until 2026-11-14 they were built here with no store: every mission
+        # was verified and promoted in memory only, and the aliveness pulse
+        # still showed both organs' last act as the 10-19 repair.
         evidence = EvidenceAuthority()
-        verification = VerificationAuthority(evidence)
+        verification = VerificationAuthority(
+            evidence, database_path=config.OPERATIONAL_STATE_DB_PATH
+        )
         staged = {
             "workspace_manager": workspace_manager,
             "evidence_authority": evidence,
@@ -269,6 +277,7 @@ def execute(
                 workspace_manager,
                 verification=verification,
                 emergency_stop=emergency_stop,
+                database_path=config.OPERATIONAL_STATE_DB_PATH,
             ),
             "promotion_runtime": WorkspacePromotionRuntime(
                 workspace_manager, runtime_root
