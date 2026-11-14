@@ -33,6 +33,23 @@ describe('deriveBodySpeech', () => {
     const gone = deriveBodySpeech({ text: 'done', phase: 'complete', sinceMs: BODY_SPEECH_HOLD_MS + BODY_SPEECH_FADE_MS + 10, reducedMotion: false });
     expect(gone.active).toBe(false);
   });
+  it('error: holds dimmer than complete, fades out, and an empty failure shows nothing', () => {
+    const held = deriveBodySpeech({ text: 'it failed', phase: 'error', sinceMs: BODY_SPEECH_HOLD_MS - 1, reducedMotion: false });
+    expect(held.visibleText).toBe('it failed');
+    expect(held.fade).toBe(0);
+    expect(held.active).toBe(true);
+    expect(held.glow).toBeCloseTo(0.7);
+    expect(held.glow).toBeLessThan(0.85);
+    const mid = deriveBodySpeech({ text: 'it failed', phase: 'error', sinceMs: BODY_SPEECH_HOLD_MS + BODY_SPEECH_FADE_MS / 2, reducedMotion: false });
+    expect(mid.fade).toBeCloseTo(0.5);
+    expect(mid.glow).toBeCloseTo(0.35);
+    const gone = deriveBodySpeech({ text: 'it failed', phase: 'error', sinceMs: BODY_SPEECH_HOLD_MS + BODY_SPEECH_FADE_MS + 10, reducedMotion: false });
+    expect(gone.visibleText).toBe('');
+    expect(gone.active).toBe(false);
+    const empty = deriveBodySpeech({ text: '', phase: 'error', sinceMs: 0, reducedMotion: false });
+    expect(empty.visibleText).toBe('');
+    expect(empty.active).toBe(false);
+  });
   it('caps very long replies to a readable tail', () => {
     const long = 'x'.repeat(2000);
     const o = deriveBodySpeech({ text: long, phase: 'streaming', sinceMs: 10, reducedMotion: false });
