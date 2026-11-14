@@ -202,7 +202,7 @@
     "lib/surfaceDialBus.test.ts": "799605aba4bd65aaa8658f80aff79a2d9848166dc178fe54601f652d01c6c628",
     "lib/surfaceDialBus.ts": "6b7727946afe12b59d80ac467e6e068c313808cb770e2e29dd53e5d69208bb60",
     "lib/surfacePlacement.ts": "68c0140391b9c81859d9223e26fb7cb3e72af64733d01a54840b044bb99dacb3",
-    "lib/surfaceShapeGrammar.test.ts": "cc516c7bec6ba5dba730281778fabf84ae9fd4dc5987782f26abe60b38a0872d",
+    "lib/surfaceShapeGrammar.test.ts": "efc47de1b9d01b9fa19253b99b3117873d0a607df26d198e689e157605b3bfe4",
     "lib/surfaceShapeGrammar.ts": "46a2d2d732a265db6a371e32eb6594aea7547646e8db2dfae5b70d1c165d4593",
     "lib/swarmHUDStore.ts": "51cd9ed8dc57f4735cb765d2bf3765f272bf1d52e8dbe61c27ba364e39571559",
     "lib/tabStore.attention.test.ts": "889da0b74c5df0e509e6f215293f7b836d1e35db447b6af59b5318c9dc46d1d9",

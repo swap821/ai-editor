@@ -104,4 +104,66 @@ describe('surfaceShapeGrammar', () => {
     expect(shape.contour.scarDisruption).toBeGreaterThan(0);
     expect(shape.gripMarks[0].indentPx).toBeGreaterThan(4);
   });
+
+  const unfocusedContent = {
+    kind: 'content' as const,
+    lifecycle: 'live' as const,
+    focused: false,
+    originLocal: [0.04, -1.2, -0.34] as const,
+    targetLocal: [0.86, -1.03, 0.36] as const,
+    dimensions: SURFACE_SHAPE_DIMENSIONS.content,
+  };
+
+  it('classifies a memory surface without scarring it', () => {
+    const shape = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'memory' });
+
+    expect(shape.surfaceClass).toBe('memory');
+    expect(shape.puncta.disruption).toBe(0);
+    expect(shape.contour.scarDisruption).toBe(0);
+    expect(shape.rules.satisfiedCount).toBe(5);
+  });
+
+  it('tightens a moving membrane, most while it retracts', () => {
+    const live = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'work', lifecycle: 'live' });
+    const reaching = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'work', lifecycle: 'reaching' });
+    const unfurling = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'work', lifecycle: 'unfurling' });
+    const retracting = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'work', lifecycle: 'retracting' });
+
+    expect(reaching.tension.controlOffsetPx).toBe(unfurling.tension.controlOffsetPx);
+    expect(live.tension.controlOffsetPx).toBeLessThan(reaching.tension.controlOffsetPx);
+    expect(reaching.tension.controlOffsetPx).toBeLessThan(retracting.tension.controlOffsetPx);
+    expect(live.thickness.attachmentDepth).toBeLessThan(reaching.thickness.attachmentDepth);
+    expect(reaching.thickness.attachmentDepth).toBeLessThan(retracting.thickness.attachmentDepth);
+    expect(live.puncta.falloffPower).toBeLessThan(reaching.puncta.falloffPower);
+    expect(reaching.puncta.falloffPower).toBeLessThan(retracting.puncta.falloffPower);
+  });
+
+  it('stops dimming a waiting surface after the fourth in line', () => {
+    const first = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'waiting', waitingIndex: 0 });
+    const third = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'waiting', waitingIndex: 2 });
+    const fifth = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'waiting', waitingIndex: 4 });
+    const eleventh = deriveSurfaceShapeGrammar({ ...unfocusedContent, role: 'waiting', waitingIndex: 10 });
+
+    expect(third.thickness.opacity).toBeLessThan(first.thickness.opacity);
+    expect(fifth.thickness.opacity).toBeLessThan(third.thickness.opacity);
+    expect(third.gripMarks[0].intensity).toBeLessThan(first.gripMarks[0].intensity);
+    expect(fifth.gripMarks[0].intensity).toBeLessThan(third.gripMarks[0].intensity);
+    expect(eleventh).toEqual(fifth);
+  });
+
+  it('anchors a surface that reaches across to the right vertebra', () => {
+    const shape = deriveSurfaceShapeGrammar({
+      ...unfocusedContent,
+      focused: true,
+      role: 'work',
+      targetLocal: [-0.86, -1.03, 0.36] as const,
+    });
+
+    expect(shape.attachment.kind).toBe('vertebra-right');
+    expect(shape.attachment.edges).toEqual(['right']);
+    expect(shape.attachment.freeEdges).toEqual(['left']);
+    expect(shape.attachment.sideSign).toBe(-1);
+    expect(shape.tension.sideCurve).toBeLessThan(0);
+    expect(shape.gripMarks.every((mark) => mark.edge === 'right')).toBe(true);
+  });
 });
