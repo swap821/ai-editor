@@ -322,9 +322,11 @@ def unmask(
     the file itself, is left alone.
 
     With *repeat*, a known placeholder may appear more often than in *masked*:
-    a module's first test reuses its values, each already in the repository,
-    and shown to the reviewers under the same mask again. Invented ones are
-    refused all the same."""
+    a module's first test, or an operator's task (2026-11-14), reuses its
+    values, each already in the repository, and shown to the reviewers under
+    the same mask again. Nothing more leaves the machine: the placeholder is
+    what is sent, and it is restored here. Invented ones are refused all the
+    same."""
     if not mapping:
         return text
     prefix = next(iter(mapping))[:-4]
