@@ -650,6 +650,10 @@ def _python_silenced_regions(
     return sorted(out)
 
 
+#: How ESLint reports a disable directive that silenced nothing.
+_UNUSED_DIRECTIVE = "Unused eslint-disable directive"
+
+
 def silencing_refusal(
     before_text: str,
     after_text: str,
@@ -669,7 +673,13 @@ def silencing_refusal(
     Then, from ESLint run again with inline configuration off: everything the
     proposal's comments hide must already have been hidden, with the same rule
     and message, on the aligned original line. Counting could not do this,
-    nor matching by rule and message alone (Codex's reviews of #567)."""
+    nor matching by rule and message alone (Codex's reviews of #567).
+
+    One region may go: one whose directive ESLint reported, on the original,
+    as an unused eslint-disable directive, when the directive's own line is
+    gone from the proposal. It silenced nothing, so taking it out hides
+    nothing (2026-11-14: a council goal to remove the four stale directives
+    GAGOS's lint reports was refused, every part of it)."""
     old, new = before_text.splitlines(), after_text.splitlines()
     to_old: dict[int, int] = {}
     matcher = difflib.SequenceMatcher(None, old, new, autojunk=False)
@@ -686,6 +696,14 @@ def silencing_refusal(
         )
     was = regions(len(old), before.comments)
     now = regions(len(new), after.comments)
+    if not python:
+        unused = {
+            m.line - 1
+            for m in before.messages
+            if m.rule is None and m.message.startswith(_UNUSED_DIRECTIVE)
+        }
+        kept = set(to_old.values())
+        was = [r for r in was if not (r[0] in unused and r[0] not in kept)]
     if len(was) != len(now):
         return "the proposal adds or removes a disable comment, or changes what one silences"
     for (s0, e0), (s1, e1) in zip(was, now):
