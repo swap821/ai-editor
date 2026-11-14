@@ -202,3 +202,36 @@ def test_a_pulse_that_cannot_be_measured_says_so(monkeypatch) -> None:
     (line, blank) = tool.aliveness_lines()
     assert line == "**Aliveness**: not measured (OSError: disk gone)"
     assert blank == ""
+
+
+def test_a_trajectory_is_dated_by_its_own_moment(tmp_path) -> None:
+    """2026-11-14: a captured mission trajectory keeps its time in its JSON."""
+    data = tmp_path / "data"
+    created = (NOW - timedelta(hours=2)).isoformat()
+    _db(
+        data / "ops.db",
+        "create table expert_trajectories (trajectory_id text, payload_json text)",
+        [("t-1", json.dumps({"created_at": created, "mission_id": "m"}))],
+    )
+    skills = _reading(
+        data, Part("p", "skills", tables=("procedural_skills", "expert_trajectories"))
+    )
+    assert skills.status == "live", skills.why
+
+
+def test_the_read_model_is_dated_by_the_last_event_it_applied(tmp_path) -> None:
+    """2026-11-14: its active tables empty the moment work finishes."""
+    data = tmp_path / "data"
+    _db(
+        data / "system_portrait.db",
+        "create table projection_applied_events (event_id text, applied_at text)",
+        [("79", _stamp(115))],
+    )
+    _db(
+        data / "system_portrait2.db",
+        "create table active_missions (entity_id text, payload_json text, "
+        "updated_at text)",
+    )
+    (organ,) = [p for p in PARTS if p.name.startswith("47 ")]
+    reading = _reading(data, organ)
+    assert reading.status == "stale", reading.why
