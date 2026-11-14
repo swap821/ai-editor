@@ -220,10 +220,13 @@ _TS = re.compile(
 )
 _SKIP = re.compile(r"backup|rehearsal|probe", re.I)
 #: Tables that keep each row's moment inside a JSON payload, not a column:
-#: the column and the path to it (2026-11-14: a captured mission trajectory
-#: could be counted but never dated).
-_JSON_TIMES: Mapping[str, tuple[str, str]] = {
-    "expert_trajectories": ("payload_json", "$.created_at"),
+#: the fixed query for the newest one (2026-11-14: a captured mission
+#: trajectory could be counted but never dated).
+_JSON_TIMES: Mapping[str, str] = {
+    "expert_trajectories": (
+        "select max(json_extract(payload_json, '$.created_at')) "
+        "from expert_trajectories"
+    ),
 }
 
 
@@ -301,14 +304,7 @@ def scan(data_dir: Path, *, now: datetime | None = None) -> Evidence:
                     if moment and moment <= now and (newest is None or moment > newest):
                         newest = moment
                 if table in _JSON_TIMES:
-                    column, path = _JSON_TIMES[table]
-                    moment = _when(
-                        con.execute(
-                            f"select max(json_extract({_ident(column)}, ?)) "
-                            f"from {_ident(table)}",
-                            (path,),
-                        ).fetchone()[0]
-                    )
+                    moment = _when(con.execute(_JSON_TIMES[table]).fetchone()[0])
                     if moment and moment <= now and (newest is None or moment > newest):
                         newest = moment
             except sqlite3.Error:
