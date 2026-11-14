@@ -1,9 +1,47 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, GAGOS proposes governance lessons to organ 46" below;
+**Last updated:** 2026-11-15 ("2026-11-15, a completed mission becomes a candidate skill" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, a completed mission becomes a candidate skill, and an activated one guides its kind (branch `feat/mission-skills`)
+
+- **Why.** The README's steps 14-17 never ran for GAGOS's missions:
+  - 14: the trajectory becomes a candidate skill;
+  - 15: the operator activates it;
+  - 16: the local clerk reuses it under matching conditions;
+  - 17: failure escalates.
+
+  The operator chose "best of both", meaning guidance and local execution. This PR is the guidance half; the local clerk doing a goal itself first is next.
+- **Step 14, the draft** (`mission_learning.draft_mission_skill`; the hour's `mission_skill`). After a trajectory is captured, the mission's own writer, on his plan, drafts the skill from the change as the reviewer saw it, masked the same way.
+  - **What the model writes:** the kind of goal, a procedure in prose, when not to use it and when to escalate. It is read strictly: exact fields, bounds, and the injection check, since later writers read it.
+  - **What the mission's records decide:** everything else, namely its scope (the folder its files share), its tools, its verification (sandbox passed and review accepted, at strong), and the code it was validated on.
+  - The learning service qualifies the trajectory again and keeps a candidate. A candidate may not name its own principal; activation decides whose it is.
+- **Step 15, activation and its safety** (`institutional_skills.py`, organs 43 and 57).
+  - **Activation:** by the operator, with `tools/activate_skills.py`, as for any skill.
+  - **Review-ready:** a mission skill is ready on its one strongly verified mission, where a chat arc needs 3 successes.
+  - **Never a reflex, never a chat recall:** `active_procedures` and `relevant_verified` leave mission skills out. They are offered only to GAGOS's missions (`mission_skills`), on the operator's signed activation for the principal asking.
+  - **Verified:** without the exclusion, the new test fails, because the mission skill becomes a reflex source.
+- **Step 16, the guidance half** (`council_origination.originate_goal`, `mission_skill_guidance`).
+  - **Who is offered:** an active mission skill whose scope holds one of the goal's files, with confidence at least 0.8.
+  - **The clerk's role:** the local clerk is asked organ 37's `select_skill` question. It can veto, never grant.
+  - **Where an admitted skill's procedure goes:** into the council's trail, and through the mission's metadata to the writers.
+  - **Outcome:** how the mission went raises or lowers the skill's confidence (`record_skill_outcome`, organ 43's lifecycle). A mission that ended before its writers wrote teaches the skill nothing.
+- **Not working yet, and why.**
+  - **No clerk model may take `select_skill`.** Only triage, summarise_disagreement and prepare_briefing are granted on his machine, so every in-scope skill is vetoed, and the hour says why. Qualifying a model for the job and granting it is the operator's act.
+  - **No mission skill exists yet.** The first needs a completed mission, which needs a new envelope.
+- **The learning service's docstring** (organs 26 and 43) now says what reaches it: `/api/v1/skills/*`, and GAGOS's missions from its hour.
+- **Mutation catalogue:** 4 generated entries re-anchored (the conditions of `relevant_verified` and `active_procedures` gained `or is_mission_skill(record)`). Same mutations, same tests.
+- **Tests:** 19 new (`tests/test_gagos_mission_skills.py`).
+  - Draft: the strict read, the injection refusal and the scope.
+  - A real mission's candidate, with its authority from the records.
+  - The principal refusal.
+  - Reflex and recall exclusion, and review-readiness.
+  - Guidance: scope, confidence, the clerk's veto, another principal's skill, the clerk's qualified question and a clerk that cannot answer.
+  - Confidence moving with outcomes.
+  - The council's trail and contract, and unreadable skills never blocking a goal.
+  - The writers' notes, the hour's outcome and draft lines, and a refused draft.
 
 ## 2026-11-15, GAGOS proposes governance lessons to organ 46 (branch `feat/governance-lessons`)
 

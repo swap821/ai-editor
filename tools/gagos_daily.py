@@ -72,6 +72,7 @@ import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 REPO = Path(__file__).resolve().parents[1]
@@ -2965,6 +2966,13 @@ def missions_hour(
             + (f" {outcome['mission_id']}" if outcome.get("mission_id") else "")
             + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
         )
+        for skill in outcome.get("skills") or []:
+            print(
+                f"    skills: guided by {skill['skill_id']}@{skill['version']}, "
+                "which the clerk admitted"
+            )
+        for note in outcome.get("skill_notes") or []:
+            print(f"    skills: {note}")
 
 
 #: The writer of a GAGOS mission: the workshop's own, on the operator's plan.
@@ -3070,6 +3078,9 @@ class MissionWork:
         #: What the colony did, when the goal was worked by one.
         self.colony = None
         self.proposal_ids: list[str] = []
+        #: The mission skills whose procedure the writers were given
+        #: (2026-11-15): each learns how the mission went.
+        self.guided: list[dict] = []
 
     def _rows(self) -> list[dict]:
         """Every proposal the mission's writers recorded: each one's whole
@@ -3086,13 +3097,18 @@ class MissionWork:
                 rows.setdefault(r["proposal_id"], r)
         return list(rows.values())
 
-    def _context(self) -> dict:
+    def _context(self, contract=None) -> dict:
         intakes = self.led.intakes() if goals_through_clerk() else {}
         direction = load_direction(_direction_path())
         notes = tuple(
             f"The operator's direction: {egress_redact(note)}"
             for note in direction.notes
         )
+        # The mission skills the clerk admitted for this goal when it was
+        # originated (2026-11-15): their procedures, as the writers' guidance.
+        metadata = getattr(contract, "metadata", None) or {}
+        self.guided = [g for g in metadata.get("skill_guidance") or [] if g.get("line")]
+        notes += tuple(egress_redact(str(g["line"])) for g in self.guided)
         return dict(
             notes=notes, facts=project_facts(self.root) + notes, intakes=intakes
         )
@@ -3175,7 +3191,7 @@ class MissionWork:
         return {r["rel"]: r["new_text"] for r in rows}
 
     def write(self, contract) -> dict[str, str]:
-        context = self._context()
+        context = self._context(contract)
         if colony_on() and len(self.task["files"]) > 1:
             return self._colony_write(contract, context)
         job = self._job(self.task, context)
@@ -3252,6 +3268,12 @@ class MissionWork:
                 r["proposal_id"], "claude", model=used, verdict=word, reason=reason
             )
         return word == "accept", reason
+
+    def accepted_change(self) -> str:
+        """The mission's change as its reviewer was shown it, masked the same
+        way: what the skill's drafter reads (2026-11-15)."""
+        p = self._rows()[0]
+        return review_evidence(p, Finding(rel=p["rel"], rule=p["rule"], warnings=()))
 
     def withdraw(self, reason: str) -> None:
         """The council did not promote the change: none of it is delivered."""
@@ -3345,9 +3367,82 @@ def runs_hour(
             f"  mission {o['mission_id']} for {tid}: {state}"
             + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
         )
+        # A skill that guided the writers learns how it went, when they wrote.
+        skill_outcome(work, completed=state == "completed")
         if state == "completed":
-            mission_trajectory(work, o, head)
+            trajectory = mission_trajectory(work, o, head)
             mission_memory(o)
+            mission_skill(work, o, trajectory, head)
+
+
+def skill_outcome(work, *, completed: bool, record=None) -> None:
+    """Each mission skill whose procedure guided the mission's writers
+    (2026-11-15) learns how the mission went, through organ 43's lifecycle: a
+    completed mission raises its confidence, a written change the sandbox, the
+    reviewer or the council refused lowers it. A mission that ended before its
+    writers wrote tells the skill nothing."""
+    if not work.guided or not work.proposal_ids:
+        return
+    try:
+        updated = (record or _record_skill_outcome)(work.guided, success=completed)
+    except Exception as exc:  # said; the mission stands as it is
+        print(
+            f"    skills: the outcome was not recorded -- {type(exc).__name__}: {exc}"[
+                :400
+            ]
+        )
+        return
+    for skill in updated:
+        print(
+            f"    skills: {skill.skill_id}@{skill.version} "
+            f"{'helped' if completed else 'did not help'} "
+            f"(confidence {skill.confidence:.2f}, {skill.state})"
+        )
+
+
+def _record_skill_outcome(*args, **kwargs):
+    from aios.operations.mission_learning import record_skill_outcome
+
+    return record_skill_outcome(*args, **kwargs)
+
+
+def mission_skill(
+    work, origination: dict, trajectory, head: str, *, draft=None
+) -> None:
+    """A captured trajectory becomes a candidate skill (step 14 of the README's
+    flow, 2026-11-15; :func:`aios.operations.mission_learning
+    .draft_mission_skill`): the mission's own writer drafts the kind of goal
+    and how to do it, from the change as its reviewer saw it. A candidate
+    only: activating it is the operator's act. A refusal is said and changes
+    nothing."""
+    if trajectory is None:
+        return
+    mission = SimpleNamespace(mission_id=origination["mission_id"])
+    try:
+        record = (draft or _draft_mission_skill)(
+            trajectory.trajectory_id,
+            runtime_root=config.COUNCIL_RUNTIME_DIR,
+            draft=lambda prompt, system: work._ask(
+                mission, prompt, system, "the skill's drafter"
+            )[0],
+            evidence=work.accepted_change(),
+            drafted_by=work.model,
+            validated_version=head,
+        )
+    except Exception as exc:  # said, never hidden; the mission stands as it is
+        print(f"    learning: no candidate skill -- {type(exc).__name__}: {exc}"[:400])
+        return
+    print(
+        f"    learning: candidate skill {record.skill_id}@{record.version} drafted "
+        f"({record.provenance.get('kind', '')[:120]}); the operator's to activate: "
+        f"tools/activate_skills.py --activate {record.skill_id}@{record.version}"
+    )
+
+
+def _draft_mission_skill(*args, **kwargs):
+    from aios.operations.mission_learning import draft_mission_skill
+
+    return draft_mission_skill(*args, **kwargs)
 
 
 def mission_memory(origination: dict, *, remember=None) -> None:
@@ -3372,12 +3467,13 @@ def _remember_mission(*args, **kwargs):
     return remember_mission(*args, **kwargs)
 
 
-def mission_trajectory(work, origination: dict, head: str, *, capture=None) -> None:
+def mission_trajectory(work, origination: dict, head: str, *, capture=None):
     """A mission the council completed becomes the learning service's
     trajectory (2026-11-14; :mod:`aios.operations.mission_learning`): its
     writing, its sandbox and its review as the observations, its evidence
     from the organs' durable stores. A refusal is said and changes nothing:
-    the learning is the mission's afterlife, never its outcome."""
+    the learning is the mission's afterlife, never its outcome. Returns the
+    trajectory's record, or None."""
     from aios.domain.learning.contracts import ToolObservation
 
     def digest(text: str) -> str:
@@ -3432,8 +3528,9 @@ def mission_trajectory(work, origination: dict, head: str, *, capture=None) -> N
         )
     except Exception as exc:  # said, never hidden; the mission stands as it is
         print(f"    learning: no trajectory -- {type(exc).__name__}: {exc}"[:400])
-        return
+        return None
     print(f"    learning: trajectory {record.trajectory_id} captured")
+    return record
 
 
 def _capture_trajectory(*args, **kwargs):

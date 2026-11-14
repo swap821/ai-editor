@@ -143,6 +143,18 @@ def _legacy_id(record: SkillRecord) -> Optional[int]:
         return None
 
 
+#: ``provenance.source`` of a skill drafted from a GAGOS council mission
+#: (2026-11-15, :mod:`aios.operations.mission_learning`).
+MISSION_SKILL_SOURCE = "gagos-mission"
+
+
+def is_mission_skill(record: SkillRecord) -> bool:
+    """A skill drafted from a council mission: guidance for GAGOS's missions,
+    never a chat recall and never a reflex. Its procedure is prose for a
+    writer, not a list of tool steps anything could replay."""
+    return (record.provenance or {}).get("source") == MISSION_SKILL_SOURCE
+
+
 def is_review_ready(
     record: SkillRecord, *, min_successes: int = 3, min_success_rate: float = 0.8
 ) -> bool:
@@ -154,9 +166,16 @@ def is_review_ready(
     legacy store's own verdict. A legacy trail that met the rule but was
     QUARANTINED -- demoted for reuse failures, the only way the legacy store
     leaves a rule-meeting arc a candidate -- is not presented as ready.
+
+    A mission skill is ready on the mission it was drafted from: a trajectory
+    the learning service admitted only after the sandbox verified the change,
+    the reviewer accepted it and the council promoted it -- strong evidence,
+    where the three successes the old rule counts are a chat turn's weak ones.
     """
     if record.state != BIRTH_STATE:
         return False
+    if is_mission_skill(record):
+        return bool(record.source_trajectory_ids)
     ok, bad = record.success_count, record.failure_count
     if ok < max(min_successes, 1) or ok / max(ok + bad, 1) < min_success_rate:
         return False
@@ -842,7 +861,8 @@ class InstitutionalSkillAdapter:
         stats = self.trails.all()
         ranked = []
         for record in self.repository.list_skills():
-            if record.state != ACTIVE:
+            # A mission skill guides GAGOS's missions, never a chat turn.
+            if record.state != ACTIVE or is_mission_skill(record):
                 continue
             score = relevance(query, record.problem_signature)
             if score <= 0:
@@ -872,7 +892,8 @@ class InstitutionalSkillAdapter:
         stats = self.trails.all()
         activated: dict[int, dict[str, Any]] = {}
         for record in self.repository.list_skills():
-            if record.state != ACTIVE:
+            # A mission skill is prose for a writer: never a reflex.
+            if record.state != ACTIVE or is_mission_skill(record):
                 continue
             trail = stats.get((record.skill_id, record.version))
             if trail is None:
@@ -891,6 +912,18 @@ class InstitutionalSkillAdapter:
                 "principal": skill_principal(record),
             }
         return activated
+
+    def mission_skills(self, *, principal: Any) -> list[SkillRecord]:
+        """*principal*'s ACTIVE mission skills, each only on the operator's
+        signed activation naming him (2026-11-15): what the council may offer
+        GAGOS's writers as guidance. Read-only; never a reflex source."""
+        return [
+            record
+            for record in self.repository.list_skills()
+            if record.state == ACTIVE
+            and is_mission_skill(record)
+            and self._admits(record, principal)
+        ]
 
     def compilable_procedures(self) -> dict[int, dict[str, Any]]:
         """Every principal's activated skills, for the reflex compiler and the
@@ -1154,10 +1187,12 @@ def build_skills_slot(
 __all__ = [
     "EVERY_PRINCIPAL",
     "InstitutionalSkillAdapter",
+    "MISSION_SKILL_SOURCE",
     "ReadOnlySkillHistoryError",
     "SkillMigrationPendingError",
     "SkillTrailIndex",
     "build_skills_slot",
+    "is_mission_skill",
     "is_review_ready",
     "library_summary",
     "skill_identity",

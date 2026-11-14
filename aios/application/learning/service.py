@@ -8,10 +8,13 @@ nothing in the chat path has ever called it.
 
 The honest wiring, verified by ``tests/test_documented_reachability.py``:
 
-* **Reaches here:** ``/api/v1/skills/*`` only, through
+* **Reaches here:** ``/api/v1/skills/*``, through
   ``aios.api.deps.get_learning_service``. Mission-scoped work — expert
   trajectory capture, authorised skill activation, reuse orchestration with
-  escalate-to-frontier.
+  escalate-to-frontier. And, since 2026-11-14, GAGOS's own council missions,
+  from its hour (``aios.operations.mission_learning``): a completed mission's
+  trajectory is captured here, and since 2026-11-15 a candidate skill is
+  drafted from it, which the operator activates through the same route.
 * **Does NOT reach here:** every ordinary chat turn. The turn path
   (``aios/application/turns/generate_pipeline.py``) uses
   ``aios.memory.skills.SkillMemory``, a different store with a different
@@ -289,8 +292,18 @@ class LearningService:
         return record
 
     def create_skill_candidate(
-        self, trajectory_id: str, candidate: SkillCandidateSpec
+        self,
+        trajectory_id: str,
+        candidate: SkillCandidateSpec,
+        *,
+        provenance: Mapping[str, str] | None = None,
     ) -> SkillRecord:
+        """A candidate skill from the qualified trajectory *trajectory_id*.
+        *provenance* says where it came from (e.g. a GAGOS mission's); advisory,
+        never authority, and a ``principal`` in it is refused: whose skill it is
+        is the operator's activation to decide."""
+        if provenance and "principal" in provenance:
+            raise ValueError("a candidate's principal is set by its activation")
         trajectory = self.trajectory_repository.get(trajectory_id)
         if trajectory is None:
             raise KeyError(f"trajectory {trajectory_id!r} not found")
@@ -308,6 +321,7 @@ class LearningService:
             state="candidate",
             created_at=now,
             updated_at=now,
+            provenance={str(k): str(v) for k, v in (provenance or {}).items()},
         )
         self.skill_repository.save(skill)
         return skill

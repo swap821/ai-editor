@@ -101,6 +101,7 @@ def originate_goal(
     detect_injection: Callable[[str], str | None] | None = None,
     constitution_digest: Callable[[], str | None] = lambda: None,
     bus: Any | None = None,
+    guide: Callable[..., tuple[list, list]] | None = None,
 ) -> dict[str, Any]:
     """GAGOS originates the council mission for one briefed goal, inside the
     operator's envelope: ``{"state", "reason", "mission_id", ...}`` where state
@@ -110,7 +111,9 @@ def originate_goal(
 
     *envelope* is organ 9's :class:`EnvelopeAuthority`; *workspace_root* the
     council workspace GAGOS's missions use; *bus* the cortex bus the council's
-    events go to, as the operator's route's do."""
+    events go to, as the operator's route's do; *guide* finds the mission
+    skills that apply (``guide(goal, files, principal=) -> (guidance,
+    notes)``; by default the local clerk judges, :func:`_guide`)."""
     from aios.council import CouncilMissionRequest
     from aios.council.sandbox_spec import SANDBOX_KEY
     from aios.application.capabilities.envelope import EnvelopeRefused
@@ -154,12 +157,21 @@ def originate_goal(
         remembered = mission_memory_hints(files, runtime_root=runtime_root)
     except Exception:  # noqa: BLE001 - a memory that cannot be read is no memory
         remembered = []
+    # What GAGOS learned of goals of this kind (2026-11-15): the operator's
+    # active mission skills the local clerk admits for this goal, offered to
+    # the council here and to the writers through the metadata. Advisory too.
+    try:
+        guidance, skill_notes = (guide or _guide)(
+            goal, files, principal=signer.operator_id
+        )
+    except Exception as exc:  # noqa: BLE001 - skills that cannot be read guide nothing
+        guidance, skill_notes = [], [f"the skills were not read: {type(exc).__name__}"]
     request = CouncilMissionRequest(
         mission_id=mission_id,
         goal=goal,
         workspace_root=str(mission_root),
         allowed_files=files,
-        pheromone_context=remembered,
+        pheromone_context=[*remembered, *(g.line() for g in guidance)],
         allowed_tools=["read_file", "write_file"],
         created_by=GAGOS_ORIGINATOR,
         operator_id=signer.operator_id,
@@ -180,8 +192,14 @@ def originate_goal(
                 "constraints": list(briefing.get("constraints") or []),
                 "done_when": str(briefing.get("done_when") or ""),
             },
+            # Advisory too: how GAGOS did goals of this kind before.
+            "skill_guidance": [{**g.ref(), "line": g.line()} for g in guidance],
         },
     )
+    skills = {
+        "skills": [g.ref() for g in guidance],
+        "skill_notes": list(skill_notes),
+    }
     try:
         run = deliberate_with(request, runtime_root=runtime_root, bus=bus)
     except Exception as exc:  # noqa: BLE001 - recorded with its slot, never raised into the hour
@@ -193,6 +211,7 @@ def originate_goal(
             "mission_id": mission_id,
             "envelope_id": slot.envelope_id,
             "slot": slot.slot,
+            **skills,
         }
     report = getattr(run, "report", None)
     status = str(getattr(report, "status", "") or "")
@@ -209,7 +228,27 @@ def originate_goal(
         "mission_id": mission_id,
         "envelope_id": slot.envelope_id,
         "slot": slot.slot,
+        **skills,
     }
+
+
+def _guide(goal: str, files: list[str], *, principal: str) -> tuple[list, list]:
+    """The operator's active mission skills the local clerk admits for *goal*
+    (:func:`aios.operations.mission_learning.mission_skill_guidance`). The
+    clerk's service is built only when a skill is in the goal's scope."""
+    from aios.operations.mission_learning import clerk_selects, mission_skill_guidance
+
+    attempt = uuid.uuid4().hex[:12]
+    selects: list[Any] = []
+
+    def select(skill: Any, **kwargs: Any) -> tuple[bool, str]:
+        if not selects:
+            from aios.operations.clerk_admin import default_service
+
+            selects.append(clerk_selects(default_service(), attempt=attempt))
+        return selects[0](skill, **kwargs)
+
+    return mission_skill_guidance(goal, files, principal=principal, select=select)
 
 
 def execute(
