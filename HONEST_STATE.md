@@ -1,9 +1,41 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-14 ("2026-11-14, the pulse sees the read-model and a trajectory truthfully" below;
+**Last updated:** 2026-11-14 ("2026-11-14, GAGOS remembers its missions through organ 18" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-14, GAGOS remembers its missions through organ 18 (branch `feat/mission-memory`)
+
+- **Why.** Organ 18 (Memory Authority) had never run.
+  - **Nothing fed it:** its evidence-checked promotion had no production caller, only a proof harness.
+  - **Nothing could be read back:** a recall of a type no specialist store owns fell through to the semantic store, which always exists in production. Its own records (`memory_authority_records`) could never be recalled.
+- **What changed.**
+  - **Routing (organ 18's entrypoint, `authority.py`).** A recall whose memory types no specialist owns now reads the authority's own records. Every recall in production today asks for `semantic`, which its specialist owns, so none changes.
+  - **Remembering (`aios/operations/mission_learning.py`, `remember_mission`; the hour's `mission_memory`).** A mission the council completed is proposed and promoted through the authority, by policy and never by a model:
+    - type `gagos_mission`, referring to the council's mission record (`council-mission:<id>`);
+    - its own verification results as evidence;
+    - the authority's checks on identity, evidence freshness, strength, pass and scope.
+
+    A mission the reviewer rejected is refused, though its tests passed. A refusal is said in the hour's log and changes nothing.
+  - **Recalling (`council_origination.originate_goal`).** A new goal's request carries, as the council's trail (`pheromone_context`), one line for each remembered mission whose files overlap its own; the Memory queen weighs it. Memory never blocks a goal.
+- **Evidence.** `authority.py` is organ 18's entrypoint, so the organs' live evidence was re-gathered at the branch tip (`abed2812`):
+  - every claimed organ passed, with Docker up;
+  - 42 organs refreshed; the spine (1-5) untouched, without `--operator-spine`;
+  - 17 stale live rows of organ 18 superseded;
+  - the ledger doc and the release manifest rebuilt.
+
+  After a squash merge the evidence must be re-gathered at master's tip.
+- **Tests:** 7 new.
+  - The routing, with a semantic store present.
+  - A real mission remembered, and recalled only for its own files.
+  - A rejected mission refused.
+  - The hour remembering a mission it completed.
+  - A later goal carrying the memory into the deliberated contract.
+  - A broken memory store not blocking a goal.
+
+  The memory-authority, council-memory, council, mission, colony, reachability, consistency, gateway-enforcement, Bandit, organ-currency and architecture tests pass.
+- **Not yet:** nothing is remembered until the next mission completes, and that needs a new envelope from the operator.
 
 ## 2026-11-14, the pulse sees the read-model and a trajectory truthfully (branch `fix/pulse-probes`)
 

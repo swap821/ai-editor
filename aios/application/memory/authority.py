@@ -727,6 +727,11 @@ class MemoryAuthority:
             for name, adapter in self.adapters.items():
                 if set(context.memory_types).intersection(adapter.memory_types):
                     return name
+            # Types no specialist owns are the authority's own records. Until
+            # 2026-11-14 such a recall fell through to the semantic store,
+            # which always exists in production, so nothing the authority
+            # promoted could ever be recalled.
+            return ""
         if "semantic" in self.adapters:
             return "semantic"
         return next(iter(self.adapters), "")
