@@ -1,9 +1,44 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-13 ("2026-11-13, the council's own goals and a reviewer that judges intent" below;
+**Last updated:** 2026-11-14 ("2026-11-14, a goal may repeat a hidden name, Bedrock is out of the whole hour, and the council's dissent is his plan" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-14, a goal may repeat a hidden name, Bedrock is out of the whole hour, and the council's dissent is his plan (branch `fix/task-placeholder-repeat`)
+
+- **The council's goals reached master.** The operator merged #669 and #670. #670 carried the council's first two own goals (presenceProjection and bodySpeech tests), and master CI is green on `5c530fa2`. He signed his fifth envelope (`envelope-9ef6452da2bb49fb`, 08:13 to 16:13 UTC), and at 08:50 UTC the council took two more goals:
+  - **cognitionBus** (mission-b3328cf42668): completed, sandbox passed, Claude accepted, delivered in #671;
+  - **turnMetabolism** (mission-ef3de698185a): **failed in its run**, as below.
+  - Council missions so far: sent 10, completed 5 (50%), failed in deliberation 2, blocked by the council 2, failed in its run 1.
+- **Why turnMetabolism failed: a correct answer could not exist.**
+  - The secret scanner (frozen core) takes the 28-character name `deriveTurnMetabolismSnapshot` for a possible secret, so the writer saw each of its 8 calls as a placeholder.
+  - The goal asked for 5 more calls. Writing one means repeating a placeholder, and a task's answer could never repeat one ("the answer duplicates the placeholder GAGOSMASKQ_0007").
+  - GAGOS's own first tests were allowed to repeat placeholders on 2026-11-03 (#581), because the value is already in the repository. Tasks and council goals were not.
+- **Fixed.** A task's answer may repeat a placeholder its own file holds, over one file or several (`tools/gagos_daily.py`, both unmasking calls).
+  - An invented placeholder, or one from another file, is still refused.
+  - A lint fix still may not repeat one.
+  - Nothing more leaves the machine: the placeholder is what is sent, and it is restored locally.
+  - **Replayed on the real file:** the old rule refuses with the live message; the new one restores the five calls with no placeholder left. The reviewer is shown them under the file's own placeholder, and the egress check passes.
+- **The scanner itself is proposed, not changed.** It is frozen core, and applying any change to it is RED, even at the operator's word. `docs/security/PROPOSAL_ENTROPY_CAMELCASE_NAMES.md` proposes that Pass 2 leave whole camelCase and PascalCase names alone; Pass 1 and the context-gated Pass 3 stay as they are. Measured without writing the frozen file:
+  - 46 of the 143 tokens Pass 2 redacts in the repository are such names;
+  - with the rule, `turnMetabolism.test.ts` has 0 placeholders, not 8, and the frontend's placeholders fall from 2,279 to 1,965;
+  - of 200,000 random keys per alphabet, the rule would let through 2 base62 keys, 249 letters-only keys and no base64url key.
+  - A snake_case rule was measured and rejected: it would exempt most random lowercase-and-underscore strings.
+  - Applying it, and re-signing the spine afterwards, are the operator's acts.
+- **The council's dissent reasoner was calling a refused Bedrock key.**
+  - The hour's job still copies `AWS_BEARER_TOKEN_BEDROCK` from GAGOS's keystore. Gemini has no key, so Bedrock was the first configured cloud brain in the registry's order.
+  - At 08:50 UTC the deliberation report went to AWS and was refused ("Authentication failed"). The mission went on without its second opinion; deliberation is advisory.
+  - **Fixed:** while the Bedrock writers are off (the default since 2026-11-13), the hour takes the key out of its environment first, and says so (`withhold_bedrock_key`). `AIOS_GAGOS_BEDROCK_WRITERS=1` brings it back.
+- **Without the key, the hour's council had no cloud brain for dissent at all.** Measured in the hour's environment: none of Gemini, OpenAI, Anthropic, Vertex or the operator's plans is configured.
+- **Fixed, at the operator's word: the dissent is his Claude plan.** The hour offers the council `claude-sonnet-5-5`, the first of his Claude writers, unless a plan is already configured (`offer_plan_to_council`).
+  - **Why only the dissent changes:** inside the hour, only the council's dissent reasoner asks the registry for a cloud brain. The King is Ollama, and the writers, the reviewer and D15's reflector already ask his plans directly; every caller of the router, the hiring service and `get_plan_client` was checked.
+  - The plan client keeps the full privacy filter, because the deliberation report carries his goal's words.
+  - **Live check:** the dissent reasoner built as `plan` / `claude-sonnet-5-5` from his real data, and one call through the council's gateway answered in 6 s.
+  - Removing the dead key from GAGOS's keystore stays his act. It is no longer needed.
+- **The retry.** The turnMetabolism goal is queued again for the council alone (gt-1a429e4d26). It needs a slot in a newer envelope, signed after this branch is merged; today's two slots are spent.
+- **D15 is unaffected.** The operator's tasks are not in its analysis (preregistration, "Randomisation"). First tests already could repeat placeholders, and lint fixes are unchanged.
+- **Tests:** 9 new. The two repeat tests fail on the old code with the live message. Every `test_gagos*` file passes, with the architecture, gateway-enforcement and consistency guards and the frozen-core check. No organ entrypoint and no frozen file is touched.
 
 ## 2026-11-13, the council's own goals and a reviewer that judges intent (branch `feat/review-intent`)
 

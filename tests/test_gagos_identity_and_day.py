@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -373,6 +374,30 @@ def test_an_unknown_pr_state_holds_back_delivery(day, monkeypatch) -> None:
     assert ("propose", tool.BATCH_PROPOSALS) in calls
     assert ("skip", frozenset({FINDING.rel})) in calls, "fail closed: it may be open"
     assert not any(c[0] == "deliver" for c in calls)
+
+
+def test_the_hour_withholds_the_bedrock_key_while_bedrock_is_out(
+    day, monkeypatch, capsys
+) -> None:
+    """2026-11-14: the hour's council still asked Bedrock on a refused key."""
+    _led, _calls, args = day
+    monkeypatch.setattr(tool, "_pr_state", lambda url: "MERGED")
+    monkeypatch.delenv("AIOS_GAGOS_BEDROCK_WRITERS", raising=False)
+    monkeypatch.setenv(tool.BEDROCK_KEY_ENV, "a-refused-key")
+    tool.cmd_daily(args)
+    assert tool.BEDROCK_KEY_ENV not in os.environ
+    assert "Bedrock is out of this hour" in capsys.readouterr().out
+
+
+def test_the_hour_offers_the_council_the_operators_plan(day, monkeypatch) -> None:
+    """2026-11-14: the hour's council deliberated with no second opinion."""
+    _led, _calls, args = day
+    monkeypatch.setattr(tool, "_pr_state", lambda url: "MERGED")
+    monkeypatch.setattr(tool.config, "PLAN_ENABLED", False)
+    monkeypatch.setattr(tool.config, "PLAN_CLAUDE_MODELS", ())
+    tool.cmd_daily(args)
+    assert tool.config.PLAN_ENABLED is True
+    assert tool.config.PLAN_CLAUDE_MODELS == tool.COUNCIL_DISSENT_PLAN
 
 
 def test_one_batch_an_hour_and_another_the_next(day, monkeypatch) -> None:
