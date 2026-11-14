@@ -1,9 +1,42 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-14 ("2026-11-14, GAGOS remembers its missions through organ 18" below;
+**Last updated:** 2026-11-15 ("2026-11-15, GAGOS proposes governance lessons to organ 46" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, GAGOS proposes governance lessons to organ 46 (branch `feat/governance-lessons`)
+
+- **Why.** Organ 46 (Constitutional Learning) turns a weakness in GAGOS's own governance into a lesson, and a lesson into an amendment proposal, never further. Nothing had ever proposed a lesson, so the organ was idle. The operator, 2026-11-15: "yes on organ46".
+- **What changed** (`aios/operations/governance_lessons.py`; the hour's `governance_hour`; `DailyLedger.friction`).
+  - **The source.** Each hour reads the refusals its own ledger kept over the last 7 days: each proposal's refusal and each goal mission's reason. No model is asked.
+  - **What counts as recurring.** A friction recurs when it was met at least 5 times in those 7 days and at least once in the last 24 hours. A friction that stopped is not proposed.
+  - **The frictions.** Three, each with its current rule and a proposed improvement written in the code:
+    - `privacy-withheld-file`: files the privacy filter or the secret policy withholds from the writers, which the operator is never shown;
+    - `names-scrubbed-as-secrets`: answers the scanner's entropy pass scrubbed. The improvement points to the existing frozen-core proposal; the scanner itself is his alone;
+    - `envelope-slots-used`: briefed goals refused for want of a slot. The improvement is to show him, when he signs, how many goals waited.
+  - **Not frictions.** Usage limits and refused providers are already governed: writers rest and are probed once a batch.
+  - **How a lesson is proposed.** Through organ 46's own authority (`ConstitutionalLearningAuthority.propose_lesson`), after its authority-reduction screen over every text, into the store its routes read.
+  - **Once.** Later hours say "already with organ 46", and a lesson the operator ruled on is never proposed again.
+  - **For him.** `python tools/gagos_daily.py lessons` lists them. Drafting an amendment from a lesson, and ratifying one, stay his acts.
+- **What it will propose.** A read-only run on the live ledger (2026-11-14 ~22:30Z) found all three:
+  - `privacy-withheld-file`: 54 times, on 21 files;
+  - `names-scrubbed-as-secrets`: 5 times, on 4 files;
+  - `envelope-slots-used`: 10 times, on 4 goals.
+
+  The scrubbed-answer friction was last met 2026-11-14 10:52Z. If the first hour after merge comes more than 24 hours later, it is not proposed, by design.
+- **No organ entrypoint changed.** Organ 46's own modules are untouched, so no re-gather is needed. Organ 46 stays yellow: the human red-team it names is still absent.
+- **Tests:** 14 new (`tests/test_gagos_governance_lessons.py`).
+  - Recurrence: enough occurrences, recent enough, inside the window.
+  - Each friction recognised, and the governed ones ignored.
+  - The evidence cap.
+  - Every lesson text passing organ 46's screen.
+  - Proposed once, never again once he has ruled on it, and refused by the screen without being kept.
+  - The ledger's read.
+  - The hour's lines.
+  - The `lessons` listing.
+
+  The GAGOS suites (598 passed, 15 skipped) pass, as do the Bandit, architecture, gateway-enforcement and reachability tests.
 
 ## 2026-11-14, GAGOS remembers its missions through organ 18 (branch `feat/mission-memory`)
 

@@ -2964,6 +2964,42 @@ class DailyLedger:
             r["parts"] = json.loads(r["parts"])
         return rows
 
+    def friction(self, since: str) -> list[dict]:
+        """What GAGOS was refused since *since*, oldest first (organ 46's
+        evidence, 2026-11-15): each proposal's refusal and each goal mission's
+        reason, as ``source``, ``ref``, ``subject`` (the file, the goal),
+        ``text`` and ``created_at``."""
+        with self._db() as db:
+            rows = [
+                {
+                    "source": "proposal",
+                    "ref": r["proposal_id"],
+                    "subject": r["rel"],
+                    "text": r["refusal"],
+                    "created_at": r["created_at"],
+                }
+                for r in db.execute(
+                    "SELECT proposal_id, rel, refusal, created_at FROM proposals "
+                    "WHERE refusal IS NOT NULL AND created_at >= ?",
+                    (since,),
+                )
+            ]
+            rows += [
+                {
+                    "source": "goal_mission",
+                    "ref": str(r["id"]),
+                    "subject": r["task_id"],
+                    "text": r["reason"],
+                    "created_at": r["created_at"],
+                }
+                for r in db.execute(
+                    "SELECT id, task_id, reason, created_at FROM goal_missions "
+                    "WHERE reason IS NOT NULL AND created_at >= ?",
+                    (since,),
+                )
+            ]
+        return sorted(rows, key=lambda r: r["created_at"])
+
     def intakes(self) -> dict[str, dict]:
         """Every goal's intake, by task id."""
         with self._db() as db:
