@@ -559,5 +559,26 @@ def test_a_refused_draft_is_said_and_changes_nothing(capsys):
     assert capsys.readouterr().out == ""
 
 
+def test_a_mission_a_skill_guided_drafts_no_second_skill_of_its_kind(capsys):
+    def draft(*args, **kwargs):
+        raise AssertionError("a guided mission drafts nothing")
+
+    work = SimpleNamespace(
+        model="claude-sonnet-5-5",
+        guided=[{"skill_id": "gagos-1", "version": 1, "line": "x"}],
+        accepted_change=lambda: "c",
+    )
+    tool.mission_skill(
+        work,
+        {"mission_id": "mission-2"},
+        SimpleNamespace(trajectory_id="trajectory-2"),
+        "head",
+        draft=draft,
+    )
+    assert "learning: no new skill -- the mission was guided by gagos-1@1" in (
+        capsys.readouterr().out
+    )
+
+
 def test_the_operational_store_is_where_candidates_are_kept(store):
     assert config.OPERATIONAL_STATE_DB_PATH == store

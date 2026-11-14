@@ -28,12 +28,13 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - **The clerk's role:** the local clerk is asked organ 37's `select_skill` question. It can veto, never grant.
   - **Where an admitted skill's procedure goes:** into the council's trail, and through the mission's metadata to the writers.
   - **Outcome:** how the mission went raises or lowers the skill's confidence (`record_skill_outcome`, organ 43's lifecycle). A mission that ended before its writers wrote teaches the skill nothing.
+  - **No duplicates:** a mission a skill guided drafts no second skill of its kind.
 - **Not working yet, and why.**
   - **No clerk model may take `select_skill`.** Only triage, summarise_disagreement and prepare_briefing are granted on his machine, so every in-scope skill is vetoed, and the hour says why. Qualifying a model for the job and granting it is the operator's act.
   - **No mission skill exists yet.** The first needs a completed mission, which needs a new envelope.
 - **The learning service's docstring** (organs 26 and 43) now says what reaches it: `/api/v1/skills/*`, and GAGOS's missions from its hour.
 - **Mutation catalogue:** 4 generated entries re-anchored (the conditions of `relevant_verified` and `active_procedures` gained `or is_mission_skill(record)`). Same mutations, same tests.
-- **Tests:** 19 new (`tests/test_gagos_mission_skills.py`).
+- **Tests:** 20 new (`tests/test_gagos_mission_skills.py`).
   - Draft: the strict read, the injection refusal and the scope.
   - A real mission's candidate, with its authority from the records.
   - The principal refusal.
@@ -41,7 +42,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - Guidance: scope, confidence, the clerk's veto, another principal's skill, the clerk's qualified question and a clerk that cannot answer.
   - Confidence moving with outcomes.
   - The council's trail and contract, and unreadable skills never blocking a goal.
-  - The writers' notes, the hour's outcome and draft lines, and a refused draft.
+  - The writers' notes, the hour's outcome and draft lines, a refused draft, and no second skill from a guided mission.
 
 ## 2026-11-15, GAGOS proposes governance lessons to organ 46 (branch `feat/governance-lessons`)
 
