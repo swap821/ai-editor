@@ -21,13 +21,13 @@ export default function MemoryParticles({
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const diskMaterialRef = useRef<THREE.ShaderMaterial & {
-    uFlowTime?: number;
-    uActivity?: number;
-    uBurst?: number;
-    uPulse?: number;
-    uArrival?: number;
-    uPostureColor?: CognitionUniforms['uPosture']['value'];
-    uPostureTint?: CognitionUniforms['uPostureTint']['value'];
+    uFlowTime: number;
+    uActivity: number;
+    uBurst: number;
+    uPulse: number;
+    uArrival: number;
+    uPostureColor: CognitionUniforms['uPosture']['value'];
+    uPostureTint: CognitionUniforms['uPostureTint']['value'];
   }>(null);
   const flowTimeRef = useRef(0);
   const smoothedActivityRef = useRef(THREE.MathUtils.clamp(activity, 0, 1));
