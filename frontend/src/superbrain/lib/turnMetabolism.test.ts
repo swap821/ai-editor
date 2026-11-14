@@ -47,5 +47,9 @@ describe('turnMetabolism', () => {
     expect(approval.phase).toBe('approval');
     expect(approval.held).toBe(true);
     expect(approval.breathGain).toBeLessThan(0);
+
+    for (const phase of ['thinking', 'working', 'error', 'settling', 'active']) {
+      expect(deriveTurnMetabolismSnapshot(phase).held).toBe(false);
+    }
   });
 });
