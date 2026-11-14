@@ -42,6 +42,6 @@ extend({ PulseMaterial });
 
 declare module '@react-three/fiber' {
   interface ThreeElements {
-    pulseMaterial: any;
+    pulseMaterial: import('@react-three/fiber').ThreeElement<typeof PulseMaterial>;
   }
 }
