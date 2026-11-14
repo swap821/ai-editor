@@ -109,6 +109,6 @@ extend({ DecayAuraMaterial });
 
 declare module '@react-three/fiber' {
   interface ThreeElements {
-    decayAuraMaterial: Record<string, unknown>;
+    decayAuraMaterial: import('@react-three/fiber').ThreeElement<typeof DecayAuraMaterial>;
   }
 }

@@ -102,6 +102,6 @@ extend({ RoutingMaterial });
 
 declare module '@react-three/fiber' {
   interface ThreeElements {
-    routingMaterial: Record<string, unknown>;
+    routingMaterial: import('@react-three/fiber').ThreeElement<typeof RoutingMaterial>;
   }
 }
