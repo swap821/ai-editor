@@ -381,3 +381,72 @@ def test_an_inline_off_lint_that_reports_nothing_is_unavailable(tmp_path) -> Non
     assert check_texts(tmp_path, {REL: "x"}, run=run)[REL].inline_off is None
     with pytest.raises(StaticCheckUnavailable, match="inline-off"):
         check_texts(tmp_path, {REL: "x"}, run=run, inline_off=True)
+
+
+# -- a directive ESLint reports unused may go (2026-11-14) ---------------------------
+
+STALE = (
+    "export function f(a) {\n  // eslint-disable-next-line no-console\n  return a;\n}\n"
+)
+USED = (
+    "export function g(b) {\n"
+    "  // eslint-disable-next-line no-unused-vars\n"
+    "  const spare = b;\n"
+    "  return 1;\n"
+    "}\n"
+)
+
+
+def _unused(line: int):
+    from aios.maintenance.frontend_static import LintMessage
+
+    return LintMessage(
+        rule=None,
+        severity=1,
+        line=line,
+        column=3,
+        message="Unused eslint-disable directive (no problems were reported from "
+        "'no-console').",
+    )
+
+
+def _task(before: str, after: str, *before_messages) -> dw.StaticVerdict:
+    return dw.task_verdict(
+        REL,
+        before,
+        after,
+        _result(*before_messages, text=before),
+        _result(text=after),
+    )
+
+
+def test_a_directive_eslint_reports_unused_may_be_removed() -> None:
+    after = STALE.replace("  // eslint-disable-next-line no-console\n", "")
+    verdict = _task(STALE, after, _unused(2))
+    assert verdict.passed, verdict.reason
+
+
+def test_a_directive_that_silences_something_may_not_be_removed() -> None:
+    after = USED.replace("  // eslint-disable-next-line no-unused-vars\n", "")
+    assert "disable comment" in _task(USED, after).reason
+
+
+def test_an_unused_report_elsewhere_lets_no_other_directive_go() -> None:
+    before = STALE + USED
+    # Only the stale directive (line 2) is unused; the used one (line 6) goes.
+    after = before.replace("  // eslint-disable-next-line no-unused-vars\n", "")
+    assert "disable comment" in _task(before, after, _unused(2)).reason
+
+
+def test_an_unused_directive_that_stays_still_cannot_be_retargeted() -> None:
+    after = STALE.replace("no-console", "no-debugger")
+    verdict = _task(STALE, after, _unused(2))
+    assert not verdict.passed and "disable comment" in verdict.reason
+
+
+def test_adding_a_directive_is_still_refused_beside_a_stale_one_removed() -> None:
+    after = STALE.replace(
+        "  // eslint-disable-next-line no-console\n  return a;\n",
+        "  return a;\n  // eslint-disable-next-line no-console\n",
+    )
+    assert not _task(STALE, after, _unused(2)).passed
