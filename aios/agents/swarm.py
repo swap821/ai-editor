@@ -666,6 +666,159 @@ def run_swarm(
     yield {"type": "done"}
 
 
+# --------------------------------------------------------------------------- #
+# The colony for a council mission (2026-11-14)
+# --------------------------------------------------------------------------- #
+#
+# The operator, 2026-11-14: "writers can be within colony as it was meant". A
+# goal over several files runs as a colony inside its council mission: a SCOUT
+# reuses a verified split from the pattern memory, or a DECOMPOSER splits the
+# goal into parts over disjoint files; one WORKER per part, the mission's own
+# writer, writes its part side by side with the others, each admitted by the
+# Foundry; the mission's sandbox and reviewer judge the whole change, from
+# evidence only (the synthesizer's rule). Its only shared media are the
+# colony's: the goal, the files, and the trail of splits that verified.
+
+COLONY_DECOMPOSER_SYSTEM = (
+    "You are the DECOMPOSER of an ant colony of code writers. The goal and the files "
+    "it changes are below, each under its label 'File N: name'. Do not write any "
+    "code. Split the goal into a few INDEPENDENT parts that separate writers can do "
+    "side by side, each on its own files, without seeing each other's work: a file "
+    "belongs to one part at most, and a change that two files must agree on stays "
+    "in one part. Answer only with a numbered list, one part per line, as "
+    "'1. files 1,3: <what to change in those files>'. Describe each change in "
+    "words; never copy a placeholder (GAGOSMASK...). One part is a fine answer "
+    "when the goal cannot be split."
+)
+
+_COLONY_PART = re.compile(
+    r"^\s*(?:\d+[.)]|[-*])\s*files?\s+([\d\s,]+?)\s*[:\-–—]\s*(\S.*?)\s*$",
+    re.IGNORECASE,
+)
+
+
+@dataclass(frozen=True)
+class ColonyPart:
+    """One worker's part of a colony mission: its files (repository paths,
+    disjoint from every other part's) and what to change in them."""
+
+    files: tuple[str, ...]
+    work: str
+
+    def subtask(self) -> str:
+        """How the trail remembers this part."""
+        return f"{', '.join(self.files)}: {self.work}"
+
+
+@dataclass
+class ColonyRun:
+    """What one colony did: its parts, how they were found (``reused`` a
+    verified split, ``fresh`` from the decomposer, or ``single`` when there was
+    nothing to split), and each worker's result, in the parts' order."""
+
+    parts: list[ColonyPart]
+    scout: str
+    results: list[Any] = field(default_factory=list)
+    pattern_id: Optional[int] = None
+
+
+ColonyAdmission = Callable[[str, Callable[[], Any]], Any]
+
+
+def parse_colony_parts(
+    answer: str, files: list[str], *, limit: int
+) -> list[ColonyPart]:
+    """The decomposer's parts, by the files' numbers (from 1): ``[]`` when the
+    answer is not a valid split -- a number out of range, a file in two parts,
+    no parts, or more than *limit* -- so the colony works the goal as one part
+    rather than fan out on noise."""
+    parts: list[ColonyPart] = []
+    taken: set[int] = set()
+    for line in answer.splitlines():
+        match = _COLONY_PART.match(line)
+        if not match:
+            continue
+        numbers = [int(n) for n in re.findall(r"\d+", match.group(1))]
+        if not numbers or any(n < 1 or n > len(files) for n in numbers):
+            return []
+        mine = sorted(set(numbers))
+        if taken & set(mine):
+            return []
+        taken |= set(mine)
+        parts.append(ColonyPart(tuple(files[n - 1] for n in mine), match.group(2)))
+    if not parts or len(parts) > max(1, limit):
+        return []
+    return parts
+
+
+def _parts_from_trail(subtasks: list[str], files: list[str]) -> list[ColonyPart]:
+    """A remembered split as this goal's parts, or ``[]`` when it names a file
+    this goal does not change or names one twice."""
+    parts: list[ColonyPart] = []
+    seen: set[str] = set()
+    for subtask in subtasks:
+        named, sep, work = subtask.partition(": ")
+        own = tuple(f.strip() for f in named.split(",") if f.strip())
+        if not sep or not own or not work.strip():
+            return []
+        if any(f not in files or f in seen for f in own):
+            return []
+        seen.update(own)
+        parts.append(ColonyPart(own, work.strip()))
+    return parts
+
+
+def run_writer_colony(
+    goal: str,
+    files: list[str],
+    *,
+    decompose: Callable[[], str],
+    write_part: Callable[[ColonyPart], Any],
+    admit: ColonyAdmission,
+    pattern_memory: Optional[SwarmPatternMemory] = None,
+    concurrency: int = config.SWARM_CLOUD_CONCURRENCY,
+) -> ColonyRun:
+    """Plan a goal over *files* as a colony and have its workers write it.
+
+    The scout recalls verified splits of like goals; one that names only this
+    goal's files is reused as it is. Otherwise the decomposer (admitted as a
+    leg) splits the goal; an answer that is not a valid split leaves one part
+    over every file. Each part is then *write_part*'s, run as an admitted
+    worker leg, at most *concurrency* at once. A worker's exception is raised
+    once every leg has finished, so none is left running unseen."""
+    limit = max(1, min(len(files), config.SWARM_MAX_WORKERS))
+    run: Optional[ColonyRun] = None
+    if pattern_memory is not None and len(files) > 1:
+        for pattern in pattern_memory.recall(goal, limit=3):
+            reused = _parts_from_trail(list(pattern.get("subtasks") or []), files)
+            if 1 < len(reused) <= limit:
+                pattern_memory.bump_use(int(pattern["pattern_id"]))
+                run = ColonyRun(reused, "reused", pattern_id=int(pattern["pattern_id"]))
+                break
+    if run is None and len(files) > 1:
+        parts = parse_colony_parts(admit("decomposer", decompose), files, limit=limit)
+        if len(parts) > 1:
+            run = ColonyRun(parts, "fresh")
+    if run is None:
+        run = ColonyRun([ColonyPart(tuple(files), goal)], "single")
+    width = max(1, min(int(concurrency), len(run.parts)))
+    with ThreadPoolExecutor(max_workers=width, thread_name_prefix="colony") as pool:
+        futures = [
+            pool.submit(admit, "worker", lambda p=part: write_part(p))
+            for part in run.parts
+        ]
+    failure: Optional[BaseException] = None
+    for future in futures:
+        try:
+            run.results.append(future.result())
+        except BaseException as exc:  # noqa: BLE001 - re-raised below, after every leg
+            run.results.append(None)
+            failure = failure or exc
+    if failure is not None:
+        raise failure
+    return run
+
+
 def _also_stopped(grouped: list[list[_LegResult]], first: _LegResult) -> str:
     """What the legs that ran beside *first* still wait for, said plainly."""
     waiting, others = [], 0
