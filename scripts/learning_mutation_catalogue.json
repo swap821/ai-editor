@@ -3547,8 +3547,8 @@
   {
    "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:738:always",
    "file": "aios/application/memory/institutional_skills.py",
-   "old": "        ranked = []\n        for record in self.repository.list_skills():\n            if record.state != ACTIVE:\n",
-   "new": "        ranked = []\n        for record in self.repository.list_skills():\n            if (True):\n",
+   "old": "        ranked = []\n        for record in self.repository.list_skills():\n            # A mission skill guides GAGOS's missions, never a chat turn.\n            if record.state != ACTIVE or is_mission_skill(record):\n",
+   "new": "        ranked = []\n        for record in self.repository.list_skills():\n            # A mission skill guides GAGOS's missions, never a chat turn.\n            if (True):\n",
    "tests": [
     "tests/test_phase4c2_skills_per_principal.py",
     "tests/test_phase2_institutional_skill_adapter.py",
@@ -3560,13 +3560,13 @@
     "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
-   "note": "generated: InstitutionalSkillAdapter.relevant_verified line 738 condition forced True: record.state != ACTIVE"
+   "note": "generated: InstitutionalSkillAdapter.relevant_verified line 738 condition forced True: record.state != ACTIVE or is_mission_skill(record) (re-anchored 2026-11-15: the condition also leaves out mission skills)"
   },
   {
    "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:738:never",
    "file": "aios/application/memory/institutional_skills.py",
-   "old": "        ranked = []\n        for record in self.repository.list_skills():\n            if record.state != ACTIVE:\n",
-   "new": "        ranked = []\n        for record in self.repository.list_skills():\n            if (False):\n",
+   "old": "        ranked = []\n        for record in self.repository.list_skills():\n            # A mission skill guides GAGOS's missions, never a chat turn.\n            if record.state != ACTIVE or is_mission_skill(record):\n",
+   "new": "        ranked = []\n        for record in self.repository.list_skills():\n            # A mission skill guides GAGOS's missions, never a chat turn.\n            if (False):\n",
    "tests": [
     "tests/test_phase4c2_skills_per_principal.py",
     "tests/test_phase2_institutional_skill_adapter.py",
@@ -3578,7 +3578,7 @@
     "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
-   "note": "generated: InstitutionalSkillAdapter.relevant_verified line 738 condition forced False: record.state != ACTIVE"
+   "note": "generated: InstitutionalSkillAdapter.relevant_verified line 738 condition forced False: record.state != ACTIVE or is_mission_skill(record) (re-anchored 2026-11-15: the condition also leaves out mission skills)"
   },
   {
    "id": "gen:institutional_skills:InstitutionalSkillAdapter.relevant_verified:746:always",
@@ -3619,8 +3619,8 @@
   {
    "id": "gen:institutional_skills:InstitutionalSkillAdapter.active_procedures:768:always",
    "file": "aios/application/memory/institutional_skills.py",
-   "old": "        activated: dict[int, dict[str, Any]] = {}\n        for record in self.repository.list_skills():\n            if record.state != ACTIVE:\n",
-   "new": "        activated: dict[int, dict[str, Any]] = {}\n        for record in self.repository.list_skills():\n            if (True):\n",
+   "old": "        activated: dict[int, dict[str, Any]] = {}\n        for record in self.repository.list_skills():\n            # A mission skill is prose for a writer: never a reflex.\n            if record.state != ACTIVE or is_mission_skill(record):\n",
+   "new": "        activated: dict[int, dict[str, Any]] = {}\n        for record in self.repository.list_skills():\n            # A mission skill is prose for a writer: never a reflex.\n            if (True):\n",
    "tests": [
     "tests/test_phase4c2_skills_per_principal.py",
     "tests/test_phase2_institutional_skill_adapter.py",
@@ -3632,13 +3632,13 @@
     "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
-   "note": "generated: InstitutionalSkillAdapter.active_procedures line 768 condition forced True: record.state != ACTIVE"
+   "note": "generated: InstitutionalSkillAdapter.active_procedures line 768 condition forced True: record.state != ACTIVE or is_mission_skill(record) (re-anchored 2026-11-15: the condition also leaves out mission skills)"
   },
   {
    "id": "gen:institutional_skills:InstitutionalSkillAdapter.active_procedures:768:never",
    "file": "aios/application/memory/institutional_skills.py",
-   "old": "        activated: dict[int, dict[str, Any]] = {}\n        for record in self.repository.list_skills():\n            if record.state != ACTIVE:\n",
-   "new": "        activated: dict[int, dict[str, Any]] = {}\n        for record in self.repository.list_skills():\n            if (False):\n",
+   "old": "        activated: dict[int, dict[str, Any]] = {}\n        for record in self.repository.list_skills():\n            # A mission skill is prose for a writer: never a reflex.\n            if record.state != ACTIVE or is_mission_skill(record):\n",
+   "new": "        activated: dict[int, dict[str, Any]] = {}\n        for record in self.repository.list_skills():\n            # A mission skill is prose for a writer: never a reflex.\n            if (False):\n",
    "tests": [
     "tests/test_phase4c2_skills_per_principal.py",
     "tests/test_phase2_institutional_skill_adapter.py",
@@ -3650,7 +3650,7 @@
     "tests/test_phase7_guard_branches.py"
    ],
    "also": [],
-   "note": "generated: InstitutionalSkillAdapter.active_procedures line 768 condition forced False: record.state != ACTIVE"
+   "note": "generated: InstitutionalSkillAdapter.active_procedures line 768 condition forced False: record.state != ACTIVE or is_mission_skill(record) (re-anchored 2026-11-15: the condition also leaves out mission skills)"
   },
   {
    "id": "gen:institutional_skills:InstitutionalSkillAdapter.record_reuse:700:always",
