@@ -1,9 +1,36 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-14 ("2026-11-14, GAGOS's missions are kept by the verification and promotion organs" below;
+**Last updated:** 2026-11-14 ("2026-11-14, a completed mission becomes a trajectory" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-14, a completed mission becomes a trajectory (branch `feat/mission-trajectories`)
+
+- **Why.** The operator: "Plz I want them honestly working as per my vision". The README's last steps of a mission never ran for GAGOS's missions: the trajectory is captured, a candidate skill is drafted, the operator activates it, and the clerk reuses it. Two splits stood in the way:
+  - **Separate mission stores:** the learning service read missions from the operator's API store (`aios_missions.db`), while the council's missions live in `council_runtime/missions.db`.
+  - **Nothing durable:** until #677 the missions' verification and promotion were kept in memory only, so nothing authoritative remained to learn from.
+- **What changed (step 1 of 3, the capture).** After a mission the council completed, the hour captures its trajectory through the learning service (`aios/operations/mission_learning.py`; `tools/gagos_daily.py` `mission_trajectory`). The trajectory carries:
+  - the council's own mission record;
+  - its durable verification results and terminal promotion;
+  - the plan rebuilt from those results (each target and test command, at the strength the council required);
+  - as observations: each writer's file, the colony's split if any, and the sandbox;
+  - his envelope as the human intervention.
+
+  No model is asked. The learning service keeps every one of its refusals: a mission that is not completed, not promoted, or whose evidence is not authoritative, current and strong enough is refused. The hour says so and nothing changes.
+- **Tested** on a real council mission in the suite:
+  - captured, then held in `expert_trajectories`;
+  - a rejected mission refused;
+  - a mission that never ran refused;
+  - the whole hour capturing the trajectory of the mission it completed;
+  - a refusal said, not raised.
+
+  The documented-reachability, mission, colony, consistency, gateway-enforcement and architecture tests pass.
+- **Not yet, said plainly.**
+  - Steps 2 and 3 are not built: drafting a candidate skill from a trajectory (a model writes it; the operator activates it), and reusing an activated one.
+  - The learning service's own docstring still says it is reached "only from `/api/v1/skills/*`". The hour's capture now reaches it too, outside the turn path, and a chat turn still never does. `service.py` is the entrypoint of organs 26 and 43, so correcting it, with their evidence re-gathered, is its own step.
+  - The aliveness pulse cannot date a trajectory yet: `expert_trajectories` has no time column.
+  - The first live capture waits for the next mission, which needs a new envelope from the operator: today's slots are spent.
 
 ## 2026-11-14, GAGOS's missions are kept by the verification and promotion organs (branch `fix/mission-evidence-durable`)
 

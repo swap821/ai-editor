@@ -59,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import functools
+import hashlib
 import json
 import os
 import re
@@ -3344,6 +3345,78 @@ def runs_hour(
             f"  mission {o['mission_id']} for {tid}: {state}"
             + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
         )
+        if state == "completed":
+            mission_trajectory(work, o, head)
+
+
+def mission_trajectory(work, origination: dict, head: str, *, capture=None) -> None:
+    """A mission the council completed becomes the learning service's
+    trajectory (2026-11-14; :mod:`aios.operations.mission_learning`): its
+    writing, its sandbox and its review as the observations, its evidence
+    from the organs' durable stores. A refusal is said and changes nothing:
+    the learning is the mission's afterlife, never its outcome."""
+    from aios.domain.learning.contracts import ToolObservation
+
+    def digest(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    rows = work._rows()
+    observations = [
+        ToolObservation(
+            observation_id=f"{r['proposal_id']}:written",
+            tool="writer",
+            result_digest=digest(r.get("new_text") or ""),
+            status="completed" if r.get("new_text") else "failed",
+        )
+        for r in rows
+    ]
+    colony = getattr(work, "colony", None)
+    if colony is not None and colony.scout != "single":
+        observations.append(
+            ToolObservation(
+                observation_id=f"{origination['mission_id']}:split",
+                tool="colony",
+                result_digest=digest(json.dumps([p.subtask() for p in colony.parts])),
+                status="completed",
+            )
+        )
+    if rows and rows[0].get("sandbox"):
+        observations.append(
+            ToolObservation(
+                observation_id=f"{rows[0]['proposal_id']}:sandbox",
+                tool="sandbox",
+                result_digest=digest(rows[0]["sandbox"]),
+                status="completed"
+                if SandboxVerdict.from_json(rows[0]["sandbox"]).outcome == PASSED
+                else "failed",
+            )
+        )
+    edits = {r["rel"]: r.get("new_text") or "" for r in rows}
+    envelope = origination.get("envelope_id")
+    try:
+        record = (capture or _capture_trajectory)(
+            origination["mission_id"],
+            runtime_root=config.COUNCIL_RUNTIME_DIR,
+            observations=observations,
+            expert_provider="plan" if work.model in PLAN_WRITERS else "bedrock",
+            expert_model=work.model,
+            project_digest=head,
+            context_digest=digest(
+                json.dumps([str(work.task["text"]), list(work.task["files"])])
+            ),
+            proposal_digest=digest(json.dumps(edits, sort_keys=True)),
+            human_intervention_ids=(f"envelope:{envelope}",) if envelope else (),
+        )
+    except Exception as exc:  # said, never hidden; the mission stands as it is
+        print(f"    learning: no trajectory -- {type(exc).__name__}: {exc}"[:400])
+        return
+    print(f"    learning: trajectory {record.trajectory_id} captured")
+
+
+def _capture_trajectory(*args, **kwargs):
+    from aios.operations.mission_learning import capture_mission_trajectory
+
+    return capture_mission_trajectory(*args, **kwargs)
 
 
 def colony_trail(
