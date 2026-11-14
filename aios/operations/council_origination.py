@@ -145,11 +145,21 @@ def originate_goal(
     # copy its run stages, and promotes into, holds exactly its files.
     mission_root = Path(workspace_root) / mission_id
     mission_root.mkdir(parents=True, exist_ok=False)
+    # What GAGOS remembers having done to these files (organ 18, 2026-11-14),
+    # as the council's trail: the Memory queen weighs it as context. Advisory;
+    # memory never blocks a goal.
+    try:
+        from aios.operations.mission_learning import mission_memory_hints
+
+        remembered = mission_memory_hints(files, runtime_root=runtime_root)
+    except Exception:  # noqa: BLE001 - a memory that cannot be read is no memory
+        remembered = []
     request = CouncilMissionRequest(
         mission_id=mission_id,
         goal=goal,
         workspace_root=str(mission_root),
         allowed_files=files,
+        pheromone_context=remembered,
         allowed_tools=["read_file", "write_file"],
         created_by=GAGOS_ORIGINATOR,
         operator_id=signer.operator_id,

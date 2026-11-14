@@ -961,3 +961,51 @@ def test_reflection_recall_routes_pending_and_relevant_lessons_through_authority
         "pending_lessons_for_task",
         "recall_lessons",
     ]
+
+
+def test_a_type_no_specialist_owns_is_recalled_from_the_authoritys_own_records(
+    tmp_path: Path,
+) -> None:
+    """2026-11-14: such a recall fell through to the semantic store, which
+    always exists in production, so a promoted record could never be read."""
+
+    class Semantic:
+        memory_types = ("semantic",)
+        calls = 0
+
+        def recall(self, query, context):
+            Semantic.calls += 1
+            return ()
+
+        def rebuild_derived_indexes(self) -> None:
+            return None
+
+    authority = MemoryAuthority(
+        store=MemoryAuthorityStore(tmp_path / "memory.db"),
+        adapters={"semantic": Semantic()},
+    )
+    proposal = _proposal()
+    authority.propose(proposal)
+    record = authority.promote(
+        proposal,
+        MemoryPromotionActor(
+            actor_id="operator-1",
+            actor_type="operator",
+            authentication_event_id="auth-1",
+            operator_approval=True,
+        ),
+        evidence=(_evidence(),),
+    )
+    hits = authority.recall(
+        "ignored",
+        MemoryRecallContext(project_id="project-1", memory_types=("skill-not-owned",)),
+    )
+    assert hits == (), "only the types asked for"
+    hits = authority.recall(
+        "ignored", MemoryRecallContext(project_id="project-1", memory_types=("skill",))
+    )
+    assert [h.record_id for h in hits] == [record.record_id]
+    assert Semantic.calls == 0
+    # A type the semantic specialist owns still goes to it.
+    authority.recall("ignored", MemoryRecallContext(memory_types=("semantic",)))
+    assert Semantic.calls == 1

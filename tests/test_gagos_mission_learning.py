@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from types import SimpleNamespace
 
 import pytest
 
@@ -143,3 +144,158 @@ def test_a_refused_capture_is_said_and_changes_nothing(capsys) -> None:
     assert "learning: no trajectory -- ValueError: verification evidence is stale" in (
         capsys.readouterr().out
     )
+
+
+# -- remembered (organ 18) --------------------------------------------------------------
+
+from aios.application.memory.authority import MemoryAuthority  # noqa: E402
+from aios.infrastructure.memory import MemoryAuthorityStore  # noqa: E402
+from aios.operations.mission_learning import (  # noqa: E402
+    mission_memory_hints,
+    remember_mission,
+)
+
+
+class _Semantic:
+    """Production always registers a semantic store; with it, a recall of a
+    type it does not own must still reach the authority's own records."""
+
+    memory_types = ("semantic",)
+
+    def recall(self, query, context):
+        return ()
+
+    def rebuild_derived_indexes(self) -> None:
+        return None
+
+
+@pytest.fixture()
+def memory(tmp_path):
+    return MemoryAuthority(
+        store=MemoryAuthorityStore(tmp_path / "memory.db"),
+        adapters={"semantic": _Semantic()},
+    )
+
+
+def test_a_completed_mission_is_remembered_and_recalled_for_its_files(
+    world, store, memory
+) -> None:
+    out, record, _seen = run_tests._run(world)
+    assert out["state"] == "completed", out
+    _envelope, runtime, _mission, _repo = world
+    mission_id = record.contract.mission_id
+    remembered = remember_mission(mission_id, runtime_root=runtime, authority=memory)
+    assert remembered.provenance.source_mission_id == mission_id
+    (hint,) = mission_memory_hints(
+        [run_tests.TEST], runtime_root=runtime, authority=memory
+    )
+    assert run_tests.TEST in hint and mission_id in hint
+    assert (
+        mission_memory_hints(
+            ["frontend/src/elsewhere.ts"], runtime_root=runtime, authority=memory
+        )
+        == []
+    ), "only goals over the same files are reminded"
+
+
+def test_a_mission_the_reviewer_rejected_is_not_remembered(
+    world, store, memory
+) -> None:
+    out, record, _seen = run_tests._run(
+        world, review=lambda edits, verdict: (False, "not what he asked")
+    )
+    _envelope, runtime, _mission, _repo = world
+    with pytest.raises(ValueError, match="only a completed mission"):
+        remember_mission(
+            record.contract.mission_id, runtime_root=runtime, authority=memory
+        )
+
+
+def test_the_hour_remembers_a_mission_it_completed(
+    world, led, workshop, store, monkeypatch, capsys
+) -> None:
+    envelope, runtime, mission_id, (root, base) = world
+    tid = hour_tests._originated(led, mission_id=mission_id)
+    monkeypatch.setattr(tool, "_git", lambda r, *a: base)
+    monkeypatch.setattr(tool.config, "COUNCIL_RUNTIME_DIR", runtime)
+    monkeypatch.setattr(
+        tool,
+        "MissionWork",
+        lambda led_, root_, head, task, region: hour_tests._work(
+            led_, task["task_id"], root_
+        ),
+    )
+    remembered: list = []
+
+    def remember(mid, *, runtime_root):
+        remembered.append(mid)
+        return SimpleNamespace(record_id="memory-1")
+
+    monkeypatch.setattr(tool, "_remember_mission", remember)
+    tool.runs_hour(led, root, region="r", envelope=envelope)
+    assert led.originations()[tid]["state"] == "completed"
+    assert remembered == [mission_id]
+    assert "memory: mission remembered (memory-1)" in capsys.readouterr().out
+
+
+def test_a_later_goal_on_the_same_files_carries_the_memory_into_the_council(
+    world, tmp_path, monkeypatch
+) -> None:
+    """The consumer: originate_goal hands what GAGOS remembers to the council
+    as its trail, and the deliberated contract carries it."""
+    from aios.operations import council_origination as co
+    from aios.operations import mission_learning
+    from aios.runtime.run_ledger import RunLedgerStore
+    from tests.test_gagos_council_origination import _briefed, _envelope, _task
+
+    asked: list = []
+
+    def hints(files, *, runtime_root):
+        asked.append(list(files))
+        return ["GAGOS already completed a mission on a.ts: an earlier goal"]
+
+    monkeypatch.setattr(mission_learning, "mission_memory_hints", hints)
+    runtime = tmp_path / "later-runtime"
+    runtime.mkdir()
+    workspace = tmp_path / "later-workspace"
+    workspace.mkdir()
+    out = co.originate_goal(
+        _task(),
+        _briefed(),
+        envelope=_envelope(tmp_path / "later"),
+        workspace_root=co.gagos_workspace(workspace),
+        runtime_root=runtime,
+        detect_injection=lambda text: None,
+    )
+    assert out["state"] == "awaiting_approval", out
+    assert asked == [[run_tests.TEST]]
+    contract = RunLedgerStore(runtime).read(out["mission_id"]).contract
+    assert "GAGOS already completed a mission on a.ts: an earlier goal" in (
+        contract.pheromone_context
+    )
+
+
+def test_a_memory_that_cannot_be_read_never_blocks_a_goal(
+    world, tmp_path, monkeypatch
+) -> None:
+    from aios.operations import council_origination as co
+    from aios.operations import mission_learning
+    from tests.test_gagos_council_origination import _briefed, _envelope, _task
+
+    def broken(files, *, runtime_root):
+        raise RuntimeError("the memory store is locked")
+
+    monkeypatch.setattr(mission_learning, "mission_memory_hints", broken)
+    runtime = tmp_path / "broken-runtime"
+    runtime.mkdir()
+    workspace = tmp_path / "broken-workspace"
+    workspace.mkdir()
+    out = co.originate_goal(
+        _task(),
+        _briefed(),
+        envelope=_envelope(tmp_path / "broken"),
+        workspace_root=co.gagos_workspace(workspace),
+        runtime_root=runtime,
+        detect_injection=lambda text: None,
+    )
+    assert out["state"] == "awaiting_approval", out

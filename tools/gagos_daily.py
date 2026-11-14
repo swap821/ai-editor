@@ -3347,6 +3347,29 @@ def runs_hour(
         )
         if state == "completed":
             mission_trajectory(work, o, head)
+            mission_memory(o)
+
+
+def mission_memory(origination: dict, *, remember=None) -> None:
+    """A mission the council completed is remembered through the Memory
+    Authority (organ 18, 2026-11-14;
+    :func:`aios.operations.mission_learning.remember_mission`), so the
+    council recalls it when a later goal touches the same files. A refusal is
+    said and changes nothing: the memory is the mission's afterlife."""
+    try:
+        record = (remember or _remember_mission)(
+            origination["mission_id"], runtime_root=config.COUNCIL_RUNTIME_DIR
+        )
+    except Exception as exc:  # said, never hidden; the mission stands as it is
+        print(f"    memory: not remembered -- {type(exc).__name__}: {exc}"[:400])
+        return
+    print(f"    memory: mission remembered ({record.record_id})")
+
+
+def _remember_mission(*args, **kwargs):
+    from aios.operations.mission_learning import remember_mission
+
+    return remember_mission(*args, **kwargs)
 
 
 def mission_trajectory(work, origination: dict, head: str, *, capture=None) -> None:
