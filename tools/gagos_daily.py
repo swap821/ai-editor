@@ -3417,6 +3417,11 @@ def mission_skill(
     nothing."""
     if trajectory is None:
         return
+    if getattr(work, "guided", None):
+        # Its kind already has a skill, which this mission's outcome credited.
+        names = ", ".join(f"{g['skill_id']}@{g['version']}" for g in work.guided)
+        print(f"    learning: no new skill -- the mission was guided by {names}")
+        return
     mission = SimpleNamespace(mission_id=origination["mission_id"])
     try:
         record = (draft or _draft_mission_skill)(
