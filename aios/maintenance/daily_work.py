@@ -1778,6 +1778,16 @@ CREATE TABLE IF NOT EXISTS council_goals (
     task_id TEXT PRIMARY KEY,
     held_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS colony_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    mission_id TEXT NOT NULL,
+    scout TEXT NOT NULL,
+    parts TEXT NOT NULL,
+    pattern_id INTEGER,
+    outcome TEXT NOT NULL,
+    created_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS playbook (
     entry_id TEXT PRIMARY KEY,
     rule TEXT NOT NULL,
@@ -2897,6 +2907,44 @@ class DailyLedger:
             for r in db.execute("SELECT * FROM goal_missions ORDER BY id"):
                 out[r["task_id"]] = dict(r)
             return out
+
+    def record_colony(
+        self,
+        task_id: str,
+        mission_id: str,
+        *,
+        scout: str,
+        parts: Sequence[Sequence[str]],
+        pattern_id: int | None,
+        outcome: str,
+    ) -> None:
+        """One colony that worked a council mission (2026-11-14): how its parts
+        were found (``reused``, ``fresh`` or ``single``), each part's files, the
+        verified split it reused if any, and the mission's outcome."""
+        with self._db() as db:
+            db.execute(
+                "INSERT INTO colony_runs (task_id, mission_id, scout, parts, "
+                "pattern_id, outcome, created_at) VALUES (?,?,?,?,?,?,?)",
+                (
+                    task_id,
+                    mission_id,
+                    scout,
+                    json.dumps([list(p) for p in parts]),
+                    pattern_id,
+                    outcome,
+                    _now(),
+                ),
+            )
+
+    def colony_runs(self) -> list[dict]:
+        """Every colony run, oldest first, its parts decoded."""
+        with self._db() as db:
+            rows = [
+                dict(r) for r in db.execute("SELECT * FROM colony_runs ORDER BY id")
+            ]
+        for r in rows:
+            r["parts"] = json.loads(r["parts"])
+        return rows
 
     def intakes(self) -> dict[str, dict]:
         """Every goal's intake, by task id."""
