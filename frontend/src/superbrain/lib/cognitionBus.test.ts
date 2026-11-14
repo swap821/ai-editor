@@ -45,12 +45,16 @@ describe('cognitionBus', () => {
 
   it('stops notifying a listener after its unsubscribe function is called', () => {
     const listener = vi.fn();
+    const stillListening = vi.fn();
     const unsubscribe = subscribeCognition(listener);
     unsubscribes.push(unsubscribe);
+    unsubscribes.push(subscribeCognition(stillListening));
 
     unsubscribe();
     publishCognition({ type: 'burst' });
 
     expect(listener).not.toHaveBeenCalled();
+    expect(stillListening).toHaveBeenCalledTimes(1);
+    expect(stillListening).toHaveBeenCalledWith({ type: 'burst' });
   });
 });
