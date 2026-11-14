@@ -279,7 +279,7 @@
     "components/canvas/useBackdropControlMask.test.ts": "89c5ac808a4ea42233db66162abdf2c817f780ebd4c72b370f53371caf30dfb2",
     "components/ui/ApprovalPanel.test.tsx": "a8c09b4dc215a832e29008706efae8dad1b875cdcc3e099bb3fdc18a2b3da457",
     "components/ui/BootSequence.test.tsx": "f940a90d6345adfc6d0f145fc4a647456939315e05d07e049d21a9c040bba441",
-    "lib/presenceProjection.test.ts": "c2b03991a606f9d729295a303fb0cc366a6a8c70badce05b620eeee4beebf752",
+    "lib/presenceProjection.test.ts": "0198cde50edac797c17be7606abef44754d5a2aae1a84bca35e051c99b82f441",
     "lib/rendererShaderFailure.test.ts": "4843a1f500593214f3fd1cbee703bc2722820f5b229a2a0f4896cb8c7f65bca8",
     "core/AccretionCore/MemoryParticles.test.tsx": "f08765b744f0719a7a67d05f3f36fc3e7b9761d2129a9b5e298374b1ddec8084",
     "core/Performance/EventThrottler.test.ts": "61261a3c01f26a82e696c9b8da0726aa6e2ff1af1d04663d4ff5248e3ca35fa0",

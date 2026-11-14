@@ -20,12 +20,25 @@ describe('presence projection', () => {
       stageHeight: 400,
     };
 
+    const secondFrame = {
+      width: 640,
+      height: 480,
+      x: 0,
+      y: 0,
+      stageWidth: 320,
+      stageHeight: 240,
+    };
+
     setPresenceDestination(first, frame);
     expect(getPresenceDestination(first)).toBe(frame);
     expect(getPresenceDestination(second)).toBeUndefined();
 
+    setPresenceDestination(second, secondFrame);
+    expect(getPresenceDestination(second)).toBe(secondFrame);
+
     clearPresenceDestination(first);
     expect(getPresenceDestination(first)).toBeUndefined();
+    expect(getPresenceDestination(second)).toBe(secondFrame);
   });
 
   it('returns the installed matrix when no destination is set', () => {
