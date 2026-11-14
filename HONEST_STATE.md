@@ -1,9 +1,25 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-14 ("2026-11-14, the ant colony works the council's goals over several files" below;
+**Last updated:** 2026-11-14 ("2026-11-14, GAGOS's missions are kept by the verification and promotion organs" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-14, GAGOS's missions are kept by the verification and promotion organs (branch `fix/mission-evidence-durable`)
+
+- **Found by asking whether GAGOS works as a whole system** (the operator: "can u honestly make me believe that GAGOS as a system working well using all it's infrastructure").
+  - The aliveness pulse on his data showed organs 15 (Evidence and Verification) and 16 (Promotion) silent since 2026-10-19, and 41 with them. Yet the council's missions had verified and promoted six changes that day.
+  - Both were measured right. `council_origination.execute` built the Verification and Promotion authorities for GAGOS's missions **with no database**. Every mission was verified and promoted in memory only.
+  - Their stores (`verification_results`, `promotion_records` in the operational state database) held one row each, from the 10-19 repair.
+- **Fixed.** GAGOS's missions are now kept in the same durable stores the operator's maintenance route uses (`aios.api.deps.get_verification_authority` / `get_promotion_authority`).
+  - The new test fails on the old code: no verification table is ever created.
+  - `council_origination.py` is no organ's entrypoint.
+- **Not changed:** the council orchestrator's own default (organ 21's entrypoint) is still in memory for a council run that brings no authorities of its own, as the operator's council route does. That route runs no staged worker, so it promotes nothing; fixing it is an organ change, left for its own PR.
+- **The rest of the measured picture, said to the operator the same day:**
+  - Live today: 21 parts, the mission path from the clerk to the PR.
+  - Stale over 14 days: 24, among them everything a conversation drives. There has been no real conversation since 10-30.
+  - Never ran: 10 (18, 28, 29, 30, 39, 46, 47, 49, 53, and the swarm until the colony's first run).
+  - Learning from missions (trajectory to candidate skill) is not built.
 
 ## 2026-11-14, the ant colony works the council's goals over several files (branch `feat/colony-missions`)
 

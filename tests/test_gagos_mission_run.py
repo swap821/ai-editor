@@ -135,6 +135,27 @@ def test_a_mission_runs_in_its_stage_and_is_promoted_to_gagoss_folder(world) -> 
     assert seen["base"] == BASE
 
 
+def test_a_missions_verification_and_promotion_are_kept_durably(
+    world, tmp_path, monkeypatch
+) -> None:
+    """2026-11-14: they were built with no store, so organs 15, 16 and 41
+    never kept a GAGOS mission; the aliveness pulse showed them silent."""
+    import sqlite3
+
+    store = tmp_path / "operational.db"
+    monkeypatch.setattr(config, "OPERATIONAL_STATE_DB_PATH", store)
+    out, record, _seen = _run(world)
+    assert out["state"] == "completed", out
+    mission_id = record.contract.mission_id
+    with sqlite3.connect(store) as db:
+        for table in ("verification_results", "promotion_records"):
+            (n,) = db.execute(
+                f"SELECT count(*) FROM {table} WHERE mission_id = ?",  # noqa: S608
+                (mission_id,),
+            ).fetchone()
+            assert n >= 1, f"{table} keeps nothing of the mission"
+
+
 def test_a_missions_work_is_on_the_cortex_bus_for_the_portrait(world, tmp_path) -> None:
     """2026-11-13: the hour ran missions with no bus, so the face's system
     portrait never saw GAGOS's work. With the bus, the mission's worker
