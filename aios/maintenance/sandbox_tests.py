@@ -467,6 +467,19 @@ def parse_vitest(output: str) -> tuple[int, tuple[str, ...], tuple[str, ...]]:
     return passed, tuple(dict.fromkeys(failing)), tuple(dict.fromkeys(files))
 
 
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def _telling_line(text: str, code: int) -> str:
+    """The line that says why vitest wrote no report: its last ``Error`` line,
+    else its last line. 2026-11-15: the last line was a stack frame, and the
+    error above it, "ENOSPC: no space left on device", went unsaid."""
+    lines = [_ANSI.sub("", line).strip() for line in text.strip().splitlines()]
+    lines = [line for line in lines if line]
+    errors = [line for line in lines if "Error" in line]
+    return (errors or lines or [f"exit {code}"])[-1]
+
+
 def _vitest(
     runner: Runner, tree: Path, mode: str, files: Sequence[str], timeout_s: int
 ) -> VitestRun:
@@ -495,9 +508,9 @@ def _vitest(
     try:
         passed, failing, ran = parse_vitest(out)
     except ValueError as exc:
-        tail = (err or out).strip().splitlines()[-1:] or [f"exit {code}"]
         raise SandboxUnavailable(
-            f"vitest could not run (exit {code}): {exc}; {tail[0][:200]}"
+            f"vitest could not run (exit {code}): {exc}; "
+            f"{_telling_line(err or out, code)[:200]}"
         ) from exc
     if code not in (0, 1):
         raise SandboxUnavailable(f"vitest could not run (exit {code})")

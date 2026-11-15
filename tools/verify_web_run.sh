@@ -59,14 +59,24 @@ if [ "$mode" = "typecheck" ]; then
     exit $code
 fi
 
+# Transformed modules stay in memory, not in the 64 MiB /tmp (2026-11-15).
+# vitest 5 writes every transformed module to disk twice over: its
+# fsModuleCache (on by default, in node_modules/.vitest-cache) and, for the
+# forks pool, a copy per module in a temporary directory. For the 85 test files
+# related to a three.js canvas, lib and workbench change that was 54.6 MB beside
+# the 10.9 MB copy, so /tmp filled and the JSON report was written empty
+# (ENOSPC). With threads and no module cache the run peaked at the copy alone,
+# 913 tests passing as before.
 node node_modules/vitest/vitest.mjs "$mode" "$@" --config vitest.sandbox.config.mjs --run --passWithNoTests \
     --reporter=json --outputFile=/tmp/vitest.json --maxWorkers=2 \
-    --cache=false >/tmp/vitest.log 2>&1
+    --pool=threads --fsModuleCache=false --cache=false >/tmp/vitest.log 2>&1
 code=$?
 
 echo
 echo GAGOS-VITEST-JSON
-if [ -f /tmp/vitest.json ]; then
+# An empty report is no report: what vitest said goes to stderr, so the
+# sandbox can say why (an empty one hid "no space left on device").
+if [ -s /tmp/vitest.json ]; then
     cat /tmp/vitest.json
 else
     tail -n 20 /tmp/vitest.log >&2

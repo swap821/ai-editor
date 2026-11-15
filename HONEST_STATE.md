@@ -1,9 +1,32 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, the local writer goes first on a goal a skill guides" below;
+**Last updated:** 2026-11-15 ("2026-11-15, the frontend sandbox ran out of /tmp" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, the frontend sandbox ran out of /tmp, and a mission paid for it (branch `fix/web-sandbox-tmp`)
+
+- **What happened.** The first mission under the operator's new envelope (`mission-a23dcb97968a`, the colony retry of `gt-dcc94bf3c8`) ended `run_failed`.
+  - Its three writers' changes passed the static checks, and `tsc --noEmit` was clean.
+  - The sandbox said "vitest could not run (exit 1): no vitest report in the output".
+  - It was not the change's doing: master's own tree, with no change, failed the same way.
+- **Why** (measured in the sealed image, same seals).
+  - The container's `/tmp` is a 64 MiB tmpfs (`aios/core/executor.py`, not touched here).
+  - The runner copies `frontend/` there (10.9 MB).
+  - vitest 5 then writes every transformed module to disk: in its module cache (`fsModuleCache`, on by default, in `node_modules/.vitest-cache`) or, with that off, as the forks pool's per-module copies in a temporary directory. That was 54.6 MB for the 85 test files related to a three.js canvas, a lib and a workbench file.
+  - `/tmp` filled, and the JSON report was written empty (`ENOSPC`). The runner printed vitest's log only when the report was missing, not when it was empty, so the reason went unsaid.
+- **The fix.**
+  - **The runner** (`tools/verify_web_run.sh`) runs vitest with `--pool=threads --fsModuleCache=false`, so the transformed modules stay in the container's 2 GiB of memory. On master's tree the run peaked at the copy alone (10.9 MB of 64), and 913 tests in 85 files passed.
+  - **An empty report** sends vitest's log to stderr, as a missing one does.
+  - **The verdict** quotes vitest's last `Error` line, without colour codes, rather than its last line, which was a stack frame (`_telling_line`).
+- **The image.** The runner is built into the image, so this is a new `aios-verify-web` tag, built on the operator's laptop with the command the sandbox prints.
+- **Not fixed here.** A mission whose sandbox was unavailable ends `run_failed`, which spends its envelope slot and closes the goal to retries, though nothing was judged. That is the operator's decision, and it is recorded, not changed.
+- **Tests:** 2 new in `tests/test_gagos_sandbox.py`:
+  - the runner's flags and its empty-report check;
+  - a report lost for space, which says `ENOSPC` and not the stack frame.
+
+  Both fail without the fix. The file has 39 passing tests.
 
 ## 2026-11-15, the local writer goes first on a goal a skill guides (branch `feat/mission-skills-local`)
 
