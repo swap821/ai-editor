@@ -102,6 +102,7 @@ def originate_goal(
     constitution_digest: Callable[[], str | None] = lambda: None,
     bus: Any | None = None,
     guide: Callable[..., tuple[list, list]] | None = None,
+    understood: Callable[[], Any] | None = None,
 ) -> dict[str, Any]:
     """GAGOS originates the council mission for one briefed goal, inside the
     operator's envelope: ``{"state", "reason", "mission_id", ...}`` where state
@@ -113,7 +114,10 @@ def originate_goal(
     council workspace GAGOS's missions use; *bus* the cortex bus the council's
     events go to, as the operator's route's do; *guide* finds the mission
     skills that apply (``guide(goal, files, principal=) -> (guidance,
-    notes)``; by default the local clerk judges, :func:`_guide`)."""
+    notes)``; by default the local clerk judges, :func:`_guide`); *understood*
+    gives GAGOS's own passport (organ 28, by default
+    :func:`self_understanding.own_passport`), whose summary the council's
+    trail carries."""
     from aios.council import CouncilMissionRequest
     from aios.council.sandbox_spec import SANDBOX_KEY
     from aios.application.capabilities.envelope import EnvelopeRefused
@@ -157,6 +161,15 @@ def originate_goal(
         remembered = mission_memory_hints(files, runtime_root=runtime_root)
     except Exception:  # noqa: BLE001 - a memory that cannot be read is no memory
         remembered = []
+    # What GAGOS understands of itself (organ 28, 2026-11-15): its own passport,
+    # scanned by the hour from its code, as the council's trail. Advisory too.
+    try:
+        from aios.operations import self_understanding
+
+        own = (understood or self_understanding.own_passport)()
+        understanding = self_understanding.passport_hints(own)
+    except Exception:  # noqa: BLE001 - an unread passport understands nothing
+        own, understanding = None, []
     # What GAGOS learned of goals of this kind (2026-11-15): the operator's
     # active mission skills the local clerk admits for this goal, offered to
     # the council here and to the writers through the metadata. Advisory too.
@@ -171,7 +184,11 @@ def originate_goal(
         goal=goal,
         workspace_root=str(mission_root),
         allowed_files=files,
-        pheromone_context=[*remembered, *(g.line() for g in guidance)],
+        pheromone_context=[
+            *understanding,
+            *remembered,
+            *(g.line() for g in guidance),
+        ],
         allowed_tools=["read_file", "write_file"],
         created_by=GAGOS_ORIGINATOR,
         operator_id=signer.operator_id,
@@ -194,6 +211,15 @@ def originate_goal(
             },
             # Advisory too: how GAGOS did goals of this kind before.
             "skill_guidance": [{**g.ref(), "line": g.line()} for g in guidance],
+            # Which passport of itself the council planned with (organ 28).
+            "project_passport": (
+                {
+                    "digest": own.passport_digest,
+                    "verified_at_commit": own.verified_at_commit,
+                }
+                if own is not None
+                else None
+            ),
         },
     )
     skills = {

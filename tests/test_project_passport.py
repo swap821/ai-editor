@@ -250,3 +250,55 @@ def test_project_passport_store_save_and_diff_atomic_predecessor(
     assert rev2 == 2
     assert diff2["is_first_scan"] is False
     assert "verified_at_commit" in diff2["changed_fields"]
+
+
+def test_a_sub_projects_stack_and_commands_are_seen_past_the_file_budget(
+    tmp_path: Path,
+) -> None:
+    """2026-11-15: GAGOS's own scan spent its file budget inside aios/ and never
+    saw frontend/package.json: its stack had no frontend at all."""
+    from aios.memory.project_passport import RepoScanLimits
+
+    _write(tmp_path / "pyproject.toml", "[project]\ndependencies = ['fastapi']\n")
+    for n in range(30):
+        _write(tmp_path / "aios" / f"m{n:02d}.py", "x = 1\n")
+    _write(
+        tmp_path / "frontend" / "package.json",
+        json.dumps(
+            {
+                "scripts": {"dev": "vite", "build": "vite build", "test": "vitest run"},
+                "devDependencies": {"vite": "1", "vitest": "1", "typescript": "5"},
+                "dependencies": {"react": "19"},
+            }
+        ),
+    )
+    _write(tmp_path / "frontend" / "package-lock.json", "{}")
+
+    passport = harvest_project_passport(tmp_path, limits=RepoScanLimits(max_files=10))
+
+    for kind in ("Python", "FastAPI", "Node", "React", "Vite", "Vitest", "TypeScript"):
+        assert kind in passport.stack, kind
+    assert "npm --prefix frontend test" in passport.test_commands
+    assert "npm --prefix frontend run build" in passport.build_commands
+    assert "npm --prefix frontend ci" in passport.install_commands
+    assert "frontend/package.json" in passport.key_files
+
+
+def test_a_constant_in_code_is_not_an_environment_variable(tmp_path: Path) -> None:
+    _write(tmp_path / ".env.example", "AIOS_DATA_DIR=\nexport AIOS_PORT=8000\n")
+    _write(
+        tmp_path / "app.py",
+        "import os\nACK_EXTS = ('.py',)\nHOME = os.environ.get('AIOS_HOME')\n",
+    )
+    passport = harvest_project_passport(tmp_path)
+    assert {"AIOS_DATA_DIR", "AIOS_PORT", "AIOS_HOME"} <= set(passport.env_vars)
+    assert "ACK_EXTS" not in passport.env_vars and "HOME" not in passport.env_vars
+
+
+def test_the_folder_map_leads_with_the_projects_own_folders(tmp_path: Path) -> None:
+    for name in (".coveragerc", ".dockerignore", "AGENTS.md", "README.md"):
+        _write(tmp_path / name, "x\n")
+    for folder in ("aios", "frontend", ".github"):
+        _write(tmp_path / folder / "keep.txt", "x\n")
+    passport = harvest_project_passport(tmp_path)
+    assert passport.folder_map[:3] == ["aios/", "frontend/", ".github/"]

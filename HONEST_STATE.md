@@ -1,9 +1,36 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, a mission's writers may be agents" below;
+**Last updated:** 2026-11-15 ("2026-11-15, GAGOS understands itself through organ 28" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, GAGOS understands itself through organ 28 (branch `feat/gagos-understands-itself`)
+
+- **Why.** The operator: "honestly understand itself first". Organ 28, the Project Understanding Organ, had never run.
+- **First, its scanner misread GAGOS.** Scanning GAGOS itself showed:
+  - **No frontend in the stack.** The 500-file budget was spent inside `aios/` before `frontend/package.json` was reached.
+  - **Code constants as environment names.** Any `NAME =` matched (`ACK_EXTS`, `ACTIONS` ...).
+  - **Only root dot files as its folders.**
+- **The scanner, fixed** (`aios/memory/project_passport.py`):
+  - Each top-level folder's own `package.json` or `pyproject.toml` is read whatever budget is left, adding its stack and its commands (`npm --prefix <folder> ...`).
+  - TypeScript and Vitest are recognised.
+  - `NAME=` names a variable only in an env example file.
+  - The folder map leads with the project's own folders.
+  - GAGOS's passport now reads: Docker, FastAPI, Node, Python, React, SQLite, TypeScript, Vite, Vitest; tested by `python -m pytest` and `npm --prefix frontend test`.
+- **Then the wiring:**
+  - Each hour scans GAGOS's own code (the hour's checkout of master) into organ 28 once per commit, before any mission is originated (`understanding_hour`, `aios/operations/self_understanding.py`).
+  - `originate_goal` puts the passport's summary first in the council's trail, beside organ 18's memory and the skills. The passport's digest and commit go into the mission's metadata. Like the rest of the trail, it is advisory.
+- **Found by the first test run.** Organ 28 keeps one active project, and `record_scan` always set it, so GAGOS's scan replaced the operator's. `record_scan` now takes `activate` (default True), and GAGOS records with `activate=False`.
+  - `aios/application/memory/authorities.py` is an entrypoint of organs 27, 28 and 29, so their evidence is re-gathered at this branch's tip.
+- **Not yet:**
+  - The scan takes about 50 s on each new master commit.
+  - Its "known risks" still include old TODOs from `.aios/state` review files.
+  - The council's queens read the passport only as trail context. No queen reasons over it specifically.
+- **Tests.**
+  - 3 new scanner tests, failing on the old scanner.
+  - 6 new tests in `tests/test_gagos_self_understanding.py`.
+  - The GAGOS suites, organ 28's own and the authenticated chat route, consistency, gateway, architecture, Bandit and the pulse: 908 passed, 14 skipped.
 
 ## 2026-11-15, a mission's writers may be agents (branch `feat/mission-agent-workers`)
 
