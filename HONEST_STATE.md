@@ -31,6 +31,18 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Also fixed:** GAGOS's eye pointed at `127.0.0.1:5173`, which Vite refuses on this laptop (it serves `localhost`, the IPv6 loopback), so its screenshots never saw the face. Both tools now use `localhost`.
 - **Tests.** 12 new tests in `tests/test_gagos_journeys.py`, using a stand-in page and no Chrome. Gateway, Bandit, consistency, architecture and the daily tests: 184 passed. Bandit has no new findings.
 
+## 2026-11-15, a new test that fails is not a test it broke (branch `fix/sandbox-new-tests-fail`)
+
+- **What happened.** GAGOS's first tests for `PulseShader` (12:50 UTC) and `RoutingShader` (15:50) were refused as "N test(s) pass without it and fail with it". The tests they named were their own new tests, which the base never had. The verdict (BROKE, refused) was right; the reason was false. The reviewer, the loss report and D15's reflections all read that reason.
+- **Why.** `_compare` counted every test failing with the change and not failing without it, including tests that could not run without it.
+- **What changed** (`aios/maintenance/sandbox_tests.py`, `tools/gagos_daily.py`):
+  - Each part (Python, frontend) now passes `_compare` the test files the change adds.
+  - Their failing tests are reported as "new test(s) it adds fail" and kept in the verdict's new `added` field.
+  - A refusal for new tests alone starts with `NEW_TESTS_FAIL_PREFIX`, and the loss report counts it as the sandbox's.
+  - A verdict stored before this change reads as it did before.
+  - The frontend sandbox image tag (lock file plus runner script) does not change.
+- **Tests.** 2 new tests in `tests/test_gagos_sandbox.py`, both failing on the old code. The GAGOS suites pass (626 passed, 14 skipped).
+
 ## 2026-11-15, GAGOS understands itself through organ 28 (branch `feat/gagos-understands-itself`)
 
 - **Why.** The operator: "honestly understand itself first". Organ 28, the Project Understanding Organ, had never run.

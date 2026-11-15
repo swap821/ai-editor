@@ -1009,3 +1009,43 @@ def test_a_deleted_file_is_back_in_the_base_copy_afterwards(tmp_path) -> None:
     applied.revert()
     assert (tree / "src/a.js").read_bytes() == a
     assert not (tree / "src/b.js").exists()
+
+
+# -- a test it adds that fails is not a test it broke (2026-11-15) ---------------------
+
+
+def _vrun(failing, files, passed=3):
+    return st.VitestRun(
+        False, 1 if failing else 0, passed, tuple(failing), tuple(files), 1.0
+    )
+
+
+def test_a_new_test_that_fails_is_said_as_new_not_as_broken() -> None:
+    """Two first tests were refused as "pass without it and fail with it":
+    their own tests, which the base never had."""
+    new = "src/lib/Shader.test.tsx"
+    with_it = _vrun(
+        [f"{new}::builds once", f"{new}::starts at zero"], [new, "a.test.ts"]
+    )
+    without = _vrun([], ["a.test.ts"])
+    v = st._compare(with_it, without, with_it.files, "", 60, 1.0, new_files={new})
+    assert v.outcome == st.BROKE
+    assert (
+        v.summary
+        == "2 new test(s) it adds fail: Shader.test.tsx::builds once, Shader.test.tsx::starts at zero"
+    )
+    assert "pass without it" not in v.summary
+    assert v.refusal.startswith(st.NEW_TESTS_FAIL_PREFIX)
+    assert st.SandboxVerdict.from_json(v.to_json()) == v
+
+
+def test_a_broken_old_test_beside_a_failing_new_one_is_said_as_both() -> None:
+    new = "src/lib/Shader.test.tsx"
+    with_it = _vrun(
+        [f"{new}::builds once", "a.test.ts::keeps working"], [new, "a.test.ts"]
+    )
+    without = _vrun([], ["a.test.ts"])
+    v = st._compare(with_it, without, with_it.files, "", 60, 1.0, new_files={new})
+    assert v.summary.startswith("1 test(s) pass without it and fail with it: a.test.ts")
+    assert "; 1 new test(s) it adds fail: Shader.test.tsx::builds once" in v.summary
+    assert v.refusal.startswith(st.BROKE_PREFIX)
