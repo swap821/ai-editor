@@ -71,7 +71,15 @@ PARTS: tuple[Part, ...] = (
     _organ(6, "Edge Trust Boundary", kind=GUARD),
     _organ(7, "Policy Kernel", events=TURN),
     _organ(8, "Action Broker", events=TURN),
-    _organ(9, "Exact Capability Authority", tables=("approval_grants",), events=TURN),
+    # Its approvals in a turn, and the operator's daily envelope for GAGOS's
+    # missions, whose slots it reserves (2026-11-15: the envelope spent its
+    # slots while the pulse, reading approvals alone, called it silent).
+    _organ(
+        9,
+        "Exact Capability Authority",
+        tables=("approval_grants", "gagos_envelopes", "gagos_envelope_slots"),
+        events=TURN,
+    ),
     _organ(10, "Mission Authority", tables=("missions",), workers=(MISSION,)),
     _organ(11, "Turn Coordinator", events=TURN),
     _organ(12, "Worker Foundry", workers=(WORKSHOP, SWARM, MISSION)),
@@ -169,7 +177,14 @@ PARTS: tuple[Part, ...] = (
     ),
     _organ(54, "Backup and Disaster-Recovery", kind=GUARD),
     _organ(55, "Governance Conformance Evaluation", kind=EVALUATION),
-    _organ(56, "Learning Integrity and Provenance", tables=("learning_events",)),
+    # Its journal of the faculties' transitions, and the provenance every
+    # skill transition and lesson writes, signed on the operator's
+    # activation (2026-11-15: the pulse read the journal alone).
+    _organ(
+        56,
+        "Learning Integrity and Provenance",
+        tables=("learning_events", "learning_provenance"),
+    ),
     _organ(
         57, "Reflex Authority", events=("cerebellum.replayed", "cerebellum.abstained")
     ),

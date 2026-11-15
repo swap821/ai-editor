@@ -13,6 +13,19 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Also measured:** the frontend's packages in the operator's checkout match the lock file (only other platforms' optional binaries differ), so stale packages were not the cause.
 - **Tests.** 1 new test in `tests/test_gagos_daily.py`, which fails on the old code. Daily, tasks and register: all passed.
 
+## 2026-11-15, the pulse reads organ 9's envelope and organ 56's provenance (branch `fix/pulse-envelope-provenance`)
+
+- **What was wrong.** GAGOS's aliveness pulse showed two organs as asleep when it simply wasn't reading their stores.
+  - Organ 9 (Exact Capability Authority) was probed only through `approval_grants`. The operator's envelope spent both of its slots today, and the pulse still called organ 9 silent since 10-30.
+  - Organ 56 (Learning Integrity and Provenance) was probed only through `learning_events`. It never read `learning_provenance`, where every skill transition and the operator's activation are written.
+- **What changed** (`aios/application/observability/aliveness.py`, organ 52, not an entrypoint). Organ 9 also reads `gagos_envelopes` and `gagos_envelope_slots`. Organ 56 also reads `learning_provenance`.
+- **On today's data:**
+  - Organ 9 is live (a slot was reserved at 08:51 UTC).
+  - Organ 56 stays stale since 10-30, and that is now the truth: today's drafted mission skill is a candidate, and a candidate's birth is not a transition. Its first signed record will be the operator's activation.
+- **A correction.** Earlier today Claude said mission learning was "not journaled" to organ 56. That was wrong: by design, nothing in a candidate's birth goes there. The seam was the pulse's.
+- **Registered.** A new fact, `pulse-reads-each-organs-own-stores`, takes the register to 48 of 48. A store an organ starts writing later still has to be added by hand.
+- **Tests.** 2 new tests in `tests/test_aliveness_pulse.py`, and both fail on the old code. The pulse, register, consistency-guard and mission-hour tests pass (67).
+
 ## 2026-11-15, a goal whose sandbox could not run goes back to open (branch `fix/goal-back-when-sandbox-down`)
 
 - **Why.** The /tmp failure above spent one of the operator's two envelope slots and closed his goal, although its change was never judged. The second slot was then left with no goal to run.

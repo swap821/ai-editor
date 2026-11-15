@@ -235,3 +235,37 @@ def test_the_read_model_is_dated_by_the_last_event_it_applied(tmp_path) -> None:
     (organ,) = [p for p in PARTS if p.name.startswith("47 ")]
     reading = _reading(data, organ)
     assert reading.status == "stale", reading.why
+
+
+def _organ(number: int) -> Part:
+    (organ,) = [p for p in PARTS if p.name.startswith(f"{number} ")]
+    return organ
+
+
+def test_the_envelope_keeps_organ_9_alive(tmp_path) -> None:
+    """2026-11-15: the operator's envelope spent its slots while the pulse,
+    reading turn approvals alone, called organ 9 silent since 10-30."""
+    data = tmp_path / "data"
+    _db(data / "caps.db", "create table approval_grants (id int, created_at text)")
+    _db(
+        data / "envelopes.db",
+        "create table gagos_envelope_slots (envelope_id text, slot int, "
+        "mission_id text, reserved_at real)",
+        [("envelope-1", 1, "mission-1", (NOW - timedelta(hours=3)).timestamp())],
+    )
+    reading = _reading(data, _organ(9))
+    assert reading.status == "live", reading.why
+
+
+def test_signed_provenance_keeps_organ_56_alive(tmp_path) -> None:
+    """2026-11-15: a skill's transitions and its activation are written to
+    learning_provenance, which the pulse never read."""
+    data = tmp_path / "data"
+    _db(data / "memory.db", "create table learning_events (id int, ts text)")
+    _db(
+        data / "ops.db",
+        "create table learning_provenance (id int, row_table text, created_at text)",
+        [(1, "institutional_skills", (NOW - timedelta(hours=1)).isoformat())],
+    )
+    reading = _reading(data, _organ(56))
+    assert reading.status == "live", reading.why
