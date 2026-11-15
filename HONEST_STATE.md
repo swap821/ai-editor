@@ -28,8 +28,26 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - The face's own `context-recovery` metric counts only in-place restores, so it never records the recovery that does happen.
   - Also seen, and unexplained: the event reached a later listener with `defaultPrevented` false, although three.js and `WorkspaceCanvas` both call `preventDefault`.
   - This is a face goal for GAGOS, not fixed here.
+- **Second journey: PERF-01** (desktop frame and input budget). Over 20 s of the face at rest, with 23 letters typed into the composer and then taken back out, it records:
+  - every frame interval, and keydown to the end of the next frame, as distributions;
+  - the main thread's time per frame and the face's own draw-call probe;
+  - the GPU, cores, viewport, build mode and visual detail, and whether the window is headed.
+
+  It compares them with the blueprint's **proposed** targets (section 10: p95 frame interval at most 20 ms, local feedback under 100 ms). The operator has not frozen those targets, so PERF-01 earns no points yet. The journey refuses to pass when the 3D scene is not drawn.
+- **PERF-01 on the real face, dev server, headless, not signed in** (commit 7b8bd029, the main checkout that serves `:5173`). Two runs: **failed.**
+  - Frames are smooth: p50 16.7 ms, p95 16.8 ms.
+  - But typing stalls the face: keydown to the next frame has p95 140 ms and 241 ms in the two runs, with a max of 256 and 596 ms, and 6 to 7 frame gaps over 50 ms. The main thread spends 2.5 to 2.9 ms per frame.
+  - The face's own draw-call probe never records. On the live page its metrics module held 26 metric samples and 0 scene samples, with the scene up. So "complete composer frame accounting" is not available from the face.
+- **Found: the production build has no 3D body.**
+  - `vite build` at 7b8bd029 builds in 5.6 s. Served by `vite preview`, the face shows "Visual organism unavailable" at load, with no forced loss: `TypeError: Class extends value undefined is not a constructor or null`.
+  - The cause is a chunk cycle. `vendor-drei-postprocessing` imports from the `SuperbrainReactiveEffects` chunk, and that chunk's grade effect extends postprocessing's `Effect`. When the vendor chunk loads first, its base class is still undefined.
+  - Master's frontend differs from 7b8bd029 in 4 trivial files, so this is on master too.
+  - Nobody runs the built bundle today: the operator uses the dev server, and GAGOS's sandbox runs tsc and vitest, not a build. The build that ships is broken unseen.
+  - **A correction:** I first read that run's fast numbers (keydown p95 18 ms, 0.3 ms per frame) as "the stalls are dev-mode React". That was wrong: the page had no scene. The journey now fails any window in which the scene is not up.
+- **Found: signed out, the face cannot tell "sign in" from "unreachable".** The edge token check (`require_api_token`, which runs outside the CORS middleware by design) answers unauthenticated calls with a 401 that carries no CORS header. The browser reports a CORS failure, and the face shows "Operational picture unavailable". The edge is frozen core, so changing it is a proposal only; the face could tell the two apart itself (a face goal).
+- **The runner now pins the tree that serves the face.** It first recorded its own checkout's commit while the face was served from another tree at another commit. It now reads the checkout from the process listening on the face's port, with whether its frontend is clean, and says "unknown" when it cannot tell, never a guess.
 - **Also fixed:** GAGOS's eye pointed at `127.0.0.1:5173`, which Vite refuses on this laptop (it serves `localhost`, the IPv6 loopback), so its screenshots never saw the face. Both tools now use `localhost`.
-- **Tests.** 12 new tests in `tests/test_gagos_journeys.py`, using a stand-in page and no Chrome. Gateway, Bandit, consistency, architecture and the daily tests: 184 passed. Bandit has no new findings.
+- **Tests.** 27 tests in `tests/test_gagos_journeys.py`, using stand-in pages and no Chrome. Gateway, Bandit, consistency, architecture and the daily tests: 184 passed. Bandit has no new findings.
 
 ## 2026-11-15, a new test that fails is not a test it broke (branch `fix/sandbox-new-tests-fail`)
 

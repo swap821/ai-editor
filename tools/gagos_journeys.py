@@ -29,10 +29,12 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import math
 import re
 import subprocess
 import sys
 import time
+import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -184,10 +186,14 @@ class JourneyRecord:
     url: str
     started_at: str
     signed_in: bool = False
+    #: The checkout that serves the face, and whether its frontend is clean.
+    tree: str = ""
     steps: list[Step] = field(default_factory=list)
     work_requests: list[str] = field(default_factory=list)
     page_errors: list[str] = field(default_factory=list)
     metrics: list[dict] = field(default_factory=list)
+    #: What a measuring journey measured, and on what: kept beside its steps.
+    measured: dict[str, Any] = field(default_factory=dict)
     outcome: str = "not run"
     boundary: str = ""
 
@@ -206,7 +212,8 @@ class JourneyRecord:
         lines = [
             f"# Journey {self.journey} ({self.criterion})",
             "",
-            f"Run {self.started_at} on commit `{self.commit[:12]}`, {self.browser}, "
+            f"Run {self.started_at} on commit `{self.commit[:12]}` "
+            f"({self.tree or 'tree not recorded'}), {self.browser}, "
             f"viewport {self.viewport}, at `{self.url}`. Signed in: "
             f"{'yes' if self.signed_in else 'no'}. Outcome: **{self.outcome}**.",
             "",
@@ -222,6 +229,16 @@ class JourneyRecord:
             f"Page errors: {len(self.page_errors)}"
             + (f" ({'; '.join(self.page_errors[:5])})" if self.page_errors else ""),
             "",
+            *(
+                [
+                    "## Measured",
+                    "",
+                    *(f"- {k}: {v}" for k, v in self.measured.items()),
+                    "",
+                ]
+                if self.measured
+                else []
+            ),
             "## Evidence boundary",
             "",
             self.boundary,
@@ -295,6 +312,28 @@ class Journey:
             f"document.querySelector({json.dumps(selector)}).focus()"
         )
         await self.cdp.send("Input.insertText", text=text)
+
+    async def press(self, key: str) -> None:
+        """One key, as a keyboard sends it: a letter, or Backspace. Never Enter:
+        a journey never sends the composer; sending is the operator's act."""
+        if key == "Backspace":
+            down = {"key": key, "code": key, "windowsVirtualKeyCode": 8}
+            kind = "rawKeyDown"
+        elif len(key) == 1 and key.isalpha():
+            down = {
+                "key": key,
+                "text": key,
+                "code": f"Key{key.upper()}",
+                "windowsVirtualKeyCode": ord(key.upper()),
+            }
+            kind = "keyDown"
+        else:
+            raise JourneyRefused(
+                f"the runner presses letters and Backspace, not {key!r}"
+            )
+        await self.cdp.send("Input.dispatchKeyEvent", type=kind, **down)
+        up = {k: v for k, v in down.items() if k != "text"}
+        await self.cdp.send("Input.dispatchKeyEvent", type="keyUp", **up)
 
     async def value_of(self, selector: str) -> str:
         return str(
@@ -424,13 +463,276 @@ _REMOUNTED = (
     " return Boolean(c && c !== window.__gagosJourneyCanvas && c.dataset.engine); })()"
 )
 
+#: PERF-01's targets as the blueprint proposes them (section 10, 2026-09-24):
+#: the smooth tier's p95 frame interval, and local feedback. Proposed, not yet
+#: frozen by the operator; every record says so.
+PERF_TARGETS = {"frame_p95_ms": 20.0, "input_to_paint_ms": 100.0}
+PERF_WARMUP_S = 5.0
+PERF_WINDOW_S = 20.0
+#: Typed into the composer across the window, then taken back out.
+PERF_KEYS = "gagosmeasuresitsownface"
+#: Named, in the page: the GPU the browser draws with, the viewport, the build
+#: and the visual detail chosen. A throwaway canvas, released at once.
+_PERF_ENV = """(() => {
+  const c = document.createElement('canvas');
+  const gl = c.getContext('webgl2') || c.getContext('webgl');
+  const info = gl && gl.getExtension('WEBGL_debug_renderer_info');
+  const out = {
+    userAgent: navigator.userAgent,
+    gpu: gl ? String(gl.getParameter(info ? info.UNMASKED_RENDERER_WEBGL : gl.RENDERER))
+      : 'unavailable',
+    cores: navigator.hardwareConcurrency || null,
+    viewport: innerWidth + 'x' + innerHeight,
+    dpr: devicePixelRatio,
+    build: document.querySelector('script[src*="/@vite/client"]')
+      ? 'Vite dev server' : 'built bundle',
+    detail: document.querySelector('.lm-rendering-preferences select')?.value
+      || 'unavailable',
+    gpuTimer: Boolean(gl && gl.getExtension('EXT_disjoint_timer_query_webgl2')),
+  };
+  const lose = gl && gl.getExtension('WEBGL_lose_context');
+  if (lose) lose.loseContext();
+  return out;
+})()"""
+#: Every frame interval, and keydown in the composer to the end of the next
+#: frame, measured in the page; the browser's own slow-interaction and
+#: long-frame counts beside them.
+_PERF_PROBE = """(() => {
+  const p = window.__gagosPerf = { frames: [], inputs: [], slowEvents: 0,
+    longFrames: 0, stop: false };
+  let previous = null;
+  const tick = (now) => {
+    if (p.stop) return;
+    if (previous !== null) p.frames.push(now - previous);
+    previous = now;
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+  window.addEventListener('keydown', (e) => {
+    if (p.stop || !(e.target instanceof Element) || !e.target.matches(SELECTOR)) return;
+    const t0 = e.timeStamp;
+    requestAnimationFrame(() => {
+      const channel = new MessageChannel();
+      channel.port1.onmessage = () => p.inputs.push(performance.now() - t0);
+      channel.port2.postMessage(0);
+    });
+  }, { capture: true, passive: true });
+  try {
+    new PerformanceObserver((l) => { p.slowEvents += l.getEntries().length; })
+      .observe({ type: 'event', durationThreshold: 104 });
+  } catch (e) { p.slowEvents = null; }
+  try {
+    new PerformanceObserver((l) => { p.longFrames += l.getEntries().length; })
+      .observe({ type: 'long-animation-frame' });
+  } catch (e) { p.longFrames = null; }
+  return true;
+})()""".replace("SELECTOR", json.dumps(COMPOSER))
+_PERF_READ = (
+    "(() => { const p = window.__gagosPerf; p.stop = true; return {frames: p.frames,"
+    " inputs: p.inputs, slowEvents: p.slowEvents, longFrames: p.longFrames,"
+    " foreground: document.visibilityState === 'visible'}; })()"
+)
+#: The face's own scene probe (frontendMetrics.ts, local hosts only).
+_SCENE = (
+    "(() => { const d = document.documentElement.dataset; return {"
+    " drawCalls: d.gagosSceneDrawCalls ?? 'unavailable',"
+    " geometries: d.gagosSceneGeometries ?? 'unavailable',"
+    " textures: d.gagosSceneTextures ?? 'unavailable',"
+    " objects: d.gagosSceneObjects ?? 'unavailable'}; })()"
+)
+#: The being is drawn: its canvas is there and the face shows no fallback.
+_SCENE_UP = (
+    f"Boolean(document.querySelector('{CANVAS}'))"
+    f" && !document.querySelector('{FALLBACK}')"
+)
+
+
+def percentile(values: list[float], p: float) -> float | None:
+    """Nearest rank, as the face's own frame sampler computes it."""
+    if not values:
+        return None
+    ordered = sorted(values)
+    return ordered[max(0, math.ceil(len(ordered) * p) - 1)]
+
+
+def perf_summary(frames: list[float], inputs: list[float]) -> dict[str, Any]:
+    """A window's frame intervals and input latencies, as distributions."""
+    return {
+        "frames": len(frames),
+        "frame_p50_ms": percentile(frames, 0.5),
+        "frame_p95_ms": percentile(frames, 0.95),
+        "frame_p99_ms": percentile(frames, 0.99),
+        "frame_max_ms": max(frames) if frames else None,
+        "frame_gaps_over_50ms": sum(1 for f in frames if f > 50),
+        "inputs": len(inputs),
+        "input_p50_ms": percentile(inputs, 0.5),
+        "input_p95_ms": percentile(inputs, 0.95),
+        "input_max_ms": max(inputs) if inputs else None,
+    }
+
+
+def _ms(value: float | None) -> str:
+    return "n/a" if value is None else f"{value:.1f} ms"
+
+
+async def _task_seconds(j: Journey) -> float | None:
+    """Chrome's main-thread task time so far, in seconds."""
+    result = await j.cdp.send("Performance.getMetrics")
+    for metric in result.get("metrics", []):
+        if metric.get("name") == "TaskDuration":
+            return float(metric["value"])
+    return None
+
+
+async def perf_01(j: Journey) -> None:
+    """PERF-01, desktop frame and input budget (weight 4): over a window of the
+    face at rest with letters typed into its composer, every frame interval,
+    keydown to the next frame, the main thread's time a frame and the
+    composer's draw calls, on a named desktop, against the blueprint's
+    proposed targets. The composer is left as it was; nothing is sent."""
+    r = j.record
+    r.boundary = (
+        "Compared with the blueprint's PROPOSED targets (section 10, 2026-09-24: "
+        "p95 frame interval at most 20 ms on the smooth tier, local feedback "
+        "under 100 ms). The operator has not frozen them, and PERF-01 earns "
+        "points only against budgets frozen before visual-load changes, on the "
+        "named desktop, headed, on the build that ships. Keydown to the next "
+        "frame is measured in the page, not from the key to the screen. GPU time "
+        "is unavailable unless the browser offers its timer extension, and an "
+        "unavailable counter is never read as zero cost. Draw calls are the "
+        "face's own count, not VRAM. A headless run, or one on the Vite dev "
+        "server, is a smoke, not the named desktop profile."
+    )
+    if not r.step(
+        "controls ready",
+        await j.wait_for(f"document.querySelector('{CONTROLS_READY}')", 60),
+    ):
+        return
+    await j.cdp.send("Page.bringToFront")
+    env = dict(await j.cdp.evaluate(_PERF_ENV) or {})
+    headless = "Headless" in str(env.get("userAgent", ""))
+    r.measured.update(
+        {
+            "gpu": env.get("gpu", "unavailable"),
+            "cores": env.get("cores"),
+            "viewport": f"{env.get('viewport')} at DPR {env.get('dpr')}",
+            "build": env.get("build"),
+            "visual detail": env.get("detail"),
+            "window": "headless" if headless else "headed",
+            "gpu time": "available, not yet read by this journey"
+            if env.get("gpuTimer")
+            else "unavailable: the browser offers no EXT_disjoint_timer_query_webgl2",
+            "warmup": f"{PERF_WARMUP_S:.0f} s",
+            "scenario": f"the face at rest, {len(PERF_KEYS)} letters typed into "
+            f"the composer across a {PERF_WINDOW_S:.0f} s window",
+        }
+    )
+    r.step(
+        "desktop named",
+        r.measured["gpu"] != "unavailable",
+        f"{r.measured['gpu']}; {r.measured['cores']} cores; {r.measured['viewport']};"
+        f" {r.measured['build']}; {r.measured['window']}",
+    )
+    await asyncio.sleep(PERF_WARMUP_S)
+    # 2026-11-15: a production build measured fast because its scene had
+    # crashed at load; the frames of a page without its being are not PERF-01's.
+    r.step(
+        "the 3D scene is up",
+        bool(await j.cdp.evaluate(_SCENE_UP)),
+        "a scene canvas, and no renderer fallback shown",
+    )
+    original = await j.value_of(COMPOSER)
+    await j.cdp.send("Performance.enable")
+    before = await _task_seconds(j)
+    await j.cdp.evaluate(_PERF_PROBE)
+    await j.cdp.evaluate(f"document.querySelector({json.dumps(COMPOSER)}).focus()")
+    gap = PERF_WINDOW_S / (len(PERF_KEYS) + 1)
+    for key in PERF_KEYS:
+        await asyncio.sleep(gap)
+        await j.press(key)
+    await asyncio.sleep(gap)
+    sampled = dict(await j.cdp.evaluate(_PERF_READ) or {})
+    after = await _task_seconds(j)
+    r.step(
+        "the scene stayed up through the window", bool(await j.cdp.evaluate(_SCENE_UP))
+    )
+    summary = perf_summary(
+        [float(f) for f in sampled.get("frames") or []],
+        [float(i) for i in sampled.get("inputs") or []],
+    )
+    r.measured.update(summary)
+    r.measured["slow interactions (over 104 ms)"] = sampled.get("slowEvents")
+    r.measured["long animation frames"] = sampled.get("longFrames")
+    own = [m["value"] for m in await j.metrics() if m.get("name") == "raf-interval-p95"]
+    r.measured["the face's own p95 (per 120 frames), worst"] = (
+        _ms(max(own)) if own else "none recorded"
+    )
+    foreground = bool(sampled.get("foreground"))
+    r.step(
+        "frames sampled",
+        summary["frames"] >= 120 and foreground,
+        f"{summary['frames']} frames over {PERF_WINDOW_S:.0f} s"
+        + ("" if foreground else ", the page NOT in the foreground"),
+    )
+    target = PERF_TARGETS["frame_p95_ms"]
+    p95 = summary["frame_p95_ms"]
+    r.step(
+        f"frame p95 within the proposed {target:.0f} ms",
+        p95 is not None and p95 <= target,
+        f"p50 {_ms(summary['frame_p50_ms'])}, p95 {_ms(p95)}, "
+        f"p99 {_ms(summary['frame_p99_ms'])}, max {_ms(summary['frame_max_ms'])}; "
+        f"{summary['frame_gaps_over_50ms']} gaps over 50 ms",
+    )
+    target = PERF_TARGETS["input_to_paint_ms"]
+    ip95 = summary["input_p95_ms"]
+    r.step(
+        f"keydown to the next frame within the proposed {target:.0f} ms",
+        ip95 is not None and ip95 <= target and summary["inputs"] == len(PERF_KEYS),
+        f"p50 {_ms(summary['input_p50_ms'])}, p95 {_ms(ip95)}, "
+        f"max {_ms(summary['input_max_ms'])} over {summary['inputs']} of "
+        f"{len(PERF_KEYS)} keys",
+    )
+    per_frame = (
+        (after - before) * 1000 / summary["frames"]
+        if before is not None and after is not None and summary["frames"]
+        else None
+    )
+    r.measured["main thread a frame (mean)"] = _ms(per_frame)
+    r.step(
+        "main-thread time a frame",
+        per_frame is not None,
+        f"{_ms(per_frame)} mean, Chrome's task time over the window",
+    )
+    scene = dict(await j.cdp.evaluate(_SCENE) or {})
+    r.measured["scene"] = scene
+    r.step(
+        "composer frame accounting",
+        scene.get("drawCalls") not in (None, "unavailable"),
+        f"{scene.get('drawCalls')} draw calls a frame, {scene.get('geometries')} "
+        f"geometries, {scene.get('textures')} textures, {scene.get('objects')} "
+        "scene objects (the face's own probe)",
+    )
+    for _ in PERF_KEYS:
+        await j.press("Backspace")
+    r.step("composer as it was", await j.value_of(COMPOSER) == original)
+    await j.collect()
+    r.step("no work request sent", not r.work_requests, f"{len(r.work_requests)} sent")
+
+
 JOURNEYS: dict[str, tuple[str, Callable[[Journey], Awaitable[None]]]] = {
     "rec-01": ("REC-01 renderer and backend recovery", rec_01),
+    "perf-01": ("PERF-01 desktop frame and input budget", perf_01),
 }
 
 
 async def run(
-    journey_id: str, *, url: str, port: int, commit: str, browser: str
+    journey_id: str,
+    *,
+    url: str,
+    port: int,
+    commit: str,
+    browser: str,
+    tree: str = "",
 ) -> JourneyRecord:
     import websockets
 
@@ -440,6 +742,7 @@ async def run(
         criterion=criterion,
         commit=commit,
         browser=browser,
+        tree=tree,
         viewport="1280x720",
         url=url,
         started_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -457,16 +760,53 @@ async def run(
 # ------------------------------------------------------------------ the commands
 
 
-def _commit() -> str:
-    return (
-        subprocess.run(  # noqa: S603 - fixed argv
-            ["git", "-C", str(REPO), "rev-parse", "HEAD"],
+def served_tree(url: str) -> Path | None:
+    """The checkout whose frontend serves *url*: the local process listening
+    on its port, read from its command line (Vite's dev and preview servers run
+    from <checkout>/frontend/node_modules). None when it cannot be told."""
+    try:
+        import psutil
+    except ImportError:
+        return None
+    port = urllib.parse.urlsplit(url).port
+    try:
+        commands = [
+            psutil.Process(c.pid).cmdline()
+            for c in psutil.net_connections(kind="tcp")
+            if c.status == psutil.CONN_LISTEN
+            and c.laddr
+            and c.laddr.port == port
+            and c.pid
+        ]
+    except psutil.Error:
+        return None
+    for command in commands:
+        for part in command:
+            at = part.replace("\\", "/").lower().find("/frontend/node_modules/")
+            if at > 0:
+                return Path(part[:at])
+    return None
+
+
+def served_commit(url: str) -> tuple[str, str]:
+    """The commit the face at *url* is served from, and its tree: the path and
+    whether its frontend has uncommitted changes. 2026-11-15: the runner first
+    pinned its own checkout, a different commit from the one serving the face."""
+    tree = served_tree(url)
+    if tree is None:
+        return "unknown", "the tree serving the face could not be found"
+
+    def git(*args: str) -> str:
+        return subprocess.run(  # noqa: S603 - fixed argv
+            ["git", "-C", str(tree), *args],
             capture_output=True,
             text=True,
             check=False,
         ).stdout.strip()
-        or "unknown"
-    )
+
+    head = git("rev-parse", "HEAD") or "unknown"
+    dirty = git("status", "--porcelain", "--", "frontend")
+    return head, f"{tree}, frontend {'with uncommitted changes' if dirty else 'clean'}"
 
 
 def _browser(port: int) -> str:
@@ -498,12 +838,14 @@ def cmd_run(args: argparse.Namespace) -> int:
     except JourneyRefused:
         print("the journey window is not open: python tools/gagos_journeys.py open")
         return 2
+    commit, tree = served_commit(args.url)
     record = asyncio.run(
         run(
             args.journey,
             url=args.url,
             port=port,
-            commit=_commit(),
+            commit=commit,
+            tree=tree,
             browser=_browser(port),
         )
     )

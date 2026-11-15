@@ -241,3 +241,160 @@ def test_rec_01_fails_when_retry_does_not_bring_the_view_back(tmp_path) -> None:
     journey = _journey(page, tmp_path)
     asyncio.run(gj.rec_01(journey))
     assert journey.record.finish().outcome == "failed"
+
+
+class PerfPage:
+    """A stand-in face for PERF-01: its frames, its keys and its scene."""
+
+    def __init__(self, *, frames, inputs, scene_up=True, draw_calls="40") -> None:
+        self.frames, self.inputs = frames, inputs
+        self.scene_up, self.draw_calls = scene_up, draw_calls
+        self.value = "held draft"
+        self.task_s = 10.0
+        self.events: list[dict] = []
+        self.keys: list[dict] = []
+
+    async def send(self, method: str, **params):
+        if method == "Performance.getMetrics":
+            self.task_s += 0.4
+            return {"metrics": [{"name": "TaskDuration", "value": self.task_s}]}
+        if method == "Input.dispatchKeyEvent":
+            self.keys.append(params)
+            if params["type"] == "keyDown":
+                self.value += params["text"]
+            elif params["type"] == "rawKeyDown" and params["key"] == "Backspace":
+                self.value = self.value[:-1]
+        return {}
+
+    async def evaluate(self, expression: str):
+        if "data-controls-ready" in expression and "Boolean(" in expression:
+            return True
+        if "WEBGL_debug_renderer_info" in expression:
+            return {
+                "userAgent": "Mozilla/5.0 Chrome/157",
+                "gpu": "ANGLE (AMD Radeon)",
+                "cores": 12,
+                "viewport": "1264x625",
+                "dpr": 1,
+                "build": "built bundle",
+                "detail": "auto",
+                "gpuTimer": False,
+            }
+        if "lm-renderer-fallback-notice" in expression:
+            return self.scene_up
+        if "window.__gagosPerf = " in expression:
+            return True
+        if "p.stop = true" in expression:
+            return {
+                "frames": self.frames,
+                "inputs": self.inputs,
+                "slowEvents": 0,
+                "longFrames": 0,
+                "foreground": True,
+            }
+        if "gagosSceneDrawCalls" in expression:
+            return {
+                "drawCalls": self.draw_calls,
+                "geometries": "12",
+                "textures": "3",
+                "objects": "90",
+            }
+        if "?.value ?? ''" in expression:
+            return self.value
+        if "__gagosJourney?.metrics" in expression:
+            return [{"name": "raf-interval-p95", "value": 16.8}]
+        if "__gagosJourney?.errors" in expression:
+            return []
+        return None
+
+
+def _perf(page: PerfPage, tmp_path: Path) -> gj.JourneyRecord:
+    journey = gj.Journey(page, _journey(page, tmp_path).record)
+    asyncio.run(gj.perf_01(journey))
+    return journey.record.finish()
+
+
+def test_perf_01_passes_within_the_proposed_targets_and_says_they_are_proposed(
+    tmp_path,
+) -> None:
+    page = PerfPage(frames=[16.7] * 1200, inputs=[12.0] * len(gj.PERF_KEYS))
+    record = _perf(page, tmp_path)
+    assert record.outcome == "passed", [(s.name, s.ok, s.detail) for s in record.steps]
+    assert page.value == "held draft"  # the composer as it was
+    assert record.measured["frame_p95_ms"] == 16.7
+    assert record.measured["main thread a frame (mean)"] == "0.3 ms"
+    text = gj.write_record(record, tmp_path).read_text(encoding="utf-8")
+    assert "## Measured" in text and "PROPOSED targets" in text
+    assert "unavailable: the browser offers no EXT_disjoint_timer_query_webgl2" in text
+
+
+def test_perf_01_fails_when_typing_stalls_the_face(tmp_path) -> None:
+    """2026-11-15 on the dev server: keydown to the next frame p95 241 ms."""
+    inputs = [16.0] * 20 + [240.9, 300.0, 595.7]
+    record = _perf(PerfPage(frames=[16.7] * 1200, inputs=inputs), tmp_path)
+    (keys,) = [
+        s for s in record.steps if s.name.startswith("keydown to the next frame")
+    ]
+    assert not keys.ok and "p95 300.0 ms" in keys.detail
+    assert record.outcome == "failed"
+
+
+def test_perf_01_fails_when_the_scene_is_not_drawn(tmp_path) -> None:
+    """2026-11-15: a production build measured fast because its scene had
+    crashed at load; frames without the being are not PERF-01's."""
+    page = PerfPage(frames=[16.7] * 1200, inputs=[12.0] * 23, scene_up=False)
+    record = _perf(page, tmp_path)
+    steps = {s.name: s for s in record.steps}
+    assert not steps["the 3D scene is up"].ok
+    assert record.outcome == "failed"
+
+
+def test_perf_01_fails_when_the_face_counts_no_draw_calls(tmp_path) -> None:
+    page = PerfPage(frames=[16.7] * 1200, inputs=[12.0] * 23, draw_calls="unavailable")
+    record = _perf(page, tmp_path)
+    (accounting,) = [s for s in record.steps if s.name == "composer frame accounting"]
+    assert not accounting.ok and record.outcome == "failed"
+
+
+@pytest.mark.parametrize("key", ["Enter", "\n", "1", "Tab"])
+def test_the_runner_never_sends_the_composer(tmp_path, key) -> None:
+    page = PerfPage(frames=[], inputs=[])
+    journey = gj.Journey(page, _journey(page, tmp_path).record)
+    with pytest.raises(gj.JourneyRefused, match="letters and Backspace"):
+        asyncio.run(journey.press(key))
+    assert page.keys == []
+
+
+def test_percentiles_are_nearest_rank_as_the_face_computes_them() -> None:
+    values = [float(v) for v in range(1, 101)]
+    assert gj.percentile(values, 0.5) == 50.0
+    assert gj.percentile(values, 0.95) == 95.0
+    assert gj.percentile([], 0.95) is None
+
+
+def test_the_record_pins_the_tree_that_serves_the_face(monkeypatch) -> None:
+    """2026-11-15: the runner pinned its own checkout's commit, while the face
+    was served from another tree at another commit."""
+    import sys
+    import types
+
+    vite = r"C:\Users\op\ai-editor\frontend\node_modules\.bin\..\vite\bin\vite.js"
+    fake = types.SimpleNamespace(
+        CONN_LISTEN="LISTEN",
+        Error=Exception,
+        net_connections=lambda kind: [
+            types.SimpleNamespace(
+                status="LISTEN", laddr=types.SimpleNamespace(port=5173), pid=7
+            )
+        ],
+        Process=lambda pid: types.SimpleNamespace(
+            cmdline=lambda: ["node", vite, "--port", "5173"]
+        ),
+    )
+    monkeypatch.setitem(sys.modules, "psutil", fake)
+    assert gj.served_tree("http://localhost:5173/") == Path(r"C:\Users\op\ai-editor")
+    assert gj.served_tree("http://localhost:4173/") is None
+    assert gj.served_commit("http://localhost:4173/") == (
+        "unknown",
+        "the tree serving the face could not be found",
+    )
