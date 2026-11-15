@@ -33,7 +33,9 @@ if str(REPO) not in sys.path:
 
 from aios import config  # noqa: E402
 
-DEFAULT_URL = "http://127.0.0.1:5173/"
+#: The face as Vite serves it: on "localhost", which on Windows is the IPv6
+#: loopback; 127.0.0.1 is refused (measured 2026-11-15).
+DEFAULT_URL = "http://localhost:5173/"
 _CANDIDATES = (
     Path(os.environ.get("PROGRAMFILES", r"C:\Program Files"))
     / "Google/Chrome/Application/chrome.exe",
