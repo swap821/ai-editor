@@ -202,7 +202,12 @@ class ProjectUnderstandingAuthority:
         passport: ProjectPassport,
         operator_identity_digest: str,
         scan_summary: dict[str, Any],
+        activate: bool = True,
     ) -> tuple[int, dict[str, Any]]:
+        """Record a scan's typed passport and its diff, and make the project
+        the active one. *activate* False records it only (2026-11-15: GAGOS's
+        scan of its own code must never take the operator's active project,
+        the store's one pointer)."""
         typed_passport: ProjectPassportV1 = build_project_passport_v1(
             root,
             project_id=project_id,
@@ -210,11 +215,12 @@ class ProjectUnderstandingAuthority:
             passport=passport,
         )
         revision, passport_diff = self.store.save_and_diff(typed_passport)
-        self.store.set_active(
-            project_id,
-            scan_summary,
-            operator_identity_digest=operator_identity_digest,
-        )
+        if activate:
+            self.store.set_active(
+                project_id,
+                scan_summary,
+                operator_identity_digest=operator_identity_digest,
+            )
         return revision, passport_diff
 
     def active_project_for_operator(
