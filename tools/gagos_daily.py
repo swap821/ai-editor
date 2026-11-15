@@ -163,6 +163,7 @@ from aios.maintenance.frontend_static import (  # noqa: E402
     port_manifest_after,
 )
 from aios.maintenance.python_static import (  # noqa: E402
+    FROZEN,
     PYTHON_SCOPE,
     check_python_texts,
     editable_python_files,
@@ -815,6 +816,21 @@ def both_routes(plan: tuple[str, Any], full: tuple[str, Any]) -> tuple[str, Any]
     return full
 
 
+def creatable(root: Path, rel: str, allowed: set[str]) -> bool:
+    """Whether a task may create *rel* (2026-11-15, the operator: "624 utilize
+    also as per GAGOS"): it does not exist at the base, and its folder already
+    holds a file GAGOS may edit with the same suffix. A new file only ever joins
+    an editable neighbour of its kind: never in the frozen core, never in a
+    folder GAGOS has no file in."""
+    if (root / rel).exists() or rel.startswith(FROZEN):
+        return False
+    folder, suffix = Path(rel).parent.as_posix(), Path(rel).suffix
+    return bool(suffix) and any(
+        Path(other).parent.as_posix() == folder and Path(other).suffix == suffix
+        for other in allowed
+    )
+
+
 def build_task_job(
     root: Path,
     head: str,
@@ -840,6 +856,10 @@ def build_task_job(
     tid = task["task_id"]
     files = task["files"]
     parts: list[tuple[str, str, str, dict, tuple[str, ...]]] = []
+    # The files the task creates (:func:`creatable`): shown to the writer as
+    # new, the job always one over several files, so record_task_files records
+    # each as a creation.
+    new_files: list[str] = []
     waits: str | None = None
     # Each file under a prefix of its own: a placeholder moved between
     # files is never restored as the wrong span.
@@ -860,18 +880,24 @@ def build_task_job(
         allowed = editable[python]
         if isinstance(allowed, Exception):
             return "wait", f"which files GAGOS may edit is unknown: {allowed}"
-        if rel not in allowed:
+        new = rel not in allowed and creatable(root, rel, allowed)
+        if rel not in allowed and not new:
             return "refuse", (
-                f"{rel} is not a file GAGOS may edit: it does not exist here, or it "
-                "is frozen core or an organ's entrypoint"
+                f"{rel} is not a file GAGOS may edit: it is frozen core or an "
+                "organ's entrypoint, or it does not exist here and its folder holds "
+                "no file of its kind GAGOS may edit"
             )
         if rel in busy:
             waits = waits or f"another GAGOS change holds {rel}"
             continue
-        try:
-            text = (root / rel).read_bytes().decode("utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            return "refuse", f"{rel} cannot be read as text: {exc}"
+        if new:
+            text = ""
+            new_files.append(rel)
+        else:
+            try:
+                text = (root / rel).read_bytes().decode("utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                return "refuse", f"{rel} cannot be read as text: {exc}"
         if len(text) > MAX_TASK_FILE_CHARS:
             return "refuse", (
                 f"{rel} is {len(text)} characters; the bound for a file a task "
@@ -907,6 +933,7 @@ def build_task_job(
     # reads them.
     said = egress_redact(task["text"])
     briefing = egress_redact(goal_intake.writer_briefing(intakes.get(tid)))
+    grouped = grouped or bool(new_files)
     if len(files) == 1 and not grouped:
         prompt = task_prompt(
             rel, said, masked, masked=bool(mapping), facts=known, briefing=briefing
@@ -921,6 +948,7 @@ def build_task_job(
             # which hold the operator's notes too.
             facts=notes if all(is_python(p[0]) for p in parts) else facts,
             briefing=briefing,
+            new=new_files,
         )
         system = task_files_system(files)
     altered = (plan_would_be_altered if plan else would_be_altered)(prompt, system)
@@ -973,7 +1001,8 @@ def record_task_files(
         answered = (
             parse_task_edits(raw, [p[2] for p in parts])
             if is_edit_answer(raw)
-            else parse_task_files(raw, [p[1] for p in parts])
+            # A file the task creates ends with a newline, as a first test does.
+            else parse_task_files(raw, [p[1] or "\n" for p in parts])
         )
         changed: dict[int, str] = {}
         for i, new in sorted(answered.items()):
@@ -1052,6 +1081,8 @@ def record_task_files(
                 new_text=new_text,
                 verdict=verdicts[i],
                 refusal=refusal,
+                # A file the task creates (build_task_job's new files).
+                op=OP_CREATE if not text and not (root / rel).exists() else None,
             )
         )
     took(ids[0])

@@ -1123,10 +1123,13 @@ def task_files_prompt(
     masked: bool = False,
     facts: Sequence[str] = (),
     briefing: str = "",
+    new: Collection[str] = (),
 ) -> str:
     """The writer's prompt for a task over several files: *task_text* already
     scrubbed, and *files* as ``(rel, text)`` (the text already masked), each
-    under its :func:`file_label`; *briefing* as in :func:`task_prompt`."""
+    under its :func:`file_label`; *briefing* as in :func:`task_prompt`. *new*:
+    the files the task creates, each said to be new under its label
+    (2026-11-15)."""
     lines = ["The operator's task:", task_text]
     if briefing:
         lines += [
@@ -1149,7 +1152,10 @@ def task_files_prompt(
             "written, in the file it is in; never invent one.",
         ]
     for n, (rel, text) in enumerate(files, 1):
-        lines += ["", f"{file_label(n, rel)}", "```", text, "```"]
+        lines += ["", f"{file_label(n, rel)}"]
+        if rel in new:
+            lines.append("This file does not exist yet: write the whole of it.")
+        lines += ["```", text, "```"]
     return "\n".join(lines)
 
 
