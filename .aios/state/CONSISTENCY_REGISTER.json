@@ -118,7 +118,7 @@
     },
     {
       "id": "cli-sealing",
-      "fact": "How the Claude Code and Codex CLIs are launched so a call cannot act: no tools, no session, no user config, an empty directory.",
+      "fact": "How the Claude Code and Codex CLIs are launched: sealed so a call cannot act (no tools, no session, no user config, an empty directory), or, for a mission's agent worker, with its file tools in a masked copy and GAGOS's run_tests as its only MCP tool.",
       "state": "single",
       "source": "aios/core/plan_cli.py::CLAUDE_SEALED",
       "places": [
@@ -126,13 +126,16 @@
         "aios/core/plan_cli.py::CODEX_SEALED",
         "aios/core/plan_cli.py::codex_executable",
         "tools/gagos_daily.py::CLAUDE_SEALED",
-        "tools/gagos_daily.py::CODEX_SEALED"
+        "tools/gagos_daily.py::CODEX_SEALED",
+        "aios/core/plan_cli.py::CLAUDE_AGENT"
       ],
       "guards": [
         "tests/test_consistency_guards.py::test_the_workshop_asks_the_clis_sealed_as_the_plan_client_does",
-        "tests/test_consistency_guards.py::test_the_workshop_finds_codex_as_the_plan_client_does"
+        "tests/test_consistency_guards.py::test_the_workshop_finds_codex_as_the_plan_client_does",
+        "tests/test_gagos_agent_workers.py::test_only_the_plan_client_launches_claude_code_as_an_agent",
+        "tests/test_gagos_agent_workers.py::test_the_agent_is_launched_sealed_to_its_tools"
       ],
-      "note": "One sealed command per CLI since 2026-11-04. On the way: the workshop found Codex with shutil.which alone, so it would have launched a .cmd shim the plan client refuses (cmd.exe re-reads its arguments)."
+      "note": "One sealed command per CLI since 2026-11-04. On the way: the workshop found Codex with shutil.which alone, so it would have launched a .cmd shim the plan client refuses (cmd.exe re-reads its arguments). 2026-11-15: the one other launch, a mission's agent worker (#624 through the mission path), is CLAUDE_AGENT beside CLAUDE_SEALED; the workshop never spells its flags."
     },
     {
       "id": "command-verdict",

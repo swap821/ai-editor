@@ -63,6 +63,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -73,7 +74,7 @@ from collections import Counter
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, Mapping, Sequence
 
 REPO = Path(__file__).resolve().parents[1]
 if str(REPO) not in sys.path:
@@ -632,13 +633,8 @@ def plan_writer(model: str):
 def governed_completer(model: str, region: str):
     """``complete(prompt, system, request_id) -> str`` through organ 32's
     gateway, bound to the enrolled operator and the active constitution."""
-    from aios.api.deps import get_constitution_authority, get_emergency_stop
-    from aios.application.intelligence.gateway import (
-        AdvisoryChatCompletionAdapter,
-        GovernedAdvisoryCompletionClient,
-    )
+    from aios.application.intelligence.gateway import AdvisoryChatCompletionAdapter
     from aios.core.bedrock import BedrockClient, credentials_available
-    from aios.infrastructure.identity.sqlite_store import credential_digest
 
     if model in PLAN_WRITERS:
         provider = plan_writer(model)
@@ -657,6 +653,21 @@ def governed_completer(model: str, region: str):
             ),
             model=model,
         )
+    return _governed(
+        provider,
+        "one proposed fix of lint warnings in one file of GAGOS's own code, for "
+        "review before the operator merges",
+    )
+
+
+def _governed(provider, desired_outcome: str):
+    """``complete(prompt, system, request_id) -> str``: *provider*'s call
+    through organ 32's gateway, bound to the enrolled operator, the active
+    constitution and the emergency stop."""
+    from aios.api.deps import get_constitution_authority, get_emergency_stop
+    from aios.application.intelligence.gateway import GovernedAdvisoryCompletionClient
+    from aios.infrastructure.identity.sqlite_store import credential_digest
+
     snapshot = get_constitution_authority().get_active_snapshot()
     emergency_stop = get_emergency_stop()
 
@@ -669,15 +680,207 @@ def governed_completer(model: str, region: str):
             ),
             constitution_digest=snapshot.snapshot_digest,
             target="cloud",
-            desired_outcome=(
-                "one proposed fix of lint warnings in one file of GAGOS's own code, for "
-                "review before the operator merges"
-            ),
+            desired_outcome=desired_outcome,
             emergency_stop=emergency_stop,
         )
         return client.complete(prompt, system=system)
 
     return complete
+
+
+# ---------------------------------------------------------------- agent workers
+#
+# 2026-11-15, the operator: "624 utilize also as per GAGOS". #624's crew (a lead
+# and Claude Code agents with file tools and GAGOS's sandboxed run_tests) ran
+# beside GAGOS's organs. Here its agents are a mission's workers: the council,
+# the envelope, the Foundry's admission, the gateway, the sandbox, the review,
+# promotion and delivery are the mission's, unchanged. The colony's decomposer
+# is the lead.
+
+#: How many turns an agent worker may take, and for how long.
+AGENT_MAX_TURNS = 80
+AGENT_TIMEOUT_S = 2400
+
+AGENT_RULES = (
+    "You are one of GAGOS's mission workers, working on GAGOS's own code in a "
+    "copy of it. Some spans are replaced by placeholders (GAGOSMASK followed by "
+    "Qs, an underscore and four digits): they hide values that may not leave "
+    "this machine; keep every one you keep exactly as written and never invent "
+    "one. The operator's palette and textures are sacred: never change a colour "
+    "token or a texture asset. Never add eslint-disable, @ts-ignore, "
+    "@ts-nocheck, @ts-expect-error, noqa, type: ignore, nosec or pragma comments."
+)
+
+
+def agent_workers_on() -> bool:
+    """Whether a mission's writers are agents: ``AIOS_GAGOS_AGENT_WORKERS=1``.
+    Off until a complete live run has proven them on GAGOS's own code; each
+    agent holds a Claude Code process and a masked copy (about 1-2 GB), so the
+    operator says when the laptop runs one."""
+    return os.environ.get("AIOS_GAGOS_AGENT_WORKERS", "0").strip() == "1"
+
+
+def agent_scopes(files: Sequence[str]) -> list[str]:
+    """What an agent's copy holds: the frontend's sources for a frontend file,
+    the top package for any other, so it can read what its files use."""
+    return sorted(
+        {
+            "frontend/src/"
+            if rel.startswith("frontend/src/")
+            else rel.split("/", 1)[0] + "/"
+            for rel in files
+        }
+    )
+
+
+def agent_prompt(
+    goal: str,
+    files: Sequence[str],
+    *,
+    part: str = "",
+    others: Sequence[tuple[Sequence[str], str]] = (),
+    briefing: str = "",
+    facts: Sequence[str] = (),
+) -> str:
+    """An agent worker's prompt: the goal (already scrubbed), its part when
+    the colony split the goal, the only files it may change, how to prove the
+    change with ``run_tests``, and the other workers' files it must leave."""
+    lines = ["The operator's goal:", goal]
+    if part:
+        lines += [
+            "",
+            "Your part of it, the only one you do (other workers do the rest):",
+            part,
+        ]
+    if briefing:
+        lines += [
+            "",
+            "The local clerk's briefing (advisory; the goal above decides):",
+            briefing,
+        ]
+    if facts:
+        lines += ["", "Facts about this project, and the operator's direction:"]
+        lines += [f"  - {fact}" for fact in facts]
+    lines += [
+        "",
+        "You may change ONLY these files (create one if it does not exist yet): "
+        + ", ".join(files),
+        "Change nothing else. Read whatever you need. When you think your change "
+        "works, call the run_tests tool; fix what it reports and call it again, "
+        "until it answers PASSED or you can say exactly why not. Finish with a "
+        "short summary of what you changed and the last run_tests answer.",
+    ]
+    if others:
+        lines += ["", "Other workers change, in parallel (never touch their files):"]
+        lines += [f"  - {', '.join(f)}: {work}" for f, work in others]
+    return "\n".join(lines)
+
+
+def agent_mcp_config(project: Path, state: Path, dest: Path) -> Path:
+    """The one MCP server an agent may use: GAGOS's run_tests on its copy."""
+    dest.write_text(
+        json.dumps(
+            {
+                "mcpServers": {
+                    "gagos": {
+                        "command": sys.executable,
+                        "args": [
+                            str(REPO / "tools" / "gagos_crew_mcp.py"),
+                            "--project",
+                            str(project),
+                            "--state",
+                            str(state),
+                        ],
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    return dest
+
+
+def agent_completer(model: str, *, workdir: Path, mcp_config: Path):
+    """``complete(prompt, system, request_id) -> str``: one agent worker's whole
+    session through organ 32's gateway, as one governed call."""
+    from aios.core.plan_cli import PlanAgentClient
+
+    return _governed(
+        PlanAgentClient(
+            model,
+            workdir=workdir,
+            mcp_config=mcp_config,
+            max_turns=AGENT_MAX_TURNS,
+            timeout_s=AGENT_TIMEOUT_S,
+        ),
+        "one mission worker's change to GAGOS's own code, made with file tools "
+        "in a masked copy and tested in the sandbox, for review before the "
+        "operator merges",
+    )
+
+
+def record_agent_change(
+    led: DailyLedger,
+    root: Path,
+    head: str,
+    task_id: str,
+    changed: Mapping[str, str],
+    *,
+    model: str,
+) -> list[str]:
+    """An agent's change as proposals grouped under the task, through the same
+    static checks as any task's: all or nothing (#624's crew, carried). A file
+    absent at *head* is recorded as a creation. *root* is the project at
+    *head*, as the mission's writer reads it."""
+    verdicts: dict[str, StaticVerdict | None] = {}
+    why: dict[str, str] = {}
+    bases: dict[str, str] = {}
+    texts = dict(changed)
+    for rel in sorted(texts):
+        path = root / rel
+        bases[rel] = path.read_bytes().decode("utf-8") if path.is_file() else ""
+        try:
+            if is_python(rel):
+                texts[rel] = format_python_text(root, rel, texts[rel])
+            check = check_python_texts if is_python(rel) else check_texts
+            before = check(root, {rel: bases[rel]}, inline_off=True)[rel]
+            after = check(root, {rel: texts[rel]}, inline_off=True)[rel]
+        except StaticCheckUnavailable as exc:
+            verdicts[rel], why[rel] = None, f"static checks unavailable: {exc}"
+            continue
+        verdict = task_verdict(rel, bases[rel], texts[rel], before, after)
+        if verdict.passed and is_python(rel) and path.is_file():
+            taken = import_refusal(root, rel, bases[rel], texts[rel])
+            if taken:
+                verdict = StaticVerdict(False, taken, verdict.changed_lines)
+        verdicts[rel] = verdict
+        if not verdict.passed:
+            why[rel] = verdict.reason
+    first = min(why) if why else None
+    ids = []
+    for rel in sorted(texts):
+        refusal = None
+        if first is not None and rel != first:
+            refusal = (
+                f"{first} was refused ({why[first]}); an agent's change is all or "
+                "nothing"
+            )
+        elif first == rel and verdicts.get(rel) is None:
+            refusal = why[rel]
+        ids.append(
+            led.record_proposal(
+                Finding(rel, TASK_RULE, ()),
+                base_text=bases[rel],
+                base_commit=head,
+                model=model,
+                new_text=texts[rel],
+                verdict=verdicts.get(rel),
+                refusal=refusal,
+                group_id=task_id,
+                op=None if (root / rel).is_file() else OP_CREATE,
+            )
+        )
+    return ids
 
 
 #: The local writer a goal a mission skill guides is offered to first
@@ -3209,11 +3412,15 @@ class MissionWork:
         admit=None,
         patterns=None,
         local_complete=None,
+        agent=None,
     ) -> None:
         self.led, self.root, self.head, self.task = led, root, head, task
         self.model, self.region = model, region
         self.complete = complete
         self.local_complete = local_complete
+        #: How an agent worker is asked (:func:`agent_completer`'s shape):
+        #: ``agent(model, workdir=, mcp_config=)`` -> ``complete``.
+        self.agent = agent
         #: Which writer's change the mission carries: the local writer's, when
         #: its first attempt passed.
         self.wrote_with = model
@@ -3349,6 +3556,9 @@ class MissionWork:
             return local
         if colony_on() and len(self.task["files"]) > 1:
             return self._colony_write(contract, context)
+        if agent_workers_on():
+            self._agent_part(contract, context, self.task["files"])
+            return self._edits()
         job = self._job(self.task, context)
         raw, started = self._ask(contract, job[4], job[5], "the writer")
         self._record(job, raw, started, threading.Lock())
@@ -3423,6 +3633,14 @@ class MissionWork:
             )[0]
 
         def write_part(part) -> None:
+            if agent_workers_on():
+                # The part's agent: its files, and the decomposer's words for
+                # its share of the goal (2026-11-15).
+                one = list(part.files) == list(self.task["files"])
+                self._agent_part(
+                    contract, context, part.files, "" if one else part.work
+                )
+                return
             if list(part.files) == list(self.task["files"]):
                 task = self.task  # one part over every file: the goal as it is
             else:
@@ -3452,6 +3670,141 @@ class MissionWork:
             concurrency=writers_at_once(),
         )
         return self._edits()
+
+    def _agent_refusal(self, files: Sequence[str]) -> str | None:
+        """Why an agent may not change *files*, or None: each must be a file
+        GAGOS may edit, or one a task may create (:func:`creatable`). An agent
+        edits in place, so the one-shot writers' size bounds do not apply."""
+        allowed: dict[bool, set[str]] = {}
+        for rel in files:
+            python = is_python(rel)
+            if python not in allowed:
+                allowed[python] = set(
+                    editable_python_files(self.root)
+                    if python
+                    else editable_frontend_files(self.root)
+                )
+            if rel not in allowed[python] and not creatable(
+                self.root, rel, allowed[python]
+            ):
+                return (
+                    f"{rel} is not a file GAGOS may edit: it is frozen core or an "
+                    "organ's entrypoint, or it does not exist here and its folder "
+                    "holds no file of its kind GAGOS may edit"
+                )
+        return None
+
+    def _agent_part(
+        self, contract, context: dict, files: Sequence[str], part: str = ""
+    ) -> None:
+        """One agent worker over *files*: the whole goal, or a colony's *part*
+        (2026-11-15, #624's crew through the mission path). It works in a masked
+        copy of the base with file tools and GAGOS's ``run_tests``, its session
+        one governed call through the gateway; what it changed is read back,
+        restored, held to *files* (no deletion, no stray file) and recorded
+        through the same static checks as any task's change. The sandbox, the
+        review and the council's promotion then judge it as they judge any
+        writer's."""
+        from aios.maintenance import crew_workspace as cw
+        from aios.runtime.gagos_writer import WriterRefused
+        from tools.gagos_crew_mcp import save_state
+
+        files = [str(f) for f in files]
+        why = self._agent_refusal(files)
+        if why:
+            raise WriterRefused(why)
+        tid = self.task["task_id"]
+        holder = Path(tempfile.mkdtemp(prefix="gagos-agent-"))
+        try:
+            ws = cw.build(
+                self.root,
+                self.head,
+                agent_scopes(files),
+                plan_mask_redact,
+                holder / "c",
+            )
+            unshown = [rel for rel in files if rel in ws.left_out]
+            if unshown:
+                raise WriterRefused(
+                    f"the agent's copy cannot hold {unshown[0]}: "
+                    f"{ws.left_out[unshown[0]]}"
+                )
+            state = holder / "state.json"
+            save_state(ws, state)
+            config = agent_mcp_config(self.root, state, holder / "mcp.json")
+            complete = (self.agent or agent_completer)(
+                self.model, workdir=ws.root, mcp_config=config
+            )
+            prompt = agent_prompt(
+                egress_redact(self.task["text"]),
+                files,
+                part=egress_redact(part) if part else "",
+                briefing=egress_redact(
+                    goal_intake.writer_briefing(context["intakes"].get(tid))
+                ),
+                facts=context["facts"],
+            )
+            started = time.monotonic()
+            said = complete(
+                prompt, AGENT_RULES, f"gagos:{contract.mission_id}:agent:{files[0]}"
+            )
+            try:
+                changed = cw.restore(ws, cw.changes(ws))
+                problem = None
+            except ProposalRefused as exc:
+                changed, problem = {}, str(exc)
+        finally:
+            shutil.rmtree(holder, ignore_errors=True)
+        # An agent's file tools may write the platform's line endings: each
+        # file keeps its base's (a new one LF), as a one-shot writer's answer
+        # does, and a file that changed only in its endings did not change.
+        for rel, text in list(changed.items()):
+            if text is None:
+                continue
+            path = self.root / rel
+            base = path.read_bytes().decode("utf-8") if path.is_file() else None
+            text = text.replace("\r\n", "\n")
+            if base is not None and "\r\n" in base:
+                text = text.replace("\n", "\r\n")
+            if text == base:
+                del changed[rel]
+            else:
+                changed[rel] = text
+        stray = sorted(rel for rel in changed if rel not in files)
+        gone = sorted(rel for rel, text in changed.items() if text is None)
+        if problem is None and stray:
+            problem = f"the agent changed {stray[0]}, a file outside its own"
+        elif problem is None and gone:
+            problem = f"the agent deleted {gone[0]}; a mission worker may not, yet"
+        elif problem is None and not changed:
+            problem = "the agent changed nothing"
+        took = time.monotonic() - started
+        if problem is not None:
+            first = self.root / files[0]
+            pid = self.led.record_proposal(
+                Finding(files[0], TASK_RULE, ()),
+                base_text=first.read_bytes().decode("utf-8") if first.is_file() else "",
+                base_commit=self.head,
+                model=self.model,
+                new_text=None,
+                verdict=None,
+                refusal=problem,
+                group_id=tid,
+            )
+            self.proposal_ids.append(pid)
+            self.led.take_task(tid, pid)
+            print(f"    {pid} agent {self.model} on {files[0]}: refused: {problem}")
+            return
+        ids = record_agent_change(
+            self.led, self.root, self.head, tid, changed, model=self.model
+        )
+        self.proposal_ids.extend(ids)
+        self.led.take_task(tid, ids[0])
+        print(
+            f"    {ids[0]} agent {self.model} on {', '.join(files)}: "
+            f"{len(changed)} file(s) in {took:.0f}s; it said: "
+            f"{egress_redact(str(said)).strip()[:200]}"
+        )
 
     def verify(self, edits) -> SandboxVerdict:
         # The same change the sandbox already verified (the local attempt's)

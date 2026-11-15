@@ -17,6 +17,28 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - The frontend sandbox image tag (lock file plus runner script) does not change.
 - **Tests.** 2 new tests in `tests/test_gagos_sandbox.py`, both failing on the old code. The GAGOS suites pass (626 passed, 14 skipped).
 
+## 2026-11-15, a mission's writers may be agents (branch `feat/mission-agent-workers`)
+
+- **Why.** The operator: "624 utilize also as per GAGOS". #624's crew, Claude Code agents with file tools and GAGOS's sandboxed `run_tests`, ran beside GAGOS's organs. Here its agents become a mission's workers.
+- **What it is.** It is off until `AIOS_GAGOS_AGENT_WORKERS=1`. Then a mission's writer, or each colony part's, is an agent:
+  - it works in a masked copy of the base commit, built by #624's `crew_workspace`;
+  - its tools are its file tools plus GAGOS's `run_tests` over MCP (#624's `gagos_crew_mcp`);
+  - its whole session is one governed call through organ 32: `PlanAgentClient` in `plan_cli`, wrapped by the same gateway client the writers use.
+- **How its change is checked:**
+  - It is read back and restored, and each file keeps its base's line endings.
+  - It is held to the agent's own files: a stray file or a deletion refuses the whole change.
+  - It is recorded as the task's group through the same static checks as any task. A file the agent creates is recorded as a creation.
+- **What stays the mission's, unchanged:** the council, the envelope, the Foundry's admission of colony legs, the sandbox, the review, promotion and delivery. The colony's decomposer acts as the lead, so #624's own lead and plan were not carried.
+- **What is not proven yet:**
+  - **No live run.** #624's run on 11-11 was stopped for low memory, and each agent costs about 1–2 GB. The operator says when the laptop runs one.
+  - **The colony's decomposer still reads every file in one prompt,** so a goal over a very large file (the 100,000-character LEGACY scene) is still refused at that step, even though a single agent could edit it in place.
+  - **There is no delete tool.**
+- **Registered** under `cli-sealing`: `CLAUDE_AGENT` sits beside `CLAUDE_SEALED`, and the workshop never spells the agent's flags itself (two new guards).
+- **Tests:**
+  - 9 new tests in `tests/test_gagos_agent_workers.py` (stand-in agents, no model), plus #624's carried workspace and MCP tests.
+  - GAGOS suites with both mutation probes: 655 passed, 14 skipped. Consistency, gateway, egress, architecture, plan client and register: 144 passed.
+  - Bandit +2, read: `crew_workspace`'s one `git archive` call.
+
 ## 2026-11-15, a failed delivery check keeps why (branch `fix/delivery-check-says-why`)
 
 - **What happened.** At 08:50 UTC GAGOS's delivery check of `#687`'s three files failed on master too, recorded only as "vitest related: exit 1". It passes there now, in 84 s, so the cause cannot be recovered.
