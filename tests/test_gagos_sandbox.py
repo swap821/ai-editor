@@ -516,6 +516,48 @@ def test_a_vitest_that_fails_to_start_is_unavailable_not_a_pass(webproject) -> N
     assert "vitest could not run" in verdict.summary
 
 
+class FullDiskWeb(FakeWeb):
+    """The runner as it answered on 2026-11-15: /tmp full, the report written
+    empty, and vitest's own log on stderr, its last line a stack frame."""
+
+    def __call__(self, command, *, cwd, env, timeout_s):
+        words = command.split(st.WEB_RUNNER)[1].split()
+        if words[0] == "typecheck":  # tsc was clean that hour
+            return super().__call__(command, cwd=cwd, env=env, timeout_s=timeout_s)
+        self.calls.append((words[0], words[1:]))
+        log = (
+            "\x1b[31m\x1b[1mError\x1b[22m: ENOSPC: no space left on device, write\x1b[39m\n"
+            " \x1b[2m❯\x1b[22m write node:internal/fs/promises:1451:8\n"
+            " \x1b[2m❯\x1b[22m startVitest\n"
+        )
+        return f"\n{st.WEB_MARKER}\n", log, 1
+
+
+def test_a_report_lost_for_space_says_why(webproject) -> None:
+    verdict, *_ = _set(
+        webproject, {WEB_MODULE: "export const f = () => 1\n"}, web=FullDiskWeb()
+    )
+    assert verdict.outcome == st.UNAVAILABLE
+    assert "ENOSPC: no space left on device" in verdict.summary
+    assert "\x1b[" not in verdict.summary and "startVitest" not in verdict.summary
+
+
+def test_the_runner_keeps_transformed_modules_out_of_the_small_tmp() -> None:
+    """The container's /tmp is 64 MiB (aios/core/executor.py). vitest 5's
+    module cache and the forks pool's per-module copies put 54.6 MB there for
+    one three.js change's 85 related test files, beside the 10.9 MB copy of
+    the frontend: the report was written empty. Threads and no module cache
+    keep them in the container's memory."""
+    script = (Path(__file__).resolve().parents[1] / st.WEB_RUNNER_SOURCE).read_text(
+        encoding="utf-8"
+    )
+    call = script[script.index("node node_modules/vitest/vitest.mjs") :]
+    call = call[: call.index("code=$?")]
+    assert "--pool=threads" in call and "--fsModuleCache=false" in call
+    # An empty report sends vitest's log to stderr, as a missing one does.
+    assert "[ -s /tmp/vitest.json ]" in script
+
+
 def test_a_change_to_the_lock_file_is_not_tested_in_an_image_built_from_it(
     webproject,
 ) -> None:
