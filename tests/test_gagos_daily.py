@@ -1789,6 +1789,27 @@ def test_an_excerpt_is_bounded_and_empty_when_nothing_was_said() -> None:
     assert len(excerpt) <= len(" (vitest related: )") + tool.SMOKE_EXCERPT
 
 
+def test_an_excerpt_keeps_why_a_check_died_not_only_its_exit_code() -> None:
+    """2026-11-15: GAGOS's delivery check failed on master as "vitest related:
+    exit 1" and nothing else; the exit code counted as the reason, so a crash
+    whose lines named no failed test was cut away."""
+    from aios.application.promotion.smoke import SmokeStep
+
+    crash = (
+        "exit 1\n RUN v5.1.0 C:/gdw/frontend\n"
+        "<--- Last few GCs --->\n"
+        "FATAL ERROR: Reached heap limit Allocation failed - JavaScript heap out "
+        "of memory\n"
+    )
+    excerpt = tool.smoke_excerpt([SmokeStep("vitest related", False, crash)])
+    assert "exit 1" in excerpt and "heap out of memory" in excerpt
+    quiet = "exit 1\n RUN v5.1.0\n starting\n the last thing it said\n"
+    excerpt = tool.smoke_excerpt([SmokeStep("vitest related", False, quiet)])
+    assert excerpt == (
+        " (vitest related: exit 1 | RUN v5.1.0 | starting | the last thing it said)"
+    )
+
+
 def test_entries_kept_in_one_tick_of_the_clock_stay_in_the_order_kept(
     tmp_path, monkeypatch
 ) -> None:
