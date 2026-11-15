@@ -767,6 +767,23 @@
         "tests/test_port_manifest.py::test_the_manifest_matches_the_product_it_records"
       ],
       "note": "Found 2026-11-11: #533 and #534 both changed SuperbrainScene.LEGACY.tsx and the merged file matched neither recorded digest; CI never ran the port check. The same day the operator chose that GAGOS works on these files through the port: its delivery updates the manifest in the same commit (frontend_static.port_manifest_after)."
+    },
+    {
+      "id": "pulse-reads-each-organs-own-stores",
+      "fact": "Which stores show an organ at work: the aliveness pulse's probe for each organ, against the stores that organ's own writers write.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "aios/application/observability/aliveness.py",
+        "aios/infrastructure/capabilities/envelope_store.py",
+        "aios/memory/provenance.py",
+        "aios/memory/learning_journal.py"
+      ],
+      "guards": [
+        "tests/test_aliveness_pulse.py::test_the_envelope_keeps_organ_9_alive",
+        "tests/test_aliveness_pulse.py::test_signed_provenance_keeps_organ_56_alive"
+      ],
+      "note": "Found 2026-11-15 in real use: the operator's envelope (organ 9) spent both its slots while the pulse, reading turn approvals alone, called the organ silent since 10-30; organ 56's signed provenance (written by every skill transition and the operator's activation) was never read. Each probe now names the organ's stores; a new store an organ writes still has to be added here by hand."
     }
   ]
 }
