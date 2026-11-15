@@ -3848,6 +3848,24 @@ def _envelope_authority():
     )
 
 
+def understanding_hour(root: Path, *, understand=None) -> Any:
+    """GAGOS's understanding of itself through organ 28 (2026-11-15, the
+    operator: "honestly understand itself first"): its own code, as this hour's
+    checkout of master has it, scanned into its passport once per commit and
+    read by the council when it plans a mission
+    (aios.operations.self_understanding). Nothing leaves the laptop."""
+    from aios.operations import self_understanding
+
+    head = _git(root, "rev-parse", "HEAD")
+    passport, scanned = (understand or self_understanding.understand_self)(root, head)
+    stack = passport.architecture_summary.split(";")[0] if passport else "nothing"
+    print(
+        f"  understanding: GAGOS's own passport at {head[:12]}, "
+        f"{'scanned' if scanned else 'as it was'}: {stack}"
+    )
+    return passport
+
+
 def knowledge_hour(root: Path, *, ingestor=None) -> dict:
     """GAGOS's own documents kept in its knowledge base (move C, the operator's
     word of 2026-11-13: "GAGOS's own docs"): the README, AGENTS.md,
@@ -4661,6 +4679,16 @@ def cmd_daily(args: argparse.Namespace) -> int:
             return 2
         _git(root, "fetch", "-q", "origin", "master")
         _git(root, "checkout", "-q", "--detach", "origin/master")
+        # GAGOS's understanding of itself first (organ 28): the council reads
+        # it when it plans this hour's missions.
+        try:
+            understanding_hour(root)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(
+                f"  understanding: no passport this hour: {type(exc).__name__}: {exc}"[
+                    :400
+                ]
+            )
         # Goals first through the clerk (the one-system plan, phase 1).
         try:
             goals_hour(led, root)
