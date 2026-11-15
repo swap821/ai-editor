@@ -365,3 +365,117 @@ def test_no_slot_is_taken_before_the_councils_keys_are_loaded(
     tool.missions_hour(led, tmp_path, envelope=Live())
     assert asked == [] and led.originations() == {}
     assert "AIOS_VERIFICATION_AUTHORITY_KEY" in capsys.readouterr().out
+
+
+# -- a run whose sandbox could not run (2026-11-15) ------------------------------------
+#
+# The frontend sandbox's /tmp filled, the run failed with the sandbox
+# "unavailable", and the operator's goal was closed with his envelope's slot
+# spent: the change was never judged. Now the goal goes back to open, once, for
+# a later slot; the slot stays spent, and nothing learns from the run.
+
+UNJUDGED = sb.SandboxVerdict(sb.UNAVAILABLE, "ENOSPC: no space left on device")
+BROKE = sb.SandboxVerdict(sb.BROKE, "1 test passing without it fails")
+
+
+def _run_whose_sandbox(verdict, setup=None):
+    """A mission run whose writer took the goal with a real proposal and whose
+    sandbox said *verdict*, so the council failed it."""
+
+    def run(task, mission_id, work):
+        pid = work.led.record_proposal(
+            Finding(TEST, TASK_RULE, ()),
+            base_text=BASE,
+            base_commit="head",
+            facts=(),
+            model="m",
+            new_text=NEW,
+            verdict=StaticVerdict(True, "", 1),
+        )
+        assert work.led.take_task(task["task_id"], pid)
+        work.proposal_ids = [pid]
+        work._verified = ({TEST: NEW}, verdict)
+        if setup is not None:
+            setup(work)
+        return {"state": "failed", "reason": f"the sandbox: {verdict.outcome}"}
+
+    return run
+
+
+class _Live:
+    def status(self):
+        return {"live": True}
+
+
+def test_a_goal_whose_sandbox_could_not_run_is_given_back_once(
+    led, tmp_path, capsys
+) -> None:
+    tid = _originated(led)
+    tool.runs_hour(led, tmp_path, region="r", run=_run_whose_sandbox(UNJUDGED))
+
+    assert led.originations()[tid]["state"] == tool.RETURNED
+    assert led.task(tid)["status"] == "open"
+    assert "could not run" in led.task(tid)["reason"]
+    # The writers still leave it to the council; the council takes it again.
+    assert tid in tool.council_goals(led)
+    assert "open again for a later slot" in capsys.readouterr().out
+    sent = []
+
+    def originate(task, seen):
+        sent.append(task["task_id"])
+        return {"state": "awaiting_approval", "mission_id": "mission-second00000"}
+
+    tool.missions_hour(led, tmp_path, envelope=_Live(), originate=originate)
+    assert sent == [tid]
+
+    # Once: a second unjudged run closes the goal like any failed run.
+    tool.runs_hour(led, tmp_path, region="r", run=_run_whose_sandbox(UNJUDGED))
+    assert led.originations()[tid]["state"] == "run_failed"
+    assert led.task(tid)["status"] == "taken"
+    assert "given back once already" in capsys.readouterr().out
+
+
+def test_a_run_the_sandbox_judged_is_not_given_back(led, tmp_path) -> None:
+    tid = _originated(led)
+    tool.runs_hour(led, tmp_path, region="r", run=_run_whose_sandbox(BROKE))
+    assert led.originations()[tid]["state"] == "run_failed"
+    assert led.task(tid)["status"] == "taken"
+    assert led.returned_goals() == set()
+
+
+@pytest.mark.parametrize("verdict,learns", [(UNJUDGED, False), (BROKE, True)])
+def test_only_a_run_its_sandbox_judged_teaches_the_trail_and_the_skill(
+    led, tmp_path, monkeypatch, verdict, learns
+) -> None:
+    from types import SimpleNamespace
+
+    _originated(led)
+    laid, taught = [], []
+    monkeypatch.setattr(
+        tool, "_record_skill_outcome", lambda *a, **k: taught.append(a) or []
+    )
+
+    def guided_and_split(work):
+        work.guided = [{"skill_id": "gagos-mission-x", "version": 1}]
+        work.patterns = SimpleNamespace(record_attempt=lambda *a, **k: laid.append(a))
+        work.colony = SimpleNamespace(
+            scout="fresh",
+            pattern_id=None,
+            parts=[SimpleNamespace(files=[TEST], subtask=lambda: "part")],
+        )
+
+    tool.runs_hour(
+        led, tmp_path, region="r", run=_run_whose_sandbox(verdict, guided_and_split)
+    )
+    assert bool(laid) is learns and bool(taught) is learns
+    with led._db() as db:
+        outcomes = [r["outcome"] for r in db.execute("SELECT outcome FROM colony_runs")]
+    assert outcomes == ["failed" if learns else "unjudged"]
+
+
+def test_the_report_does_not_count_an_unjudged_run_as_decided(led, tmp_path) -> None:
+    _originated(led)
+    tool.runs_hour(led, tmp_path, region="r", run=_run_whose_sandbox(UNJUDGED))
+    in_all = next(line for line in tool.mission_section(led) if "in all:" in line)
+    assert "given back, its sandbox could not run 1" in in_all
+    assert "decided" not in in_all

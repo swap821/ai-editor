@@ -2954,15 +2954,20 @@ SLOT_SPENT = ("awaiting_approval", "blocked", "failed")
 #: What became of a mission GAGOS ran (move A3): its worker's change was
 #: promoted, the run failed, or the envelope no longer approved it.
 RUN_STATES = ("completed", "run_failed", "run_refused")
+#: A run whose sandbox could not run (2026-11-15): the change was never judged,
+#: so the goal goes back to open, once, for a later slot. Its slot stays spent:
+#: a consumed envelope slot is never granted again.
+RETURNED = "run_unavailable"
 
 
 def council_goals(led: DailyLedger) -> set[str]:
     """The goals the council has: originated as missions (a slot spent) or run
-    as one. The workshop's writers leave them to the mission's worker."""
+    as one, or given back to wait for a later slot. The workshop's writers
+    leave them to the mission's worker."""
     return {
         tid
         for tid, o in led.originations().items()
-        if o.get("state") in (*SLOT_SPENT, *RUN_STATES)
+        if o.get("state") in (*SLOT_SPENT, *RUN_STATES, RETURNED)
     }
 
 
@@ -3409,6 +3414,12 @@ class MissionWork:
         self._verified = (dict(edits), verdict)
         return verdict
 
+    def sandbox_could_not_run(self) -> bool:
+        """The last change the sandbox was asked to verify was never judged:
+        its tests could not run (2026-11-15: the frontend sandbox's /tmp
+        filled). Not the writers' failure, the split's or a skill's."""
+        return self._verified is not None and self._verified[1].outcome == UNAVAILABLE
+
     def review(self, edits, verdict) -> tuple[bool, str]:
         rows = self._rows()
         p = rows[0]
@@ -3503,11 +3514,25 @@ def runs_hour(
                 "reason": f"the run failed: {type(exc).__name__}: {exc}"[:400],
             }
         state = states.get(outcome.get("state"), "run_failed")
+        # A run whose sandbox could not run judged nothing (2026-11-15: its
+        # /tmp filled). The goal goes back to open for a later slot, once, and
+        # neither the colony's trail nor a skill learns from it.
+        unjudged = state == "run_failed" and work.sandbox_could_not_run()
+        give_back = unjudged and tid not in led.returned_goals()
+        if give_back:
+            state = RETURNED
         if state != "completed":
             work.withdraw(
                 f"the council's mission {o['mission_id']}: {outcome.get('reason')}"
             )
-        colony_trail(led, tid, o["mission_id"], work, completed=state == "completed")
+        colony_trail(
+            led,
+            tid,
+            o["mission_id"],
+            work,
+            completed=state == "completed",
+            judged=not unjudged,
+        )
         led.record_origination(
             tid,
             {
@@ -3522,8 +3547,20 @@ def runs_hour(
             f"  mission {o['mission_id']} for {tid}: {state}"
             + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
         )
-        # A skill that guided the writers learns how it went, when they wrote.
-        skill_outcome(work, completed=state == "completed")
+        if give_back and led.return_task(
+            tid, f"given back: mission {o['mission_id']}'s sandbox could not run"
+        ):
+            print(
+                f"    {tid} is open again for a later slot of the envelope: its "
+                "sandbox could not run, so the change was never judged (a goal is "
+                "given back once; the slot stays spent)"
+            )
+        elif unjudged and not give_back:
+            print(f"    {tid} is not given back again: it was given back once already")
+        # A skill that guided the writers learns how it went, when they wrote
+        # and the sandbox judged it.
+        if not unjudged:
+            skill_outcome(work, completed=state == "completed")
         if state == "completed":
             trajectory = mission_trajectory(work, o, head)
             mission_memory(o)
@@ -3710,13 +3747,21 @@ def _capture_trajectory(*args, **kwargs):
 
 
 def colony_trail(
-    led: DailyLedger, task_id: str, mission_id: str, work, *, completed: bool
+    led: DailyLedger,
+    task_id: str,
+    mission_id: str,
+    work,
+    *,
+    completed: bool,
+    judged: bool = True,
 ) -> None:
     """After the council decided a mission the colony worked: the run is
     recorded, and a split it found or reused lays its trail in the swarm's
     pattern memory, a success only when the change was verified in the sandbox,
     accepted by the reviewer and promoted (strong evidence), a failure
-    otherwise. A goal worked as one part lays no trail: nothing was split."""
+    otherwise. A goal worked as one part lays no trail: nothing was split. Nor
+    does a run whose sandbox could not run (2026-11-15): it judged nothing, so
+    it is recorded ``unjudged``."""
     colony = getattr(work, "colony", None)
     if colony is None:
         return
@@ -3726,7 +3771,7 @@ def colony_trail(
         scout=colony.scout,
         parts=[part.files for part in colony.parts],
         pattern_id=colony.pattern_id,
-        outcome="completed" if completed else "failed",
+        outcome="completed" if completed else "failed" if judged else "unjudged",
     )
     print(
         f"    the colony for {task_id}: {len(colony.parts)} part(s), "
@@ -3734,7 +3779,7 @@ def colony_trail(
             colony.scout, "worked as one part"
         )
     )
-    if colony.scout == "single" or work.patterns is None:
+    if colony.scout == "single" or work.patterns is None or not judged:
         return
     from aios.core.verification_strength import VerificationStrength
 
@@ -3865,6 +3910,7 @@ MISSION_STATES = {
     "blocked": "blocked by the council",
     "run_failed": "failed in its run",
     "run_refused": "refused at its run by the envelope",
+    RETURNED: "given back, its sandbox could not run",
     "awaiting_approval": "not yet run",
 }
 
@@ -3882,7 +3928,8 @@ def mission_section(led: DailyLedger) -> list[str]:
 
     def counts(missions: list[dict]) -> str:
         by = Counter(m["state"] for m in missions)
-        decided = len(missions) - by["awaiting_approval"]
+        # A run whose sandbox could not run decided nothing (2026-11-15).
+        decided = len(missions) - by["awaiting_approval"] - by[RETURNED]
         rate = (
             f" ({100 * by['completed'] // decided}% of {decided} decided)"
             if decided

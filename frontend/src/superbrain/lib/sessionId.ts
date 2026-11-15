@@ -168,7 +168,6 @@ export async function initSession(): Promise<string> {
 
     if (!_fallbackWarningEmitted) {
       _fallbackWarningEmitted = true;
-      // eslint-disable-next-line no-console
       console.warn(
         '[SECURITY] Cookie-based session not available. ' +
           'Falling back to sessionStorage — session is vulnerable to XSS theft. ' +
