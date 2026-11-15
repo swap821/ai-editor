@@ -517,10 +517,14 @@ def _aligned_redact(text: str, egress_redact) -> str:
 #: How much of a failed delivery check's own output is kept with its reason.
 SMOKE_EXCERPT = 600
 
-#: The lines of a check's output that say what failed.
+#: The lines of a check's output that say what failed. Case-blind: Node's own
+#: crash says "FATAL ERROR" (2026-11-15).
 _FAILED_LINE = re.compile(
-    r"FAIL|Error|×|✗|expected|Timeout|timed out|deadline|exit \d+"
+    r"FAIL|Error|×|✗|expected|Timeout|timed out|deadline|out of memory|Killed",
+    re.IGNORECASE,
 )
+#: The first line of a step's detail: its exit code, not a reason.
+_EXIT_LINE = re.compile(r"^exit -?\d+$")
 
 
 def smoke_excerpt(steps: list) -> str:
@@ -529,14 +533,21 @@ def smoke_excerpt(steps: list) -> str:
 
     2026-11-12: the UX-05 change failed delivery twice as "the tests related to
     the frontend targets did not pass", passed every reproduction outside the
-    hour, and the output that would have said why was gone."""
+    hour, and the output that would have said why was gone.
+
+    2026-11-15: the exit code itself counted as a line that says why, so output
+    with no other such line (a crash, a startup error) was cut to "exit 1".
+    The exit code is kept, and with it the lines that say why or, when none
+    does, the output's last lines."""
     failed = next((s for s in steps if not s.passed and (s.detail or "").strip()), None)
     if failed is None:
         return ""
     lines = [
         " ".join(line.split()) for line in failed.detail.splitlines() if line.strip()
     ]
-    said = [line for line in lines if _FAILED_LINE.search(line)] or lines
+    head = [line for line in lines[:1] if _EXIT_LINE.match(line)]
+    rest = lines[len(head) :]
+    said = head + ([line for line in rest if _FAILED_LINE.search(line)] or rest[-7:])
     # Kept in the local log and ledger only: a named credential is scrubbed, the
     # failing test's path is not (it is what says why).
     text = goal_intake.clerk_redact(" | ".join(said[-8:]))

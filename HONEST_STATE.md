@@ -32,6 +32,14 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - 6 new tests in `tests/test_gagos_self_understanding.py`.
   - The GAGOS suites, organ 28's own and the authenticated chat route, consistency, gateway, architecture, Bandit and the pulse: 908 passed, 14 skipped.
 
+## 2026-11-15, a failed delivery check keeps why (branch `fix/delivery-check-says-why`)
+
+- **What happened.** At 08:50 UTC GAGOS's delivery check of `#687`'s three files failed on master too, recorded only as "vitest related: exit 1". It passes there now, in 84 s, so the cause cannot be recovered.
+- **Why nothing was kept.** The excerpt keeps the lines that say why a step failed, and the exit code counted as one of those lines. So output with no other such line was cut down to the exit code: a crash such as Node's "FATAL ERROR ... JavaScript heap out of memory" (upper case), or a startup error. The hour was busy at the time: the mission's 2 GB sandbox and three colony writers were running.
+- **What changed** (`tools/gagos_daily.py`). The exit code is kept as the first line. The other lines are kept when they say why: case-blind now, and "out of memory" and "Killed" count. When no line says why, the output's last seven lines are kept.
+- **Also measured:** the frontend's packages in the operator's checkout match the lock file (only other platforms' optional binaries differ), so stale packages were not the cause.
+- **Tests.** 1 new test in `tests/test_gagos_daily.py`, which fails on the old code. Daily, tasks and register: all passed.
+
 ## 2026-11-15, GAGOS's missions may create and delete files (branch `feat/missions-create-delete`)
 
 - **Why.** The operator: "624 utilize also as per GAGOS". #624's crew (11-11) ran beside GAGOS's organs. Its parts now come in through the mission path, starting with this PR: files can be created and deleted.
