@@ -22,7 +22,19 @@ from tools import gagos_journeys as gj
 class Page:
     """A stand-in for the face, answering the runner's expressions."""
 
-    def __init__(self, *, restores: int = 1, button: str = "Stop", events=()) -> None:
+    def __init__(
+        self,
+        *,
+        restores: int = 1,
+        remounts: bool = False,
+        fallback: bool = False,
+        retry_recovers: bool = False,
+        button: str = "Stop",
+        events=(),
+    ) -> None:
+        self.remounts = remounts
+        self.fallback = fallback
+        self.retry_recovers = retry_recovers
         self.value = ""
         self.metrics: list[dict] = []
         self.restores = restores
@@ -36,6 +48,17 @@ class Page:
         return {}
 
     async def evaluate(self, expression: str):
+        if "lm-renderer-fallback-notice" in expression:
+            return self.fallback
+        if "lm-renderer-fallback__retry" in expression and expression.endswith(
+            ".click()"
+        ):
+            self.clicked.append(expression)
+            self.remounts = self.remounts or self.retry_recovers
+            return None
+        if "?.value === " in expression:
+            wanted = json.loads(expression.rsplit("=== ", 1)[1].rstrip(")"))
+            return self.value == wanted
         if "data-controls-ready" in expression:
             return True
         if "/api/v1/auth/session" in expression:
@@ -45,8 +68,13 @@ class Page:
             return None
         if "WEBGL_lose_context" in expression:
             return True
+        restored = any(m["name"] == "context-recovery" for m in self.metrics)
+        if "c !== window.__gagosJourneyCanvas" in expression and "||" in expression:
+            return restored or self.remounts  # the wait: either recovery
+        if "c !== window.__gagosJourneyCanvas" in expression:
+            return self.remounts
         if ".some(m => m.name === 'context-recovery')" in expression:
-            return any(m["name"] == "context-recovery" for m in self.metrics)
+            return restored
         if "__gagosJourney?.metrics" in expression:
             return self.metrics
         if "__gagosJourney?.errors" in expression:
@@ -103,8 +131,8 @@ def test_rec_01_fails_when_the_view_restores_twice(tmp_path) -> None:
     journey = _journey(Page(restores=2), tmp_path)
     asyncio.run(gj.rec_01(journey))
     record = journey.record.finish()
-    (once,) = [s for s in record.steps if s.name == "restored once"]
-    assert not once.ok and once.detail == "2 measured restore(s)"
+    (once,) = [s for s in record.steps if s.name == "recovered once"]
+    assert not once.ok and once.detail == "2 in-place restore(s), 0 remount(s)"
     assert record.outcome == "failed"
 
 
@@ -166,3 +194,50 @@ def test_the_face_is_reached_where_vite_serves_it() -> None:
     refused, so the eye's screenshots and the journeys never saw the face."""
     assert gj.FACE_URL == "http://localhost:5173/"
     assert gj.eye.DEFAULT_URL == "http://localhost:5173/"
+
+
+def test_rec_01_counts_a_remount_as_the_one_recovery(tmp_path) -> None:
+    """2026-11-15, the first run on the real face: no in-place restore came,
+    and after its 4 s grace the face mounted a fresh canvas three.js ran."""
+    journey = _journey(Page(restores=0, remounts=True), tmp_path)
+    asyncio.run(gj.rec_01(journey))
+    record = journey.record.finish()
+    (once,) = [s for s in record.steps if s.name == "recovered once"]
+    assert once.ok and once.detail == "0 in-place restore(s), 1 remount(s)"
+    assert record.outcome == "passed"
+
+
+def test_rec_01_fails_when_the_view_never_recovers(tmp_path) -> None:
+    journey = _journey(Page(restores=0, remounts=False), tmp_path)
+    asyncio.run(gj.rec_01(journey))
+    assert journey.record.finish().outcome == "failed"
+
+
+def test_rec_01_fails_when_the_view_recovers_twice(tmp_path) -> None:
+    journey = _journey(Page(restores=1, remounts=True), tmp_path)
+    asyncio.run(gj.rec_01(journey))
+    assert journey.record.finish().outcome == "failed"
+
+
+def test_rec_01_follows_the_faces_retry_when_it_does_not_restore_itself(
+    tmp_path,
+) -> None:
+    """2026-11-15, the real face: the scene is taken down at the loss and its
+    fallback offers "Retry visual organism"; the journey presses Retry (never
+    an approval) and expects exactly one recovery."""
+    page = Page(restores=0, remounts=False, fallback=True, retry_recovers=True)
+    journey = _journey(page, tmp_path)
+    asyncio.run(gj.rec_01(journey))
+    record = journey.record.finish()
+    steps = {s.name: s for s in record.steps}
+    assert steps["fallback shown, controls still working"].ok
+    assert steps["recovered once"].detail == "0 in-place restore(s), 1 remount(s)"
+    assert record.outcome == "passed"
+    assert any("lm-renderer-fallback__retry" in c for c in page.clicked)
+
+
+def test_rec_01_fails_when_retry_does_not_bring_the_view_back(tmp_path) -> None:
+    page = Page(restores=0, remounts=False, fallback=True, retry_recovers=False)
+    journey = _journey(page, tmp_path)
+    asyncio.run(gj.rec_01(journey))
+    assert journey.record.finish().outcome == "failed"

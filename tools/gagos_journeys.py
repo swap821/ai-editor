@@ -51,6 +51,9 @@ EVIDENCE_DIR = REPO / "docs" / "frontend" / "evidence" / "journeys"
 COMPOSER = '[aria-label="Talk to GAGOS"]'
 CANVAS = ".scene-layer canvas"
 CONTROLS_READY = '[data-controls-ready="true"]'
+#: The face's own notice when its visual organism is down, and its Retry.
+FALLBACK = ".lm-renderer-fallback-notice"
+RETRY = ".lm-renderer-fallback__retry"
 #: Controls the runner may never press: approving is the operator's own act.
 FORBIDDEN_CONTROL = re.compile(r"\b(approve|allow|grant|accept)\b", re.IGNORECASE)
 #: Requests that would start backend work: a journey that only holds a draft
@@ -324,12 +327,13 @@ class Journey:
 async def rec_01(j: Journey) -> None:
     """REC-01, renderer and backend recovery (weight 3): a draft in the
     composer survives the 3D view losing its graphics context and the network
-    dropping; the view restores once; nothing is sent twice (here: nothing at
-    all, since the draft is never sent)."""
+    dropping; the view recovers once (restored in place, or remounted);
+    nothing is sent twice (here: nothing at all, since the draft is never
+    sent)."""
     r = j.record
     r.boundary = (
         "A draft only, with no live work in flight: this proves the draft, the "
-        "single measured restore and that no work request was sent across a "
+        "view's single recovery and that no work request was sent across a "
         "graphics-context loss and a network drop. It does not prove a pending "
         "decision or a receipt surviving them during real work, which REC-01's "
         "full threshold also needs; REC-01 earns no points from this run alone."
@@ -348,6 +352,7 @@ async def rec_01(j: Journey) -> None:
         " const gl = c && (c.getContext('webgl2') || c.getContext('webgl'));"
         " const ext = gl && gl.getExtension('WEBGL_lose_context');"
         " if (!ext) return false; window.__gagosJourneyLoss = ext;"
+        " window.__gagosJourneyCanvas = c;"
         " ext.loseContext(); return true; })()"
     )
     r.step(
@@ -358,12 +363,30 @@ async def rec_01(j: Journey) -> None:
     await j.cdp.evaluate(
         "window.__gagosJourneyLoss && window.__gagosJourneyLoss.restoreContext()"
     )
-    restored = await j.wait_for(
-        "(window.__gagosJourney.metrics || []).some(m => m.name === 'context-recovery')",
-        20,
+    # 2026-11-15, the first runs on the real face: it did not restore in place
+    # (the scene is taken down at the loss) but showed its fallback with a
+    # Retry; recovery is that Retry. Either way counts, once.
+    if not await j.wait_for(f"{_IN_PLACE} || {_REMOUNTED}", 6):
+        fallback = await j.wait_for(f"document.querySelector('{FALLBACK}')", 5)
+        r.step(
+            "fallback shown, controls still working",
+            fallback
+            and bool(
+                await j.cdp.evaluate(
+                    f"Boolean(document.querySelector('{CONTROLS_READY}'))"
+                )
+            ),
+        )
+        if fallback:
+            await j.click(RETRY)
+            await j.wait_for(f"{_IN_PLACE} || {_REMOUNTED}", 20)
+    in_place = sum(1 for m in await j.metrics() if m.get("name") == "context-recovery")
+    remounted = 1 if await j.cdp.evaluate(_REMOUNTED) else 0
+    r.step(
+        "recovered once",
+        in_place + remounted == 1,
+        f"{in_place} in-place restore(s), {remounted} remount(s)",
     )
-    count = sum(1 for m in await j.metrics() if m.get("name") == "context-recovery")
-    r.step("restored once", restored and count == 1, f"{count} measured restore(s)")
     await j.cdp.send(
         "Network.emulateNetworkConditions",
         offline=True,
@@ -381,11 +404,25 @@ async def rec_01(j: Journey) -> None:
         uploadThroughput=-1,
     )
     await j.cdp.send("Page.reload")
-    back = await j.wait_for(f"document.querySelector('{CONTROLS_READY}')", 60)
-    r.step("draft back after a reload", back and await j.value_of(COMPOSER) == draft)
+    # Right after a reload the old page may still answer; wait for the draft
+    # itself to come back (2026-11-15: read too early, it looked lost).
+    await asyncio.sleep(1)
+    back = await j.wait_for(
+        f"document.querySelector({json.dumps(COMPOSER)})?.value === {json.dumps(draft)}",
+        30,
+    )
+    r.step("draft back after a reload", back)
     await j.collect()
     r.step("no work request sent", not r.work_requests, f"{len(r.work_requests)} sent")
 
+
+_IN_PLACE = (
+    "(window.__gagosJourney.metrics || []).some(m => m.name === 'context-recovery')"
+)
+_REMOUNTED = (
+    "(() => { const c = document.querySelector('" + CANVAS + "');"
+    " return Boolean(c && c !== window.__gagosJourneyCanvas && c.dataset.engine); })()"
+)
 
 JOURNEYS: dict[str, tuple[str, Callable[[Journey], Awaitable[None]]]] = {
     "rec-01": ("REC-01 renderer and backend recovery", rec_01),

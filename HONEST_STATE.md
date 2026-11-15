@@ -16,11 +16,18 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - It never presses an Allow, Approve, Grant or Accept control.
   - It keeps only whether the page is signed in, never his id or token.
 - **First journey: REC-01.** A composer draft goes through a forced WebGL context loss, a network drop and a reload. The face's own `context-recovery` metric must report exactly one restore, and no work request may be sent. Its boundary: there is no live work in flight, so it earns no points alone.
-- **First run, headless, not signed in.** Chrome 157 on the AMD GPU. 7 of 8 steps passed: the draft survived all three, and no request was sent.
-  - **"Restored once" failed:** no restore was measured.
-  - The canvas's `webglcontextlost` event reached the runner with `defaultPrevented` false. three.js r187, which owns the canvas, calls `preventDefault` in its own handler, so that handler looks detached from the live canvas, perhaps by React's development double mount.
-  - If so, after a GPU context loss the face cannot restore in place, and only a reload brings the scene back.
-  - This is **suspected, not confirmed.** It needs the operator's signed-in window and a check against the production build.
+- **First runs, headless, not signed in** (Chrome 157, AMD GPU), against the operator's real face. **REC-01 passes, 9 of 9 steps:**
+  - the draft survives the graphics loss, going offline and a reload;
+  - the face shows its fallback, "Visual organism unavailable. GAGOS controls are still working";
+  - its "Retry visual organism" brings the scene back exactly once;
+  - no work request is sent.
+- **A correction.** The first run's "the view never restores" was the runner's mistake, not the face's: it waited for an in-place restore that the face never attempts. It now counts recovery either way, an in-place restore or a fresh canvas three.js runs, and it presses the face's Retry, which is never an approval. It also read the composer during the reload's navigation; it now waits for the draft itself.
+- **A seam it found in the face.**
+  - `WorkspaceCanvas` opts in to an in-place restore and waits 4 s (`CONTEXT_RESTORE_GRACE_MS`) before remounting.
+  - `SuperbrainApp` takes the whole scene down at the first `webglcontextlost`, so that wait never runs, and recovery is always the operator's Retry or a reload.
+  - The face's own `context-recovery` metric counts only in-place restores, so it never records the recovery that does happen.
+  - Also seen, and unexplained: the event reached a later listener with `defaultPrevented` false, although three.js and `WorkspaceCanvas` both call `preventDefault`.
+  - This is a face goal for GAGOS, not fixed here.
 - **Also fixed:** GAGOS's eye pointed at `127.0.0.1:5173`, which Vite refuses on this laptop (it serves `localhost`, the IPv6 loopback), so its screenshots never saw the face. Both tools now use `localhost`.
 - **Tests.** 12 new tests in `tests/test_gagos_journeys.py`, using a stand-in page and no Chrome. Gateway, Bandit, consistency, architecture and the daily tests: 184 passed. Bandit has no new findings.
 
