@@ -67,7 +67,7 @@ import tempfile
 import time
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path, PurePosixPath
-from typing import Callable, Protocol, Sequence
+from typing import Callable, Collection, Protocol, Sequence
 
 from aios.application.promotion.smoke import (
     FRONTEND_SMOKE_SUFFIXES,
@@ -93,6 +93,9 @@ UNTESTED = "untested"
 UNAVAILABLE = "unavailable"
 #: How a refusal for broken tests begins (GAGOS's report counts these apart).
 BROKE_PREFIX = "the proposal breaks tests that pass without it"
+#: A proposal whose only failing tests are ones it adds (2026-11-15): it
+#: breaks nothing that passed, its own new tests fail.
+NEW_TESTS_FAIL_PREFIX = "the proposal's own new tests fail"
 
 #: The only variables the ``docker`` client is given. The container receives
 #: none of them (``docker run`` forwards only its ``--env`` flags); this list
@@ -253,6 +256,9 @@ class SandboxVerdict:
     #: 15 grades a mission's verification by. 0 where nothing ran.
     passed_count: int = 0
     failed_count: int = 0
+    #: Of :attr:`broken`, the tests in files the change adds (2026-11-15):
+    #: they never ran without it, so they did not "pass without it".
+    added: tuple[str, ...] = ()
 
     def to_json(self) -> str:
         return json.dumps(asdict(self), ensure_ascii=True)
@@ -273,6 +279,8 @@ class SandboxVerdict:
         """The proposal's refusal when it broke tests, else None."""
         if self.outcome != BROKE:
             return None
+        if self.broken and set(self.broken) <= set(self.added):
+            return f"{NEW_TESTS_FAIL_PREFIX}: {self.summary}"
         return f"{BROKE_PREFIX}: {self.summary}"
 
     def for_reviewer(self) -> str:
@@ -691,10 +699,14 @@ def _compare(
     of: str,
     timeout_s: int,
     seconds: float,
+    new_files: Collection[str] = (),
 ) -> SandboxVerdict:
     """The verdict from the two runs of one kind of test: with the change,
     and without it (the base). Only what passes without and fails with is the
-    change's doing."""
+    change's doing. *new_files*: test files the change adds, which the base
+    run could not run: their failing tests are new tests that fail, never
+    tests that "pass without it" (2026-11-15: two first tests were refused as
+    breaking tests they had only added)."""
     if with_it.timed_out:
         if without.timed_out:
             return SandboxVerdict(
@@ -722,15 +734,25 @@ def _compare(
     broken = tuple(t for t in with_it.failing if t not in without.failing)
     anyway = tuple(t for t in with_it.failing if t in without.failing)
     if broken:
+        added = tuple(t for t in broken if t.split("::", 1)[0] in set(new_files))
+        were = tuple(t for t in broken if t not in added)
+        said = []
+        if were:
+            said.append(
+                f"{len(were)} test(s) pass without it and fail with it: {_names(were)}"
+            )
+        if added:
+            said.append(f"{len(added)} new test(s) it adds fail: {_names(added)}")
         return SandboxVerdict(
             BROKE,
-            f"{len(broken)} test(s) pass without it and fail with it: {_names(broken)}",
+            "; ".join(said),
             tuple(tests),
             broken,
             anyway,
             seconds,
             passed_count=with_it.passed,
             failed_count=len(with_it.failing),
+            added=added,
         )
     return SandboxVerdict(
         PASSED,
@@ -827,7 +849,13 @@ class _PythonPart:
         except SandboxUnavailable as exc:
             return SandboxVerdict(UNAVAILABLE, str(exc), tests)
         return _compare(
-            self.with_it, without, tests, self.of, self.timeout_s, self.with_it.seconds
+            self.with_it,
+            without,
+            tests,
+            self.of,
+            self.timeout_s,
+            self.with_it.seconds,
+            new_files=set(self.tests) - set(base_tests),
         )
 
 
@@ -930,7 +958,15 @@ class _WebPart:
             )
         except SandboxUnavailable as exc:
             return SandboxVerdict(UNAVAILABLE, str(exc), run.files)
-        return _compare(run, without, run.files, "", self.timeout_s, run.seconds)
+        return _compare(
+            run,
+            without,
+            run.files,
+            "",
+            self.timeout_s,
+            run.seconds,
+            new_files=set(subjects) - set(present),
+        )
 
 
 _RANK = {BROKE: 0, UNAVAILABLE: 1, PASSED: 2, UNTESTED: 3}
@@ -1169,6 +1205,7 @@ def ledger_entry(verdict: SandboxVerdict, *, rels: Sequence[str]) -> dict:
 __all__ = [
     "BROKE",
     "BROKE_PREFIX",
+    "NEW_TESTS_FAIL_PREFIX",
     "BaseTrees",
     "MAX_TEST_FILES",
     "PASSED",

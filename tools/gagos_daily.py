@@ -184,6 +184,7 @@ from aios.core.plan_cli import claude_executable as _claude_executable  # noqa: 
 from aios.core.plan_cli import codex_executable as _codex_executable  # noqa: E402
 from aios.maintenance.sandbox_tests import (  # noqa: E402
     BROKE_PREFIX,
+    NEW_TESTS_FAIL_PREFIX,
     PASSED,
     UNAVAILABLE,
     BaseTrees,
@@ -3121,7 +3122,7 @@ def lost_at(p: dict) -> str | None:
     if p["status"] != "refused":
         return None
     why = p["refusal"] or ""
-    if why.startswith(BROKE_PREFIX):
+    if why.startswith((BROKE_PREFIX, NEW_TESTS_FAIL_PREFIX)):
         return "the sandbox tests"
     if why.startswith("model call failed"):
         return "the model call failed"

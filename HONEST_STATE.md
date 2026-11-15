@@ -1,9 +1,21 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, GAGOS understands itself through organ 28" below;
+**Last updated:** 2026-11-15 ("2026-11-15, a new test that fails is not a test it broke" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, a new test that fails is not a test it broke (branch `fix/sandbox-new-tests-fail`)
+
+- **What happened.** GAGOS's first tests for `PulseShader` (12:50 UTC) and `RoutingShader` (15:50) were refused as "N test(s) pass without it and fail with it". The tests they named were their own new tests, which the base never had. The verdict (BROKE, refused) was right; the reason was false. The reviewer, the loss report and D15's reflections all read that reason.
+- **Why.** `_compare` counted every test failing with the change and not failing without it, including tests that could not run without it.
+- **What changed** (`aios/maintenance/sandbox_tests.py`, `tools/gagos_daily.py`):
+  - Each part (Python, frontend) now passes `_compare` the test files the change adds.
+  - Their failing tests are reported as "new test(s) it adds fail" and kept in the verdict's new `added` field.
+  - A refusal for new tests alone starts with `NEW_TESTS_FAIL_PREFIX`, and the loss report counts it as the sandbox's.
+  - A verdict stored before this change reads as it did before.
+  - The frontend sandbox image tag (lock file plus runner script) does not change.
+- **Tests.** 2 new tests in `tests/test_gagos_sandbox.py`, both failing on the old code. The GAGOS suites pass (626 passed, 14 skipped).
 
 ## 2026-11-15, GAGOS understands itself through organ 28 (branch `feat/gagos-understands-itself`)
 
