@@ -233,7 +233,15 @@ class JourneyRecord:
                 [
                     "## Measured",
                     "",
-                    *(f"- {k}: {v}" for k, v in self.measured.items()),
+                    *(
+                        line
+                        for k, v in self.measured.items()
+                        for line in (
+                            [f"- {k}:", *(f"  - {item}" for item in v)]
+                            if isinstance(v, list) and v
+                            else [f"- {k}: {'none' if v == [] else v}"]
+                        )
+                    ),
                     "",
                 ]
                 if self.measured
@@ -503,10 +511,12 @@ _PERF_ENV = """(() => {
 })()"""
 #: Every frame interval, and keydown in the composer to the end of the next
 #: frame, measured in the page; the browser's own slow-interaction and
-#: long-frame counts beside them.
+#: long-frame counts beside them, and its five slowest frames with the scripts
+#: that ran in them (where the browser can tell: Long Animation Frames).
 _PERF_PROBE = """(() => {
   const p = window.__gagosPerf = { frames: [], inputs: [], slowEvents: 0,
-    longFrames: 0, stop: false };
+    longFrames: 0, slowest: [], stop: false };
+  const where = (url) => String(url || '').replace(location.origin, '').split('?')[0];
   let previous = null;
   const tick = (now) => {
     if (p.stop) return;
@@ -529,14 +539,25 @@ _PERF_PROBE = """(() => {
       .observe({ type: 'event', durationThreshold: 104 });
   } catch (e) { p.slowEvents = null; }
   try {
-    new PerformanceObserver((l) => { p.longFrames += l.getEntries().length; })
-      .observe({ type: 'long-animation-frame' });
+    new PerformanceObserver((l) => {
+      if (p.stop) return;
+      for (const f of l.getEntries()) {
+        p.longFrames += 1;
+        p.slowest.push({ ms: f.duration, blocking: f.blockingDuration,
+          scripts: [...(f.scripts || [])].sort((a, b) => b.duration - a.duration)
+            .slice(0, 3).map((s) => ({ ms: s.duration, invoker: s.invoker,
+              source: where(s.sourceURL), fn: s.sourceFunctionName })) });
+        p.slowest.sort((a, b) => b.ms - a.ms);
+        p.slowest.length = Math.min(p.slowest.length, 5);
+      }
+    }).observe({ type: 'long-animation-frame' });
   } catch (e) { p.longFrames = null; }
   return true;
 })()""".replace("SELECTOR", json.dumps(COMPOSER))
 _PERF_READ = (
     "(() => { const p = window.__gagosPerf; p.stop = true; return {frames: p.frames,"
     " inputs: p.inputs, slowEvents: p.slowEvents, longFrames: p.longFrames,"
+    " slowest: p.slowest,"
     " foreground: document.visibilityState === 'visible'}; })()"
 )
 #: The face's own scene probe (frontendMetrics.ts, local hosts only).
@@ -641,6 +662,21 @@ def _ms(value: float | None) -> str:
     return "n/a" if value is None else f"{value:.1f} ms"
 
 
+def slow_frame(frame: dict) -> str:
+    """One long animation frame and the scripts that ran longest in it, as
+    the browser attributes them; the rest of its time is the browser's own
+    (style, layout, paint) or unattributed."""
+    scripts = [
+        f"{_ms(s.get('ms'))} in {s.get('source') or 'an unknown source'}"
+        + (f" {s['fn']}" if s.get("fn") else "")
+        + (f" ({s['invoker']})" if s.get("invoker") else "")
+        for s in frame.get("scripts") or []
+    ]
+    return f"{_ms(frame.get('ms'))} (blocking {_ms(frame.get('blocking'))}): " + (
+        "; ".join(scripts) if scripts else "no script attributed"
+    )
+
+
 async def _task_seconds(j: Journey) -> float | None:
     """Chrome's main-thread task time so far, in seconds."""
     result = await j.cdp.send("Performance.getMetrics")
@@ -733,6 +769,9 @@ async def perf_01(j: Journey) -> None:
     r.measured.update(summary)
     r.measured["slow interactions (over 104 ms)"] = sampled.get("slowEvents")
     r.measured["long animation frames"] = sampled.get("longFrames")
+    r.measured["slowest frames, with their scripts"] = [
+        slow_frame(f) for f in sampled.get("slowest") or []
+    ]
     own = [m["value"] for m in await j.metrics() if m.get("name") == "raf-interval-p95"]
     r.measured["the face's own p95 (per 120 frames), worst"] = (
         _ms(max(own)) if own else "none recorded"

@@ -61,7 +61,14 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - PERF-01's frame numbers (p95 16.8 ms) and typing numbers were all measured on a page with no 3D body. "The 3D scene is up" checked only the canvas and the fallback.
   - "The face's draw-call probe never records" is the same cause, not a second defect: the probe sits inside what never mounts.
   - REC-01's 9/9 recovered a canvas that drew nothing.
-  - The typing stalls are intermittent, and not from the body. On the served face, with no body, keydown p95 was 140, 241, 22 and 269 ms in four runs.
+  - The typing stalls come from the same fault. I first wrote here that they were "not from the body"; that was wrong.
+    - On the served face, keydown p95 was 140, 241, 22 and 269 ms in four runs. It depends on whether a key lands in a long frame.
+    - Every window holds about five frames of 280 to 410 ms. The browser attributes each one to React's scheduler.
+    - They come in threes, one set each time the face's mirror stream retries. Signed out, the retries fail, backing off from 2 s to 30 s.
+    - Each retry writes the mirror store, and the face's root (`SuperbrainApp`, through `useBeingPresentation`) subscribes to the whole store, so the face re-renders.
+    - React's own timings: components take about 70 ms in 25 s, but render work about 1.8 s, plus 0.7 s on the Suspense track. Each re-render retries the 3D subtree that is stuck on its font.
+    - With the font fixed in flight, the same windows hold 0 or 1 long frames (at most 50 ms), and keydown p95 is 24 to 29 ms.
+    - Left over, and minor while nothing suspends: the root re-renders on every mirror-store write, even one that changes nothing.
 - **The runner now checks that the body is drawn.**
   - Both journeys count WebGL draw calls on the scene canvas for a second, at the context: its draw methods are wrapped, then put back. A journey passes only with at least one draw call a frame.
   - Two runner bugs found on the way, both fixed: a wait for the body returned at once when no canvas was there yet, and a canvas that first mounted after the loss (none there to lose) counted as the one remount.
@@ -70,6 +77,8 @@ earlier sections keep the commit they were measured on). The whole story, from t
     - REC-01 passes 11 of 11: the body is drawn, lost, brought back by Retry, and drawn again (2623 draw calls over 61 frames).
     - PERF-01 passes 13 of 13: frame p95 16.8 ms (max 17.7 ms), keydown p95 24.7 ms, and 41 draw calls a frame, with the face's own probe recording.
     - Headless on the dev server, so a smoke.
+- **PERF-01 now names its slowest frames.** It keeps the five slowest, with the scripts that ran longest in each, as the browser's Long Animation Frames attribute them. That is how the stalls above were traced.
+- **GAGOS took the font goal at 22:53 and its writer failed.** The clerk escalated the goal, and `gpt-6-luna` gave no answer (Codex, exit 0). The goal is open again for the next hour. A one-word probe through the same sealed call answered at once, so the failure looks transient.
 - **Tests.** 30 tests in `tests/test_gagos_journeys.py`, using stand-in pages and no Chrome. After the last change, the gateway, consistency and architecture tests: 67 passed, and Bandit has no new findings.
 
 ## 2026-11-15, a new test that fails is not a test it broke (branch `fix/sandbox-new-tests-fail`)

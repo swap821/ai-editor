@@ -5,7 +5,7 @@
   "browser": "Chrome/157.0.8103.51",
   "viewport": "1280x720",
   "url": "http://localhost:5173/",
-  "started_at": "2026-11-15T22:10:08+00:00",
+  "started_at": "2026-11-15T22:58:57+00:00",
   "signed_in": false,
   "tree": "C:\\Users\\kumar\\ai-editor, frontend clean",
   "steps": [
@@ -13,79 +13,79 @@
       "name": "controls ready",
       "ok": true,
       "detail": "",
-      "at": 178081.859
+      "at": 181011.0
     },
     {
       "name": "desktop named",
       "ok": true,
       "detail": "ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001638) Direct3D11 vs_5_0 ps_5_0, D3D11); 12 cores; 1264x625 at DPR 1; Vite dev server; headless",
-      "at": 178081.859
+      "at": 181011.0
     },
     {
       "name": "the 3D scene is up",
       "ok": true,
       "detail": "a scene canvas, and no renderer fallback shown",
-      "at": 178086.859
+      "at": 181016.015
     },
     {
       "name": "the 3D body is drawn",
       "ok": false,
-      "detail": "0 WebGL draw calls over 36 frames on the scene canvas",
-      "at": 178087.89
+      "detail": "0 WebGL draw calls over 37 frames on the scene canvas",
+      "at": 181017.421
     },
     {
       "name": "the scene stayed up through the window",
       "ok": true,
       "detail": "",
-      "at": 178109.156
+      "at": 181038.531
     },
     {
       "name": "the body still drawn after the window",
       "ok": false,
       "detail": "0 WebGL draw calls over 61 frames on the scene canvas",
-      "at": 178110.171
+      "at": 181039.531
     },
     {
       "name": "frames sampled",
       "ok": true,
-      "detail": "1150 frames over 20 s",
-      "at": 178110.171
+      "detail": "1132 frames over 20 s",
+      "at": 181039.531
     },
     {
       "name": "frame p95 within the proposed 20 ms",
       "ok": true,
-      "detail": "p50 16.7 ms, p95 16.8 ms, p99 16.9 ms, max 367.4 ms; 4 gaps over 50 ms",
-      "at": 178110.171
+      "detail": "p50 16.7 ms, p95 16.8 ms, p99 17.0 ms, max 434.2 ms; 5 gaps over 50 ms",
+      "at": 181039.531
     },
     {
       "name": "keydown to the next frame within the proposed 100 ms",
-      "ok": false,
-      "detail": "p50 18.4 ms, p95 268.6 ms, max 424.3 ms over 23 of 23 keys",
-      "at": 178110.171
+      "ok": true,
+      "detail": "p50 19.0 ms, p95 46.8 ms, max 473.3 ms over 23 of 23 keys",
+      "at": 181039.531
     },
     {
       "name": "main-thread time a frame",
       "ok": true,
-      "detail": "2.2 ms mean, Chrome's task time over the window",
-      "at": 178110.171
+      "detail": "2.4 ms mean, Chrome's task time over the window",
+      "at": 181039.531
     },
     {
       "name": "composer frame accounting",
       "ok": false,
       "detail": "unavailable draw calls a frame, unavailable geometries, unavailable textures, unavailable scene objects (the face's own probe)",
-      "at": 178110.171
+      "at": 181039.531
     },
     {
       "name": "composer as it was",
       "ok": true,
       "detail": "",
-      "at": 178110.281
+      "at": 181039.671
     },
     {
       "name": "no work request sent",
       "ok": true,
       "detail": "0 sent",
-      "at": 178110.281
+      "at": 181039.671
     }
   ],
   "work_requests": [],
@@ -93,23 +93,23 @@
   "metrics": [
     {
       "name": "raf-gap-over-50ms",
-      "value": 317.2999999999993
+      "value": 334.10000000000036
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 334.09999999999945
+      "value": 350.7000000000007
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 334
+      "value": 300.59999999999945
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 384.09999999999945
+      "value": 300.7000000000007
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 317.3000000000002
+      "value": 300.5
     },
     {
       "name": "raf-interval-p50",
@@ -117,7 +117,7 @@
     },
     {
       "name": "raf-interval-p95",
-      "value": 350.7000000000003
+      "value": 334.10000000000036
     },
     {
       "name": "raf-interval-p50",
@@ -129,7 +129,7 @@
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 417.40000000000146
+      "value": 467.60000000000036
     },
     {
       "name": "raf-gap-over-50ms",
@@ -137,43 +137,55 @@
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 334
-    },
-    {
-      "name": "raf-interval-p50",
-      "value": 16.700000000000728
-    },
-    {
-      "name": "raf-interval-p95",
-      "value": 16.80000000000109
-    },
-    {
-      "name": "raf-interval-p50",
-      "value": 16.700000000000728
-    },
-    {
-      "name": "raf-interval-p95",
-      "value": 16.80000000000109
-    },
-    {
-      "name": "raf-interval-p50",
-      "value": 16.700000000000728
-    },
-    {
-      "name": "raf-interval-p95",
-      "value": 16.80000000000109
+      "value": 350.6999999999989
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 350.59999999999854
+      "value": 317.39999999999964
     },
     {
-      "name": "raf-gap-over-50ms",
-      "value": 367.3999999999978
+      "name": "raf-interval-p50",
+      "value": 16.700000000000728
+    },
+    {
+      "name": "raf-interval-p95",
+      "value": 16.80000000000109
+    },
+    {
+      "name": "raf-interval-p50",
+      "value": 16.700000000000728
+    },
+    {
+      "name": "raf-interval-p95",
+      "value": 16.80000000000109
+    },
+    {
+      "name": "raf-interval-p50",
+      "value": 16.700000000000728
+    },
+    {
+      "name": "raf-interval-p95",
+      "value": 16.80000000000109
     },
     {
       "name": "raf-gap-over-50ms",
       "value": 334
+    },
+    {
+      "name": "raf-gap-over-50ms",
+      "value": 400.8000000000029
+    },
+    {
+      "name": "raf-interval-p50",
+      "value": 16.700000000000728
+    },
+    {
+      "name": "raf-interval-p95",
+      "value": 16.80000000000291
+    },
+    {
+      "name": "raf-gap-over-50ms",
+      "value": 434.2000000000007
     },
     {
       "name": "raf-gap-over-50ms",
@@ -201,14 +213,6 @@
     },
     {
       "name": "raf-interval-p95",
-      "value": 16.799999999999272
-    },
-    {
-      "name": "raf-interval-p50",
-      "value": 16.700000000000728
-    },
-    {
-      "name": "raf-interval-p95",
       "value": 16.80000000000291
     },
     {
@@ -217,7 +221,7 @@
     },
     {
       "name": "raf-interval-p95",
-      "value": 16.799999999999272
+      "value": 16.80000000000291
     },
     {
       "name": "raf-interval-p50",
@@ -246,20 +250,27 @@
     "gpu time": "available, not yet read by this journey",
     "warmup": "5 s",
     "scenario": "the face at rest, 23 letters typed into the composer across a 20 s window",
-    "frames": 1150,
+    "frames": 1132,
     "frame_p50_ms": 16.700000000000728,
     "frame_p95_ms": 16.80000000000109,
-    "frame_p99_ms": 16.900000000001455,
-    "frame_max_ms": 367.3999999999978,
-    "frame_gaps_over_50ms": 4,
+    "frame_p99_ms": 17.0,
+    "frame_max_ms": 434.2000000000007,
+    "frame_gaps_over_50ms": 5,
     "inputs": 23,
-    "input_p50_ms": 18.400000005960464,
-    "input_p95_ms": 268.59999999403954,
-    "input_max_ms": 424.30000001192093,
-    "slow interactions (over 104 ms)": 2,
+    "input_p50_ms": 19.0,
+    "input_p95_ms": 46.80000001192093,
+    "input_max_ms": 473.2999999821186,
+    "slow interactions (over 104 ms)": 0,
     "long animation frames": 6,
-    "the face's own p95 (per 120 frames), worst": "350.7 ms",
-    "main thread a frame (mean)": "2.2 ms",
+    "slowest frames, with their scripts": [
+      "443.9 ms (blocking 383.8 ms): 432.9 ms in /node_modules/.vite/deps/scheduler-DgymjHxv.js performWorkUntilDeadline (MessagePort.onmessage); 5.6 ms in /src/superbrain/lib/aiosMirror.ts (EventSource.onerror)",
+      "422.8 ms (blocking 365.2 ms): 415.0 ms in /node_modules/.vite/deps/scheduler-DgymjHxv.js performWorkUntilDeadline (MessagePort.onmessage); 5.8 ms in /src/superbrain/lib/aiosMirror.ts (Window.fetch.catch)",
+      "364.0 ms (blocking 313.9 ms): 363.7 ms in /node_modules/.vite/deps/scheduler-DgymjHxv.js performWorkUntilDeadline (MessagePort.onmessage)",
+      "359.8 ms (blocking 304.8 ms): 354.6 ms in /node_modules/.vite/deps/scheduler-DgymjHxv.js performWorkUntilDeadline (MessagePort.onmessage)",
+      "354.8 ms (blocking 294.0 ms): 343.6 ms in /node_modules/.vite/deps/scheduler-DgymjHxv.js performWorkUntilDeadline (MessagePort.onmessage)"
+    ],
+    "the face's own p95 (per 120 frames), worst": "334.1 ms",
+    "main thread a frame (mean)": "2.4 ms",
     "scene": {
       "drawCalls": "unavailable",
       "geometries": "unavailable",

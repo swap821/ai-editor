@@ -311,7 +311,21 @@ class PerfPage:
                 "frames": self.frames,
                 "inputs": self.inputs,
                 "slowEvents": 0,
-                "longFrames": 0,
+                "longFrames": 1,
+                "slowest": [
+                    {
+                        "ms": 417.6,
+                        "blocking": 367.6,
+                        "scripts": [
+                            {
+                                "ms": 301.2,
+                                "invoker": "DOMWindow.onmessage",
+                                "source": "/node_modules/.vite/deps/react-dom.js",
+                                "fn": "performWorkUntilDeadline",
+                            }
+                        ],
+                    }
+                ],
                 "foreground": True,
             }
         if "gagosSceneDrawCalls" in expression:
@@ -345,8 +359,14 @@ def test_perf_01_passes_within_the_proposed_targets_and_says_they_are_proposed(
     assert page.value == "held draft"  # the composer as it was
     assert record.measured["frame_p95_ms"] == 16.7
     assert record.measured["main thread a frame (mean)"] == "0.3 ms"
+    assert record.measured["slowest frames, with their scripts"] == [
+        "417.6 ms (blocking 367.6 ms): 301.2 ms in "
+        "/node_modules/.vite/deps/react-dom.js performWorkUntilDeadline "
+        "(DOMWindow.onmessage)"
+    ]
     text = gj.write_record(record, tmp_path).read_text(encoding="utf-8")
     assert "## Measured" in text and "PROPOSED targets" in text
+    assert "- slowest frames, with their scripts:\n  - 417.6 ms (blocking" in text
     assert "unavailable: the browser offers no EXT_disjoint_timer_query_webgl2" in text
 
 
