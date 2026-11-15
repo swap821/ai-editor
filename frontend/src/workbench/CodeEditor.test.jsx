@@ -23,7 +23,6 @@ Object.defineProperty(window, 'matchMedia', {
 // Mock Monaco Editor
 vi.mock('@monaco-editor/react', () => {
   return {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
     default: ({ value, onMount }) => {
       // simulate onMount to trigger setup (eslint-disable applied to component factory mock)
       // eslint-disable-next-line react-hooks/rules-of-hooks
