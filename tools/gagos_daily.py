@@ -70,7 +70,7 @@ import threading
 import time
 import uuid
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -3516,6 +3516,35 @@ def knowledge_hour(root: Path, *, ingestor=None) -> dict:
     return out
 
 
+def governance_hour(
+    led: DailyLedger, *, now: datetime | None = None, store=None
+) -> list:
+    """The friction GAGOS keeps meeting, proposed to organ 46 as governance
+    lessons (the operator's word of 2026-11-15, "yes on organ46";
+    :mod:`aios.operations.governance_lessons`): from the ledger's own refusals,
+    with no model, each recurring friction once. A lesson is a proposal only:
+    drafting an amendment from it, and ratifying one, are the operator's."""
+    from aios.operations import governance_lessons as gl
+
+    now = now or datetime.now(timezone.utc)
+    rows = led.friction(since=(now - timedelta(days=gl.WINDOW_DAYS)).isoformat())
+    outcomes = gl.propose_lessons(rows, now=now, store=store)
+    if not outcomes:
+        print("  governance: no friction recurred enough to propose a lesson")
+    for found, outcome in outcomes:
+        lesson = found.friction.lesson_id
+        line = (
+            f"lesson {lesson} proposed to organ 46"
+            if outcome == "proposed"
+            else f"{lesson}: {outcome}"
+        )
+        print(
+            f"  governance: {line} ({found.friction.problem_class}, "
+            f"{found.count} in {gl.WINDOW_DAYS} days)"
+        )
+    return outcomes
+
+
 def task_section(led: DailyLedger, scrub=lambda text: text) -> list[str]:
     """The report's lines on the operator's tasks: counts by status, and each
     task still moving (open, or taken and not yet delivered). Never his words."""
@@ -4298,6 +4327,13 @@ def cmd_daily(args: argparse.Namespace) -> int:
             knowledge_hour(root)
         except Exception as exc:  # the hour's other work goes on; said
             print(f"  knowledge: the refresh failed: {type(exc).__name__}: {exc}"[:400])
+        # The friction it keeps meeting, proposed to organ 46 as lessons.
+        try:
+            governance_hour(led)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(
+                f"  governance: no lessons this hour: {type(exc).__name__}: {exc}"[:400]
+            )
         rc = cmd_propose(
             argparse.Namespace(
                 project=str(root),
@@ -4339,6 +4375,34 @@ def cmd_daily(args: argparse.Namespace) -> int:
     reports = config.DATA_DIR / "gagos_daily" / "reports"
     reports.mkdir(parents=True, exist_ok=True)
     (reports / f"{today}.md").write_text(report(led, day=today), encoding="utf-8")
+    return 0
+
+
+def cmd_lessons(args: argparse.Namespace) -> int:
+    """The governance lessons GAGOS proposed to organ 46, for the operator to
+    read: each friction's lesson as organ 46's store holds it, or that none
+    was proposed. Read only; what to do with a lesson is his."""
+    from aios.operations import governance_lessons as gl
+
+    store = gl.lesson_store()
+    for friction in gl.FRICTIONS:
+        lesson = store.get_current_lesson(friction.lesson_id)
+        if lesson is None:
+            print(f"{friction.key}: not proposed")
+            continue
+        print(f"{lesson.lesson_id} ({lesson.status}, {lesson.problem_class})")
+        print(f"  seen:     {lesson.observed_harm}")
+        print(f"  rule now: {lesson.current_rule}")
+        print(f"  proposed: {lesson.proposed_improvement}")
+        print(
+            f"  evidence: {len(lesson.evidence_refs)} ledger row(s), "
+            f"confidence {lesson.confidence}"
+        )
+        if lesson.status == "proposed":
+            print(
+                "  yours:    draft an amendment from it (POST /api/v1/governance/"
+                f"lessons/{lesson.lesson_id}/draft-amendment), or leave it"
+            )
     return 0
 
 
@@ -4535,6 +4599,11 @@ def main(argv: list[str] | None = None) -> int:
     d15 = sub.add_parser("d15", help="D15's counts; --final runs its one analysis")
     d15.add_argument("--final", action="store_true")
     d15.set_defaults(func=cmd_d15)
+
+    ls = sub.add_parser(
+        "lessons", help="the governance lessons GAGOS proposed to organ 46"
+    )
+    ls.set_defaults(func=cmd_lessons)
 
     args = parser.parse_args(argv)
     return int(args.func(args))
