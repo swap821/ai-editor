@@ -99,6 +99,8 @@ from aios.maintenance.daily_work import (  # noqa: E402
     FIRST_RULES,
     MISSING_TEST,
     NO_MODEL,
+    OP_CREATE,
+    OP_DELETE,
     UNSHOWABLE,
     PYTHON_RULES,
     is_python_rule,
@@ -161,6 +163,7 @@ from aios.maintenance.frontend_static import (  # noqa: E402
     port_manifest_after,
 )
 from aios.maintenance.python_static import (  # noqa: E402
+    FROZEN,
     PYTHON_SCOPE,
     check_python_texts,
     editable_python_files,
@@ -824,6 +827,21 @@ def both_routes(plan: tuple[str, Any], full: tuple[str, Any]) -> tuple[str, Any]
     return full
 
 
+def creatable(root: Path, rel: str, allowed: set[str]) -> bool:
+    """Whether a task may create *rel* (2026-11-15, the operator: "624 utilize
+    also as per GAGOS"): it does not exist at the base, and its folder already
+    holds a file GAGOS may edit with the same suffix. A new file only ever joins
+    an editable neighbour of its kind: never in the frozen core, never in a
+    folder GAGOS has no file in."""
+    if (root / rel).exists() or rel.startswith(FROZEN):
+        return False
+    folder, suffix = Path(rel).parent.as_posix(), Path(rel).suffix
+    return bool(suffix) and any(
+        Path(other).parent.as_posix() == folder and Path(other).suffix == suffix
+        for other in allowed
+    )
+
+
 def build_task_job(
     root: Path,
     head: str,
@@ -849,6 +867,10 @@ def build_task_job(
     tid = task["task_id"]
     files = task["files"]
     parts: list[tuple[str, str, str, dict, tuple[str, ...]]] = []
+    # The files the task creates (:func:`creatable`): shown to the writer as
+    # new, the job always one over several files, so record_task_files records
+    # each as a creation.
+    new_files: list[str] = []
     waits: str | None = None
     # Each file under a prefix of its own: a placeholder moved between
     # files is never restored as the wrong span.
@@ -869,18 +891,24 @@ def build_task_job(
         allowed = editable[python]
         if isinstance(allowed, Exception):
             return "wait", f"which files GAGOS may edit is unknown: {allowed}"
-        if rel not in allowed:
+        new = rel not in allowed and creatable(root, rel, allowed)
+        if rel not in allowed and not new:
             return "refuse", (
-                f"{rel} is not a file GAGOS may edit: it does not exist here, or it "
-                "is frozen core or an organ's entrypoint"
+                f"{rel} is not a file GAGOS may edit: it is frozen core or an "
+                "organ's entrypoint, or it does not exist here and its folder holds "
+                "no file of its kind GAGOS may edit"
             )
         if rel in busy:
             waits = waits or f"another GAGOS change holds {rel}"
             continue
-        try:
-            text = (root / rel).read_bytes().decode("utf-8")
-        except (OSError, UnicodeDecodeError) as exc:
-            return "refuse", f"{rel} cannot be read as text: {exc}"
+        if new:
+            text = ""
+            new_files.append(rel)
+        else:
+            try:
+                text = (root / rel).read_bytes().decode("utf-8")
+            except (OSError, UnicodeDecodeError) as exc:
+                return "refuse", f"{rel} cannot be read as text: {exc}"
         if len(text) > MAX_TASK_FILE_CHARS:
             return "refuse", (
                 f"{rel} is {len(text)} characters; the bound for a file a task "
@@ -916,6 +944,7 @@ def build_task_job(
     # reads them.
     said = egress_redact(task["text"])
     briefing = egress_redact(goal_intake.writer_briefing(intakes.get(tid)))
+    grouped = grouped or bool(new_files)
     if len(files) == 1 and not grouped:
         prompt = task_prompt(
             rel, said, masked, masked=bool(mapping), facts=known, briefing=briefing
@@ -930,6 +959,7 @@ def build_task_job(
             # which hold the operator's notes too.
             facts=notes if all(is_python(p[0]) for p in parts) else facts,
             briefing=briefing,
+            new=new_files,
         )
         system = task_files_system(files)
     altered = (plan_would_be_altered if plan else would_be_altered)(prompt, system)
@@ -982,7 +1012,8 @@ def record_task_files(
         answered = (
             parse_task_edits(raw, [p[2] for p in parts])
             if is_edit_answer(raw)
-            else parse_task_files(raw, [p[1] for p in parts])
+            # A file the task creates ends with a newline, as a first test does.
+            else parse_task_files(raw, [p[1] or "\n" for p in parts])
         )
         changed: dict[int, str] = {}
         for i, new in sorted(answered.items()):
@@ -1061,6 +1092,8 @@ def record_task_files(
                 new_text=new_text,
                 verdict=verdicts[i],
                 refusal=refusal,
+                # A file the task creates (build_task_job's new files).
+                op=OP_CREATE if not text and not (root / rel).exists() else None,
             )
         )
     took(ids[0])
@@ -1820,7 +1853,11 @@ def _group_evidence(p: dict, facts: list) -> tuple[str, bool, bool]:
         masked_new, added = mask_lines(masked_new, plan_mask_redact, min_width=floor)
         floor = _mask_floor(added, floor)
         diff = unified_diff(Path(m["rel"]).name, masked_base, masked_new)
-        parts.append((m["rel"], masked_base, diff))
+        said = {
+            OP_CREATE: "This change creates the file.\n",
+            OP_DELETE: "This change deletes the file.\n",
+        }.get(m.get("op"), "")
+        parts.append((m["rel"], masked_base, said + diff))
         hidden, hid_added = hidden or bool(mapping), hid_added or bool(added)
     prompt = task_files_review_prompt(egress_redact(task["text"]), parts, facts=facts)
     return prompt, hidden, hid_added
@@ -2668,12 +2705,24 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     manifest = root / PORT_MANIFEST
 
     def put_new(unit: list[dict]) -> list[str]:
-        """Write the unit's new texts, and the port's manifest with them when
-        any is a file the port carries (2026-11-11, "GAGOS through the port"):
-        the paths to commit."""
+        """Write the unit's new texts (creating a new file's folders, removing a
+        deleted file), and the port's manifest with them when any is a file the
+        port carries (2026-11-11, "GAGOS through the port"): the paths to
+        commit, deletions included."""
         for p in unit:
-            (root / p["rel"]).write_bytes(p["new_text"].encode("utf-8"))
-        ported = port_manifest_after(root, {p["rel"]: p["new_text"] for p in unit})
+            path = root / p["rel"]
+            if p.get("op") == OP_DELETE:
+                path.unlink(missing_ok=True)
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(p["new_text"].encode("utf-8"))
+        ported = port_manifest_after(
+            root,
+            {
+                p["rel"]: None if p.get("op") == OP_DELETE else p["new_text"]
+                for p in unit
+            },
+        )
         if ported is None:
             return [p["rel"] for p in unit]
         manifest.write_bytes(ported.encode("utf-8"))
@@ -2702,14 +2751,16 @@ def cmd_deliver(args: argparse.Namespace) -> int:
     _git(root, "checkout", "-q", "-B", branch, "origin/master")
     committed: list[str] = []
     for unit in units:
-        rels = [p["rel"] for p in unit]
         currents: dict[str, str | None] = {}
         fresh: dict[str, bool] = {}
         for p in unit:
             path = root / p["rel"]
             current = path.read_bytes().decode("utf-8") if path.is_file() else None
             currents[p["proposal_id"]] = current
-            if p["rule"] == MISSING_TEST:
+            if p.get("op") == OP_CREATE:
+                # A new file: still no file of its name.
+                fresh[p["proposal_id"]] = current is None
+            elif p["rule"] == MISSING_TEST:
                 # A first test: still no file of its name, and its module as it was.
                 module = root / subject_of(p["rel"])
                 base = module.read_bytes().decode("utf-8") if module.is_file() else None
@@ -2737,7 +2788,10 @@ def cmd_deliver(args: argparse.Namespace) -> int:
 
         manifest_before = manifest.read_bytes() if manifest.is_file() else None
         staged = put_new(unit)
-        failure = check(rels)
+        # A deleted file has nothing left to check; what it breaks is checked
+        # through the files that stay (and was by the sandbox's type check).
+        present = [p["rel"] for p in unit if p.get("op") != OP_DELETE]
+        failure = check(present) if present else None
         moot = None
         if failure is not None:
             for p in unit:
@@ -2753,7 +2807,7 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                 # change failed its delivery on a test that times out on this
                 # laptop with or without it). Failing there too, it says
                 # nothing about the change.
-                if check(rels) == failure:
+                if check(present) == failure:
                     moot = failure
             if moot is None:
                 for p in unit:
