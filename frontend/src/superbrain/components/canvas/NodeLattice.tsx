@@ -704,7 +704,6 @@ export default function NodeLattice({
   // Initial fetch on mount.
   useEffect(() => {
     doFetch();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Re-fetch on telemetry events (trails may have grown since mount).
@@ -712,7 +711,6 @@ export default function NodeLattice({
     return subscribeTelemetry(() => {
       doFetch();
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // ─────────────────────────────────────────────────────────────────────────
 
