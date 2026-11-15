@@ -31,7 +31,9 @@ class Page:
         retry_recovers: bool = False,
         button: str = "Stop",
         events=(),
+        body: bool = True,
     ) -> None:
+        self.body = body
         self.remounts = remounts
         self.fallback = fallback
         self.retry_recovers = retry_recovers
@@ -48,6 +50,8 @@ class Page:
         return {}
 
     async def evaluate(self, expression: str):
+        if "__gagosBodyDraws" in expression:
+            return {"draws": 2400 if self.body else 0, "frames": 60}
         if "lm-renderer-fallback-notice" in expression:
             return self.fallback
         if "lm-renderer-fallback__retry" in expression and expression.endswith(
@@ -69,9 +73,9 @@ class Page:
         if "WEBGL_lose_context" in expression:
             return True
         restored = any(m["name"] == "context-recovery" for m in self.metrics)
-        if "c !== window.__gagosJourneyCanvas" in expression and "||" in expression:
+        if "c !== lost" in expression and "||" in expression:
             return restored or self.remounts  # the wait: either recovery
-        if "c !== window.__gagosJourneyCanvas" in expression:
+        if "c !== lost" in expression:
             return self.remounts
         if ".some(m => m.name === 'context-recovery')" in expression:
             return restored
@@ -236,6 +240,19 @@ def test_rec_01_follows_the_faces_retry_when_it_does_not_restore_itself(
     assert any("lm-renderer-fallback__retry" in c for c in page.clicked)
 
 
+def test_rec_01_fails_when_the_canvas_draws_no_body(tmp_path) -> None:
+    """2026-11-15, the real face: its canvas was up, no fallback shown, and
+    its scene held nothing; REC-01 had passed 9/9 over it."""
+    journey = _journey(Page(body=False), tmp_path)
+    asyncio.run(gj.rec_01(journey))
+    record = journey.record.finish()
+    steps = {s.name: s for s in record.steps}
+    drawn = steps["the 3D body is drawn"]
+    assert not drawn.ok
+    assert drawn.detail == "0 WebGL draw calls over 60 frames on the scene canvas"
+    assert record.outcome == "failed"
+
+
 def test_rec_01_fails_when_retry_does_not_bring_the_view_back(tmp_path) -> None:
     page = Page(restores=0, remounts=False, fallback=True, retry_recovers=False)
     journey = _journey(page, tmp_path)
@@ -246,7 +263,10 @@ def test_rec_01_fails_when_retry_does_not_bring_the_view_back(tmp_path) -> None:
 class PerfPage:
     """A stand-in face for PERF-01: its frames, its keys and its scene."""
 
-    def __init__(self, *, frames, inputs, scene_up=True, draw_calls="40") -> None:
+    def __init__(
+        self, *, frames, inputs, scene_up=True, draw_calls="40", body=True
+    ) -> None:
+        self.body = body
         self.frames, self.inputs = frames, inputs
         self.scene_up, self.draw_calls = scene_up, draw_calls
         self.value = "held draft"
@@ -267,6 +287,8 @@ class PerfPage:
         return {}
 
     async def evaluate(self, expression: str):
+        if "__gagosBodyDraws" in expression:
+            return {"draws": 2400 if self.body else 0, "frames": 60}
         if "data-controls-ready" in expression and "Boolean(" in expression:
             return True
         if "WEBGL_debug_renderer_info" in expression:
@@ -347,6 +369,30 @@ def test_perf_01_fails_when_the_scene_is_not_drawn(tmp_path) -> None:
     steps = {s.name: s for s in record.steps}
     assert not steps["the 3D scene is up"].ok
     assert record.outcome == "failed"
+
+
+def test_perf_01_fails_when_the_canvas_holds_no_body(tmp_path) -> None:
+    """2026-11-15: the canvas was up with no fallback, the scene empty; the
+    frames and keys first measured were of a page without its body."""
+    page = PerfPage(frames=[16.7] * 1200, inputs=[12.0] * 23, body=False)
+    record = _perf(page, tmp_path)
+    steps = {s.name: s for s in record.steps}
+    assert steps["the 3D scene is up"].ok and not steps["the 3D body is drawn"].ok
+    assert not steps["the body still drawn after the window"].ok
+    assert record.outcome == "failed"
+
+
+def test_body_draws_are_counted_on_the_scene_canvas_and_put_back() -> None:
+    expression = gj._BODY_DRAWS
+    assert (
+        json.dumps(gj.CANVAS) in expression and "this.canvas === canvas" in expression
+    )
+    assert "proto[name] = original" in expression  # the context's methods restored
+    # No canvas yet still takes its second, so a wait for the body waits.
+    assert expression.index("setTimeout(done, 1000)") < expression.index("names = [")
+    # 2026-11-15: a canvas that first mounted after the loss was attempted
+    # (there was none to lose) was counted as the one remount.
+    assert "lost && c && c !== lost" in gj._REMOUNTED
 
 
 def test_perf_01_fails_when_the_face_counts_no_draw_calls(tmp_path) -> None:

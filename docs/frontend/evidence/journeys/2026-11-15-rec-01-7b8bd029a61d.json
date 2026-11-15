@@ -5,7 +5,7 @@
   "browser": "Chrome/157.0.8103.51",
   "viewport": "1280x720",
   "url": "http://localhost:5173/",
-  "started_at": "2026-11-15T20:41:58+00:00",
+  "started_at": "2026-11-15T22:09:06+00:00",
   "signed_in": false,
   "tree": "C:\\Users\\kumar\\ai-editor, frontend clean",
   "steps": [
@@ -13,55 +13,67 @@
       "name": "controls ready",
       "ok": true,
       "detail": "",
-      "at": 172791.578
+      "at": 178020.046
+    },
+    {
+      "name": "the 3D body is drawn",
+      "ok": false,
+      "detail": "0 WebGL draw calls over 60 frames on the scene canvas",
+      "at": 178041.218
     },
     {
       "name": "draft typed",
       "ok": true,
       "detail": "",
-      "at": 172791.609
+      "at": 178041.25
     },
     {
       "name": "graphics context lost",
       "ok": true,
       "detail": "WEBGL_lose_context on the scene canvas",
-      "at": 172791.625
+      "at": 178041.25
     },
     {
       "name": "draft kept while the view is lost",
       "ok": true,
       "detail": "",
-      "at": 172793.64
+      "at": 178043.25
     },
     {
       "name": "fallback shown, controls still working",
       "ok": true,
       "detail": "",
-      "at": 172799.89
+      "at": 178049.296
     },
     {
       "name": "recovered once",
       "ok": true,
       "detail": "0 in-place restore(s), 1 remount(s)",
-      "at": 172800.781
+      "at": 178050.171
+    },
+    {
+      "name": "the 3D body is drawn again",
+      "ok": false,
+      "detail": "0 WebGL draw calls over 60 frames on the scene canvas",
+      "at": 178071.0
     },
     {
       "name": "draft kept while offline",
       "ok": true,
       "detail": "",
-      "at": 172806.14
+      "at": 178076.0
     },
     {
       "name": "draft back after a reload",
       "ok": true,
       "detail": "",
-      "at": 172807.562
+      "at": 178077.046
     },
     {
       "name": "no work request sent",
       "ok": true,
       "detail": "0 sent",
-      "at": 172807.921
+      "at": 178077.484
     }
   ],
   "work_requests": [],
@@ -69,18 +81,18 @@
   "metrics": [
     {
       "name": "boot-to-input-ready",
-      "value": 15.299999982118607
+      "value": 13.599999994039536
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 517.7
+      "value": 534.3999999999999
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 400.80000000000007
+      "value": 417.4000000000001
     }
   ],
   "measured": {},
-  "outcome": "passed",
+  "outcome": "failed",
   "boundary": "A draft only, with no live work in flight: this proves the draft, the view's single recovery and that no work request was sent across a graphics-context loss and a network drop. It does not prove a pending decision or a receipt surviving them during real work, which REC-01's full threshold also needs; REC-01 earns no points from this run alone."
 }

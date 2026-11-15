@@ -382,6 +382,9 @@ async def rec_01(j: Journey) -> None:
         await j.wait_for(f"document.querySelector('{CONTROLS_READY}')", 60),
     ):
         return
+    # 2026-11-15: REC-01 first passed on a canvas whose scene was empty; a
+    # recovery of a view that draws nothing proves little.
+    await body_drawn(j, "the 3D body is drawn", within=20)
     await j.signed_in()
     draft = f"journey draft {int(time.time())}"
     await j.type_into(COMPOSER, draft)
@@ -426,6 +429,7 @@ async def rec_01(j: Journey) -> None:
         in_place + remounted == 1,
         f"{in_place} in-place restore(s), {remounted} remount(s)",
     )
+    await body_drawn(j, "the 3D body is drawn again", within=20)
     await j.cdp.send(
         "Network.emulateNetworkConditions",
         offline=True,
@@ -458,9 +462,12 @@ async def rec_01(j: Journey) -> None:
 _IN_PLACE = (
     "(window.__gagosJourney.metrics || []).some(m => m.name === 'context-recovery')"
 )
+#: A fresh canvas after the one lost; a canvas that first mounts after the loss
+#: was attempted (none there to lose) is not a remount.
 _REMOUNTED = (
     "(() => { const c = document.querySelector('" + CANVAS + "');"
-    " return Boolean(c && c !== window.__gagosJourneyCanvas && c.dataset.engine); })()"
+    " const lost = window.__gagosJourneyCanvas;"
+    " return Boolean(lost && c && c !== lost && c.dataset.engine); })()"
 )
 
 #: PERF-01's targets as the blueprint proposes them (section 10, 2026-09-24):
@@ -540,11 +547,70 @@ _SCENE = (
     " textures: d.gagosSceneTextures ?? 'unavailable',"
     " objects: d.gagosSceneObjects ?? 'unavailable'}; })()"
 )
-#: The being is drawn: its canvas is there and the face shows no fallback.
+#: The being's canvas is there and the face shows no fallback.
 _SCENE_UP = (
     f"Boolean(document.querySelector('{CANVAS}'))"
     f" && !document.querySelector('{FALLBACK}')"
 )
+#: WebGL draw calls on the scene canvas over one second, counted at the context
+#: (its draw methods wrapped, then put back), beside the frames painted. The
+#: face's own counters are not used: 2026-11-15, a canvas with no fallback
+#: shown held an EMPTY scene, and its own probe sat inside what never mounted.
+_BODY_DRAWS = """(async () => {
+  window.__gagosBodyDraws = true;
+  const canvas = document.querySelector(SELECTOR);
+  if (!canvas) {
+    // No canvas yet: a second still passes, so a caller's wait is a wait.
+    await new Promise((done) => setTimeout(done, 1000));
+    return {draws: 0, frames: 0};
+  }
+  const names = ['drawArrays', 'drawElements', 'drawArraysInstanced',
+    'drawElementsInstanced', 'drawRangeElements'];
+  const saved = [];
+  let draws = 0;
+  for (const kind of [window.WebGL2RenderingContext, window.WebGLRenderingContext]) {
+    if (!kind) continue;
+    for (const name of names) {
+      const original = kind.prototype[name];
+      if (typeof original !== 'function') continue;
+      saved.push([kind.prototype, name, original]);
+      kind.prototype[name] = function (...args) {
+        if (this.canvas === canvas) draws += 1;
+        return original.apply(this, args);
+      };
+    }
+  }
+  let frames = 0;
+  let counting = true;
+  const tick = () => { if (counting) { frames += 1; requestAnimationFrame(tick); } };
+  requestAnimationFrame(tick);
+  try {
+    await new Promise((done) => setTimeout(done, 1000));
+  } finally {
+    counting = false;
+    for (const [proto, name, original] of saved) proto[name] = original;
+  }
+  return {draws, frames};
+})()""".replace("SELECTOR", json.dumps(CANVAS))
+
+
+async def body_drawn(j: Journey, name: str, *, within: int = 1) -> bool:
+    """A step: the being's body is drawn, at least one WebGL draw call a frame
+    on the scene canvas, counted a second at a time for up to *within*
+    seconds. An empty scene draws nothing."""
+    draws = frames = 0
+    drawn = False
+    for _ in range(max(1, within)):
+        seen = dict(await j.cdp.evaluate(_BODY_DRAWS) or {})
+        draws, frames = int(seen.get("draws") or 0), int(seen.get("frames") or 0)
+        drawn = frames > 0 and draws >= frames
+        if drawn:
+            break
+    return j.record.step(
+        name,
+        drawn,
+        f"{draws} WebGL draw calls over {frames} frames on the scene canvas",
+    )
 
 
 def percentile(values: list[float], p: float) -> float | None:
@@ -641,6 +707,9 @@ async def perf_01(j: Journey) -> None:
         bool(await j.cdp.evaluate(_SCENE_UP)),
         "a scene canvas, and no renderer fallback shown",
     )
+    # 2026-11-15: the canvas was up with no fallback shown, and the scene held
+    # nothing; the frames and keys measured then were of a page without a body.
+    await body_drawn(j, "the 3D body is drawn")
     original = await j.value_of(COMPOSER)
     await j.cdp.send("Performance.enable")
     before = await _task_seconds(j)
@@ -656,6 +725,7 @@ async def perf_01(j: Journey) -> None:
     r.step(
         "the scene stayed up through the window", bool(await j.cdp.evaluate(_SCENE_UP))
     )
+    await body_drawn(j, "the body still drawn after the window")
     summary = perf_summary(
         [float(f) for f in sampled.get("frames") or []],
         [float(i) for i in sampled.get("inputs") or []],

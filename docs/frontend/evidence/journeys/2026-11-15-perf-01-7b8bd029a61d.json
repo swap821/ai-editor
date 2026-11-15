@@ -5,7 +5,7 @@
   "browser": "Chrome/157.0.8103.51",
   "viewport": "1280x720",
   "url": "http://localhost:5173/",
-  "started_at": "2026-11-15T20:41:28+00:00",
+  "started_at": "2026-11-15T22:10:08+00:00",
   "signed_in": false,
   "tree": "C:\\Users\\kumar\\ai-editor, frontend clean",
   "steps": [
@@ -13,67 +13,79 @@
       "name": "controls ready",
       "ok": true,
       "detail": "",
-      "at": 172761.234
+      "at": 178081.859
     },
     {
       "name": "desktop named",
       "ok": true,
       "detail": "ANGLE (AMD, AMD Radeon(TM) Graphics (0x00001638) Direct3D11 vs_5_0 ps_5_0, D3D11); 12 cores; 1264x625 at DPR 1; Vite dev server; headless",
-      "at": 172761.234
+      "at": 178081.859
     },
     {
       "name": "the 3D scene is up",
       "ok": true,
       "detail": "a scene canvas, and no renderer fallback shown",
-      "at": 172766.25
+      "at": 178086.859
+    },
+    {
+      "name": "the 3D body is drawn",
+      "ok": false,
+      "detail": "0 WebGL draw calls over 36 frames on the scene canvas",
+      "at": 178087.89
     },
     {
       "name": "the scene stayed up through the window",
       "ok": true,
       "detail": "",
-      "at": 172786.968
+      "at": 178109.156
+    },
+    {
+      "name": "the body still drawn after the window",
+      "ok": false,
+      "detail": "0 WebGL draw calls over 61 frames on the scene canvas",
+      "at": 178110.171
     },
     {
       "name": "frames sampled",
       "ok": true,
-      "detail": "1126 frames over 20 s",
-      "at": 172786.968
+      "detail": "1150 frames over 20 s",
+      "at": 178110.171
     },
     {
       "name": "frame p95 within the proposed 20 ms",
       "ok": true,
-      "detail": "p50 16.7 ms, p95 16.8 ms, p99 16.9 ms, max 417.3 ms; 6 gaps over 50 ms",
-      "at": 172786.968
+      "detail": "p50 16.7 ms, p95 16.8 ms, p99 16.9 ms, max 367.4 ms; 4 gaps over 50 ms",
+      "at": 178110.171
     },
     {
       "name": "keydown to the next frame within the proposed 100 ms",
       "ok": false,
-      "detail": "p50 18.1 ms, p95 140.1 ms, max 255.9 ms over 23 of 23 keys",
-      "at": 172786.968
+      "detail": "p50 18.4 ms, p95 268.6 ms, max 424.3 ms over 23 of 23 keys",
+      "at": 178110.171
     },
     {
       "name": "main-thread time a frame",
       "ok": true,
-      "detail": "2.5 ms mean, Chrome's task time over the window",
-      "at": 172786.968
+      "detail": "2.2 ms mean, Chrome's task time over the window",
+      "at": 178110.171
     },
     {
       "name": "composer frame accounting",
       "ok": false,
       "detail": "unavailable draw calls a frame, unavailable geometries, unavailable textures, unavailable scene objects (the face's own probe)",
-      "at": 172786.968
+      "at": 178110.171
     },
     {
       "name": "composer as it was",
       "ok": true,
       "detail": "",
-      "at": 172787.093
+      "at": 178110.281
     },
     {
       "name": "no work request sent",
       "ok": true,
       "detail": "0 sent",
-      "at": 172787.093
+      "at": 178110.281
     }
   ],
   "work_requests": [],
@@ -81,7 +93,11 @@
   "metrics": [
     {
       "name": "raf-gap-over-50ms",
-      "value": 317.1999999999998
+      "value": 317.2999999999993
+    },
+    {
+      "name": "raf-gap-over-50ms",
+      "value": 334.09999999999945
     },
     {
       "name": "raf-gap-over-50ms",
@@ -89,15 +105,11 @@
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 300.60000000000036
+      "value": 384.09999999999945
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 300.59999999999945
-    },
-    {
-      "name": "raf-gap-over-50ms",
-      "value": 283.89999999999964
+      "value": 317.3000000000002
     },
     {
       "name": "raf-interval-p50",
@@ -105,7 +117,7 @@
     },
     {
       "name": "raf-interval-p95",
-      "value": 334
+      "value": 350.7000000000003
     },
     {
       "name": "raf-interval-p50",
@@ -117,7 +129,47 @@
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 417.2999999999993
+      "value": 417.40000000000146
+    },
+    {
+      "name": "raf-gap-over-50ms",
+      "value": 350.60000000000036
+    },
+    {
+      "name": "raf-gap-over-50ms",
+      "value": 334
+    },
+    {
+      "name": "raf-interval-p50",
+      "value": 16.700000000000728
+    },
+    {
+      "name": "raf-interval-p95",
+      "value": 16.80000000000109
+    },
+    {
+      "name": "raf-interval-p50",
+      "value": 16.700000000000728
+    },
+    {
+      "name": "raf-interval-p95",
+      "value": 16.80000000000109
+    },
+    {
+      "name": "raf-interval-p50",
+      "value": 16.700000000000728
+    },
+    {
+      "name": "raf-interval-p95",
+      "value": 16.80000000000109
+    },
+    {
+      "name": "raf-gap-over-50ms",
+      "value": 350.59999999999854
+    },
+    {
+      "name": "raf-gap-over-50ms",
+      "value": 367.3999999999978
     },
     {
       "name": "raf-gap-over-50ms",
@@ -125,43 +177,7 @@
     },
     {
       "name": "raf-gap-over-50ms",
-      "value": 300.5
-    },
-    {
-      "name": "raf-interval-p50",
-      "value": 16.700000000000728
-    },
-    {
-      "name": "raf-interval-p95",
-      "value": 16.80000000000109
-    },
-    {
-      "name": "raf-interval-p50",
-      "value": 16.700000000000728
-    },
-    {
-      "name": "raf-interval-p95",
-      "value": 16.80000000000109
-    },
-    {
-      "name": "raf-interval-p50",
-      "value": 16.700000000000728
-    },
-    {
-      "name": "raf-interval-p95",
-      "value": 16.799999999999272
-    },
-    {
-      "name": "raf-gap-over-50ms",
-      "value": 300.59999999999854
-    },
-    {
-      "name": "raf-gap-over-50ms",
-      "value": 367.3000000000029
-    },
-    {
-      "name": "raf-gap-over-50ms",
-      "value": 283.90000000000146
+      "value": 350.7000000000007
     },
     {
       "name": "raf-interval-p50",
@@ -209,7 +225,15 @@
     },
     {
       "name": "raf-interval-p95",
-      "value": 16.80000000000291
+      "value": 16.799999999999272
+    },
+    {
+      "name": "raf-interval-p50",
+      "value": 16.700000000000728
+    },
+    {
+      "name": "raf-interval-p95",
+      "value": 16.799999999999272
     }
   ],
   "measured": {
@@ -222,20 +246,20 @@
     "gpu time": "available, not yet read by this journey",
     "warmup": "5 s",
     "scenario": "the face at rest, 23 letters typed into the composer across a 20 s window",
-    "frames": 1126,
+    "frames": 1150,
     "frame_p50_ms": 16.700000000000728,
     "frame_p95_ms": 16.80000000000109,
-    "frame_p99_ms": 16.899999999999636,
-    "frame_max_ms": 417.2999999999993,
-    "frame_gaps_over_50ms": 6,
+    "frame_p99_ms": 16.900000000001455,
+    "frame_max_ms": 367.3999999999978,
+    "frame_gaps_over_50ms": 4,
     "inputs": 23,
-    "input_p50_ms": 18.099999994039536,
-    "input_p95_ms": 140.09999999403954,
-    "input_max_ms": 255.90000000596046,
-    "slow interactions (over 104 ms)": 4,
+    "input_p50_ms": 18.400000005960464,
+    "input_p95_ms": 268.59999999403954,
+    "input_max_ms": 424.30000001192093,
+    "slow interactions (over 104 ms)": 2,
     "long animation frames": 6,
-    "the face's own p95 (per 120 frames), worst": "334.0 ms",
-    "main thread a frame (mean)": "2.5 ms",
+    "the face's own p95 (per 120 frames), worst": "350.7 ms",
+    "main thread a frame (mean)": "2.2 ms",
     "scene": {
       "drawCalls": "unavailable",
       "geometries": "unavailable",

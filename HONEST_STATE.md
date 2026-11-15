@@ -47,7 +47,30 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Found: signed out, the face cannot tell "sign in" from "unreachable".** The edge token check (`require_api_token`, which runs outside the CORS middleware by design) answers unauthenticated calls with a 401 that carries no CORS header. The browser reports a CORS failure, and the face shows "Operational picture unavailable". The edge is frozen core, so changing it is a proposal only; the face could tell the two apart itself (a face goal).
 - **The runner now pins the tree that serves the face.** It first recorded its own checkout's commit while the face was served from another tree at another commit. It now reads the checkout from the process listening on the face's port, with whether its frontend is clean, and says "unknown" when it cannot tell, never a guess.
 - **Also fixed:** GAGOS's eye pointed at `127.0.0.1:5173`, which Vite refuses on this laptop (it serves `localhost`, the IPv6 loopback), so its screenshots never saw the face. Both tools now use `localhost`.
-- **Tests.** 27 tests in `tests/test_gagos_journeys.py`, using stand-in pages and no Chrome. Gateway, Bandit, consistency, architecture and the daily tests: 184 passed. Bandit has no new findings.
+- **Found, later the same night: the face's 3D body never mounts.**
+  - Live at 7b8bd029 (headless, not signed in), the React Three Fiber scene holds 1 object, 0 meshes, 0 draw calls and 0 shader programs. The canvas is there and no fallback shows, so it looks up.
+  - The cause: no `<Text>` names a font, so troika-three-text asks its unicode-font-resolver on `cdn.jsdelivr.net`, and the face's CSP (`connect-src` itself and the backend) blocks it. Troika's promise has no catch, so its callback never runs. drei's `<Text>` then suspends forever, and the one `<Suspense fallback={null}>` in `WorkspaceCanvas` that holds `CortexEngine` and every child stays on its fallback.
+  - The proof, on the same page:
+    - with the CSP bypassed: 64 objects, 33 meshes;
+    - with the CSP untouched and `troikaConfig.ts` served with a self-hosted default font (`/fonts/fixture-outfit.ttf`, already in `frontend/public`): 64 objects, 33 meshes, 15 programs, and the face's own probe records 41 draw calls a frame.
+    - Troika 0.52 cannot read woff2 ("woff2 fonts not supported"), so the @fontsource files will not do.
+  - Signed in is not measured, but the CSP does not depend on signing in.
+  - Since when is not known. The 2026-06-29 hardening commit says the being rendered under the strict CSP, and the fixture journey (10-07) already serves troika a local font for this very reason.
+  - **A goal for GAGOS**, `gt-ca6b3e353b`, on `troikaConfig.ts` alone: self-host troika's default font. `frontend/public/fonts/README.md` still calls that font development-only, and that file is outside GAGOS's reach.
+- **What that corrects above:**
+  - PERF-01's frame numbers (p95 16.8 ms) and typing numbers were all measured on a page with no 3D body. "The 3D scene is up" checked only the canvas and the fallback.
+  - "The face's draw-call probe never records" is the same cause, not a second defect: the probe sits inside what never mounts.
+  - REC-01's 9/9 recovered a canvas that drew nothing.
+  - The typing stalls are intermittent, and not from the body. On the served face, with no body, keydown p95 was 140, 241, 22 and 269 ms in four runs.
+- **The runner now checks that the body is drawn.**
+  - Both journeys count WebGL draw calls on the scene canvas for a second, at the context: its draw methods are wrapped, then put back. A journey passes only with at least one draw call a frame.
+  - Two runner bugs found on the way, both fixed: a wait for the body returned at once when no canvas was there yet, and a canvas that first mounted after the loss (none there to lose) counted as the one remount.
+  - **On the served face now**, REC-01 fails 2 of 11 steps (the body, before and after recovery). PERF-01 fails 4 of 13 (the body twice, the face's probe, and typing at p95 269 ms in this run).
+  - **With the font fix applied in flight**, both pass. This is an experiment, not evidence: DevTools rewrote the served `troikaConfig.ts`.
+    - REC-01 passes 11 of 11: the body is drawn, lost, brought back by Retry, and drawn again (2623 draw calls over 61 frames).
+    - PERF-01 passes 13 of 13: frame p95 16.8 ms (max 17.7 ms), keydown p95 24.7 ms, and 41 draw calls a frame, with the face's own probe recording.
+    - Headless on the dev server, so a smoke.
+- **Tests.** 30 tests in `tests/test_gagos_journeys.py`, using stand-in pages and no Chrome. After the last change, the gateway, consistency and architecture tests: 67 passed, and Bandit has no new findings.
 
 ## 2026-11-15, a new test that fails is not a test it broke (branch `fix/sandbox-new-tests-fail`)
 
