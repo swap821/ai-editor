@@ -74,6 +74,7 @@ _ENV_ASSIGNMENT = re.compile(
 )
 #: The manifests that make a top-level folder a project of its own.
 _SUBPROJECT_MANIFESTS = ("package.json", "pyproject.toml")
+_LOCKFILE = "package-lock.json"
 _ISSUE_RE = re.compile(r"\b(TODO|FIXME|BUG|HACK|XXX)\b[:\s-]*(.*)", re.IGNORECASE)
 
 
@@ -171,11 +172,17 @@ def harvest_project_passport(
     subprojects = _subprojects(resolved, scan_limits)
     for sub, manifests in subprojects.items():
         for name, text in manifests.items():
-            texts.setdefault(f"{sub}/{name}", text)
+            if name != _LOCKFILE:
+                texts.setdefault(f"{sub}/{name}", text)
     key_files = sorted(
         {
             *_key_files(resolved, files),
-            *(f"{sub}/{name}" for sub, found in subprojects.items() for name in found),
+            *(
+                f"{sub}/{name}"
+                for sub, found in subprojects.items()
+                for name in found
+                if name != _LOCKFILE
+            ),
         }
     )
     package_json = _load_package_json(texts.get("package.json"))
@@ -193,7 +200,7 @@ def harvest_project_passport(
         if not sub_package:
             continue
         prefix = f"npm --prefix {sub}"
-        lock = (resolved / sub / "package-lock.json").is_file()
+        lock = _LOCKFILE in manifests
         install_commands.append(f"{prefix} {'ci' if lock else 'install'}")
         run_commands += [
             command.replace("npm", prefix, 1)
@@ -272,6 +279,9 @@ def _subprojects(root: Path, limits: RepoScanLimits) -> dict[str, dict[str, str]
                 manifests[name] = scan_and_redact(
                     raw.decode("utf-8", errors="replace")
                 ).scrubbed
+        if "package.json" in manifests and (child / _LOCKFILE).is_file():
+            # Its presence only: which install command the sub-project takes.
+            manifests[_LOCKFILE] = ""
         if manifests:
             found[child.name] = manifests
     return found
