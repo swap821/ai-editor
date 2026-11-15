@@ -82,6 +82,26 @@ CODEX_SEALED: tuple[str, ...] = (
     *(arg for feature in CODEX_ACTING_FEATURES for arg in ("--disable", feature)),
 )
 
+#: Claude Code as one of GAGOS's mission workers (2026-11-15, the operator: "624
+#: utilize also as per GAGOS"): file tools inside its own directory, a masked
+#: copy of GAGOS's code, and no other tool but GAGOS's own MCP server (its
+#: sandboxed ``run_tests``); no shell, no web, nothing remembered, none of the
+#: operator's MCP servers. The one other way GAGOS launches Claude Code, kept
+#: here beside :data:`CLAUDE_SEALED` so both stay one derivation each.
+CLAUDE_AGENT: tuple[str, ...] = (
+    "-p",
+    "--output-format",
+    "json",
+    "--tools",
+    "Read,Grep,Glob,Edit,Write",
+    "--permission-mode",
+    "acceptEdits",
+    "--no-session-persistence",
+    "--strict-mcp-config",
+)
+#: The one MCP tool an agent may call: GAGOS's sandboxed test run.
+AGENT_RUN_TESTS = "mcp__gagos__run_tests"
+
 #: The answer every tool-offering call is held to: what to say, and the tools
 #: to call with their arguments as a JSON object in a string (a free-form
 #: object is not allowed by strict structured output).
@@ -398,3 +418,96 @@ class PlanCliClient:
     ) -> Iterator[str]:
         """Not streamed: the whole answer, once."""
         yield self.chat(messages, tools=tools, model=model)["content"]
+
+
+class PlanAgentClient:
+    """One of GAGOS's mission workers as a Claude Code agent on the operator's
+    plan (2026-11-15; #624's crew, brought in through the mission path). It
+    works in *workdir*, a masked copy of GAGOS's code, with file tools and one
+    MCP server, GAGOS's ``run_tests`` (*mcp_config*), and answers with its
+    summary. The prompt passes the same :class:`PrivacyFilter` as the sealed
+    client's, and the session is recorded through :func:`model_calls.observe`
+    as one call: the gateway that wraps :meth:`complete` governs it whole.
+    What the agent changed is read back from *workdir* by its caller."""
+
+    def __init__(
+        self,
+        model: str,
+        *,
+        workdir: Path,
+        mcp_config: Path,
+        max_turns: int = 80,
+        timeout_s: float = 2400,
+        run: Callable[..., Any] = subprocess.run,
+        claude: Optional[str] = None,
+    ) -> None:
+        self.model = model
+        self.workdir = Path(workdir)
+        self.mcp_config = Path(mcp_config)
+        self.max_turns = max_turns
+        self.timeout_s = timeout_s
+        self._run = run
+        self.claude = claude if claude is not None else claude_executable()
+        # GAGOS's own tracked code to the operator's own plan: identifiers
+        # shown, keys, credentials and paths hidden (his decision, 11-11).
+        self._privacy_filter = PrivacyFilter(identifiers_shown=True)
+
+    def _filtered_for_egress(
+        self, messages: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        safe, audit = self._privacy_filter.filter(messages)
+        if any(v for k, v in audit.items() if k.startswith("redacted_") and v):
+            logger.info("Plan agent privacy filter applied", extra=audit)
+        return safe
+
+    def complete(self, prompt: str, *, system: Optional[str] = None) -> str:
+        if not self.claude:
+            raise LLMError("the Claude Code CLI is not installed here")
+        if family(self.model) != "claude":
+            raise LLMError(f"an agent worker runs on Claude Code, not {self.model}")
+        outbound = [{"role": "system", "content": system}] if system else []
+        outbound.append({"role": "user", "content": prompt})
+        safe = self._filtered_for_egress(outbound)
+        sys_text = "\n\n".join(
+            str(m["content"]) for m in safe if m["role"] == "system" and m["content"]
+        )
+        body = next(str(m["content"]) for m in safe if m["role"] == "user")
+        model_calls.observe("plan", self.model, "agent")
+        argv = [
+            self.claude,
+            *CLAUDE_AGENT,
+            "--model",
+            self.model,
+            "--max-turns",
+            str(self.max_turns),
+            "--mcp-config",
+            str(self.mcp_config),
+            "--allowedTools",
+            AGENT_RUN_TESTS,
+        ]
+        if sys_text:
+            argv += ["--append-system-prompt", sys_text]
+        try:
+            # The prompt on stdin: cmd.exe cuts an argument at a line break.
+            proc = self._run(
+                argv,
+                input=body,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                cwd=str(self.workdir),
+                timeout=self.timeout_s,
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise LLMError(f"the agent ran past {self.timeout_s:.0f}s") from exc
+        except OSError as exc:
+            raise LLMError(f"the agent could not run: {scrub_exception(exc)}") from exc
+        try:
+            data = json.loads(proc.stdout or "")
+        except ValueError:
+            data = {}
+        if proc.returncode != 0 or data.get("is_error") or not data:
+            said = scrub_exception(str(data.get("result") or proc.stderr or ""))
+            raise LLMError(f"the agent exited {proc.returncode}: {said[-300:]}")
+        return str(data.get("result") or "")
