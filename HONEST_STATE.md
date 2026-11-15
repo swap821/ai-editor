@@ -1,9 +1,28 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, GAGOS understands itself through organ 28" below;
+**Last updated:** 2026-11-15 ("2026-11-15, GAGOS runs browser journeys over its face" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
+
+- **Why.** For the face's 10/10 the operator chose option 1: about 47 of the acceptance ledger's 100 points need a browser run on the supported route, and only about 3 are earned. The rest need the operator, his phones or other people.
+- **What it is** (`tools/gagos_journeys.py`). The runner drives GAGOS's own Chrome through the DevTools protocol, on 127.0.0.1 only. It uses the eye's journey profile, never the operator's.
+  - Each run writes an evidence record, JSON and Markdown, under `docs/frontend/evidence/journeys/`.
+  - The record is pinned to its commit, browser and viewport. It keeps the run's steps, the work requests and page errors it saw, the face's own metric events, and its evidence boundary.
+- **Its rules, held in code:**
+  - It never types a credential: the operator signs in himself in `open`'s window.
+  - It never presses an Allow, Approve, Grant or Accept control.
+  - It keeps only whether the page is signed in, never his id or token.
+- **First journey: REC-01.** A composer draft goes through a forced WebGL context loss, a network drop and a reload. The face's own `context-recovery` metric must report exactly one restore, and no work request may be sent. Its boundary: there is no live work in flight, so it earns no points alone.
+- **First run, headless, not signed in.** Chrome 157 on the AMD GPU. 7 of 8 steps passed: the draft survived all three, and no request was sent.
+  - **"Restored once" failed:** no restore was measured.
+  - The canvas's `webglcontextlost` event reached the runner with `defaultPrevented` false. three.js r187, which owns the canvas, calls `preventDefault` in its own handler, so that handler looks detached from the live canvas, perhaps by React's development double mount.
+  - If so, after a GPU context loss the face cannot restore in place, and only a reload brings the scene back.
+  - This is **suspected, not confirmed.** It needs the operator's signed-in window and a check against the production build.
+- **Also fixed:** GAGOS's eye pointed at `127.0.0.1:5173`, which Vite refuses on this laptop (it serves `localhost`, the IPv6 loopback), so its screenshots never saw the face. Both tools now use `localhost`.
+- **Tests.** 12 new tests in `tests/test_gagos_journeys.py`, using a stand-in page and no Chrome. Gateway, Bandit, consistency, architecture and the daily tests: 184 passed. Bandit has no new findings.
 
 ## 2026-11-15, GAGOS understands itself through organ 28 (branch `feat/gagos-understands-itself`)
 
