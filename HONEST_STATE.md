@@ -1,9 +1,24 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, the frontend sandbox ran out of /tmp" below;
+**Last updated:** 2026-11-15 ("2026-11-15, GAGOS's missions may create and delete files" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, GAGOS's missions may create and delete files (branch `feat/missions-create-delete`)
+
+- **Why.** The operator: "624 utilize also as per GAGOS". #624's crew (11-11) ran beside GAGOS's organs. Its parts now come in through the mission path, starting with this PR: files can be created and deleted.
+- **Carried from #624 onto master:**
+  - `46aaf96e`: the ledger's `op` (create, delete). The review evidence says when a file is created or deleted. Delivery creates folders, removes a deleted file, updates the port manifest for both, checks only the files that remain, and holds stale a new file whose name appeared or a deleted file that changed.
+  - `c6b63e27`: the sandbox removes a deleted file while it runs and restores it after. A change that only deletes is judged by the type check.
+- **New:** a task may create a file. The file must be absent at the base, and its folder must already hold a file GAGOS may edit with the same suffix. It is never in the frozen core.
+  - The writer is told the file is new, and the proposal is recorded as a creation.
+  - The mission's workspace already left a missing file for the writer, as for a first test.
+- **Not yet:** nothing produces a deletion. A one-shot writer answers with whole files, and the next PR's tool agents have no delete tool. A deletion would be a GAGOS tool bound to the mission contract's files.
+- **Tests:**
+  - 3 new tests in `tests/test_gagos_task_creates.py`, all failing on the carried code alone.
+  - #624's carried tests pass on master.
+  - The GAGOS suites and the register pass (619 passed, 14 skipped), as do consistency, gateway, architecture and both mutation probes (124). Bandit has no new findings.
 
 ## 2026-11-15, the frontend sandbox ran out of /tmp, and a mission paid for it (branch `fix/web-sandbox-tmp`)
 
