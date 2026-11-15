@@ -3088,6 +3088,31 @@ class DailyLedger:
         """The operator withdraws an open task. True when it was open."""
         return self._move_task(task_id, "cancelled", reason="withdrawn by the operator")
 
+    def return_task(self, task_id: str, reason: str) -> bool:
+        """A taken task goes back to open, *reason* said: its mission's sandbox
+        could not run, so the change was never judged and the goal is not done
+        (2026-11-15, the operator: a sandbox out of space spent his envelope's
+        slot and closed his goal). Only a taken task moves. True when it moved."""
+        with self._db() as db:
+            done = db.execute(
+                "UPDATE tasks SET status = 'open', proposal_id = NULL, reason = ?, "
+                "updated_at = ? WHERE task_id = ? AND status = 'taken'",
+                (reason, _now(), task_id),
+            )
+            return done.rowcount == 1
+
+    def returned_goals(self) -> set[str]:
+        """The goals already given back once after a run whose sandbox could
+        not run (state ``run_unavailable``)."""
+        with self._db() as db:
+            return {
+                r["task_id"]
+                for r in db.execute(
+                    "SELECT DISTINCT task_id FROM goal_missions "
+                    "WHERE state = 'run_unavailable'"
+                )
+            }
+
     def task_progress(self) -> list[dict]:
         """Every task, oldest first, with what became of its proposal: the one
         read the counter and the face show. ``proposal`` is None until a writer

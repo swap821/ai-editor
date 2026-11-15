@@ -20,6 +20,22 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - #624's carried tests pass on master.
   - The GAGOS suites and the register pass (619 passed, 14 skipped), as do consistency, gateway, architecture and both mutation probes (124). Bandit has no new findings.
 
+## 2026-11-15, a goal whose sandbox could not run goes back to open (branch `fix/goal-back-when-sandbox-down`)
+
+- **Why.** The /tmp failure above spent one of the operator's two envelope slots and closed his goal, although its change was never judged. The second slot was then left with no goal to run.
+- **What changed** (`tools/gagos_daily.py`, `aios/maintenance/daily_work.py`; no organ entrypoint).
+  - A mission run that fails while its sandbox verdict is `unavailable` is recorded as `run_unavailable`, and its goal goes back to `open` (`DailyLedger.return_task`).
+  - The goal stays the council's, and a later slot originates it again. It is given back **once**: a second unjudged run closes it like any failed run, and the hour says so.
+- **What did not change.** The slot stays spent. A consumed envelope slot is never granted again, because re-granting a used capability is the replay class the spine forbids. A sandbox that runs and fails a test (`broke`) still fails the goal.
+- **Nothing learns from an unjudged run.** The colony records it as `unjudged` and lays no trail. No mission skill's confidence moves. The report doesn't count it as a decided mission.
+- **Tests.** 5 new tests in `tests/test_gagos_mission_hour.py`, and 4 of them fail on the old code. The fifth is the control: a judged failure still teaches the trail and the skill, before and after.
+  - Also run: the GAGOS suites, the register and the mutation probes (643 passed, 14 skipped), plus consistency, gateway and architecture (94 passed). Bandit has no new findings.
+- **The operator's decisions the same day.**
+  - GAGOS works on itself first: its own face to 10/10, and understanding itself, with every organ it has.
+  - No new self-measurement is built.
+  - His merges batch by themselves: delivery already waits while GAGOS's previous PR is open, so merging once a day gathers a day's work into one PR.
+  - The counter opens only to him (`require_privileged_operator`). Claude talks to GAGOS through goals, never through his session.
+
 ## 2026-11-15, the frontend sandbox ran out of /tmp, and a mission paid for it (branch `fix/web-sandbox-tmp`)
 
 - **What happened.** The first mission under the operator's new envelope (`mission-a23dcb97968a`, the colony retry of `gt-dcc94bf3c8`) ended `run_failed`.
