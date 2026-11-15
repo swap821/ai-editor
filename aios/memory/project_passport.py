@@ -66,8 +66,14 @@ _ENV_PATTERNS = (
     re.compile(r"\bos\.environ(?:\.get)?\(\s*['\"]([A-Z][A-Z0-9_]{2,})['\"]"),
     re.compile(r"\bgetenv\(\s*['\"]([A-Z][A-Z0-9_]{2,})['\"]"),
     re.compile(r"\bprocess\.env\.([A-Z][A-Z0-9_]{2,})\b"),
-    re.compile(r"\b([A-Z][A-Z0-9_]{2,})\s*=", re.MULTILINE),
 )
+#: ``NAME=`` names a variable only in an env example file; in code it is any
+#: constant (2026-11-15: GAGOS's own scan listed ACK_EXTS, ACTIONS ...).
+_ENV_ASSIGNMENT = re.compile(
+    r"^\s*(?:export\s+)?([A-Z][A-Z0-9_]{2,})\s*=", re.MULTILINE
+)
+#: The manifests that make a top-level folder a project of its own.
+_SUBPROJECT_MANIFESTS = ("package.json", "pyproject.toml")
 _ISSUE_RE = re.compile(r"\b(TODO|FIXME|BUG|HACK|XXX)\b[:\s-]*(.*)", re.IGNORECASE)
 
 
@@ -158,21 +164,59 @@ def harvest_project_passport(
     files = list(_iter_scan_files(resolved, scan_limits))
     texts = _read_evidence_texts(resolved, files, scan_limits)
 
-    key_files = _key_files(resolved, files)
+    # A sub-project's manifest is read whatever the file budget left: a
+    # repository holding a frontend beside its backend is two stacks
+    # (2026-11-15: GAGOS's own scan spent its 500 files inside aios/ and never
+    # saw frontend/package.json).
+    subprojects = _subprojects(resolved, scan_limits)
+    for sub, manifests in subprojects.items():
+        for name, text in manifests.items():
+            texts.setdefault(f"{sub}/{name}", text)
+    key_files = sorted(
+        {
+            *_key_files(resolved, files),
+            *(f"{sub}/{name}" for sub, found in subprojects.items() for name in found),
+        }
+    )
     package_json = _load_package_json(texts.get("package.json"))
     pyproject = texts.get("pyproject.toml", "")
+    stack = set(_stack(files, texts, package_json, pyproject))
+    install_commands = _install_commands(files)
+    run_commands = _script_commands(package_json, {"dev", "start", "serve"})
+    build_commands = _script_commands(package_json, {"build"})
+    test_commands = _test_commands(files, package_json, pyproject)
+    for sub, manifests in subprojects.items():
+        sub_package = _load_package_json(manifests.get("package.json"))
+        stack.update(_stack([], {}, sub_package, manifests.get("pyproject.toml", "")))
+        if "pyproject.toml" in manifests:
+            stack.add("Python")
+        if not sub_package:
+            continue
+        prefix = f"npm --prefix {sub}"
+        lock = (resolved / sub / "package-lock.json").is_file()
+        install_commands.append(f"{prefix} {'ci' if lock else 'install'}")
+        run_commands += [
+            command.replace("npm", prefix, 1)
+            for command in _script_commands(sub_package, {"dev", "start", "serve"})
+        ]
+        build_commands += [
+            command.replace("npm", prefix, 1)
+            for command in _script_commands(sub_package, {"build"})
+        ]
+        if "test" in _dict(sub_package.get("scripts")):
+            test_commands.append(f"{prefix} test")
 
     return ProjectPassport(
         root=str(resolved),
         generated_at=datetime.now(timezone.utc).isoformat(),
         purpose=_purpose(texts),
-        stack=_stack(files, texts, package_json, pyproject),
+        stack=sorted(stack),
         folder_map=_folder_map(resolved, scan_limits),
         key_files=key_files,
-        install_commands=_install_commands(files),
-        run_commands=_script_commands(package_json, {"dev", "start", "serve"}),
-        build_commands=_script_commands(package_json, {"build"}),
-        test_commands=_test_commands(files, package_json, pyproject),
+        install_commands=_dedupe(install_commands),
+        run_commands=_dedupe(run_commands),
+        build_commands=_dedupe(build_commands),
+        test_commands=_dedupe(test_commands),
         env_vars=_env_vars(texts),
         safe_actions=_safe_actions(files),
         risky_actions=_risky_actions(resolved, files, texts),
@@ -206,6 +250,30 @@ def _iter_scan_files(root: Path, limits: RepoScanLimits) -> list[Path]:
             found.append(path)
             if len(found) >= limits.max_files:
                 return found
+    return found
+
+
+def _subprojects(root: Path, limits: RepoScanLimits) -> dict[str, dict[str, str]]:
+    """Each top-level folder holding a project manifest of its own, with that
+    manifest's text, scrubbed as all evidence is."""
+    found: dict[str, dict[str, str]] = {}
+    for child in sorted(root.iterdir()):
+        if (
+            not child.is_dir()
+            or child.name in _IGNORED_DIRS
+            or child.name.startswith(".")
+        ):
+            continue
+        manifests: dict[str, str] = {}
+        for name in _SUBPROJECT_MANIFESTS:
+            path = child / name
+            if path.is_file():
+                raw = path.read_bytes()[: limits.max_file_bytes]
+                manifests[name] = scan_and_redact(
+                    raw.decode("utf-8", errors="replace")
+                ).scrubbed
+        if manifests:
+            found[child.name] = manifests
     return found
 
 
@@ -253,6 +321,23 @@ def _key_files(root: Path, files: list[Path]) -> list[str]:
 
 
 def _folder_map(root: Path, limits: RepoScanLimits) -> list[str]:
+    """The project's layout: its top-level folders first, then its root files
+    and second-level folders (2026-11-15: GAGOS's own map was its root's dot
+    files and nothing of aios/ or frontend/)."""
+    folders = [
+        child.name
+        for child in sorted(root.iterdir())
+        if child.is_dir()
+        and child.name not in _IGNORED_DIRS
+        and not _is_aios_private_dir(Path(child.name))
+    ]
+    # The project's own folders before its dot folders (.github, .aios ...).
+    top = [f"{name}/" for name in sorted(folders, key=lambda n: (n.startswith("."), n))]
+    rest = [entry for entry in _walk_map(root, limits) if entry not in top]
+    return (top + rest)[: limits.max_findings]
+
+
+def _walk_map(root: Path, limits: RepoScanLimits) -> list[str]:
     entries: list[str] = []
     for current, dirs, files in os.walk(root, topdown=True):
         current_path = Path(current)
@@ -337,6 +422,10 @@ def _stack(
             stack.add("React")
         if "vite" in deps_text or "vite" in scripts_text:
             stack.add("Vite")
+        if "typescript" in deps_text:
+            stack.add("TypeScript")
+        if "vitest" in deps_text or "vitest" in scripts_text:
+            stack.add("Vitest")
     if {"Dockerfile", "docker-compose.yml", "compose.yml"} & names:
         stack.add("Docker")
     if "sqlite" in joined:
@@ -401,6 +490,8 @@ def _env_vars(texts: dict[str, str]) -> list[str]:
             continue
         for pattern in _ENV_PATTERNS:
             envs.update(match.group(1) for match in pattern.finditer(text))
+        if Path(path).name in _SAFE_ENV_EXAMPLES:
+            envs.update(m.group(1) for m in _ENV_ASSIGNMENT.finditer(text))
     return sorted(envs)
 
 
