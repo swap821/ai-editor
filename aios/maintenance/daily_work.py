@@ -549,6 +549,33 @@ def refuse_scrubbed(new_text: str, shown: str) -> None:
         )
 
 
+#: The envelope's words when every mission slot is used
+#: (aios/application/capabilities/envelope.py).
+SLOTS_USED = "missions are used"
+#: The refusals that say a file could not reach a writer, or an answer come
+#: back, as written; each with the kind the operator reads.
+_WITHHOLDINGS = (
+    ("the secret policy would scrub this file", "withheld: the secret policy"),
+    ("the privacy filter would redact this file", "withheld: the privacy filter"),
+)
+_SCRUBBED_BACK = re.compile(
+    r"the answer was scrubbed on its way back from the writer \(([^)]*)\)"
+)
+
+
+def withholding_kind(refusal: str | None) -> str | None:
+    """What kept a file from a writer, or a writer's answer from coming back,
+    in a refusal's own words; None for any other refusal."""
+    text = refusal or ""
+    for words, kind in _WITHHOLDINGS:
+        if words in text:
+            return kind
+    scrubbed = _SCRUBBED_BACK.search(text)
+    if scrubbed:
+        return f"answer scrubbed: {scrubbed.group(1)}"
+    return None
+
+
 def parse_proposal(raw: str, *, original: str) -> str:
     """The whole corrected file from the model's answer, in the original's
     line endings and final-newline convention."""
@@ -3024,6 +3051,53 @@ class DailyLedger:
                 )
             ]
         return sorted(rows, key=lambda r: r["created_at"])
+
+    def goals_turned_away_by_a_full_envelope(self, since: str) -> list[dict]:
+        """The goals an envelope with every mission slot used refused since
+        *since* (organ 46's lesson "envelope-slots-used", 2026-11-16): each
+        with ``task_id``, ``times``, ``first_at``, ``last_at`` and its task's
+        ``status`` (``open`` while it still waits), oldest first."""
+        with self._db() as db:
+            return [
+                dict(r)
+                for r in db.execute(
+                    "SELECT m.task_id AS task_id, COUNT(*) AS times, "
+                    "MIN(m.created_at) AS first_at, MAX(m.created_at) AS last_at, "
+                    "t.status AS status "
+                    "FROM goal_missions m LEFT JOIN tasks t ON t.task_id = m.task_id "
+                    "WHERE m.created_at >= ? AND m.reason LIKE ? "
+                    "GROUP BY m.task_id ORDER BY first_at",
+                    (since, f"%{SLOTS_USED}%"),
+                )
+            ]
+
+    def writer_withholdings(self, since: str) -> list[dict]:
+        """The proposals refused since *since* because a file could not reach a
+        writer as written, or a writer's answer could not come back as written
+        (organ 46's lesson "privacy-withheld-file", 2026-11-16): ``rel``,
+        ``kind`` (what withheld it), ``times`` and ``last_at``, by file, most
+        recent first. The refusals' words only; never the matched text."""
+        with self._db() as db:
+            rows = [
+                dict(r)
+                for r in db.execute(
+                    "SELECT rel, refusal, created_at FROM proposals "
+                    "WHERE created_at >= ? AND refusal IS NOT NULL",
+                    (since,),
+                )
+            ]
+        out: dict[tuple[str, str], dict] = {}
+        for row in rows:
+            kind = withholding_kind(row["refusal"])
+            if kind is None:
+                continue
+            seen = out.setdefault(
+                (row["rel"], kind),
+                {"rel": row["rel"], "kind": kind, "times": 0, "last_at": ""},
+            )
+            seen["times"] += 1
+            seen["last_at"] = max(seen["last_at"], row["created_at"])
+        return sorted(out.values(), key=lambda r: r["last_at"], reverse=True)
 
     def intakes(self) -> dict[str, dict]:
         """Every goal's intake, by task id."""
