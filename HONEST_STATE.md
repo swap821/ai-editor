@@ -82,6 +82,12 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - Measured over GAGOS's editable frontend: **119 of 629 files** would be altered by the scanner on their way to or from a cloud writer, the workspace shell and all its tests among them. GAGOS cannot work on those files through its writers.
   - GAGOS's organ 46 has two proposed lessons on it, both the operator's to decide: list the withheld files for him, and review `docs/security/PROPOSAL_ENTROPY_CAMELCASE_NAMES.md` (a narrower entropy pass). The scanner is frozen core.
 - **The laptop slept** between about 05:20 and 06:40, and again from 06:43 to 07:51 UTC (Modern Standby). GAGOS's 05:50 hour was missed, and the catch-up run was frozen and then lost ("a previous run ended without finishing").
+- **Phase 2 journeys begin: he sends, the runner watches** (branch `feat/journeys-phase2`; design: `docs/frontend/JOURNEYS_PHASE2_DESIGN_2026-11-16.md`).
+  - `tools/gagos_journeys.py watch ask-01` attaches to the open journey window and reloads it once, before he types. It then waits up to 15 minutes for his send.
+  - It follows one turn from his `POST /api/generate` through the backend's own mirror events (`turn.started`, then `turn.completed` or `turn.failed`, by event id and `turn_id`) to the receipt and the being at rest.
+  - It never types, sends, approves or denies. Frames are kept by type, size and turn_id only, never their text.
+  - **Live smoke on the served face, signed out:** the probes install and the face's state reads. A real run needs him signed in.
+- **Found and fixed: the runner's signed-in check could never say yes.** It fetched `/api/v1/auth/session` from the face's own origin, and Vite answers that path with the page itself (200, `text/html`). It now asks the backend. Phase 1's records said "not signed in", which was true, but the check would have said so even if he had been.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 

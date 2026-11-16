@@ -30,6 +30,7 @@ import argparse
 import asyncio
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -48,6 +49,9 @@ if str(REPO) not in sys.path:
 from tools import gagos_eye as eye  # noqa: E402
 
 FACE_URL = "http://localhost:5173/"
+#: The backend the face talks to (frontend/src/config.js's dev default). The
+#: face's own origin answers its routes with the page itself.
+BACKEND = os.environ.get("AIOS_PROBE_BASE", "http://localhost:8000").rstrip("/")
 EVIDENCE_DIR = REPO / "docs" / "frontend" / "evidence" / "journeys"
 #: The composer and the scene, as the face marks them (SuperbrainApp.jsx).
 COMPOSER = '[aria-label="Talk to GAGOS"]'
@@ -294,7 +298,7 @@ class Journey:
         """Whether the page's session is the operator's: only the yes or no is
         kept, never his id or the session's token."""
         status = await self.cdp.evaluate(
-            "fetch('/api/v1/auth/session', {credentials: 'include'})"
+            f"fetch({json.dumps(BACKEND + '/api/v1/auth/session')}, {{credentials: 'include'}})"
             ".then(r => r.ok ? r.json() : {}).then(s => Boolean(s.authenticated))"
             ".catch(() => false)"
         )
@@ -874,6 +878,310 @@ async def run(
     return record.finish()
 
 
+# ------------------------------------------------------------------ phase 2
+# The operator sends, the runner watches (2026-11-16, his yes; the design is
+# docs/frontend/JOURNEYS_PHASE2_DESIGN_2026-11-16.md). The runner never sends,
+# never approves or denies; it records types, sizes, ids and times only.
+
+#: A pending decision and a receipt, as the face marks them (GagosChrome.jsx,
+#: ReceiptCard.tsx), and the app root carrying the being's named state.
+APPROVAL_PENDING = '.gagos-chrome[data-approval-pending="true"]'
+RECEIPT = "section.gagos-receipt"
+APP = ".lm-app"
+#: The longest a watch waits for the operator's send and its turn's end.
+WATCH_LIMIT_S = 15 * 60
+#: The turn's own stream ends with one of these frames (aiosAdapter.ts).
+TERMINAL_FRAMES = ("done", "error")
+#: Receipts that may follow each terminal frame (receipts.ts's kinds).
+RECEIPTS_AFTER = {
+    "done": {"verified-success", "finished-unverified"},
+    "error": {"failure", "failure-rollback", "refusal"},
+}
+#: In the page: each POST to /api/generate teed, its SSE frames kept by event
+#: type, size and turn_id only -- never their text.
+_TURN_PROBE = r"""(() => {
+  if (window.__gagosTurns) return true;
+  const turns = window.__gagosTurns = [];
+  const original = window.fetch.bind(window);
+  window.fetch = async (input, init) => {
+    const response = await original(input, init);
+    try {
+      const url = typeof input === 'string' ? input : (input && input.url) || '';
+      if (!/\/api\/generate(\?|$)/.test(url) || !response.body) return response;
+      const turn = { at: performance.now(), status: response.status, frames: [] };
+      turns.push(turn);
+      const reader = response.clone().body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let event = 'message';
+      (async () => {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          let i;
+          while ((i = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, i).replace(/\r$/, '');
+            buffer = buffer.slice(i + 1);
+            if (line.startsWith('event:')) event = line.slice(6).trim();
+            else if (line.startsWith('data:')) {
+              const raw = line.slice(5).trim();
+              let turnId = null;
+              try { const d = JSON.parse(raw); if (typeof d.turn_id === 'string') turnId = d.turn_id; } catch (e) {}
+              turn.frames.push({ at: performance.now(), event, bytes: raw.length, turnId });
+            } else if (line === '') event = 'message';
+          }
+        }
+      })().catch(() => { turn.readError = true; });
+    } catch (e) {}
+    return response;
+  };
+  return true;
+})()"""
+#: The face's named state now: whether it works, the being's phase and task
+#: state, a pending decision, the receipts shown by kind, and how long the
+#: composer's draft is (its length only).
+_FACE_STATE = (
+    (
+        "(() => { const app = document.querySelector(APP);"
+        " const kinds = [...document.querySelectorAll(RECEIPT)].map(s =>"
+        " ([...s.classList].find(c => c.startsWith('gagos-receipt--')) || '').slice(15) || 'unknown');"
+        " return { working: app ? app.dataset.working ?? null : null,"
+        " phase: app ? app.dataset.beingPhase ?? null : null,"
+        " taskState: app ? app.dataset.beingTaskState ?? null : null,"
+        " approval: Boolean(document.querySelector(APPROVAL)), receipts: kinds,"
+        " draft: (document.querySelector(COMPOSER) || {}).value?.length ?? 0 }; })()"
+    )
+    .replace("APPROVAL", json.dumps(APPROVAL_PENDING))
+    .replace("RECEIPT", json.dumps(RECEIPT))
+    .replace("APP", json.dumps(APP))
+    .replace("COMPOSER", json.dumps(COMPOSER))
+)
+
+
+def say(text: str) -> None:
+    """A line for the operator, in his terminal."""
+    print(f"[journey] {text}", flush=True)
+
+
+def mirror_events(events: list[dict]) -> list[dict]:
+    """The mirror stream's canonical events among CDP's events, by id, type
+    and turn_id only (Network.eventSourceMessageReceived)."""
+    out = []
+    for event in events:
+        if event.get("method") != "Network.eventSourceMessageReceived":
+            continue
+        params = event.get("params", {})
+        try:
+            data = json.loads(params.get("data") or "{}")
+        except ValueError:
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        payload = data.get("payload") if isinstance(data.get("payload"), dict) else {}
+        turn = payload.get("turn_id") or data.get("turn_id") or data.get("turnId")
+        out.append(
+            {
+                "id": str(params.get("eventId") or ""),
+                "type": str(data.get("eventType") or params.get("eventName") or ""),
+                "turnId": turn if isinstance(turn, str) else None,
+            }
+        )
+    return out
+
+
+async def watch_turn(j: Journey, limit_s: float = WATCH_LIMIT_S) -> dict:
+    """Wait for the operator's send and its turn's end, sampling the face's
+    named state each second (kept when it changes). Returns the turns the
+    page saw, the face's states, and whether a terminal frame came in time."""
+    deadline = time.monotonic() + limit_s
+    started = time.monotonic()
+    states: list[dict] = []
+    ended = False
+    while time.monotonic() < deadline:
+        state = dict(await j.cdp.evaluate(_FACE_STATE) or {})
+        if not states or {k: v for k, v in states[-1].items() if k != "t"} != state:
+            states.append({**state, "t": round(time.monotonic() - started, 1)})
+        turns = list(await j.cdp.evaluate("window.__gagosTurns || []") or [])
+        frames = [f for t in turns for f in t.get("frames", [])]
+        if any(f.get("event") in TERMINAL_FRAMES for f in frames):
+            ended = True
+            # The mirror's own terminal event follows the stream's; let it land.
+            await asyncio.sleep(3)
+            states.append({**dict(await j.cdp.evaluate(_FACE_STATE) or {}), "t": "end"})
+            break
+        await asyncio.sleep(1)
+    turns = list(await j.cdp.evaluate("window.__gagosTurns || []") or [])
+    return {"turns": turns, "states": states, "ended": ended}
+
+
+def frame_counts(turns: list[dict]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for turn in turns:
+        for frame in turn.get("frames", []):
+            counts[frame.get("event", "?")] = counts.get(frame.get("event", "?"), 0) + 1
+    return counts
+
+
+async def ask_01(j: Journey) -> None:
+    """UX-01 (4) and INT-02 (3): one request the operator sends, correlated
+    from his send through the backend's own events to its terminal event, an
+    honest receipt and the being back at rest. The runner never sends."""
+    r = j.record
+    r.boundary = (
+        "The operator typed and sent the request himself; the runner only "
+        "watched. Frames are kept by type, size and turn_id, never their text, "
+        "and no operator id, token or file content is recorded. UX-01 and "
+        "INT-02 earn points only signed in, headed, on the named desktop and "
+        "the build that ships, with this record committed; a pending decision "
+        "here is recorded, not judged (decide-01 judges it)."
+    )
+    if not r.step(
+        "controls ready",
+        await j.wait_for(f"document.querySelector('{CONTROLS_READY}')", 60),
+    ):
+        return
+    if not r.step(
+        "signed in",
+        await j.signed_in(),
+        "the operator signs in himself, in this window (tools/gagos_journeys.py open)",
+    ):
+        return
+    await body_drawn(j, "the 3D body is drawn", within=20)
+    say("ready: type ONE small request into the composer and press Enter yourself.")
+    say(f"I watch for up to {WATCH_LIMIT_S // 60} minutes and never send anything.")
+    seen = await watch_turn(j)
+    await j.collect()
+    turns, states = seen["turns"], seen["states"]
+    frames = [f for t in turns for f in t.get("frames", [])]
+    counts = frame_counts(turns)
+    r.measured["frames by type"] = counts
+    r.measured["face states"] = [
+        f"{s['t']}: working={s.get('working')} phase={s.get('phase')} "
+        f"task={s.get('taskState')} approval={s.get('approval')} "
+        f"receipts={','.join(s.get('receipts') or []) or '-'} draft={s.get('draft')}"
+        for s in states
+    ]
+    r.step(
+        "one request, sent by the operator",
+        len(r.work_requests) == 1 and len(turns) == 1,
+        f"{len(r.work_requests)} work request(s); {len(turns)} turn stream(s)",
+    )
+    ids = sorted({f["turnId"] for f in frames if f.get("turnId")})
+    turn_id = ids[0] if len(ids) == 1 else None
+    r.step("one turn", turn_id is not None, f"{len(ids)} turn id(s) in its stream")
+    mirror = mirror_events(j.cdp.events)
+    mine = [m for m in mirror if turn_id and m["turnId"] == turn_id]
+    started = [m for m in mine if m["type"] == "turn.started"]
+    finished = [m for m in mine if m["type"] in ("turn.completed", "turn.failed")]
+    r.measured["the backend's events for the turn"] = [
+        f"{m['id']}: {m['type']}" for m in mine
+    ] or "none seen"
+    r.step(
+        "the backend started it",
+        len(started) == 1,
+        f"turn.started as event {started[0]['id']}" if started else "no turn.started",
+    )
+    ended = seen["ended"]
+    terminal = next(
+        (f["event"] for f in reversed(frames) if f.get("event") in TERMINAL_FRAMES),
+        None,
+    )
+    r.step(
+        "it ended, on both channels",
+        ended
+        and len(finished) == 1
+        and bool(started)
+        and _after(finished[0]["id"], started[0]["id"]),
+        (
+            f"stream: {terminal}; mirror: {finished[0]['type']} as event {finished[0]['id']}"
+            if finished
+            else f"stream: {terminal or 'no terminal frame'}; mirror: no terminal event"
+        ),
+    )
+    last = states[-1] if states else {}
+    receipts = set(last.get("receipts") or [])
+    honest = RECEIPTS_AFTER.get(terminal or "", set())
+    r.step(
+        "an honest receipt",
+        bool(receipts) and receipts <= honest | {"unknown"} and bool(receipts & honest),
+        f"shown: {', '.join(sorted(receipts)) or 'none'}; after {terminal or 'no end'}",
+    )
+    typed = any((s.get("draft") or 0) > 0 for s in states)
+    r.step(
+        "the draft left the composer when it was sent",
+        typed and (last.get("draft") or 0) == 0,
+        "a draft was typed, and the composer is empty after the turn"
+        if typed
+        else "no draft was seen being typed",
+    )
+    r.step(
+        "at rest again",
+        last.get("working") == "false",
+        f"working={last.get('working')}",
+    )
+    await body_drawn(j, "the 3D body is drawn after the turn", within=5)
+    if any(s.get("approval") for s in states):
+        r.measured["a decision was asked"] = "yes (judged by decide-01)"
+
+
+def _after(later: str, earlier: str) -> bool:
+    try:
+        return int(later) > int(earlier)
+    except ValueError:
+        return False
+
+
+#: Phase 2's journeys: each is watched, never driven.
+WATCHES: dict[str, tuple[str, str, Callable[[Journey], Awaitable[None]]]] = {
+    "ask-01": (
+        "UX-01 ask-to-result and INT-02 turn boundary",
+        "Sign in first (open). When I say ready, type one small request and press Enter.",
+        ask_01,
+    ),
+}
+
+
+async def watch(
+    watch_id: str,
+    *,
+    url: str,
+    port: int,
+    commit: str,
+    browser: str,
+    tree: str = "",
+) -> JourneyRecord:
+    """Attach to the open journey window, install the observers, reload once
+    (before he types) so the turn probe and the mirror's stream are seen from
+    the start, then run the watch."""
+    import websockets
+
+    criterion, _steps, body = WATCHES[watch_id]
+    record = JourneyRecord(
+        journey=watch_id,
+        criterion=criterion,
+        commit=commit,
+        browser=browser,
+        tree=tree,
+        viewport="as the operator has it",
+        url=url,
+        started_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    )
+    async with websockets.connect(page_socket(port, url), max_size=None) as socket:
+        journey = Journey(Cdp(socket), record)
+        await journey.start()
+        await journey.cdp.send(
+            "Page.addScriptToEvaluateOnNewDocument", source=_TURN_PROBE
+        )
+        await journey.cdp.send("Page.reload")
+        await asyncio.sleep(1)
+        try:
+            await body(journey)
+        except JourneyRefused as exc:
+            record.step("refused", False, str(exc))
+    return record.finish()
+
+
 # ------------------------------------------------------------------ the commands
 
 
@@ -971,9 +1279,42 @@ def cmd_run(args: argparse.Namespace) -> int:
     return 0 if record.outcome == "passed" else 1
 
 
+def cmd_watch(args: argparse.Namespace) -> int:
+    """Phase 2: the operator does the steps it prints, in the open journey
+    window; the runner watches and writes the record."""
+    if args.journey not in WATCHES:
+        print(f"no watch {args.journey!r}; see: python tools/gagos_journeys.py list")
+        return 2
+    profile = eye.profile("journey")
+    try:
+        port = devtools_port(profile, timeout_s=2)
+    except JourneyRefused:
+        print("the journey window is not open: python tools/gagos_journeys.py open")
+        return 2
+    criterion, steps, _body = WATCHES[args.journey]
+    say(f"{args.journey}: {criterion}")
+    say(steps)
+    commit, tree = served_commit(args.url)
+    record = asyncio.run(
+        watch(
+            args.journey,
+            url=args.url,
+            port=port,
+            commit=commit,
+            tree=tree,
+            browser=_browser(port),
+        )
+    )
+    path = write_record(record)
+    print(f"{args.journey}: {record.outcome}; evidence: {path}")
+    return 0 if record.outcome == "passed" else 1
+
+
 def cmd_list(_args: argparse.Namespace) -> int:
     for key, (criterion, _body) in JOURNEYS.items():
-        print(f"{key}: {criterion}")
+        print(f"{key}: {criterion} (run: the runner drives, nothing is sent)")
+    for key, (criterion, _steps, _body) in WATCHES.items():
+        print(f"{key}: {criterion} (watch: you send, the runner measures)")
     return 0
 
 
@@ -987,6 +1328,10 @@ def main(argv: list[str] | None = None) -> int:
     ran.add_argument("journey")
     ran.add_argument("--url", default=FACE_URL)
     ran.set_defaults(func=cmd_run)
+    watched = sub.add_parser("watch")
+    watched.add_argument("journey")
+    watched.add_argument("--url", default=FACE_URL)
+    watched.set_defaults(func=cmd_watch)
     listed = sub.add_parser("list")
     listed.set_defaults(func=cmd_list)
     args = parser.parse_args(argv)
