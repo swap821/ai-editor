@@ -498,6 +498,13 @@ Performance is a release requirement from the first slice. The following are **p
 | Cold start | Record initial compressed bytes and parse/compile costs; editor workers and specialist panels stay out of the initial interaction path |
 | Mobile endurance | Repeat the actual work journey for 20–30 minutes on physical devices; record frame and interaction degradation, orientation and background/resume recovery |
 
+> **Frozen by the operator, 2026-11-16.** Asked whether PERF-01 should be judged against two of the targets above, he answered "Yes to all open questions". From that day these two are **frozen budgets** for PERF-01:
+>
+> - smooth tier: foreground p95 frame interval ≤20 ms after warmup;
+> - local feedback (keydown in the composer to the next frame) under 100 ms.
+>
+> The economy tier's ≤35 ms and every other row stay proposed. Freezing a budget does not earn PERF-01 its points. A run still has to be on the named desktop, headed, on the build that ships, before any visual-load change. Change these budgets only with recorded evidence and a tradeoff the operator sees.
+
 The Web Vitals thresholds come from [web.dev](https://web.dev/articles/vitals). They do not measure when a WebGL being is visually ready, so retain separate input-ready and first-useful-3D-frame metrics. A lab p75 over repeated local runs is not field p75.
 
 Instrumentation must report device/browser/OS, viewport, DPR, tier, commit, build mode, warmup, sample window, foreground state and scenario. Distinguish RAF pacing from CPU frame cost, GPU time, and end-to-end input latency. Use asynchronous GPU timing only where available and reject disjoint/invalid samples. Measure all render passes; missing counters are unavailable, never zero-cost proof. Object counts are not VRAM bytes.

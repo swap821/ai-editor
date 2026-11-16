@@ -93,6 +93,21 @@ def test_a_new_file_joins_and_a_removed_one_leaves(tmp_path) -> None:
     }
 
 
+def test_a_product_file_already_there_stays_out_of_the_manifest(tmp_path) -> None:
+    """2026-11-16: GAGOS's #700 edited SuperbrainApp.rendererFallback.test.jsx,
+    a product test under the port root the manifest never recorded, and the
+    manifest took it in as if it were new. Only a file not yet on disk joins."""
+    root = _project(tmp_path, {"lib/a.ts": "a\n"})
+    own = tmp_path / fs.PORT_ROOT / "SuperbrainApp.startup.test.jsx"
+    own.write_text("product test\n", encoding="utf-8")
+    rel = f"{fs.PORT_ROOT}/SuperbrainApp.startup.test.jsx"
+    assert fs.port_manifest_after(root, {rel: "product test, changed\n"}) is None
+    out = fs.port_manifest_after(
+        root, {rel: "changed\n", f"{fs.PORT_ROOT}/lib/a.ts": "a2\n"}
+    )
+    assert json.loads(out)["files"] == {"lib/a.ts": fs.port_digest("a2\n")}
+
+
 def test_files_the_port_does_not_carry_leave_it_alone(tmp_path) -> None:
     root = _project(tmp_path, {"lib/a.ts": "a\n"})
     assert fs.port_manifest_after(root, {"frontend/src/workbench/X.jsx": "x\n"}) is None

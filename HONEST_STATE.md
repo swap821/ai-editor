@@ -1,9 +1,62 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, GAGOS runs browser journeys over its face" below;
+**Last updated:** 2026-11-16 ("2026-11-16, the operator's yes" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-16, the operator's yes: budgets frozen, the built face loads its 3D code (branch `fix/built-face-chunk-cycle`)
+
+- **What he said.** "Yes to all open questions", answering four:
+  - update the checkout that serves his face to master;
+  - who fixes the production build (taken as: I do, in this PR; GAGOS's editable files stay as they are);
+  - whether PERF-01's two budgets are frozen;
+  - the 3D-recovery behaviour.
+
+  The production-build question was either/or and was read as stated above.
+- **The 3D-recovery answer, read narrowly.** I first took "yes" to mean a 4 s in-place restore before the fallback. Reading the code changed that:
+  - `SuperbrainApp` takes the scene down at once on purpose: a lost context can make post-processing fail before the browser restores it. Its tests pin this.
+  - Once the canvas is unmounted, its renderer is disposed, so no in-place restore can arrive, and recovery is always the face's Retry.
+  - REC-01 asks only that the view "restore once", and Retry does that.
+  - So the behaviour stays. What both readings need is the counter: the face's `context-recovery` metric records only an in-place restore, never the remount that happens. That is GAGOS's goal `gt-74f5f76466`, on `SuperbrainApp.jsx` and its test: after a loss, the next `gagos:ready` from a different canvas counts as the recovery.
+  - Automatic in-place restore stays a design choice for the operator.
+- **The serving checkout is on master.** `C:\Users\kumar\ai-editor` went from 7b8bd029 to 18759f76 (fast-forward, 19 commits).
+  - The daily backend's `up` then refused: #697's Python bumps changed `requirements.txt`, so the sandbox image `aios-verify:9528ebce8681` had to be built first. The backend was down for about 8 minutes.
+  - #698's frontend bumps changed the lockfile, so GAGOS's frontend sandbox image `aios-verify-web:03aa2589dacc` was built too.
+  - Backend, executor and face now answer on 18759f76.
+  - Not done, and his step: `npm ci` in the main checkout's frontend, and the venv's sync to the new `requirements.txt`. The face and backend run on the older installed versions until then.
+- **PERF-01's budgets are frozen** (blueprint section 10, dated note): foreground p95 frame interval ≤20 ms on the smooth tier, and local feedback under 100 ms.
+  - The economy tier and the other rows stay proposed.
+  - The runner now says "frozen". PERF-01 still earns points only on the named desktop, headed, on the build that ships.
+- **The built face now loads its 3D code.**
+  - Two built chunks had imported each other in a cycle: `vendor-drei-postprocessing` and `vendor-r3f` each imported third-party helpers that rolldown had placed in the `SuperbrainReactiveEffects` app chunk, and that chunk imported them back.
+  - The helpers were three-stdlib, suspend-react, its-fine, react-use-measure, zustand, use-sync-external-store and @babel/runtime. drei's classes extend three-stdlib's, still undefined inside the cycle, so the face showed "Visual organism unavailable".
+  - `vite.config.js` now puts those helpers into two vendor groups, `vendor-3d-support` and `vendor-state`. The app chunk drops from 409 KB to 322 KB. What loads at startup is unchanged: the entry, React and the preload helper.
+  - `frontend/tools/check-chunk-cycles.mjs` reads the build and fails on any static-import cycle between chunks. It found 2 before the change and 0 after, across 56 chunks. CI runs it after the production build.
+- **The built face, measured** (headless, `vite preview` on :4174, backend down at the time):
+  - With this fix, it loads with its canvas and no fallback. It then stops at the same blocked troika font as the dev server.
+  - With GAGOS's font goal also applied, locally and uncommitted, both journeys pass on the built bundle:
+    - PERF-01: 0 long frames, frame max 18.2 ms, keydown p95 20 ms, the body drawn;
+    - REC-01: passes.
+- **GAGOS's font goal, reworded.** Its first wording, `gt-ca6b3e353b`, named the font by its absolute path. GAGOS's privacy filter rightly redacts anything shaped like `/a/b` on the way to a cloud writer, and the writer (Claude Sonnet) rightly made no edit.
+  - The new goal, `gt-1414de7548`, builds the URL in code: `new URL('fonts/fixture-outfit.ttf', window.location.origin).href`. That exact line is the one measured above.
+  - The new text passes the filter unchanged.
+
+- **GAGOS did both goals in its 00:50 hour, as its PR #700.**
+  - **The font line**, written by Claude Sonnet: its sandbox tests and tsc passed, and both the Critique queen and the Claude reviewer accepted it.
+  - **The recovery counter**, written by `gpt-6-luna`: the same checks passed, and both reviewers accepted it.
+  - **My review:** both code changes do exactly what the goals asked.
+  - **Live on #700's tree** (dev server, headless):
+    - PERF-01 passes 13 of 13: the body is drawn at 41 draw calls a frame, the face's own probe records, there are 0 long frames, and keydown p95 is 25 ms.
+    - REC-01 passes all of its steps once the runner was corrected (below), and the face now counts its Retry recovery itself.
+- **REC-01 counts one recovery once.** With #700, the face's `context-recovery` metric counts a remount too, so the runner's "1 in-place restore(s), 1 remount(s)" counted the same recovery twice.
+  - "Recovered once" is now read after the body draws again. It takes the runner's remount and the face's count together.
+  - A new step asks that the face counted its recovery. It fails before #700 and passes on it: 12 of 12.
+- **A seam in GAGOS's delivery, seen in #700.** Its port-manifest update adds any file under `frontend/src/superbrain` of a ported kind that the manifest lacks, as if it were new.
+  - Only `SuperbrainApp.jsx` is exempt. So editing the long-standing product test `SuperbrainApp.rendererFallback.test.jsx` moved it into the lab's ownership.
+  - The running face is unaffected.
+  - **Fixed in this PR.** Delivery now works the manifest out before writing the files, and only a file not yet on disk joins. The two new tests, one on the helper and one on delivery, fail without the change.
+  - After #700 merged (5048ba30), the stray `SuperbrainApp.rendererFallback.test.jsx` entry was removed from `frontend/superbrain-source.json` in this PR. The manifest's own tests pass.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 

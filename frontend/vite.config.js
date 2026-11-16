@@ -157,6 +157,17 @@ export default defineConfig(({ mode }) => {
               { name: 'vendor-three', test: /[\\/]node_modules[\\/]three[\\/]/, includeDependenciesRecursively: false },
               { name: 'vendor-drei-postprocessing', test: /[\\/]node_modules[\\/](@react-three[\\/]drei|postprocessing|@react-three[\\/]postprocessing)[\\/]/, includeDependenciesRecursively: false },
               { name: 'vendor-r3f', test: /[\\/]node_modules[\\/]@react-three[\\/]/, includeDependenciesRecursively: false },
+              // The 3D layer's own third-party helpers, and the small state
+              // libraries r3f shares with the app's stores. Left ungrouped
+              // (2026-11-15), rolldown put them in the app chunk that first used
+              // them; vendor-drei-postprocessing and vendor-r3f then imported
+              // them from that chunk while it imported them back. In that cycle
+              // drei's classes extended three-stdlib classes not yet defined
+              // ("Class extends value undefined"), and the built face had no 3D
+              // body. A vendor chunk must never import an app chunk:
+              // tools/check-chunk-cycles.mjs fails the build when any do.
+              { name: 'vendor-3d-support', test: /[\\/]node_modules[\\/](three-stdlib|suspend-react|its-fine|react-use-measure|maath|@babel[\\/]runtime)[\\/]/ },
+              { name: 'vendor-state', test: /[\\/]node_modules[\\/](zustand|use-sync-external-store)[\\/]/ },
               { name: 'vendor-monaco', test: /[\\/]node_modules[\\/](@monaco-editor|monaco-editor)[\\/]/ },
               { name: 'vendor-react', test: /[\\/]node_modules[\\/](react|react-dom|scheduler)[\\/]/, priority: 90 },
               { name: 'vendor-motion', test: /[\\/]node_modules[\\/]motion[\\/]/ },

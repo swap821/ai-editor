@@ -32,8 +32,12 @@ class Page:
         button: str = "Stop",
         events=(),
         body: bool = True,
+        counts_remount: bool = True,
     ) -> None:
         self.body = body
+        #: Since GAGOS's #700 (2026-11-16) the face counts a remount's recovery
+        #: when the fresh canvas first renders; before, it never did.
+        self.counts_remount = counts_remount
         self.remounts = remounts
         self.fallback = fallback
         self.retry_recovers = retry_recovers
@@ -80,7 +84,10 @@ class Page:
         if ".some(m => m.name === 'context-recovery')" in expression:
             return restored
         if "__gagosJourney?.metrics" in expression:
-            return self.metrics
+            counted = self.remounts and self.counts_remount
+            return self.metrics + (
+                [{"name": "context-recovery", "value": 900}] if counted else []
+            )
         if "__gagosJourney?.errors" in expression:
             return []
         if "?.value ?? ''" in expression:
@@ -136,7 +143,10 @@ def test_rec_01_fails_when_the_view_restores_twice(tmp_path) -> None:
     asyncio.run(gj.rec_01(journey))
     record = journey.record.finish()
     (once,) = [s for s in record.steps if s.name == "recovered once"]
-    assert not once.ok and once.detail == "2 in-place restore(s), 0 remount(s)"
+    assert not once.ok
+    assert (
+        once.detail == "the runner saw 0 remount(s); the face counted 2 recovery(ies)"
+    )
     assert record.outcome == "failed"
 
 
@@ -202,13 +212,34 @@ def test_the_face_is_reached_where_vite_serves_it() -> None:
 
 def test_rec_01_counts_a_remount_as_the_one_recovery(tmp_path) -> None:
     """2026-11-15, the first run on the real face: no in-place restore came,
-    and after its 4 s grace the face mounted a fresh canvas three.js ran."""
+    and the face mounted a fresh canvas three.js ran. Since #700 the face
+    counts that recovery itself; the runner's sight and the face's count are
+    one recovery, not two."""
     journey = _journey(Page(restores=0, remounts=True), tmp_path)
     asyncio.run(gj.rec_01(journey))
     record = journey.record.finish()
-    (once,) = [s for s in record.steps if s.name == "recovered once"]
-    assert once.ok and once.detail == "0 in-place restore(s), 1 remount(s)"
+    steps = {s.name: s for s in record.steps}
+    once = steps["recovered once"]
+    assert once.ok
+    assert (
+        once.detail == "the runner saw 1 remount(s); the face counted 1 recovery(ies)"
+    )
+    assert steps["the face counted its recovery"].ok
     assert record.outcome == "passed"
+
+
+def test_rec_01_fails_when_the_face_does_not_count_its_remount(tmp_path) -> None:
+    """Before #700: the view came back, and the face's own metric said
+    nothing ("0 in-place restore(s), 1 remount(s)" on 2026-11-15)."""
+    journey = _journey(Page(restores=0, remounts=True, counts_remount=False), tmp_path)
+    asyncio.run(gj.rec_01(journey))
+    record = journey.record.finish()
+    steps = {s.name: s for s in record.steps}
+    assert steps["recovered once"].ok
+    counted = steps["the face counted its recovery"]
+    assert not counted.ok
+    assert counted.detail == "0 context-recovery sample(s) from the face's own metric"
+    assert record.outcome == "failed"
 
 
 def test_rec_01_fails_when_the_view_never_recovers(tmp_path) -> None:
@@ -235,7 +266,9 @@ def test_rec_01_follows_the_faces_retry_when_it_does_not_restore_itself(
     record = journey.record.finish()
     steps = {s.name: s for s in record.steps}
     assert steps["fallback shown, controls still working"].ok
-    assert steps["recovered once"].detail == "0 in-place restore(s), 1 remount(s)"
+    assert steps["recovered once"].detail == (
+        "the runner saw 1 remount(s); the face counted 1 recovery(ies)"
+    )
     assert record.outcome == "passed"
     assert any("lm-renderer-fallback__retry" in c for c in page.clicked)
 
@@ -350,7 +383,7 @@ def _perf(page: PerfPage, tmp_path: Path) -> gj.JourneyRecord:
     return journey.record.finish()
 
 
-def test_perf_01_passes_within_the_proposed_targets_and_says_they_are_proposed(
+def test_perf_01_passes_within_the_frozen_budgets_and_says_what_points_need(
     tmp_path,
 ) -> None:
     page = PerfPage(frames=[16.7] * 1200, inputs=[12.0] * len(gj.PERF_KEYS))
@@ -365,7 +398,8 @@ def test_perf_01_passes_within_the_proposed_targets_and_says_they_are_proposed(
         "(DOMWindow.onmessage)"
     ]
     text = gj.write_record(record, tmp_path).read_text(encoding="utf-8")
-    assert "## Measured" in text and "PROPOSED targets" in text
+    assert "## Measured" in text and "FROZE on 2026-11-16" in text
+    assert "the named desktop, headed, on the build that ships" in text
     assert "- slowest frames, with their scripts:\n  - 417.6 ms (blocking" in text
     assert "unavailable: the browser offers no EXT_disjoint_timer_query_webgl2" in text
 

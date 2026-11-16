@@ -430,14 +430,22 @@ async def rec_01(j: Journey) -> None:
         if fallback:
             await j.click(RETRY)
             await j.wait_for(f"{_IN_PLACE} || {_REMOUNTED}", 20)
-    in_place = sum(1 for m in await j.metrics() if m.get("name") == "context-recovery")
+    await body_drawn(j, "the 3D body is drawn again", within=20)
+    # Read after the body draws again: the face counts a remount's recovery
+    # when the fresh canvas first renders (2026-11-16, GAGOS's #700), and its
+    # count covers an in-place restore too. The runner sees only a remount.
+    counted = sum(1 for m in await j.metrics() if m.get("name") == "context-recovery")
     remounted = 1 if await j.cdp.evaluate(_REMOUNTED) else 0
     r.step(
         "recovered once",
-        in_place + remounted == 1,
-        f"{in_place} in-place restore(s), {remounted} remount(s)",
+        max(counted, remounted) == 1 and counted <= 1,
+        f"the runner saw {remounted} remount(s); the face counted {counted} recovery(ies)",
     )
-    await body_drawn(j, "the 3D body is drawn again", within=20)
+    r.step(
+        "the face counted its recovery",
+        counted == 1,
+        f"{counted} context-recovery sample(s) from the face's own metric",
+    )
     await j.cdp.send(
         "Network.emulateNetworkConditions",
         offline=True,
@@ -467,6 +475,8 @@ async def rec_01(j: Journey) -> None:
     r.step("no work request sent", not r.work_requests, f"{len(r.work_requests)} sent")
 
 
+#: The face has counted a recovery (an in-place restore; since #700 also the
+#: first frame of a remounted canvas).
 _IN_PLACE = (
     "(window.__gagosJourney.metrics || []).some(m => m.name === 'context-recovery')"
 )
@@ -478,9 +488,8 @@ _REMOUNTED = (
     " return Boolean(lost && c && c !== lost && c.dataset.engine); })()"
 )
 
-#: PERF-01's targets as the blueprint proposes them (section 10, 2026-09-24):
-#: the smooth tier's p95 frame interval, and local feedback. Proposed, not yet
-#: frozen by the operator; every record says so.
+#: PERF-01's budgets, blueprint section 10: the smooth tier's p95 frame
+#: interval, and local feedback. Frozen by the operator on 2026-11-16.
 PERF_TARGETS = {"frame_p95_ms": 20.0, "input_to_paint_ms": 100.0}
 PERF_WARMUP_S = 5.0
 PERF_WINDOW_S = 20.0
@@ -690,15 +699,14 @@ async def perf_01(j: Journey) -> None:
     """PERF-01, desktop frame and input budget (weight 4): over a window of the
     face at rest with letters typed into its composer, every frame interval,
     keydown to the next frame, the main thread's time a frame and the
-    composer's draw calls, on a named desktop, against the blueprint's
-    proposed targets. The composer is left as it was; nothing is sent."""
+    composer's draw calls, on a named desktop, against the budgets the
+    operator froze. The composer is left as it was; nothing is sent."""
     r = j.record
     r.boundary = (
-        "Compared with the blueprint's PROPOSED targets (section 10, 2026-09-24: "
-        "p95 frame interval at most 20 ms on the smooth tier, local feedback "
-        "under 100 ms). The operator has not frozen them, and PERF-01 earns "
-        "points only against budgets frozen before visual-load changes, on the "
-        "named desktop, headed, on the build that ships. Keydown to the next "
+        "Compared with the budgets the operator FROZE on 2026-11-16 (blueprint "
+        "section 10: p95 frame interval at most 20 ms on the smooth tier, local "
+        "feedback under 100 ms). PERF-01 earns points only on the named desktop, "
+        "headed, on the build that ships, before any visual-load change. Keydown to the next "
         "frame is measured in the page, not from the key to the screen. GPU time "
         "is unavailable unless the browser offers its timer extension, and an "
         "unavailable counter is never read as zero cost. Draw calls are the "
@@ -786,7 +794,7 @@ async def perf_01(j: Journey) -> None:
     target = PERF_TARGETS["frame_p95_ms"]
     p95 = summary["frame_p95_ms"]
     r.step(
-        f"frame p95 within the proposed {target:.0f} ms",
+        f"frame p95 within the frozen {target:.0f} ms",
         p95 is not None and p95 <= target,
         f"p50 {_ms(summary['frame_p50_ms'])}, p95 {_ms(p95)}, "
         f"p99 {_ms(summary['frame_p99_ms'])}, max {_ms(summary['frame_max_ms'])}; "
@@ -795,7 +803,7 @@ async def perf_01(j: Journey) -> None:
     target = PERF_TARGETS["input_to_paint_ms"]
     ip95 = summary["input_p95_ms"]
     r.step(
-        f"keydown to the next frame within the proposed {target:.0f} ms",
+        f"keydown to the next frame within the frozen {target:.0f} ms",
         ip95 is not None and ip95 <= target and summary["inputs"] == len(PERF_KEYS),
         f"p50 {_ms(summary['input_p50_ms'])}, p95 {_ms(ip95)}, "
         f"max {_ms(summary['input_max_ms'])} over {summary['inputs']} of "
