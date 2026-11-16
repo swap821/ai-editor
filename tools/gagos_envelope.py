@@ -82,9 +82,42 @@ def session(base: str):
     return ProbeSession(base).bootstrap(display_name="GAGOS envelope")
 
 
-def run(args: argparse.Namespace, *, connect=session) -> int:
+def waiting_report(days: int = 7, *, led=None) -> list[str]:
+    """Organ 46's lesson "envelope-slots-used" (the operator's yes of
+    2026-11-16): before he signs, how many briefed goals a full envelope
+    turned away, and which still wait, so that he can size the envelope to
+    the work waiting. The envelope stays his signature, and its size his
+    choice; this only reads GAGOS's daily ledger."""
+    from datetime import datetime, timedelta, timezone
+
+    if led is None:
+        from aios.maintenance.daily_work import DailyLedger, ledger_path
+
+        led = DailyLedger(ledger_path())
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+    rows = led.goals_turned_away_by_a_full_envelope(since)
+    if not rows:
+        return [f"no goal found the envelope full in the last {days} days"]
+    waiting = [r for r in rows if r["status"] == "open"]
+    times = sum(r["times"] for r in rows)
+    lines = [
+        f"in the last {days} days a full envelope turned away {len(rows)} "
+        f"goal(s), {times} time(s), the first at {rows[0]['first_at'][:16]}; "
+        f"{len(waiting)} still wait:"
+    ]
+    lines += [
+        f"- {r['task_id']}: turned away {r['times']} time(s) since {r['first_at'][:16]}"
+        for r in waiting
+    ]
+    return lines
+
+
+def run(args: argparse.Namespace, *, connect=session, waiting=waiting_report) -> int:
     from aios.probe_common import PROBE_BASE
 
+    if args.command in ("sign", "status"):
+        for line in waiting():
+            print(line)
     live = connect(args.base or PROBE_BASE)
     if args.command == "sign":
         reply = live.post_stream(ROUTE, terms(args), timeout=30)
