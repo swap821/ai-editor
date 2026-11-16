@@ -277,8 +277,16 @@ def editable_frontend_files(project_root: Path) -> list[str]:
 
 #: File kinds the port carries (frontend/tools/sync-superbrain.mjs).
 PORT_KINDS = (".ts", ".tsx", ".js", ".jsx", ".css", ".json")
-#: The one file under the port root the port never carries.
+#: The product's own app under the port root: the port never carries it.
 PORT_UNMANAGED = f"{PORT_ROOT}/SuperbrainApp.jsx"
+
+
+def port_unmanaged(rel: str) -> bool:
+    """Whether *rel* is SuperbrainApp.jsx or one of its own files beside it
+    (SuperbrainApp.*): the lab never holds the app, so a test of it there
+    could not run. 2026-11-16: GAGOS's #701 added SuperbrainApp.test.jsx and
+    the manifest took it in, while its three sibling tests stayed out."""
+    return rel.startswith(f"{PORT_ROOT}/SuperbrainApp.")
 
 
 def port_digest(text: str) -> str:
@@ -307,7 +315,7 @@ def port_manifest_after(
     under = {
         rel[len(PORT_ROOT) + 1 :]: text
         for rel, text in changes.items()
-        if rel.startswith(PORT_ROOT + "/") and rel != PORT_UNMANAGED
+        if rel.startswith(PORT_ROOT + "/") and not port_unmanaged(rel)
     }
     if not under:
         return None
@@ -341,4 +349,5 @@ __all__ = [
     "port_digest",
     "port_managed",
     "port_manifest_after",
+    "port_unmanaged",
 ]

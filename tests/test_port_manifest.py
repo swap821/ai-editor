@@ -108,6 +108,17 @@ def test_a_product_file_already_there_stays_out_of_the_manifest(tmp_path) -> Non
     assert json.loads(out)["files"] == {"lib/a.ts": fs.port_digest("a2\n")}
 
 
+def test_the_apps_own_tests_stay_out_of_the_manifest(tmp_path) -> None:
+    """2026-11-16: GAGOS's #701 added SuperbrainApp.test.jsx, a test of the
+    app the lab never holds, and the manifest took it in as a new lab file."""
+    root = _project(tmp_path, {"lib/a.ts": "a\n"})
+    for name in ("SuperbrainApp.test.jsx", "SuperbrainApp.startup.test.jsx"):
+        assert fs.port_unmanaged(f"{fs.PORT_ROOT}/{name}")
+        assert fs.port_manifest_after(root, {f"{fs.PORT_ROOT}/{name}": "t\n"}) is None
+    assert not fs.port_unmanaged(f"{fs.PORT_ROOT}/lib/SuperbrainAppish.ts")
+    assert not fs.port_unmanaged(f"{fs.PORT_ROOT}/components/SuperbrainApp.test.jsx")
+
+
 def test_files_the_port_does_not_carry_leave_it_alone(tmp_path) -> None:
     root = _project(tmp_path, {"lib/a.ts": "a\n"})
     assert fs.port_manifest_after(root, {"frontend/src/workbench/X.jsx": "x\n"}) is None
