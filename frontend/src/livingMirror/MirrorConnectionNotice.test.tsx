@@ -57,6 +57,16 @@ describe('MirrorConnectionNotice', () => {
     }
   });
 
+  it('says not signed in when the session is measured signed out', () => {
+    useMirrorStore.setState({ connection: 'connecting', projection: 'unavailable' });
+    const { rerender } = render(<MirrorConnectionNotice />);
+    expect(screen.getByRole('status')).toHaveTextContent('Operational picture unavailable');
+
+    rerender(<MirrorConnectionNotice identity={{ sessionActive: false, measured: 'measured' }} />);
+    expect(screen.getByRole('status')).toHaveTextContent('Not signed in');
+    expect(screen.getByRole('button', { name: 'Try again' })).toBeInTheDocument();
+  });
+
   it('shows a newcomer a truthful recovery action', () => {
     render(<MirrorConnectionNotice />);
 

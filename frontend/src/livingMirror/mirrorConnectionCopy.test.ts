@@ -81,6 +81,35 @@ describe('mirror connection copy', () => {
     });
   });
 
+  it('says not signed in only for a measured signed-out session', () => {
+    const unavailable = { ...base, connection: 'connecting' as const, projection: 'unavailable' as const };
+    const signedOut = { sessionActive: false, measured: 'measured' as const };
+    expect(getMirrorConnectionCopy(unavailable, 'beginner', signedOut)).toMatchObject({
+      label: 'Not signed in',
+      detail: 'GAGOS is running, but this browser is not signed in. Sign in to see the live picture.',
+      tone: 'unavailable',
+      canRetry: true,
+    });
+    expect(getMirrorConnectionCopy(unavailable, 'expert', signedOut).detail)
+      .toBe('The backend answered: this browser has no operator session. The operational picture needs one.');
+  });
+
+  it('keeps an unmeasured or signed-in session neutral', () => {
+    const unavailable = { ...base, connection: 'connecting' as const, projection: 'unavailable' as const };
+    expect(getMirrorConnectionCopy(unavailable, 'beginner', { sessionActive: false, measured: 'unknown' }).label)
+      .toBe('Operational picture unavailable');
+    expect(getMirrorConnectionCopy(unavailable, 'beginner', { sessionActive: true, measured: 'measured' }).label)
+      .toBe('Operational picture unavailable');
+  });
+
+  it('still says the picture is current for a fresh projection whatever the session', () => {
+    expect(getMirrorConnectionCopy(
+      { ...base, status: 'online', connection: 'connected', projection: 'fresh' },
+      'beginner',
+      { sessionActive: false, measured: 'measured' },
+    ).label).toBe('Live picture is current');
+  });
+
   it('does not let an old access error override a freshly confirmed projection', () => {
     expect(getMirrorConnectionCopy({
       ...base,

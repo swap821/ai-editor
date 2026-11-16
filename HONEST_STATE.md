@@ -69,6 +69,19 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **The app's own files stay out of the port manifest.**
   - #701 listed `SuperbrainApp.test.jsx` as a lab file, while its three sibling tests stayed out. The lab never holds `SuperbrainApp.jsx`, so a test of it there could not run.
   - `port_unmanaged()` now covers every `SuperbrainApp.*` file at the port root, and #701's entry is removed.
+- **The face says "Not signed in" when that is measured.** Signed out, it said "Operational picture unavailable … Check the connection".
+  - On his running backend, the mirror's calls answer 401 without a CORS header, so the browser sees only a failed fetch. The backend's session route answers 200 with `authenticated: false`.
+  - The face already measures that at startup (GagosChrome). The connection notice now gets the measured status from the shell. It says "Not signed in" only when the session is measured signed out; anything unmeasured stays neutral.
+- **GAGOS could not make this fix, three times.** I made it myself (branch `fix/face-says-not-signed-in`) and record why.
+  1. `gpt-6-luna`'s answer came back scrubbed by the secret scanner (HIGH_ENTROPY).
+  2. Its second answer imported `./sovereignIdentity`, a module that does not exist, and tsc refused it. Existing import paths reach writers only as placeholders, so a writer cannot write a new path of that shape, and my goal had not named one.
+  3. The third wording routes the status through `LivingWorkspaceShell.tsx`, and that was the wall.
+- **The wall.** The frozen-core secret scanner takes ordinary names for secrets:
+  - the bare name `LivingWorkspaceShell`;
+  - a line `useSyncExternalStore(subscribeSovereignStatus, getSovereignStatus)`.
+  - Measured over GAGOS's editable frontend: **119 of 629 files** would be altered by the scanner on their way to or from a cloud writer, the workspace shell and all its tests among them. GAGOS cannot work on those files through its writers.
+  - GAGOS's organ 46 has two proposed lessons on it, both the operator's to decide: list the withheld files for him, and review `docs/security/PROPOSAL_ENTROPY_CAMELCASE_NAMES.md` (a narrower entropy pass). The scanner is frozen core.
+- **The laptop slept** between about 05:20 and 06:40, and again from 06:43 to 07:51 UTC (Modern Standby). GAGOS's 05:50 hour was missed, and the catch-up run was frozen and then lost ("a previous run ended without finishing").
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 
