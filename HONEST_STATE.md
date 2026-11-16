@@ -82,6 +82,15 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - Measured over GAGOS's editable frontend: **119 of 629 files** would be altered by the scanner on their way to or from a cloud writer, the workspace shell and all its tests among them. GAGOS cannot work on those files through its writers.
   - GAGOS's organ 46 has two proposed lessons on it, both the operator's to decide: list the withheld files for him, and review `docs/security/PROPOSAL_ENTROPY_CAMELCASE_NAMES.md` (a narrower entropy pass). The scanner is frozen core.
 - **The laptop slept** between about 05:20 and 06:40, and again from 06:43 to 07:51 UTC (Modern Standby). GAGOS's 05:50 hour was missed, and the catch-up run was frozen and then lost ("a previous run ended without finishing").
+- **The consistency register grows honestly: 48 → 53 facts, all guarded.** I promised on 11-15 to register the seams real use found, and had added one. Now added:
+  - `sandbox-unjudged-run`: a sandbox that could not run is no verdict, in four places.
+  - `built-chunk-graph`: the Vite groups against the build's import graph. Its new guard checks that CI runs the cycle check after the build.
+  - `signed-out-wording`: the session route's flag against the face's wording.
+  - `writer-masking-oracle`: masking asks the scrubbers themselves.
+  - `perf-budgets`: the blueprint's frozen note against the journey's targets. Its new guard checks that they match.
+  - The `port-manifest` row gained three guards.
+
+  `consistency_audit.py --check` passes. Still not registered, honestly: the face's 10-09 implementation audit being out of date is a document's currency, not two code paths.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 
