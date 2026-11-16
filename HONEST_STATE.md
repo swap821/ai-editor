@@ -42,6 +42,20 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - The new goal, `gt-1414de7548`, builds the URL in code: `new URL('fonts/fixture-outfit.ttf', window.location.origin).href`. That exact line is the one measured above.
   - The new text passes the filter unchanged.
 
+- **GAGOS did both goals in its 00:50 hour, as its PR #700.**
+  - **The font line**, written by Claude Sonnet: its sandbox tests and tsc passed, and both the Critique queen and the Claude reviewer accepted it.
+  - **The recovery counter**, written by `gpt-6-luna`: the same checks passed, and both reviewers accepted it.
+  - **My review:** both code changes do exactly what the goals asked.
+  - **Live on #700's tree** (dev server, headless):
+    - PERF-01 passes 13 of 13: the body is drawn at 41 draw calls a frame, the face's own probe records, there are 0 long frames, and keydown p95 is 25 ms.
+    - REC-01 passes all of its steps once the runner was corrected (below), and the face now counts its Retry recovery itself.
+- **REC-01 counts one recovery once.** With #700, the face's `context-recovery` metric counts a remount too, so the runner's "1 in-place restore(s), 1 remount(s)" counted the same recovery twice.
+  - "Recovered once" is now read after the body draws again. It takes the runner's remount and the face's count together.
+  - A new step asks that the face counted its recovery. It fails before #700 and passes on it: 12 of 12.
+- **A seam in GAGOS's delivery, seen in #700.** Its port-manifest update adds any file under `frontend/src/superbrain` of a ported kind that the manifest lacks, as if it were new.
+  - Only `SuperbrainApp.jsx` is exempt. So editing the long-standing product test `SuperbrainApp.rendererFallback.test.jsx` moved it into the lab's ownership.
+  - The running face is unaffected. The fix belongs in `port_manifest_after` (join only files that did not exist), with the stray entry removed. It comes after #700 merges, to avoid a conflict.
+
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 
 - **Why.** For the face's 10/10 the operator chose option 1: about 47 of the acceptance ledger's 100 points need a browser run on the supported route, and only about 3 are earned. The rest need the operator, his phones or other people.
