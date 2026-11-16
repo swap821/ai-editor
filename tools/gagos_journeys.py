@@ -34,6 +34,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
@@ -1250,6 +1251,19 @@ def served_commit(url: str) -> tuple[str, str]:
     return head, f"{tree}, frontend {'with uncommitted changes' if dirty else 'clean'}"
 
 
+def face_unreached(url: str) -> str | None:
+    """Why nothing answers at *url*, or None when something does. 2026-11-16:
+    two runs on a port nothing served wrote "controls ready: FAIL" records, a
+    face's failure about a face that was never there; now no record is written."""
+    try:
+        with urllib.request.urlopen(eye.page_url(url), timeout=10):  # noqa: S310 - a local page, checked
+            return None
+    except urllib.error.HTTPError:
+        return None
+    except OSError as exc:
+        return f"nothing answers at {url} ({getattr(exc, 'reason', exc)})"
+
+
 def _browser(port: int) -> str:
     with urllib.request.urlopen(  # noqa: S310 - 127.0.0.1, a fixed path
         f"http://127.0.0.1:{port}/json/version", timeout=10
@@ -1258,6 +1272,9 @@ def _browser(port: int) -> str:
 
 
 def cmd_open(args: argparse.Namespace) -> int:
+    if why := face_unreached(args.url):
+        print(f"{why}: start the face first; no record written")
+        return 2
     profile = eye.profile("journey")
     (profile / "DevToolsActivePort").unlink(missing_ok=True)
     subprocess.Popen(launch_argv(args.url, profile))  # noqa: S603 - checked URL
@@ -1278,6 +1295,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         port = devtools_port(profile, timeout_s=2)
     except JourneyRefused:
         print("the journey window is not open: python tools/gagos_journeys.py open")
+        return 2
+    if why := face_unreached(args.url):
+        print(f"{why}: start the face first; no record written")
         return 2
     commit, tree = served_commit(args.url)
     record = asyncio.run(
@@ -1306,6 +1326,9 @@ def cmd_watch(args: argparse.Namespace) -> int:
         port = devtools_port(profile, timeout_s=2)
     except JourneyRefused:
         print("the journey window is not open: python tools/gagos_journeys.py open")
+        return 2
+    if why := face_unreached(args.url):
+        print(f"{why}: start the face first; no record written")
         return 2
     criterion, steps, _body = WATCHES[args.journey]
     say(f"{args.journey}: {criterion}")

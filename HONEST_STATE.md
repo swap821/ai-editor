@@ -130,6 +130,11 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - What differs from the shipped gateway: Python in place of nginx, and no bearer token. The page, its CSP (a meta tag) and its assets are the image's bytes. The backend already allows `http://localhost:3000`.
   - Checked live against his backend: the page loads, `/health` answers, and the session route answers through the same origin.
   - The journey runner now recognises this server and pins its tree and commit.
+- **A run on a port nothing serves wrote a face's failure** (found 17:5xZ in his first try).
+  - His `run perf-01` and `watch ask-01` on :3000 ran before #707 was merged, so nothing served :3000.
+  - Both wrote "controls ready: FAIL" records with commit `unknown`, a failure of a face that was never there. That was my instructions' fault: only step 1 said "after you merge #707".
+  - **Fixed:** `open`, `run` and `watch` now check that something answers at the URL first. If nothing does, they say so and write no record.
+  - The four records from those runs sit untracked in his checkout and are not evidence. Removing them is his call.
 - **PERF-01 on the face that ships, headless** (60 Hz, AMD iGPU): passes.
   - frame p95 16.8 ms; keydown p95 23.2 ms; 41 draw calls a frame, the body drawn.
   - The headed result on his 120 Hz panel, 25 ms on the iGPU, is still the one that counts. A headed run on this server is his to start, after he picks the GPU.
