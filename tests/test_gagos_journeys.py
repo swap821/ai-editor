@@ -488,7 +488,8 @@ def test_the_record_pins_the_tree_that_serves_the_face(monkeypatch) -> None:
             )
         ],
         Process=lambda pid: types.SimpleNamespace(
-            cmdline=lambda: ["node", vite, "--port", "5173"]
+            cmdline=lambda: ["node", vite, "--port", "5173"],
+            cwd=lambda: r"C:\Users\op\ai-editor\frontend",
         ),
     )
     monkeypatch.setitem(sys.modules, "psutil", fake)
@@ -513,3 +514,50 @@ def test_perf_01_judges_by_the_budgets_the_blueprint_records_frozen() -> None:
     assert "p95 frame interval ≤20 ms" in note
     assert "under 100 ms" in note
     assert gj.PERF_TARGETS == {"frame_p95_ms": 20.0, "input_to_paint_ms": 100.0}
+
+
+def test_a_run_on_a_port_nothing_serves_writes_no_record(monkeypatch, tmp_path) -> None:
+    """2026-11-16: the operator's two runs on :3000, before anything served it,
+    wrote "controls ready: FAIL" records about a face that was never there."""
+    import socket
+
+    with socket.socket() as free:
+        free.bind(("127.0.0.1", 0))
+        port = free.getsockname()[1]
+    url = f"http://127.0.0.1:{port}/"
+    assert gj.face_unreached(url).startswith(f"nothing answers at {url}")
+
+    def never(*_args, **_kwargs):
+        pytest.fail("the runner went on past an empty port")
+
+    monkeypatch.setattr(gj.eye, "profile", lambda name: tmp_path)
+    monkeypatch.setattr(gj, "devtools_port", lambda profile, **kw: 9)
+    monkeypatch.setattr(gj, "write_record", never)
+    monkeypatch.setattr(gj, "served_commit", never)
+    monkeypatch.setattr(gj.subprocess, "Popen", never)
+    for argv in (
+        ["open", "--url", url],
+        ["run", "perf-01", "--url", url],
+        ["watch", "ask-01", "--url", url],
+    ):
+        assert gj.main(argv) == 2
+
+
+def test_any_answer_counts_as_a_face_being_there() -> None:
+    import http.server
+    import threading
+
+    class NotFound(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - the stdlib's name
+            self.send_response(404)
+            self.end_headers()
+
+        def log_message(self, *_args) -> None:
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), NotFound)
+    threading.Thread(target=server.handle_request, daemon=True).start()
+    try:
+        assert gj.face_unreached(f"http://127.0.0.1:{server.server_port}/") is None
+    finally:
+        server.server_close()

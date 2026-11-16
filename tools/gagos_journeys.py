@@ -34,6 +34,7 @@ import re
 import subprocess
 import sys
 import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import asdict, dataclass, field
@@ -1036,8 +1037,9 @@ async def ask_01(j: Journey) -> None:
     honest receipt and the being back at rest. The runner never sends."""
     r = j.record
     r.boundary = (
-        "The operator typed and sent the request himself; the runner only "
-        "watched. Frames are kept by type, size and turn_id, never their text, "
+        "The operator types and sends the request himself; the runner only "
+        "watches and never sends. Frames are kept by type, size and turn_id, "
+        "never their text, "
         "and no operator id, token or file content is recorded. UX-01 and "
         "INT-02 earn points only signed in, headed, on the named desktop and "
         "the build that ships, with this record committed; a pending decision "
@@ -1195,28 +1197,36 @@ async def watch(
 def served_tree(url: str) -> Path | None:
     """The checkout whose frontend serves *url*: the local process listening
     on its port, read from its command line (Vite's dev and preview servers run
-    from <checkout>/frontend/node_modules). None when it cannot be told."""
+    from <checkout>/frontend/node_modules; the face that ships is served by
+    <checkout>/tools/shipping_face.py). None when it cannot be told."""
     try:
         import psutil
     except ImportError:
         return None
     port = urllib.parse.urlsplit(url).port
     try:
-        commands = [
-            psutil.Process(c.pid).cmdline()
+        processes = [
+            psutil.Process(c.pid)
             for c in psutil.net_connections(kind="tcp")
             if c.status == psutil.CONN_LISTEN
             and c.laddr
             and c.laddr.port == port
             and c.pid
         ]
+        commands = [(p.cmdline(), p.cwd()) for p in processes]
     except psutil.Error:
         return None
-    for command in commands:
+    for command, cwd in commands:
         for part in command:
-            at = part.replace("\\", "/").lower().find("/frontend/node_modules/")
+            norm = part.replace("\\", "/").lower()
+            at = norm.find("/frontend/node_modules/")
             if at > 0:
                 return Path(part[:at])
+            if norm.endswith("tools/shipping_face.py"):
+                script = Path(part)
+                if not script.is_absolute():
+                    script = Path(cwd) / script
+                return script.resolve().parents[1]
     return None
 
 
@@ -1241,6 +1251,19 @@ def served_commit(url: str) -> tuple[str, str]:
     return head, f"{tree}, frontend {'with uncommitted changes' if dirty else 'clean'}"
 
 
+def face_unreached(url: str) -> str | None:
+    """Why nothing answers at *url*, or None when something does. 2026-11-16:
+    two runs on a port nothing served wrote "controls ready: FAIL" records, a
+    face's failure about a face that was never there; now no record is written."""
+    try:
+        with urllib.request.urlopen(eye.page_url(url), timeout=10):  # noqa: S310 - a local page, checked
+            return None
+    except urllib.error.HTTPError:
+        return None
+    except OSError as exc:
+        return f"nothing answers at {url} ({getattr(exc, 'reason', exc)})"
+
+
 def _browser(port: int) -> str:
     with urllib.request.urlopen(  # noqa: S310 - 127.0.0.1, a fixed path
         f"http://127.0.0.1:{port}/json/version", timeout=10
@@ -1249,6 +1272,9 @@ def _browser(port: int) -> str:
 
 
 def cmd_open(args: argparse.Namespace) -> int:
+    if why := face_unreached(args.url):
+        print(f"{why}: start the face first; no record written")
+        return 2
     profile = eye.profile("journey")
     (profile / "DevToolsActivePort").unlink(missing_ok=True)
     subprocess.Popen(launch_argv(args.url, profile))  # noqa: S603 - checked URL
@@ -1269,6 +1295,9 @@ def cmd_run(args: argparse.Namespace) -> int:
         port = devtools_port(profile, timeout_s=2)
     except JourneyRefused:
         print("the journey window is not open: python tools/gagos_journeys.py open")
+        return 2
+    if why := face_unreached(args.url):
+        print(f"{why}: start the face first; no record written")
         return 2
     commit, tree = served_commit(args.url)
     record = asyncio.run(
@@ -1297,6 +1326,9 @@ def cmd_watch(args: argparse.Namespace) -> int:
         port = devtools_port(profile, timeout_s=2)
     except JourneyRefused:
         print("the journey window is not open: python tools/gagos_journeys.py open")
+        return 2
+    if why := face_unreached(args.url):
+        print(f"{why}: start the face first; no record written")
         return 2
     criterion, steps, _body = WATCHES[args.journey]
     say(f"{args.journey}: {criterion}")
