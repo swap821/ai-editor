@@ -129,23 +129,27 @@ def test_health_is_forwarded_like_the_gateways(tmp_path) -> None:
     assert client.get("/health").json() == {"path": "/health"}
 
 
-def test_a_journey_pins_the_checkout_serving_the_shipping_face(monkeypatch) -> None:
+def test_a_journey_pins_the_checkout_serving_the_shipping_face(
+    monkeypatch, tmp_path
+) -> None:
+    checkout = tmp_path / "checkout"
+
     class Conn:
         status = "LISTEN"
         laddr = types.SimpleNamespace(port=3000)
         pid = 42
 
     class Process:
+        script = ""
+
         def __init__(self, pid):
             assert pid == 42
 
-        script = r"C:\ev621\tools\shipping_face.py"
-
         def cmdline(self):
-            return [r"C:\venv\python.exe", self.script, "serve"]
+            return ["python", self.script, "serve"]
 
         def cwd(self):
-            return r"C:\ev621"
+            return str(checkout)
 
     fake = types.SimpleNamespace(
         CONN_LISTEN="LISTEN",
@@ -156,6 +160,9 @@ def test_a_journey_pins_the_checkout_serving_the_shipping_face(monkeypatch) -> N
     monkeypatch.setitem(sys.modules, "psutil", fake)
     # Started by its full path, or from the checkout by a relative one
     # (2026-11-16: the relative start was first not recognised).
-    for script in (r"C:\ev621\tools\shipping_face.py", "tools/shipping_face.py"):
+    for script in (
+        str(checkout / "tools" / "shipping_face.py"),
+        "tools/shipping_face.py",
+    ):
         Process.script = script
-        assert gj.served_tree("http://localhost:3000/") == Path(r"C:\ev621").resolve()
+        assert gj.served_tree("http://localhost:3000/") == checkout.resolve()

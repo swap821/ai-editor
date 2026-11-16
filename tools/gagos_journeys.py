@@ -1036,8 +1036,9 @@ async def ask_01(j: Journey) -> None:
     honest receipt and the being back at rest. The runner never sends."""
     r = j.record
     r.boundary = (
-        "The operator typed and sent the request himself; the runner only "
-        "watched. Frames are kept by type, size and turn_id, never their text, "
+        "The operator types and sends the request himself; the runner only "
+        "watches and never sends. Frames are kept by type, size and turn_id, "
+        "never their text, "
         "and no operator id, token or file content is recorded. UX-01 and "
         "INT-02 earn points only signed in, headed, on the named desktop and "
         "the build that ships, with this record committed; a pending decision "
