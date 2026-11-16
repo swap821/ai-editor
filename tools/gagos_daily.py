@@ -2912,14 +2912,8 @@ def cmd_deliver(args: argparse.Namespace) -> int:
         """Write the unit's new texts (creating a new file's folders, removing a
         deleted file), and the port's manifest with them when any is a file the
         port carries (2026-11-11, "GAGOS through the port"): the paths to
-        commit, deletions included."""
-        for p in unit:
-            path = root / p["rel"]
-            if p.get("op") == OP_DELETE:
-                path.unlink(missing_ok=True)
-                continue
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(p["new_text"].encode("utf-8"))
+        commit, deletions included. The manifest is worked out before the
+        files are written, so it can tell a new file from one already there."""
         ported = port_manifest_after(
             root,
             {
@@ -2927,6 +2921,13 @@ def cmd_deliver(args: argparse.Namespace) -> int:
                 for p in unit
             },
         )
+        for p in unit:
+            path = root / p["rel"]
+            if p.get("op") == OP_DELETE:
+                path.unlink(missing_ok=True)
+                continue
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(p["new_text"].encode("utf-8"))
         if ported is None:
             return [p["rel"] for p in unit]
         manifest.write_bytes(ported.encode("utf-8"))

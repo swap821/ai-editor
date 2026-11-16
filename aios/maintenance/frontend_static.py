@@ -296,7 +296,13 @@ def port_manifest_after(
     port"). A file it records takes its new digest, or leaves it when removed;
     a new file under the port root of a kind the port carries joins it, so a
     lab restored from master holds it too. The order of existing entries and
-    the file's line endings are kept."""
+    the file's line endings are kept.
+
+    Call it before the changes are written: a file is new only when it is not
+    yet on disk. A file already there that the manifest does not record is the
+    product's own and stays out (2026-11-16: GAGOS's #700 edited the product
+    test SuperbrainApp.rendererFallback.test.jsx and the manifest took it in,
+    as if the lab owned it)."""
     root = Path(project_root)
     under = {
         rel[len(PORT_ROOT) + 1 :]: text
@@ -313,7 +319,9 @@ def port_manifest_after(
     for key, text in under.items():
         if text is None:
             touched |= files.pop(key, None) is not None
-        elif key in files or key.endswith(PORT_KINDS):
+        elif key in files or (
+            key.endswith(PORT_KINDS) and not (root / PORT_ROOT / key).exists()
+        ):
             files[key] = port_digest(text)
             touched = True
     if not touched:

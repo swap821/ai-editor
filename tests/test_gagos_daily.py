@@ -927,6 +927,51 @@ def test_a_change_to_a_ported_file_is_delivered_with_the_manifest(
     assert manifest["files"]["lib/Panel.jsx"] == fs.port_digest(AFTER)
 
 
+def test_a_product_file_under_the_port_root_is_delivered_without_the_manifest(
+    tmp_path, monkeypatch, origin_and_worktree
+) -> None:
+    """2026-11-16, GAGOS's #700: its change to SuperbrainApp.rendererFallback.
+    test.jsx, a product file the manifest never recorded, came with a manifest
+    that took the file in. The manifest is now worked out before the files are
+    written, and an existing file it does not record stays out of it."""
+    import json
+
+    from aios.maintenance import frontend_static as fs
+
+    seed, work = origin_and_worktree
+    own = f"{fs.PORT_ROOT}/ProductOnly.test.jsx"
+    (seed / own).parent.mkdir(parents=True)
+    (seed / own).write_bytes(BEFORE.encode())
+    recorded = {"version": 2, "baseline": "accepted product", "files": {}}
+    (seed / fs.PORT_MANIFEST).write_text(
+        json.dumps(recorded, indent=2) + "\n", encoding="utf-8"
+    )
+    _git(seed, "add", "-A")
+    _git(seed, "commit", "-qm", "a product file under the port root")
+    _git(seed, "push", "-q", "origin", "master")
+    led = dw.DailyLedger(tmp_path / "l.db")
+    monkeypatch.setattr(tool, "ledger", lambda: led)
+    from aios.application.promotion import smoke
+
+    monkeypatch.setattr(smoke, "frontend_smoke", lambda root, paths, **kw: None)
+    pid = led.record_proposal(
+        dw.Finding(rel=own, rule=RULE, warnings=FINDING.warnings),
+        base_text=BEFORE,
+        base_commit="c" * 40,
+        model="m",
+        new_text=AFTER,
+        verdict=dw.StaticVerdict(True, "ok", 1),
+    )
+    for who, model in (("codex", "gpt"), ("claude", "opus")):
+        led.record_review(pid, who, model=model, verdict="accept", reason="fine")
+    assert tool.cmd_deliver(_deliver_args(work)) == 0
+    assert led.proposals()[0]["status"] == "committed"
+    changed = _git(work, "show", "--name-only", "--format=", "HEAD").split()
+    assert changed == [own]
+    manifest = json.loads((work / fs.PORT_MANIFEST).read_text(encoding="utf-8"))
+    assert manifest == recorded
+
+
 def test_a_gagos_pr_says_who_opened_it() -> None:
     assert "no GitHub identity of its own" in tool.PR_FOOTER
     assert "accepted by its reviewer, Claude Code" in tool.PR_FOOTER
