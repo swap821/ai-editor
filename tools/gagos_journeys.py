@@ -430,14 +430,22 @@ async def rec_01(j: Journey) -> None:
         if fallback:
             await j.click(RETRY)
             await j.wait_for(f"{_IN_PLACE} || {_REMOUNTED}", 20)
-    in_place = sum(1 for m in await j.metrics() if m.get("name") == "context-recovery")
+    await body_drawn(j, "the 3D body is drawn again", within=20)
+    # Read after the body draws again: the face counts a remount's recovery
+    # when the fresh canvas first renders (2026-11-16, GAGOS's #700), and its
+    # count covers an in-place restore too. The runner sees only a remount.
+    counted = sum(1 for m in await j.metrics() if m.get("name") == "context-recovery")
     remounted = 1 if await j.cdp.evaluate(_REMOUNTED) else 0
     r.step(
         "recovered once",
-        in_place + remounted == 1,
-        f"{in_place} in-place restore(s), {remounted} remount(s)",
+        max(counted, remounted) == 1 and counted <= 1,
+        f"the runner saw {remounted} remount(s); the face counted {counted} recovery(ies)",
     )
-    await body_drawn(j, "the 3D body is drawn again", within=20)
+    r.step(
+        "the face counted its recovery",
+        counted == 1,
+        f"{counted} context-recovery sample(s) from the face's own metric",
+    )
     await j.cdp.send(
         "Network.emulateNetworkConditions",
         offline=True,
@@ -467,6 +475,8 @@ async def rec_01(j: Journey) -> None:
     r.step("no work request sent", not r.work_requests, f"{len(r.work_requests)} sent")
 
 
+#: The face has counted a recovery (an in-place restore; since #700 also the
+#: first frame of a remounted canvas).
 _IN_PLACE = (
     "(window.__gagosJourney.metrics || []).some(m => m.name === 'context-recovery')"
 )
