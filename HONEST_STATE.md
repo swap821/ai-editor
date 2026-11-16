@@ -1,9 +1,85 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, a new test that fails is not a test it broke" below;
+**Last updated:** 2026-11-15 ("2026-11-15, GAGOS runs browser journeys over its face" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
+
+- **Why.** For the face's 10/10 the operator chose option 1: about 47 of the acceptance ledger's 100 points need a browser run on the supported route, and only about 3 are earned. The rest need the operator, his phones or other people.
+- **What it is** (`tools/gagos_journeys.py`). The runner drives GAGOS's own Chrome through the DevTools protocol, on 127.0.0.1 only. It uses the eye's journey profile, never the operator's.
+  - Each run writes an evidence record, JSON and Markdown, under `docs/frontend/evidence/journeys/`.
+  - The record is pinned to its commit, browser and viewport. It keeps the run's steps, the work requests and page errors it saw, the face's own metric events, and its evidence boundary.
+- **Its rules, held in code:**
+  - It never types a credential: the operator signs in himself in `open`'s window.
+  - It never presses an Allow, Approve, Grant or Accept control.
+  - It keeps only whether the page is signed in, never his id or token.
+- **First journey: REC-01.** A composer draft goes through a forced WebGL context loss, a network drop and a reload. The face's own `context-recovery` metric must report exactly one restore, and no work request may be sent. Its boundary: there is no live work in flight, so it earns no points alone.
+- **First runs, headless, not signed in** (Chrome 157, AMD GPU), against the operator's real face. **REC-01 passes, 9 of 9 steps:**
+  - the draft survives the graphics loss, going offline and a reload;
+  - the face shows its fallback, "Visual organism unavailable. GAGOS controls are still working";
+  - its "Retry visual organism" brings the scene back exactly once;
+  - no work request is sent.
+- **A correction.** The first run's "the view never restores" was the runner's mistake, not the face's: it waited for an in-place restore that the face never attempts. It now counts recovery either way, an in-place restore or a fresh canvas three.js runs, and it presses the face's Retry, which is never an approval. It also read the composer during the reload's navigation; it now waits for the draft itself.
+- **A seam it found in the face.**
+  - `WorkspaceCanvas` opts in to an in-place restore and waits 4 s (`CONTEXT_RESTORE_GRACE_MS`) before remounting.
+  - `SuperbrainApp` takes the whole scene down at the first `webglcontextlost`, so that wait never runs, and recovery is always the operator's Retry or a reload.
+  - The face's own `context-recovery` metric counts only in-place restores, so it never records the recovery that does happen.
+  - Also seen, and unexplained: the event reached a later listener with `defaultPrevented` false, although three.js and `WorkspaceCanvas` both call `preventDefault`.
+  - This is a face goal for GAGOS, not fixed here.
+- **Second journey: PERF-01** (desktop frame and input budget). Over 20 s of the face at rest, with 23 letters typed into the composer and then taken back out, it records:
+  - every frame interval, and keydown to the end of the next frame, as distributions;
+  - the main thread's time per frame and the face's own draw-call probe;
+  - the GPU, cores, viewport, build mode and visual detail, and whether the window is headed.
+
+  It compares them with the blueprint's **proposed** targets (section 10: p95 frame interval at most 20 ms, local feedback under 100 ms). The operator has not frozen those targets, so PERF-01 earns no points yet. The journey refuses to pass when the 3D scene is not drawn.
+- **PERF-01 on the real face, dev server, headless, not signed in** (commit 7b8bd029, the main checkout that serves `:5173`). Two runs: **failed.**
+  - Frames are smooth: p50 16.7 ms, p95 16.8 ms.
+  - But typing stalls the face: keydown to the next frame has p95 140 ms and 241 ms in the two runs, with a max of 256 and 596 ms, and 6 to 7 frame gaps over 50 ms. The main thread spends 2.5 to 2.9 ms per frame.
+  - The face's own draw-call probe never records. On the live page its metrics module held 26 metric samples and 0 scene samples, with the scene up. So "complete composer frame accounting" is not available from the face.
+- **Found: the production build has no 3D body.**
+  - `vite build` at 7b8bd029 builds in 5.6 s. Served by `vite preview`, the face shows "Visual organism unavailable" at load, with no forced loss: `TypeError: Class extends value undefined is not a constructor or null`.
+  - The cause is a chunk cycle. `vendor-drei-postprocessing` imports from the `SuperbrainReactiveEffects` chunk, and that chunk's grade effect extends postprocessing's `Effect`. When the vendor chunk loads first, its base class is still undefined.
+  - Master's frontend differs from 7b8bd029 in 4 trivial files, so this is on master too.
+  - Nobody runs the built bundle today: the operator uses the dev server, and GAGOS's sandbox runs tsc and vitest, not a build. The build that ships is broken unseen.
+  - **A correction:** I first read that run's fast numbers (keydown p95 18 ms, 0.3 ms per frame) as "the stalls are dev-mode React". That was wrong: the page had no scene. The journey now fails any window in which the scene is not up.
+- **Found: signed out, the face cannot tell "sign in" from "unreachable".** The edge token check (`require_api_token`, which runs outside the CORS middleware by design) answers unauthenticated calls with a 401 that carries no CORS header. The browser reports a CORS failure, and the face shows "Operational picture unavailable". The edge is frozen core, so changing it is a proposal only; the face could tell the two apart itself (a face goal).
+- **The runner now pins the tree that serves the face.** It first recorded its own checkout's commit while the face was served from another tree at another commit. It now reads the checkout from the process listening on the face's port, with whether its frontend is clean, and says "unknown" when it cannot tell, never a guess.
+- **Also fixed:** GAGOS's eye pointed at `127.0.0.1:5173`, which Vite refuses on this laptop (it serves `localhost`, the IPv6 loopback), so its screenshots never saw the face. Both tools now use `localhost`.
+- **Found, later the same night: the face's 3D body never mounts.**
+  - Live at 7b8bd029 (headless, not signed in), the React Three Fiber scene holds 1 object, 0 meshes, 0 draw calls and 0 shader programs. The canvas is there and no fallback shows, so it looks up.
+  - The cause: no `<Text>` names a font, so troika-three-text asks its unicode-font-resolver on `cdn.jsdelivr.net`, and the face's CSP (`connect-src` itself and the backend) blocks it. Troika's promise has no catch, so its callback never runs. drei's `<Text>` then suspends forever, and the one `<Suspense fallback={null}>` in `WorkspaceCanvas` that holds `CortexEngine` and every child stays on its fallback.
+  - The proof, on the same page:
+    - with the CSP bypassed: 64 objects, 33 meshes;
+    - with the CSP untouched and `troikaConfig.ts` served with a self-hosted default font (`/fonts/fixture-outfit.ttf`, already in `frontend/public`): 64 objects, 33 meshes, 15 programs, and the face's own probe records 41 draw calls a frame.
+    - Troika 0.52 cannot read woff2 ("woff2 fonts not supported"), so the @fontsource files will not do.
+  - Signed in is not measured, but the CSP does not depend on signing in.
+  - Since when is not known. The 2026-06-29 hardening commit says the being rendered under the strict CSP, and the fixture journey (10-07) already serves troika a local font for this very reason.
+  - **A goal for GAGOS**, `gt-ca6b3e353b`, on `troikaConfig.ts` alone: self-host troika's default font. `frontend/public/fonts/README.md` still calls that font development-only, and that file is outside GAGOS's reach.
+- **What that corrects above:**
+  - PERF-01's frame numbers (p95 16.8 ms) and typing numbers were all measured on a page with no 3D body. "The 3D scene is up" checked only the canvas and the fallback.
+  - "The face's draw-call probe never records" is the same cause, not a second defect: the probe sits inside what never mounts.
+  - REC-01's 9/9 recovered a canvas that drew nothing.
+  - The typing stalls come from the same fault. I first wrote here that they were "not from the body"; that was wrong.
+    - On the served face, keydown p95 was 140, 241, 22 and 269 ms in four runs. It depends on whether a key lands in a long frame.
+    - Every window holds about five frames of 280 to 410 ms. The browser attributes each one to React's scheduler.
+    - They come in threes, one set each time the face's mirror stream retries. Signed out, the retries fail, backing off from 2 s to 30 s.
+    - Each retry writes the mirror store, and the face's root (`SuperbrainApp`, through `useBeingPresentation`) subscribes to the whole store, so the face re-renders.
+    - React's own timings: components take about 70 ms in 25 s, but render work about 1.8 s, plus 0.7 s on the Suspense track. Each re-render retries the 3D subtree that is stuck on its font.
+    - With the font fixed in flight, the same windows hold 0 or 1 long frames (at most 50 ms), and keydown p95 is 24 to 29 ms.
+    - Left over, and minor while nothing suspends: the root re-renders on every mirror-store write, even one that changes nothing.
+- **The runner now checks that the body is drawn.**
+  - Both journeys count WebGL draw calls on the scene canvas for a second, at the context: its draw methods are wrapped, then put back. A journey passes only with at least one draw call a frame.
+  - Two runner bugs found on the way, both fixed: a wait for the body returned at once when no canvas was there yet, and a canvas that first mounted after the loss (none there to lose) counted as the one remount.
+  - **On the served face now**, REC-01 fails 2 of 11 steps (the body, before and after recovery). PERF-01 fails 4 of 13 (the body twice, the face's probe, and typing at p95 269 ms in this run).
+  - **With the font fix applied in flight**, both pass. This is an experiment, not evidence: DevTools rewrote the served `troikaConfig.ts`.
+    - REC-01 passes 11 of 11: the body is drawn, lost, brought back by Retry, and drawn again (2623 draw calls over 61 frames).
+    - PERF-01 passes 13 of 13: frame p95 16.8 ms (max 17.7 ms), keydown p95 24.7 ms, and 41 draw calls a frame, with the face's own probe recording.
+    - Headless on the dev server, so a smoke.
+- **PERF-01 now names its slowest frames.** It keeps the five slowest, with the scripts that ran longest in each, as the browser's Long Animation Frames attribute them. That is how the stalls above were traced.
+- **GAGOS took the font goal at 22:53 and its writer failed.** The clerk escalated the goal, and `gpt-6-luna` gave no answer (Codex, exit 0). The goal is open again for the next hour. A one-word probe through the same sealed call answered at once, so the failure looks transient.
+- **Tests.** 30 tests in `tests/test_gagos_journeys.py`, using stand-in pages and no Chrome. After the last change, the gateway, consistency and architecture tests: 67 passed, and Bandit has no new findings.
 
 ## 2026-11-15, a new test that fails is not a test it broke (branch `fix/sandbox-new-tests-fail`)
 
