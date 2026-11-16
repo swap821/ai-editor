@@ -56,7 +56,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - Only `SuperbrainApp.jsx` is exempt. So editing the long-standing product test `SuperbrainApp.rendererFallback.test.jsx` moved it into the lab's ownership.
   - The running face is unaffected.
   - **Fixed in this PR.** Delivery now works the manifest out before writing the files, and only a file not yet on disk joins. The two new tests, one on the helper and one on delivery, fail without the change.
-  - Still to do once #700 is on master: remove the stray `SuperbrainApp.rendererFallback.test.jsx` entry from `frontend/superbrain-source.json`.
+  - After #700 merged (5048ba30), the stray `SuperbrainApp.rendererFallback.test.jsx` entry was removed from `frontend/superbrain-source.json` in this PR. The manifest's own tests pass.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 
