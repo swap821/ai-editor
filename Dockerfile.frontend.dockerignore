@@ -1,0 +1,14 @@
+# The gateway image's own build context (Dockerfile.frontend). BuildKit reads
+# this file instead of the repository's .dockerignore for this Dockerfile.
+# That one leaves frontend/ out for the backend image, and from 2026-06-09 the
+# gateway -- the face that ships -- could not build at all: COPY frontend/
+# failed with "/frontend": not found (found 2026-11-16).
+*
+!frontend
+!gateway/nginx.conf.template
+frontend/node_modules
+frontend/**/node_modules
+frontend/dist
+frontend/coverage
+frontend/.vite
+frontend/**/*.log

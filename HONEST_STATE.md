@@ -119,6 +119,20 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - The `port-manifest` row gained three guards.
 
   `consistency_audit.py --check` passes. Still not registered, honestly: the face's 10-09 implementation audit being out of date is a document's currency, not two code paths.
+- **The face that ships could not be built, from 2026-06-09 until now.**
+  - It is the `gateway` image (`Dockerfile.frontend`: nginx serving the production build, `/api` forwarded to the backend).
+  - The repository's `.dockerignore` leaves `frontend/` out, for the backend image's sake, and the gateway's `COPY frontend/` failed with `"/frontend": not found`. Nothing built it, so nothing noticed.
+  - **Fixed** (branch `fix/shipping-face`): `Dockerfile.frontend.dockerignore`, the gateway's own allowlist of the frontend sources and the nginx template, never `node_modules` or `dist`. The image builds (104 MB) and serves the page and its assets.
+  - A test pins the context, so it cannot silently break again.
+- **A gateway container cannot call his backend on this laptop.** The backend takes unauthenticated calls from loopback only, and the edge token the gateway would add is his secret. So `tools/shipping_face.py` stands in for nginx, on loopback:
+  - `build` builds this commit's gateway image;
+  - `serve` serves that image's own files on 127.0.0.1:3000, forwarding `/api` and `/health` to the backend, request bodies buffered as nginx does and answers streamed back.
+  - What differs from the shipped gateway: Python in place of nginx, and no bearer token. The page, its CSP (a meta tag) and its assets are the image's bytes. The backend already allows `http://localhost:3000`.
+  - Checked live against his backend: the page loads, `/health` answers, and the session route answers through the same origin.
+  - The journey runner now recognises this server and pins its tree and commit.
+- **PERF-01 on the face that ships, headless** (60 Hz, AMD iGPU): passes.
+  - frame p95 16.8 ms; keydown p95 23.2 ms; 41 draw calls a frame, the body drawn.
+  - The headed result on his 120 Hz panel, 25 ms on the iGPU, is still the one that counts. A headed run on this server is his to start, after he picks the GPU.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 

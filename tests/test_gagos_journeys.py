@@ -488,7 +488,8 @@ def test_the_record_pins_the_tree_that_serves_the_face(monkeypatch) -> None:
             )
         ],
         Process=lambda pid: types.SimpleNamespace(
-            cmdline=lambda: ["node", vite, "--port", "5173"]
+            cmdline=lambda: ["node", vite, "--port", "5173"],
+            cwd=lambda: r"C:\Users\op\ai-editor\frontend",
         ),
     )
     monkeypatch.setitem(sys.modules, "psutil", fake)

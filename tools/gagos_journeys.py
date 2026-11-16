@@ -1195,28 +1195,36 @@ async def watch(
 def served_tree(url: str) -> Path | None:
     """The checkout whose frontend serves *url*: the local process listening
     on its port, read from its command line (Vite's dev and preview servers run
-    from <checkout>/frontend/node_modules). None when it cannot be told."""
+    from <checkout>/frontend/node_modules; the face that ships is served by
+    <checkout>/tools/shipping_face.py). None when it cannot be told."""
     try:
         import psutil
     except ImportError:
         return None
     port = urllib.parse.urlsplit(url).port
     try:
-        commands = [
-            psutil.Process(c.pid).cmdline()
+        processes = [
+            psutil.Process(c.pid)
             for c in psutil.net_connections(kind="tcp")
             if c.status == psutil.CONN_LISTEN
             and c.laddr
             and c.laddr.port == port
             and c.pid
         ]
+        commands = [(p.cmdline(), p.cwd()) for p in processes]
     except psutil.Error:
         return None
-    for command in commands:
+    for command, cwd in commands:
         for part in command:
-            at = part.replace("\\", "/").lower().find("/frontend/node_modules/")
+            norm = part.replace("\\", "/").lower()
+            at = norm.find("/frontend/node_modules/")
             if at > 0:
                 return Path(part[:at])
+            if norm.endswith("tools/shipping_face.py"):
+                script = Path(part)
+                if not script.is_absolute():
+                    script = Path(cwd) / script
+                return script.resolve().parents[1]
     return None
 
 
