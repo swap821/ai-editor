@@ -1,9 +1,40 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-15 ("2026-11-15, GAGOS runs browser journeys over its face" below;
+**Last updated:** 2026-11-16 ("2026-11-16, the operator's yes" below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-16, the operator's yes: budgets frozen, the built face loads its 3D code (branch `fix/built-face-chunk-cycle`)
+
+- **What he said.** "Yes to all open questions", answering four:
+  - update the checkout that serves his face to master;
+  - who fixes the production build (taken as: I do, in this PR; GAGOS's editable files stay as they are);
+  - whether PERF-01's two budgets are frozen;
+  - the 3D-recovery behaviour (taken as: the face first tries a 4 s in-place restore, as `WorkspaceCanvas` was built to, and counts every recovery; a goal for GAGOS).
+
+  The two either/or questions were read as stated above. If he meant the other branch, they are redone.
+- **The serving checkout is on master.** `C:\Users\kumar\ai-editor` went from 7b8bd029 to 18759f76 (fast-forward, 19 commits).
+  - The daily backend's `up` then refused: #697's Python bumps changed `requirements.txt`, so the sandbox image `aios-verify:9528ebce8681` had to be built first. The backend was down for about 8 minutes.
+  - #698's frontend bumps changed the lockfile, so GAGOS's frontend sandbox image `aios-verify-web:03aa2589dacc` was built too.
+  - Backend, executor and face now answer on 18759f76.
+  - Not done, and his step: `npm ci` in the main checkout's frontend, and the venv's sync to the new `requirements.txt`. The face and backend run on the older installed versions until then.
+- **PERF-01's budgets are frozen** (blueprint section 10, dated note): foreground p95 frame interval ≤20 ms on the smooth tier, and local feedback under 100 ms.
+  - The economy tier and the other rows stay proposed.
+  - The runner now says "frozen". PERF-01 still earns points only on the named desktop, headed, on the build that ships.
+- **The built face now loads its 3D code.**
+  - Two built chunks had imported each other in a cycle: `vendor-drei-postprocessing` and `vendor-r3f` each imported third-party helpers that rolldown had placed in the `SuperbrainReactiveEffects` app chunk, and that chunk imported them back.
+  - The helpers were three-stdlib, suspend-react, its-fine, react-use-measure, zustand, use-sync-external-store and @babel/runtime. drei's classes extend three-stdlib's, still undefined inside the cycle, so the face showed "Visual organism unavailable".
+  - `vite.config.js` now puts those helpers into two vendor groups, `vendor-3d-support` and `vendor-state`. The app chunk drops from 409 KB to 322 KB. What loads at startup is unchanged: the entry, React and the preload helper.
+  - `frontend/tools/check-chunk-cycles.mjs` reads the build and fails on any static-import cycle between chunks. It found 2 before the change and 0 after, across 56 chunks. CI runs it after the production build.
+- **The built face, measured** (headless, `vite preview` on :4174, backend down at the time):
+  - With this fix, it loads with its canvas and no fallback. It then stops at the same blocked troika font as the dev server.
+  - With GAGOS's font goal also applied, locally and uncommitted, both journeys pass on the built bundle:
+    - PERF-01: 0 long frames, frame max 18.2 ms, keydown p95 20 ms, the body drawn;
+    - REC-01: passes.
+- **GAGOS's font goal, reworded.** Its first wording, `gt-ca6b3e353b`, named the font by its absolute path. GAGOS's privacy filter rightly redacts anything shaped like `/a/b` on the way to a cloud writer, and the writer (Claude Sonnet) rightly made no edit.
+  - The new goal, `gt-1414de7548`, builds the URL in code: `new URL('fonts/fixture-outfit.ttf', window.location.origin).href`. That exact line is the one measured above.
+  - The new text passes the filter unchanged.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 

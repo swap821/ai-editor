@@ -350,7 +350,7 @@ def _perf(page: PerfPage, tmp_path: Path) -> gj.JourneyRecord:
     return journey.record.finish()
 
 
-def test_perf_01_passes_within_the_proposed_targets_and_says_they_are_proposed(
+def test_perf_01_passes_within_the_frozen_budgets_and_says_what_points_need(
     tmp_path,
 ) -> None:
     page = PerfPage(frames=[16.7] * 1200, inputs=[12.0] * len(gj.PERF_KEYS))
@@ -365,7 +365,8 @@ def test_perf_01_passes_within_the_proposed_targets_and_says_they_are_proposed(
         "(DOMWindow.onmessage)"
     ]
     text = gj.write_record(record, tmp_path).read_text(encoding="utf-8")
-    assert "## Measured" in text and "PROPOSED targets" in text
+    assert "## Measured" in text and "FROZE on 2026-11-16" in text
+    assert "the named desktop, headed, on the build that ships" in text
     assert "- slowest frames, with their scripts:\n  - 417.6 ms (blocking" in text
     assert "unavailable: the browser offers no EXT_disjoint_timer_query_webgl2" in text
 

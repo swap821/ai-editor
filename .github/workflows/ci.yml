@@ -489,6 +489,12 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Built chunks import no cycle
+        # 2026-11-15: the build passed while two of its chunks imported each
+        # other, and the built face had no 3D body ("Class extends value
+        # undefined"). Nothing ran what was built; this reads it.
+        run: node tools/check-chunk-cycles.mjs
+
   frontend:
     needs: frontend-tests
     runs-on: ubuntu-latest
