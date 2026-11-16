@@ -37,7 +37,9 @@ class Live:
 
 
 def _run(argv, live):
-    return tool.run(tool.parser().parse_args(argv), connect=lambda base: live)
+    return tool.run(
+        tool.parser().parse_args(argv), connect=lambda base: live, waiting=lambda: []
+    )
 
 
 def test_sign_with_no_flags_signs_the_terms_of_2026_11_13() -> None:

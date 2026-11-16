@@ -30,7 +30,6 @@ import argparse
 import asyncio
 import json
 import math
-import os
 import re
 import subprocess
 import sys
@@ -49,9 +48,17 @@ if str(REPO) not in sys.path:
 from tools import gagos_eye as eye  # noqa: E402
 
 FACE_URL = "http://localhost:5173/"
-#: The backend the face talks to (frontend/src/config.js's dev default). The
-#: face's own origin answers its routes with the page itself.
-BACKEND = os.environ.get("AIOS_PROBE_BASE", "http://localhost:8000").rstrip("/")
+#: The face's API base as frontend/src/config.js derives it: on the dev server
+#: the backend on localhost:8000 (the host its session cookie belongs to; not
+#: AIOS_PROBE_BASE's 127.0.0.1, whose cookies are another host's), and the built
+#: bundle its own origin. The face's dev origin answers the backend's routes
+#: with the page itself. VITE_API_BASE overrides are not followed.
+FACE_DEV_API_BASE = "http://localhost:8000"
+_FACE_API_BASE = (
+    "(document.querySelector('script[src*=\"/@vite/client\"]') ? "
+    + json.dumps(FACE_DEV_API_BASE)
+    + " : location.origin)"
+)
 EVIDENCE_DIR = REPO / "docs" / "frontend" / "evidence" / "journeys"
 #: The composer and the scene, as the face marks them (SuperbrainApp.jsx).
 COMPOSER = '[aria-label="Talk to GAGOS"]'
@@ -298,7 +305,7 @@ class Journey:
         """Whether the page's session is the operator's: only the yes or no is
         kept, never his id or the session's token."""
         status = await self.cdp.evaluate(
-            f"fetch({json.dumps(BACKEND + '/api/v1/auth/session')}, {{credentials: 'include'}})"
+            f"fetch({_FACE_API_BASE} + '/api/v1/auth/session', {{credentials: 'include'}})"
             ".then(r => r.ok ? r.json() : {}).then(s => Boolean(s.authenticated))"
             ".catch(() => false)"
         )

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from pathlib import Path
 
 import pytest
 
@@ -233,12 +234,10 @@ def test_the_turn_probe_keeps_no_text() -> None:
     )
 
 
-def test_signed_in_asks_the_backend_not_the_faces_own_origin() -> None:
-    """2026-11-16: the face's origin answers /api/v1/auth/session with its own
-    page (200, text/html), so the check could never say yes."""
-    assert gj.BACKEND + "/api/v1/auth/session" in json.dumps(
-        gj.BACKEND + "/api/v1/auth/session"
-    )
+def test_signed_in_asks_the_faces_api_base_not_its_dev_origin() -> None:
+    """2026-11-16: the face's dev origin answers /api/v1/auth/session with its own
+    page (200, text/html), so the check could never say yes. It now asks where
+    the face itself does (config.js), not AIOS_PROBE_BASE's 127.0.0.1."""
     seen = []
 
     class Page:
@@ -258,4 +257,14 @@ def test_signed_in_asks_the_backend_not_the_faces_own_origin() -> None:
         started_at="s",
     )
     assert asyncio.run(gj.Journey(Page(), record).signed_in()) is True
-    assert json.dumps(gj.BACKEND + "/api/v1/auth/session") in seen[0]
+    assert gj._FACE_API_BASE in seen[0] and "/api/v1/auth/session" in seen[0]
+    assert (
+        "@vite/client" in gj._FACE_API_BASE and "location.origin" in gj._FACE_API_BASE
+    )
+
+
+def test_the_dev_api_base_is_the_faces_own() -> None:
+    config = (
+        Path(__file__).resolve().parents[1] / "frontend" / "src" / "config.js"
+    ).read_text(encoding="utf-8")
+    assert f"import.meta.env.PROD ? '' : '{gj.FACE_DEV_API_BASE}'" in config

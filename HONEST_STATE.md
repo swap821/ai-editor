@@ -82,6 +82,27 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - Measured over GAGOS's editable frontend: **119 of 629 files** would be altered by the scanner on their way to or from a cloud writer, the workspace shell and all its tests among them. GAGOS cannot work on those files through its writers.
   - GAGOS's organ 46 has two proposed lessons on it, both the operator's to decide: list the withheld files for him, and review `docs/security/PROPOSAL_ENTROPY_CAMELCASE_NAMES.md` (a narrower entropy pass). The scanner is frozen core.
 - **The laptop slept** between about 05:20 and 06:40, and again from 06:43 to 07:51 UTC (Modern Standby). GAGOS's 05:50 hour was missed, and the catch-up run was frozen and then lost ("a previous run ended without finishing").
+- **His word, afternoon ("honestly fix them"):**
+  - The serving checkout is on master (acc244eb, then 145d5b24 with #703). Backend, executor and face were restarted on it.
+  - `npm ci` ran in its frontend (Vite 8.3.8). The venv got #697's 14 updates, exactly those; a dry run then found nothing left to install. Read-only, the face draws its body and passes PERF-01 headless.
+  - The envelope stays his act: signing needs his credential. The command is in his hands.
+- **A correction: "119 of 629 face files are out of GAGOS's reach" was wrong.** That counted files the scanner alters, not files GAGOS cannot send.
+  - Measured through GAGOS's own masking, on the route its writers use: **514 of 630** editable face files reach the writers masked (placeholders for the hidden spans), **116** as they are, and **0** are withheld. The workspace shell goes with 71 placeholders.
+  - What stops a writer is writing NEW text the scrubbers hide: a long camelCase name in a new place, or a new import path. The answer then comes back altered and is refused. That is what happened to the sign-in goal.
+  - The scanner proposal (docs/security/PROPOSAL_ENTROPY_CAMELCASE_NAMES.md), simulated in memory, cuts the files the scanner alters from 119 to 76. The shell stays altered, by the context-gated pass the proposal leaves alone. He chose to be walked through applying it himself; it is frozen core.
+- **PERF-01, headed, on the built bundle, on his desktop: fails the frozen frame budget.** Two runs at 145d5b24, `vite preview`:
+  - frame p95 25.0 and 25.1 ms against 20 ms; p50 16.7 ms;
+  - keydown p95 22 to 24 ms; 0 long animation frames; main thread 2.4 ms a frame;
+  - 41 draw calls a frame, the WebGL count and the face's own probe agreeing.
+  - **Why:** Chrome draws on the AMD integrated GPU, at DPR 1.25, on a **120 Hz** panel, so frames take two refreshes (16.7 ms) or three (25 ms). The laptop's **NVIDIA RTX 3050** is unused: the face asks for high performance, but Windows assigns the GPU per application, and that setting is his.
+  - Evidence: `docs/frontend/evidence/journeys/2026-11-16-perf-01-145d5b24e538.*` (headed, built bundle, named GPU). PERF-01 earns no points on it: it fails. A run on the NVIDIA GPU follows his setting.
+- **Organ 46's two report lessons, built as plain code at his word:**
+  - `python tools/gagos_daily.py withheld [--days N]` lists each file a refusal withheld from a writer, or whose answer came back scrubbed. For each it gives the kind, how often and when last, and how it reaches the writers today. It never prints what was matched.
+    - On his ledger, over 30 days: 30 files.
+    - Every one still in the tree now reaches the writers masked or as it is. The withholdings stopped on 11-14; the recent refusals are answers scrubbed on their way back.
+  - `tools/gagos_envelope.py sign` and `status` first show how many goals a full envelope turned away, and which still wait, before any credential is asked.
+    - Today: 4 goals, 10 times since 11-13, none waiting.
+- **Agreed and next:** phase 2 journeys (he types and sends, the runner measures).
 - **Phase 2 journeys begin: he sends, the runner watches** (branch `feat/journeys-phase2`; design: `docs/frontend/JOURNEYS_PHASE2_DESIGN_2026-11-16.md`).
   - `tools/gagos_journeys.py watch ask-01` attaches to the open journey window and reloads it once, before he types. It then waits up to 15 minutes for his send.
   - It follows one turn from his `POST /api/generate` through the backend's own mirror events (`turn.started`, then `turn.completed` or `turn.failed`, by event id and `turn_id`) to the receipt and the being at rest.
