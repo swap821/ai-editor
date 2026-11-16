@@ -252,6 +252,7 @@ def test_open_reuses_a_journey_window_already_open(monkeypatch, tmp_path) -> Non
     launched = []
     monkeypatch.setattr(gj.eye, "profile", lambda name: tmp_path)
     monkeypatch.setattr(gj, "face_unreached", lambda url: None)
+    monkeypatch.setattr(gj, "launch_argv", lambda url, profile: ["chrome", url])
     monkeypatch.setattr(gj.subprocess, "Popen", lambda argv: launched.append(argv))
     try:
         assert gj.main(["open", "--url", "http://localhost:3000/"]) == 0
@@ -270,6 +271,7 @@ def test_open_says_what_to_do_when_chrome_never_answers(
     )
     monkeypatch.setattr(gj.eye, "profile", lambda name: tmp_path)
     monkeypatch.setattr(gj, "face_unreached", lambda url: None)
+    monkeypatch.setattr(gj, "launch_argv", lambda url, profile: ["chrome", url])
     monkeypatch.setattr(gj.subprocess, "Popen", lambda argv: None)
     real = gj.devtools_port
     monkeypatch.setattr(
