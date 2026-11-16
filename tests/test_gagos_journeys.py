@@ -498,3 +498,18 @@ def test_the_record_pins_the_tree_that_serves_the_face(monkeypatch) -> None:
         "unknown",
         "the tree serving the face could not be found",
     )
+
+
+def test_perf_01_judges_by_the_budgets_the_blueprint_records_frozen() -> None:
+    """The operator froze two budgets on 2026-11-16 (blueprint section 10's dated
+    note): the journey and the blueprint must say the same numbers."""
+    blueprint = (
+        Path(__file__).resolve().parents[1]
+        / "docs"
+        / "frontend"
+        / "LIVING_BEING_BLUEPRINT_2026-09-24.md"
+    ).read_text(encoding="utf-8")
+    note = blueprint[blueprint.index("**Frozen by the operator, 2026-11-16.**") :][:900]
+    assert "p95 frame interval ≤20 ms" in note
+    assert "under 100 ms" in note
+    assert gj.PERF_TARGETS == {"frame_p95_ms": 20.0, "input_to_paint_ms": 100.0}

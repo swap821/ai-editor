@@ -122,3 +122,16 @@ def test_the_pin_changed_no_frozen_content() -> None:
     ).stdout.strip()
 
     assert diff == "", f"the frozen spine has uncommitted changes:\n{diff}"
+
+
+def test_the_built_face_is_checked_for_chunk_cycles() -> None:
+    """2026-11-15: the build passed while two of its chunks imported each other,
+    and the built face had no 3D body; nothing read what the build produced.
+    CI must run the cycle check after the production build, in the same job."""
+    steps = _ci()["jobs"]["frontend-tests"]["steps"]
+    runs = [str(step.get("run", "")) for step in steps]
+    build = next(i for i, run in enumerate(runs) if run.strip() == "npm run build")
+    check = next(
+        i for i, run in enumerate(runs) if "tools/check-chunk-cycles.mjs" in run
+    )
+    assert check > build

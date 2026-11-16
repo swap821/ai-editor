@@ -767,9 +767,12 @@
         "aios/maintenance/frontend_static.py"
       ],
       "guards": [
-        "tests/test_port_manifest.py::test_the_manifest_matches_the_product_it_records"
+        "tests/test_port_manifest.py::test_the_manifest_matches_the_product_it_records",
+        "tests/test_port_manifest.py::test_a_product_file_already_there_stays_out_of_the_manifest",
+        "tests/test_port_manifest.py::test_the_apps_own_tests_stay_out_of_the_manifest",
+        "tests/test_gagos_daily.py::test_a_product_file_under_the_port_root_is_delivered_without_the_manifest"
       ],
-      "note": "Found 2026-11-11: #533 and #534 both changed SuperbrainScene.LEGACY.tsx and the merged file matched neither recorded digest; CI never ran the port check. The same day the operator chose that GAGOS works on these files through the port: its delivery updates the manifest in the same commit (frontend_static.port_manifest_after)."
+      "note": "Found 2026-11-11: #533 and #534 both changed SuperbrainScene.LEGACY.tsx and the merged file matched neither recorded digest; CI never ran the port check. The same day the operator chose that GAGOS works on these files through the port: its delivery updates the manifest in the same commit (frontend_static.port_manifest_after). 2026-11-16: GAGOS's #700 and #701 put two product tests into the manifest as lab files (delivery worked it out after writing the files, and only SuperbrainApp.jsx was exempt); the manifest is now worked out before the write, and SuperbrainApp.* stays the product's (#699, #702)."
     },
     {
       "id": "pulse-reads-each-organs-own-stores",
@@ -787,6 +790,84 @@
         "tests/test_aliveness_pulse.py::test_signed_provenance_keeps_organ_56_alive"
       ],
       "note": "Found 2026-11-15 in real use: the operator's envelope (organ 9) spent both its slots while the pulse, reading turn approvals alone, called the organ silent since 10-30; organ 56's signed provenance (written by every skill transition and the operator's activation) was never read. Each probe now names the organ's stores; a new store an organ writes still has to be added here by hand."
+    },
+    {
+      "id": "sandbox-unjudged-run",
+      "fact": "Whether a goal's run was judged: a sandbox that could not run is no verdict, in the goal ledger, the colony's trail, the skill's confidence and the report alike.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "aios/maintenance/daily_work.py",
+        "tools/gagos_daily.py"
+      ],
+      "guards": [
+        "tests/test_gagos_mission_hour.py::test_a_goal_whose_sandbox_could_not_run_is_given_back_once",
+        "tests/test_gagos_mission_hour.py::test_a_run_the_sandbox_judged_is_not_given_back",
+        "tests/test_gagos_mission_hour.py::test_only_a_run_its_sandbox_judged_teaches_the_trail_and_the_skill",
+        "tests/test_gagos_mission_hour.py::test_the_report_does_not_count_an_unjudged_run_as_decided"
+      ],
+      "note": "Found 2026-11-15 in real use: a mission's sandbox ran out of disk, and four places scored that as the goal's failure. #688 gives the goal back once and keeps the trail, the skill and the report out of it."
+    },
+    {
+      "id": "built-chunk-graph",
+      "fact": "Which modules share a built chunk: the Vite config's vendor groups, against the build's import graph (no chunk may import one that imports it back).",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "frontend/vite.config.js",
+        "frontend/tools/check-chunk-cycles.mjs",
+        ".github/workflows/ci.yml"
+      ],
+      "guards": [
+        "tests/test_ci_gates_armed.py::test_the_built_face_is_checked_for_chunk_cycles"
+      ],
+      "note": "Found 2026-11-15: the build passed while vendor-drei-postprocessing and vendor-r3f imported helpers rolldown had put in an app chunk that imported them back; the built face had no 3D body. #699 groups those helpers and CI reads the build for cycles."
+    },
+    {
+      "id": "signed-out-wording",
+      "fact": "What 'not signed in' means: the backend's session route's authenticated flag, against the face's connection wording.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "aios/api/routes/auth.py",
+        "frontend/src/superbrain/lib/sovereignIdentity.ts",
+        "frontend/src/livingMirror/mirrorConnectionCopy.ts"
+      ],
+      "guards": [
+        "tests/test_api_main_gaps.py::test_get_session_status_without_cookie_is_unauthenticated",
+        "frontend/src/livingMirror/mirrorConnectionCopy.test.ts::says not signed in only for a measured signed-out session",
+        "frontend/src/livingMirror/mirrorConnectionCopy.test.ts::keeps an unmeasured or signed-in session neutral"
+      ],
+      "note": "Found 2026-11-16: signed out, the face said 'Check the connection', because the mirror's 401 carries no CORS header and reads as a failed fetch. The session route answers authenticated:false; the face now words only that measured state as 'Not signed in' (#703)."
+    },
+    {
+      "id": "writer-masking-oracle",
+      "fact": "What GAGOS's writers may be shown: masking asks the egress scrubbers themselves (the secret policy, the privacy filter), on each route, never a copy of their patterns.",
+      "state": "single",
+      "source": "tools/gagos_daily.py::_aligned_redact",
+      "places": [
+        "tools/gagos_daily.py::_aligned_redact",
+        "tools/gagos_daily.py::mask_redact",
+        "tools/gagos_daily.py::plan_mask_redact"
+      ],
+      "guards": [
+        "tests/test_gagos_mask_alignment.py::test_every_masking_call_asks_the_alignment_aware_oracle"
+      ],
+      "note": "2026-11-16: the withheld-files report (#704) masks through the same oracle; the guard caught it first using the plain one."
+    },
+    {
+      "id": "perf-budgets",
+      "fact": "PERF-01's frame and input budgets: the blueprint's frozen note, against the journey's targets.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "docs/frontend/LIVING_BEING_BLUEPRINT_2026-09-24.md",
+        "tools/gagos_journeys.py::PERF_TARGETS"
+      ],
+      "guards": [
+        "tests/test_gagos_journeys.py::test_perf_01_judges_by_the_budgets_the_blueprint_records_frozen"
+      ],
+      "note": "The operator froze two budgets on 2026-11-16 (frame p95 at most 20 ms, local feedback under 100 ms); the economy tier stays proposed."
     }
   ]
 }

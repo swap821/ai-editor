@@ -109,6 +109,16 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - It never types, sends, approves or denies. Frames are kept by type, size and turn_id only, never their text.
   - **Live smoke on the served face, signed out:** the probes install and the face's state reads. A real run needs him signed in.
 - **Found and fixed: the runner's signed-in check could never say yes.** It fetched `/api/v1/auth/session` from the face's own origin, and Vite answers that path with the page itself (200, `text/html`). It now asks the backend. Phase 1's records said "not signed in", which was true, but the check would have said so even if he had been.
+- **A correction: the serving checkout stayed at acc244eb.** I wrote above that it went "on master (acc244eb, then 145d5b24 with #703)", and told the operator the same. It was pulled to acc244eb only; 145d5b24 was built in my worktree for the headed PERF-01 run. His face therefore does not yet serve #703's "Not signed in", nor anything merged since. Updating it needs his yes.
+- **The consistency register grows honestly: 48 → 53 facts, all guarded.** I promised on 11-15 to register the seams real use found, and had added one. Now added:
+  - `sandbox-unjudged-run`: a sandbox that could not run is no verdict, in four places.
+  - `built-chunk-graph`: the Vite groups against the build's import graph. Its new guard checks that CI runs the cycle check after the build.
+  - `signed-out-wording`: the session route's flag against the face's wording.
+  - `writer-masking-oracle`: masking asks the scrubbers themselves.
+  - `perf-budgets`: the blueprint's frozen note against the journey's targets. Its new guard checks that they match.
+  - The `port-manifest` row gained three guards.
+
+  `consistency_audit.py --check` passes. Still not registered, honestly: the face's 10-09 implementation audit being out of date is a document's currency, not two code paths.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 
