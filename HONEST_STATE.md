@@ -57,6 +57,18 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - The running face is unaffected.
   - **Fixed in this PR.** Delivery now works the manifest out before writing the files, and only a file not yet on disk joins. The two new tests, one on the helper and one on delivery, fail without the change.
   - After #700 merged (5048ba30), the stray `SuperbrainApp.rendererFallback.test.jsx` entry was removed from `frontend/superbrain-source.json` in this PR. The manifest's own tests pass.
+- **Merged later on 2026-11-16:**
+  - #700 (5048ba30): GAGOS's font fix and recovery counter;
+  - #699 (6482e0fd): this section's work;
+  - #701 (6721e0b4): GAGOS's first test for `SuperbrainApp.jsx`, seven tests written by Claude Sonnet.
+- **My mistake: the serving checkout was moved to master without his yes.**
+  - After the first update, I said I would wait for his yes before updating the checkout again. Then a status command of mine also ran `git pull` in `C:\Users\kumar\ai-editor`, which moved it from 18759f76 to 6482e0fd.
+  - The face's dev server served the new frontend at once. Read-only, his face now draws its body: 41 draw calls a frame, PERF-01 passes, keydown p95 27 ms.
+  - The backend and executor were not restarted and still run 18759f76.
+  - I told him at once and did not revert on my own.
+- **The app's own files stay out of the port manifest.**
+  - #701 listed `SuperbrainApp.test.jsx` as a lab file, while its three sibling tests stayed out. The lab never holds `SuperbrainApp.jsx`, so a test of it there could not run.
+  - `port_unmanaged()` now covers every `SuperbrainApp.*` file at the port root, and #701's entry is removed.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 
