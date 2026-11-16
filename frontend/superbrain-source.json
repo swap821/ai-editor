@@ -209,7 +209,7 @@
     "lib/tabStore.streaming.test.ts": "17a68cc2650841f0e3c59ce32fa85c88e47efbb34725be3b2b3e73257eb7df8f",
     "lib/tabStore.test.ts": "34d1fdaaaf81c50105a004f9914d6af31b22a1a747e2a16cd513ee5589742862",
     "lib/tabStore.ts": "d901b2d1674051db711698039130431795b85fff4a28a7b9901161634c5e9c5d",
-    "lib/troikaConfig.ts": "16ef8bac37290e9d83c94c0d1fcce1e140556872fa33d187dbcfcb9b995ff286",
+    "lib/troikaConfig.ts": "f6559ab374a69c34ba55ef91f4e42f20a90e08ed62216b5294c7e3c7aafec698",
     "lib/turnMetabolism.test.ts": "d70e4e7df9fb96226490adbfb128b629ea19f316c85212e02b841df77bfb0e5e",
     "lib/turnMetabolism.ts": "82b0cf649b1cd41ca5374ead1c8ec0cc556319edf02746156d14cd4e130ef534",
     "lib/useBodyWorldFrame.ts": "db842f2483a80888131fcce302789f2255b66f1abe007cff3c0523caf80b2a1f",
