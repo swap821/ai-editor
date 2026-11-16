@@ -383,6 +383,27 @@ describe('SuperbrainApp renderer fallback bridge', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Retry visual organism' }));
 
     await waitFor(() => expect(document.querySelector('.scene-layer canvas')).toBeInTheDocument());
+    const freshCanvas = document.querySelector('.scene-layer canvas');
+    expect(contextTrackerState.restored).not.toHaveBeenCalled();
     expect(screen.getByTestId('gagos-chrome')).toBeInTheDocument();
+
+    act(() => window.dispatchEvent(new CustomEvent('gagos:ready', { detail: { canvas: freshCanvas } })));
+    expect(contextTrackerState.restored).toHaveBeenCalledOnce();
+    act(() => window.dispatchEvent(new CustomEvent('gagos:ready', { detail: { canvas: freshCanvas } })));
+    expect(contextTrackerState.restored).toHaveBeenCalledOnce();
+  });
+
+  it('does not count readiness from the lost canvas as a recovery', async () => {
+    render(<SuperbrainApp />);
+
+    await waitFor(() => expect(document.querySelector('.scene-layer canvas')).toBeInTheDocument());
+    const canvas = document.querySelector('.scene-layer canvas');
+    if (!canvas) throw new Error('Expected the managed scene canvas to mount.');
+
+    fireEvent(canvas, new Event('webglcontextlost', { cancelable: true }));
+    await waitFor(() => expect(screen.getByTestId('renderer-fallback-notice')).toBeInTheDocument());
+
+    act(() => window.dispatchEvent(new CustomEvent('gagos:ready', { detail: { canvas } })));
+    expect(contextTrackerState.restored).not.toHaveBeenCalled();
   });
 });
