@@ -182,21 +182,32 @@ function SuperbrainAppContent() {
     });
     const contextTracker = createContextRecoveryTracker();
     let boundCanvas = null;
+    let lostCanvas = null;
     const syncRendererFallback = () => {
       setRendererFallbackPresentation(canvasContextLostRef.current || rendererFallbackVisible());
     };
     const handleCanvasContextLost = () => {
+      lostCanvas = boundCanvas;
       canvasContextLostRef.current = true;
       setCanvasContextLost(true);
       contextTracker.handleLost();
       syncRendererFallback();
     };
     const handleCanvasContextRestored = () => {
+      lostCanvas = null;
       canvasContextLostRef.current = false;
       setCanvasContextLost(false);
       contextTracker.handleRestored();
       syncRendererFallback();
     };
+    const handleOrganismCanvasReady = (event) => {
+      const readyCanvas = event.detail?.canvas;
+      if (lostCanvas && readyCanvas instanceof HTMLCanvasElement && readyCanvas !== lostCanvas) {
+        contextTracker.handleRestored();
+        lostCanvas = null;
+      }
+    };
+    window.addEventListener('gagos:ready', handleOrganismCanvasReady);
     const bindCanvas = () => {
       const canvas = document.querySelector('.scene-layer canvas');
       if (!(canvas instanceof HTMLCanvasElement) || canvas === boundCanvas) return;
@@ -220,6 +231,7 @@ function SuperbrainAppContent() {
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener('gagos:ready', organismReady);
+      window.removeEventListener('gagos:ready', handleOrganismCanvasReady);
       stopRafIntervalSampler();
       unsubscribeMirror();
       canvasObserver?.disconnect();

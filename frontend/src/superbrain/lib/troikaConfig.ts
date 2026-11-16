@@ -9,9 +9,15 @@
 // configureTextBuilder after the first font request) — imported as a side effect at
 // the very top of main.jsx.
 //
+// troika's default font is self-hosted because its remote font resolver is blocked by
+// the CSP; without it every <Text> suspends forever and takes the 3D body with it.
+//
 // Trade-off: text layout is synchronous on the main thread. The being's text is
 // small + changes rarely, so the frame cost is negligible; the security win
 // (no eval, no blob script) is worth it for this local-first app.
 import { configureTextBuilder } from 'troika-three-text';
 
-configureTextBuilder({ useWorker: false });
+configureTextBuilder({
+  useWorker: false,
+  defaultFontURL: new URL('fonts/fixture-outfit.ttf', window.location.origin).href,
+});
