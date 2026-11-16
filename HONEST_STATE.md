@@ -54,7 +54,9 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - A new step asks that the face counted its recovery. It fails before #700 and passes on it: 12 of 12.
 - **A seam in GAGOS's delivery, seen in #700.** Its port-manifest update adds any file under `frontend/src/superbrain` of a ported kind that the manifest lacks, as if it were new.
   - Only `SuperbrainApp.jsx` is exempt. So editing the long-standing product test `SuperbrainApp.rendererFallback.test.jsx` moved it into the lab's ownership.
-  - The running face is unaffected. The fix belongs in `port_manifest_after` (join only files that did not exist), with the stray entry removed. It comes after #700 merges, to avoid a conflict.
+  - The running face is unaffected.
+  - **Fixed in this PR.** Delivery now works the manifest out before writing the files, and only a file not yet on disk joins. The two new tests, one on the helper and one on delivery, fail without the change.
+  - Still to do once #700 is on master: remove the stray `SuperbrainApp.rendererFallback.test.jsx` entry from `frontend/superbrain-source.json`.
 
 ## 2026-11-15, GAGOS runs browser journeys over its face (branch `feat/face-journeys`)
 
