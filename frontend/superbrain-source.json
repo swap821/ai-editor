@@ -209,7 +209,7 @@
     "lib/tabStore.streaming.test.ts": "17a68cc2650841f0e3c59ce32fa85c88e47efbb34725be3b2b3e73257eb7df8f",
     "lib/tabStore.test.ts": "34d1fdaaaf81c50105a004f9914d6af31b22a1a747e2a16cd513ee5589742862",
     "lib/tabStore.ts": "d901b2d1674051db711698039130431795b85fff4a28a7b9901161634c5e9c5d",
-    "lib/troikaConfig.ts": "16ef8bac37290e9d83c94c0d1fcce1e140556872fa33d187dbcfcb9b995ff286",
+    "lib/troikaConfig.ts": "f6559ab374a69c34ba55ef91f4e42f20a90e08ed62216b5294c7e3c7aafec698",
     "lib/turnMetabolism.test.ts": "d70e4e7df9fb96226490adbfb128b629ea19f316c85212e02b841df77bfb0e5e",
     "lib/turnMetabolism.ts": "82b0cf649b1cd41ca5374ead1c8ec0cc556319edf02746156d14cd4e130ef534",
     "lib/useBodyWorldFrame.ts": "db842f2483a80888131fcce302789f2255b66f1abe007cff3c0523caf80b2a1f",
@@ -285,6 +285,7 @@
     "core/Performance/EventThrottler.test.ts": "61261a3c01f26a82e696c9b8da0726aa6e2ff1af1d04663d4ff5248e3ca35fa0",
     "components/canvas/NervousSystem.test.tsx": "b5c13b77f47115cfc50e27d6fe94f9423af594567f84f7d915ae7c45a9fe831b",
     "components/canvas/materializedTab/WorkspaceEdgeDust.test.tsx": "811ec8fa17ea3cd5a72744d94111f209eb8526bada2ff5f0ef755570ba262515",
-    "core/Performance/FeatureGate.test.ts": "0e9e3e21c9b2b9d883ea1e4cf2d60f6d6b05ba4badf47c3d1315c9d642985188"
+    "core/Performance/FeatureGate.test.ts": "0e9e3e21c9b2b9d883ea1e4cf2d60f6d6b05ba4badf47c3d1315c9d642985188",
+    "SuperbrainApp.rendererFallback.test.jsx": "ba44e0c3dd2800c05e5eff89d969935c1ca04e6298f66137ecc951f787a912a4"
   }
 }
