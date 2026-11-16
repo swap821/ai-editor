@@ -5157,6 +5157,54 @@ def cmd_lessons(args: argparse.Namespace) -> int:
     return 0
 
 
+def file_reach(text: str, *, redact=None, mask=None) -> str:
+    """How a file reaches GAGOS's writers today, on the operator's plans'
+    route the writers use: as it is, with placeholders where the scrubbers
+    would hide a span (masked as delivery masks, by the alignment-aware
+    oracle), or withheld when no masking can make it pass. Counts only; never
+    what was matched. *redact* and *mask* stand in for the route in tests."""
+    redact = redact or plan_egress_redact
+    if redact(text) == text:
+        return "sent as it is"
+    try:
+        masked, mapping = mask(text) if mask else mask_lines(text, plan_mask_redact)
+    except Exception:  # noqa: BLE001 - any failure to mask withholds the file
+        return "withheld: it cannot be masked"
+    if redact(masked) != masked:
+        return "withheld: still altered after masking"
+    return f"sent with {len(mapping)} placeholder(s)"
+
+
+def cmd_withheld(args: argparse.Namespace) -> int:
+    """The files GAGOS's writers could not work on as written (organ 46's
+    lesson "privacy-withheld-file", the operator's yes of 2026-11-16): each
+    file a refusal withheld from a writer, or whose answer came back scrubbed,
+    with what did it, how often and when last, and how it reaches the writers
+    today. What was matched is never printed: he decides file by file whether
+    it holds a real secret to move out of the code or a false match."""
+    since = (datetime.now(timezone.utc) - timedelta(days=args.days)).isoformat()
+    rows = ledger().writer_withholdings(since)
+    if not rows:
+        print(
+            f"in the last {args.days} days no file was withheld from a writer, "
+            "and no answer came back scrubbed"
+        )
+        return 0
+    root = Path(args.project) if args.project else REPO
+    print(f"in the last {args.days} days, {len(rows)} file(s) by what withheld them:")
+    for row in rows:
+        path = root / row["rel"]
+        try:
+            today = file_reach(path.read_bytes().decode("utf-8"))
+        except (OSError, UnicodeDecodeError):
+            today = "not readable here"
+        print(
+            f"- {row['rel']}: {row['kind']}, {row['times']} time(s), "
+            f"last {row['last_at'][:16]}; today: {today}"
+        )
+    return 0
+
+
 # --------------------------------------------------------------------- tasks
 
 
@@ -5355,6 +5403,14 @@ def main(argv: list[str] | None = None) -> int:
         "lessons", help="the governance lessons GAGOS proposed to organ 46"
     )
     ls.set_defaults(func=cmd_lessons)
+
+    wh = sub.add_parser(
+        "withheld",
+        help="the files GAGOS's writers could not work on as written, and why",
+    )
+    wh.add_argument("--days", type=int, default=7)
+    wh.add_argument("--project", help="the checkout to read the files from")
+    wh.set_defaults(func=cmd_withheld)
 
     args = parser.parse_args(argv)
     return int(args.func(args))
