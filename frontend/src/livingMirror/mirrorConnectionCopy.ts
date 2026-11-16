@@ -12,6 +12,12 @@ export type MirrorConnectionState = {
   lastAnnouncement?: string | null;
 };
 
+/** The measured operator session (sovereignIdentity's SovereignStatus). */
+export type MirrorConnectionIdentity = {
+  sessionActive: boolean;
+  measured: 'unknown' | 'measured';
+};
+
 export type MirrorConnectionCopy = {
   label: string;
   detail: string;
@@ -28,6 +34,7 @@ export type MirrorConnectionCopy = {
 export function getMirrorConnectionCopy(
   state: MirrorConnectionState,
   mode: ExperienceMode = 'beginner',
+  identity?: MirrorConnectionIdentity,
 ): MirrorConnectionCopy {
   const hasSnapshot = Boolean(state.snapshotReceivedAt);
   const technical = `transport ${state.connection}; projection ${state.projection}; cursor ${state.lastEventId ?? 'unavailable'}`;
@@ -46,8 +53,22 @@ export function getMirrorConnectionCopy(
   // projection unavailable. That state alone proves neither service reachability
   // nor an authentication failure; keep the explanation neutral even after a
   // reconnect replaces the original announcement. Never expose raw errors in Guided.
+  // The one state that proves an authentication cause is a measured signed-out
+  // session: the backend's session route answered, and no operator is signed in
+  // (2026-11-16: a signed-out face said "check the connection").
   const mirrorAccessUnavailable = state.projection === 'unavailable'
     || /(?:http\s*(?:401|403)|unauthori[sz]ed)/i.test(state.lastAnnouncement ?? '');
+  if (mirrorAccessUnavailable && identity?.measured === 'measured' && !identity.sessionActive) {
+    return {
+      label: 'Not signed in',
+      detail: mode === 'expert'
+        ? 'The backend answered: this browser has no operator session. The operational picture needs one.'
+        : 'GAGOS is running, but this browser is not signed in. Sign in to see the live picture.',
+      tone: 'unavailable',
+      canRetry: true,
+      technical,
+    };
+  }
   if (mirrorAccessUnavailable) {
     return {
       label: 'Operational picture unavailable',

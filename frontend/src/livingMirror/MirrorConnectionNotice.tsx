@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import type { ExperienceMode } from './experienceMode';
-import { getMirrorConnectionCopy } from './mirrorConnectionCopy';
+import { getMirrorConnectionCopy, type MirrorConnectionIdentity } from './mirrorConnectionCopy';
 import { useMirrorStore } from '../superbrain/lib/mirrorStore';
 import { startMirrorClient, stopMirrorClient } from '../superbrain/lib/aiosMirror';
 import { RenderingQualityControls } from './RenderingQualityControls';
@@ -13,11 +13,13 @@ type MirrorConnectionNoticeProps = {
   onOpenAuthority?: (trigger: HTMLButtonElement) => void;
   detailsHost?: HTMLElement | null;
   onPhoneAccountHost?: (element: HTMLSpanElement | null) => void;
+  /** The measured operator session; signed out, the notice says so. */
+  identity?: MirrorConnectionIdentity;
 };
 
-export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuthority, detailsHost = null, onPhoneAccountHost }: MirrorConnectionNoticeProps) {
+export function MirrorConnectionNotice({ experienceMode = 'beginner', onOpenAuthority, detailsHost = null, onPhoneAccountHost, identity }: MirrorConnectionNoticeProps) {
   const mirror = useMirrorStore();
-  const copy = getMirrorConnectionCopy(mirror, experienceMode);
+  const copy = getMirrorConnectionCopy(mirror, experienceMode, identity);
   const [detailsOpen, setDetailsOpen] = useState(() => (
     typeof window === 'undefined'
     || typeof window.matchMedia !== 'function'

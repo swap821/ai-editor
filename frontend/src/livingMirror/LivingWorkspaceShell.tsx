@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { API_HEADERS } from '../config';
 import { useTabStore, getTabStoreSnapshot, getMaterializedTabLabel, openWorkspacePanel, focusWorkspace, closeWorkspace, clearMaterializedTab, pinWorkspace, reopenMaterializedTab, forgetRecoverableMaterializedTab, finishMaterializedTabRetraction, type WorkspacePanel, type MaterializedTabContent, type MaterializedTabRecord } from '../superbrain/lib/tabStore';
@@ -301,6 +301,9 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner', onReturnToCo
     }
   }, [narrowViewport, focusConversation]);
   const wasWorking = useRef(working);
+  // GagosChrome measures the session at startup; the connection notice words
+  // a measured signed-out session as such, not as a connection fault.
+  const sovereignIdentity = useSyncExternalStore(subscribeSovereignStatus, getSovereignStatus);
   const workspaceOwner = useRef(getSovereignStatus());
   useEffect(() => subscribeSovereignStatus((status) => {
     // An outage is not sign-out. Keep the last measured owner through unknown
@@ -480,7 +483,7 @@ export function LivingWorkspaceShell({ experienceMode = 'beginner', onReturnToCo
       <EmergencyControl guided={experienceMode === 'beginner'} />
     </header>
     {compactControlsHost ? createPortal(navigationControls, compactControlsHost) : navigationControls}
-    <MirrorConnectionNotice experienceMode={experienceMode} detailsHost={compactControlsHost} onPhoneAccountHost={onPhoneAccountHost} onOpenAuthority={experienceMode === 'expert' ? (trigger) => open('governance', 'Governance', trigger) : undefined} />
+    <MirrorConnectionNotice experienceMode={experienceMode} identity={sovereignIdentity} detailsHost={compactControlsHost} onPhoneAccountHost={onPhoneAccountHost} onOpenAuthority={experienceMode === 'expert' ? (trigger) => open('governance', 'Governance', trigger) : undefined} />
     {!(narrowViewport && experienceMode === 'expert') && <aside ref={workspaceRail} className="lm-workspace-rail" aria-label="Spinal workspace anchors">
       {handles.slice(0, 4).map((handle) => <button type="button" key={handle.id} aria-current={snapshot.focusId === handle.id ? 'true' : undefined} onClick={(event) => focusFromControl(handle.id, event.currentTarget)}>
         <span className="lm-vertebra" aria-hidden="true" />{handle.title}{handle.pinned ? ' · pinned' : ''}
