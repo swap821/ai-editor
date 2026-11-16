@@ -11,9 +11,15 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - update the checkout that serves his face to master;
   - who fixes the production build (taken as: I do, in this PR; GAGOS's editable files stay as they are);
   - whether PERF-01's two budgets are frozen;
-  - the 3D-recovery behaviour (taken as: the face first tries a 4 s in-place restore, as `WorkspaceCanvas` was built to, and counts every recovery; a goal for GAGOS).
+  - the 3D-recovery behaviour.
 
-  The two either/or questions were read as stated above. If he meant the other branch, they are redone.
+  The production-build question was either/or and was read as stated above.
+- **The 3D-recovery answer, read narrowly.** I first took "yes" to mean a 4 s in-place restore before the fallback. Reading the code changed that:
+  - `SuperbrainApp` takes the scene down at once on purpose: a lost context can make post-processing fail before the browser restores it. Its tests pin this.
+  - Once the canvas is unmounted, its renderer is disposed, so no in-place restore can arrive, and recovery is always the face's Retry.
+  - REC-01 asks only that the view "restore once", and Retry does that.
+  - So the behaviour stays. What both readings need is the counter: the face's `context-recovery` metric records only an in-place restore, never the remount that happens. That is GAGOS's goal `gt-74f5f76466`, on `SuperbrainApp.jsx` and its test: after a loss, the next `gagos:ready` from a different canvas counts as the recovery.
+  - Automatic in-place restore stays a design choice for the operator.
 - **The serving checkout is on master.** `C:\Users\kumar\ai-editor` went from 7b8bd029 to 18759f76 (fast-forward, 19 commits).
   - The daily backend's `up` then refused: #697's Python bumps changed `requirements.txt`, so the sandbox image `aios-verify:9528ebce8681` had to be built first. The backend was down for about 8 minutes.
   - #698's frontend bumps changed the lockfile, so GAGOS's frontend sandbox image `aios-verify-web:03aa2589dacc` was built too.
