@@ -196,11 +196,88 @@ def test_the_journey_chrome_is_gagos_own_and_listens_locally(
         gj.launch_argv("--user-data-dir=C:/elsewhere", tmp_path)
 
 
-def test_the_devtools_port_is_read_from_the_profile(tmp_path) -> None:
+def _devtools(tmp_path: Path):
+    """A stand-in for Chrome's DevTools: /json/version answers, and its port
+    is written in the profile as Chrome writes it."""
+    import http.server
+    import threading
+
+    class Version(http.server.BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - the stdlib's name
+            self.send_response(200)
+            self.end_headers()
+            self.wfile.write(b'{"Browser": "Chrome/1"}')
+
+        def log_message(self, *_args) -> None:
+            pass
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Version)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
     (tmp_path / "DevToolsActivePort").write_text(
-        "51234\n/devtools/browser/x\n", encoding="utf-8"
+        f"{server.server_port}\n/devtools/browser/x\n", encoding="utf-8"
     )
-    assert gj.devtools_port(tmp_path, timeout_s=1) == 51234
+    return server
+
+
+def _closed_port() -> int:
+    import socket
+
+    with socket.socket() as free:
+        free.bind(("127.0.0.1", 0))
+        return free.getsockname()[1]
+
+
+def test_the_devtools_port_is_read_from_the_profile(tmp_path) -> None:
+    server = _devtools(tmp_path)
+    try:
+        assert gj.devtools_port(tmp_path, timeout_s=1) == server.server_port
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_a_port_left_by_a_closed_window_is_not_a_window(tmp_path) -> None:
+    (tmp_path / "DevToolsActivePort").write_text(
+        f"{_closed_port()}\n/devtools/browser/x\n", encoding="utf-8"
+    )
+    with pytest.raises(gj.JourneyRefused):
+        gj.devtools_port(tmp_path, timeout_s=0)
+
+
+def test_open_reuses_a_journey_window_already_open(monkeypatch, tmp_path) -> None:
+    """2026-11-17: open deleted the port of the window the operator had open;
+    Chrome handed the new launch to that window, which never wrote it again,
+    and every run then said the window was not open."""
+    server = _devtools(tmp_path)
+    launched = []
+    monkeypatch.setattr(gj.eye, "profile", lambda name: tmp_path)
+    monkeypatch.setattr(gj, "face_unreached", lambda url: None)
+    monkeypatch.setattr(gj.subprocess, "Popen", lambda argv: launched.append(argv))
+    try:
+        assert gj.main(["open", "--url", "http://localhost:3000/"]) == 0
+        assert (tmp_path / "DevToolsActivePort").is_file()
+        assert launched, "the window is still brought to the face's page"
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_open_says_what_to_do_when_chrome_never_answers(
+    monkeypatch, tmp_path, capsys
+) -> None:
+    (tmp_path / "DevToolsActivePort").write_text(
+        f"{_closed_port()}\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(gj.eye, "profile", lambda name: tmp_path)
+    monkeypatch.setattr(gj, "face_unreached", lambda url: None)
+    monkeypatch.setattr(gj.subprocess, "Popen", lambda argv: None)
+    real = gj.devtools_port
+    monkeypatch.setattr(
+        gj, "devtools_port", lambda profile, timeout_s=30.0: real(profile, timeout_s=0)
+    )
+    assert gj.main(["open", "--url", "http://localhost:3000/"]) == 2
+    assert not (tmp_path / "DevToolsActivePort").exists(), "a stale port is cleared"
+    assert "close every window of it, then run open again" in capsys.readouterr().out
 
 
 def test_the_face_is_reached_where_vite_serves_it() -> None:

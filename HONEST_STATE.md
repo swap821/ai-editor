@@ -119,6 +119,11 @@ earlier sections keep the commit they were measured on). The whole story, from t
   - The `port-manifest` row gained three guards.
 
   `consistency_audit.py --check` passes. Still not registered, honestly: the face's 10-09 implementation audit being out of date is a document's currency, not two code paths.
+- **2026-11-17 ~20:40Z: `open` stranded the operator's journey window** (found in his second try, after #707).
+  - His first `open` (17:51Z) left a journey Chrome running. Tonight's `open` deleted that Chrome's DevTools port file, then launched Chrome again.
+  - Chrome handed the launch to the window already open, which never writes the file again. He signed in there, and every `run` and `watch` said the window was not open. No record was written.
+  - **Fixed** (branch `fix/journey-open-reuse`): a port counts only while its DevTools answer. `open` reuses a window that answers. If Chrome never says where its DevTools are, `open` says to close that window and open again, in place of crashing.
+  - He was told how to recover by hand: close only the journey Chrome, then `open` again.
 - **The face that ships could not be built, from 2026-06-09 until now.**
   - It is the `gateway` image (`Dockerfile.frontend`: nginx serving the production build, `/api` forwarded to the backend).
   - The repository's `.dockerignore` leaves `frontend/` out, for the backend image's sake, and the gateway's `COPY frontend/` failed with `"/frontend": not found`. Nothing built it, so nothing noticed.
