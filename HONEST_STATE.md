@@ -5,6 +5,21 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-17, CI's npm audit: one dated exception, the operator's (branch `fix/npm-audit-picomatch`)
+
+- **What broke.** From master b5f931f4 (#711's merge), `frontend-tests` failed every PR at its audit step, before any test ran, on GHSA-fc5q-39xc-vjpf:
+  - `picomatch` <= 4.0.7 has a ReDoS in glob patterns, rated high.
+  - Every published version is affected, and there is no fix.
+  - It reaches only `vite` and `vitest`. The built face contains none of it (checked in `dist/`).
+  - npm's only offered "fix" downgrades vitest to 3.1.4, which breaks the test setup, so it was not taken.
+- **His choice: a narrow, dated exception.** The audit step now passes a finding only when every high or critical advisory in `npm audit --json` is on its excused list (only this id), and only until 2026-12-02. It says so in a CI warning.
+  - Anything else fails as before: another high advisory, an unreadable report, or the date passing.
+  - Five new tests in `tests/test_frontend_audit_gate.py` run the real step against a fake npm and date.
+  - Against the real registry today, the gate passes with that one advisory excused.
+  - When a patched `picomatch` is published, take it and remove the exception.
+- **The moderate `minimatch` advisory got its non-breaking fix** (`npm audit fix`; lockfile only).
+- **Because the lockfile changed,** GAGOS's frontend sandbox image (tagged by lockfile and runner) must be rebuilt after this merges.
+
 ## 2026-11-17, the face that ships: the request dock no longer covers the status pills (branch `fix/face-status-dock`)
 
 - **Found in his use.** The operator could not see how to sign in. Measured on the face that ships (headless, signed out, Guided, at rest):

@@ -426,12 +426,38 @@ jobs:
         # could not run as exactly that; and still fail when the endpoint never
         # answers. An audit that could not run is not an audit that passed.
         #
+        # One narrow exception, the operator's (2026-11-17): an advisory he
+        # excused by id, until a date, while no fixed version exists. Every
+        # high or critical advisory must be on that list for a finding to pass;
+        # anything else, an unreadable report, or the date passing fails as
+        # before. Excused: GHSA-fc5q-39xc-vjpf, picomatch <= 4.0.7, a ReDoS in
+        # glob patterns with no patched release; it reaches only vite and
+        # vitest, never the built face.
+        #
         # Exercised by tests/test_frontend_audit_gate.py, which runs this very
         # block against a fake npm.
         run: |
           set +e
           transport='audit endpoint returned an error|Bad Request|ENOTFOUND|ETIMEDOUT|ECONNRESET|EAI_AGAIN|socket hang up|network|50[234]'
           operational='ENOLOCK|EUSAGE|EJSONPARSE|requires an existing lockfile'
+          excused='GHSA-fc5q-39xc-vjpf'
+          excused_until='2026-12-02'
+          only_excused() {
+            [ "$(date -u +%Y-%m-%d)" \< "$excused_until" ] || return 1
+            npm audit --json 2>/dev/null | EXCUSED="$excused" node -e '
+              let raw = ""; process.stdin.on("data", c => raw += c).on("end", () => {
+                let report; try { report = JSON.parse(raw); } catch { process.exit(1); }
+                const found = new Set();
+                for (const entry of Object.values(report.vulnerabilities || {}))
+                  for (const via of entry.via || [])
+                    if (via && typeof via === "object" && /^(high|critical)$/.test(via.severity))
+                      found.add((String(via.url || "").match(/GHSA-[a-z0-9-]+/) || [String(via.source)])[0]);
+                const allowed = new Set(process.env.EXCUSED.split(/\s+/).filter(Boolean));
+                const left = [...found].filter(id => !allowed.has(id));
+                console.log("high or critical advisories: " + ([...found].join(", ") || "none") + "; not excused: " + (left.join(", ") || "none"));
+                process.exit(found.size && !left.length ? 0 : 1);
+              });'
+          }
           for attempt in 1 2 3; do
             out="$(npm audit --audit-level=high 2>&1)"
             rc=$?
@@ -445,6 +471,10 @@ jobs:
             if echo "$out" | grep -qiE "$operational"; then
               echo "::error::npm audit could not run (exit $rc) -- this is NOT a clean audit"
               exit 1
+            fi
+            if only_excused; then
+              echo "::warning::npm audit's only high or critical findings are excused until $excused_until ($excused): see the comment above"
+              exit 0
             fi
             echo "::error::npm audit reported a vulnerability at or above 'high' (exit $rc)"
             exit 1
