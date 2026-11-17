@@ -1,6 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { BootstrapReadiness, parseBootstrapReadiness } from './BootstrapReadiness';
+import { BootstrapReadiness } from './BootstrapReadiness';
+import { parseBootstrapReadiness } from './bootstrapReadinessParse';
 
 const readyPayload = {
   ok: true,
