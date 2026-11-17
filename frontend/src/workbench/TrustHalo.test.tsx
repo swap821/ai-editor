@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
-import TrustHalo, { computeTrustLevel } from './TrustHalo';
+import TrustHalo from './TrustHalo';
+import { computeTrustLevel } from './trustLevel';
 import { AIOS_BASE } from '../superbrain/lib/aiosAdapter';
 
 describe('TrustHalo', () => {
