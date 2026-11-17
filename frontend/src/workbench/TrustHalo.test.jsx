@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeTrustLevel } from './TrustHalo';
+import { computeTrustLevel } from './trustLevel';
 
 describe('computeTrustLevel', () => {
   it('keeps incomplete metrics unknown instead of treating them as zero', () => {
