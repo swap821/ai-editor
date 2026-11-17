@@ -112,17 +112,30 @@ def launch_argv(url: str, profile: Path, *, headless: bool = False) -> list[str]
     return [*argv, eye.page_url(url)]
 
 
+def _answering(marker: Path) -> int | None:
+    """The port Chrome wrote in *marker*, while its DevTools answer there."""
+    try:
+        port = int(marker.read_text(encoding="utf-8").splitlines()[0])
+        with urllib.request.urlopen(  # noqa: S310 - 127.0.0.1, a fixed path
+            f"http://127.0.0.1:{port}/json/version", timeout=2
+        ):
+            return port
+    except (OSError, ValueError, IndexError):
+        return None
+
+
 def devtools_port(profile: Path, *, timeout_s: float = 30.0) -> int:
-    """The port Chrome wrote for its DevTools, once it is listening."""
+    """The port of the journey Chrome's DevTools, once they answer. What Chrome
+    wrote counts only while it answers: a closed window leaves its port behind."""
     marker = profile / "DevToolsActivePort"
     deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline:
-        if marker.is_file():
-            first = marker.read_text(encoding="utf-8").splitlines()[:1]
-            if first and first[0].strip().isdigit():
-                return int(first[0])
+    while True:
+        port = _answering(marker)
+        if port is not None:
+            return port
+        if time.monotonic() >= deadline:
+            raise JourneyRefused("Chrome's DevTools did not start")
         time.sleep(0.25)
-    raise JourneyRefused("Chrome's DevTools did not start")
 
 
 def page_socket(port: int, url_prefix: str) -> str:
@@ -1276,9 +1289,24 @@ def cmd_open(args: argparse.Namespace) -> int:
         print(f"{why}: start the face first; no record written")
         return 2
     profile = eye.profile("journey")
-    (profile / "DevToolsActivePort").unlink(missing_ok=True)
+    # A journey window already open is reused, with the port it wrote.
+    # 2026-11-16: open deleted that file first; Chrome handed the new launch
+    # to the window already running, which never writes it again, so the
+    # window stayed open and every run said it was not.
+    try:
+        devtools_port(profile, timeout_s=0)
+    except JourneyRefused:
+        (profile / "DevToolsActivePort").unlink(missing_ok=True)
     subprocess.Popen(launch_argv(args.url, profile))  # noqa: S603 - checked URL
-    port = devtools_port(profile)
+    try:
+        port = devtools_port(profile)
+    except JourneyRefused:
+        print(
+            "GAGOS's journey Chrome did not say where its DevTools are. A journey "
+            "window opened before 2026-11-17 may still be running without it: "
+            "close every window of it, then run open again."
+        )
+        return 2
     print(
         f"GAGOS's journey window is open on {args.url} (DevTools 127.0.0.1:{port}). "
         "Sign in there yourself, then run: python tools/gagos_journeys.py run <id>"
