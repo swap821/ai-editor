@@ -97,11 +97,17 @@ def _audit_step() -> dict:
     return next(s for s in steps if s.get("name") == "Audit frontend dependencies")
 
 
-def _run(tmp_path: Path, npm_script: str) -> tuple[int, str]:
-    """Execute the real run-block with *npm_script* standing in for npm."""
+def _run(
+    tmp_path: Path, npm_script: str, *, today: str | None = None
+) -> tuple[int, str]:
+    """Execute the real run-block with *npm_script* standing in for npm (and,
+    with *today*, a fixed UTC date standing in for date)."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
-    for name, body in (("npm", npm_script), ("sleep", "exit 0")):
+    stubs = [("npm", npm_script), ("sleep", "exit 0")]
+    if today is not None:
+        stubs.append(("date", f"echo {today}"))
+    for name, body in stubs:
         f = bin_dir / name
         f.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8", newline="\n")
         f.chmod(f.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
@@ -185,3 +191,93 @@ def test_the_gate_still_enforces_high_and_never_swallows_failure() -> None:
     assert step.get("continue-on-error") is not True
     # Every path out of the loop is an explicit exit; nothing falls through.
     assert run.rstrip().endswith("exit 1")
+
+
+# The operator's one narrow exception (2026-11-17): GHSA-fc5q-39xc-vjpf,
+# picomatch <= 4.0.7, every version affected and no fix published; it reaches
+# only vite and vitest, never the built face. Excused by id, until a date, and
+# only when it is the sole high or critical advisory.
+NODE = shutil.which("node")
+EXCUSED = "GHSA-fc5q-39xc-vjpf"
+
+
+def _npm_reporting(*advisories: tuple[str, str]) -> str:
+    """A fake npm: a high finding on the gate's call, and *advisories*
+    ((GHSA id, severity) pairs) in ``npm audit --json``."""
+    via = ",".join(
+        f'{{"source": 1, "name": "picomatch", "severity": "{sev}", '
+        f'"url": "https://github.com/advisories/{ghsa}"}}'
+        for ghsa, sev in advisories
+    )
+    report = (
+        '{"vulnerabilities": {"picomatch": {"severity": "high", "via": [' + via + "]}, "
+        '"vite": {"severity": "high", "via": ["picomatch"]}}}'
+    )
+    return "\n".join(
+        [
+            'case "$*" in *--json*)',
+            "cat <<'JSON'",
+            report,
+            "JSON",
+            "exit 1;; esac",
+            "echo CALLED",
+            'echo "1 high severity vulnerability"',
+            "exit 1",
+        ]
+    )
+
+
+needs_node = pytest.mark.skipif(
+    NODE is None, reason="the exception reads the report with node"
+)
+
+
+@needs_node
+def test_the_excused_advisory_alone_passes_with_a_warning(tmp_path: Path) -> None:
+    rc, out = _run(tmp_path, _npm_reporting((EXCUSED, "high")), today="2026-11-20")
+    assert rc == 0, out
+    assert "excused until 2026-12-02" in out
+    assert out.count("CALLED") == 1
+
+
+@needs_node
+def test_any_other_high_advisory_still_fails(tmp_path: Path) -> None:
+    rc, out = _run(
+        tmp_path,
+        _npm_reporting((EXCUSED, "high"), ("GHSA-aaaa-bbbb-cccc", "high")),
+        today="2026-11-20",
+    )
+    assert rc == 1
+    assert "not excused: GHSA-aaaa-bbbb-cccc" in out
+    assert "reported a vulnerability" in out
+
+
+@needs_node
+def test_the_exception_ends_on_its_date(tmp_path: Path) -> None:
+    rc, out = _run(tmp_path, _npm_reporting((EXCUSED, "high")), today="2026-12-02")
+    assert rc == 1
+    assert "reported a vulnerability" in out
+
+
+@needs_node
+def test_an_unreadable_report_is_never_excused(tmp_path: Path) -> None:
+    npm = "\n".join(
+        [
+            'case "$*" in *--json*) echo "not json"; exit 1;; esac',
+            "echo CALLED",
+            'echo "1 high severity vulnerability"',
+            "exit 1",
+        ]
+    )
+    rc, out = _run(tmp_path, npm, today="2026-11-20")
+    assert rc == 1
+    assert "reported a vulnerability" in out
+
+
+def test_the_exception_is_one_named_advisory_with_an_end_date() -> None:
+    run = _audit_step()["run"]
+    assert f"excused='{EXCUSED}'" in run
+    until = run.split("excused_until='", 1)[1].split("'", 1)[0]
+    assert until <= "2026-12-02", (
+        "the exception was set for two weeks; renewing it is the operator's call"
+    )
