@@ -5,6 +5,19 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-17, the face that ships: the request dock no longer covers the status pills (branch `fix/face-status-dock`)
+
+- **Found in his use.** The operator could not see how to sign in. Measured on the face that ships (headless, signed out, Guided, at rest):
+  - **The sign-in exists**, as the header pill "account not linked". It reads as a status, not an action, so GAGOS has goal gt-ac11132138 to make it read "Sign in".
+  - **The pills ran under the dock's buttons.** At 1262x624 (his window), 1280x720 and 1440x900, the status pills wrapped to a second row and ran 30px under the dock's mic, mute, language and Send. The welcome text was clipped behind the dock.
+  - **Not affected:** Expert mode's shorter pills fit one row, as does 1920x1080.
+- **Cause:** at desktop width the rest layout reserves a single 40px status row above the connection slot, and nothing reserved the second.
+- **Fixed (Claude, at his choice; GAGOS may not edit stylesheets).** Where CSS anchor positioning exists, the rest dock now ends 12px above the status band's real top. The single reserved row stays as the fallback, and working and held-decision layouts are unchanged.
+  - Re-measured: 0px overlap in all eight cases (four sizes, Guided and Expert).
+  - The cost: at 624px tall, the welcome text shows one line and scrolls.
+  - Frontend suite 349 files and 2,483 tests pass; the build passes with no chunk cycles; the built CSS keeps the rule and its guard.
+- **#709 opened and closed the same morning.** It was GAGOS writing its own face goals, new GAGOS machinery. It broke two decisions already made in this chat: Claude writes the blueprint goals (11-12), and no new GAGOS-on-GAGOS features for two weeks (11-15). I had asked again and recommended against both. Its branch is kept.
+
 ## 2026-11-16, the operator's yes: budgets frozen, the built face loads its 3D code (branch `fix/built-face-chunk-cycle`)
 
 - **What he said.** "Yes to all open questions", answering four:

@@ -373,6 +373,22 @@
     max-height: none;
   }
 }
+/* The rest dock reserves one 40px status row above the connection slot. When
+   the pills need a second row (Guided's "account not linked", a long linked
+   identity) the band grew upward under the dock's own controls: measured on
+   the face that ships, 2026-11-17, 30px of "reachable" and "approval
+   protected" under mic, mute, language and Send at 1262x624, 1280x720 and
+   1440x900. Where anchor positioning exists, the dock ends above the band's
+   real top instead; elsewhere the reserved row above still applies. Working
+   and held-decision layouts place the band elsewhere and keep their own. */
+@supports (anchor-name: --lm-status-band) {
+  @media (min-width: 1200px) and (min-height: 521px) {
+    .lm-app .gagos-status { anchor-name: --lm-status-band; }
+    .lm-app[data-working="false"]:not(:has(.gagos-chrome[data-approval-pending="true"], .gagos-approval-hold)) .gagos-chat {
+      bottom: calc(anchor(--lm-status-band top) + 12px);
+    }
+  }
+}
 @media (max-width: 1199px) {
   .lm-navigation { gap: 2px; }
   .lm-navigation button { padding-inline: 8px; font-size: 14px; }
