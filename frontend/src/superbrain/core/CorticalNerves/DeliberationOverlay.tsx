@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getSwarmHUDState, subscribeSwarmHUD } from '@/lib/swarmHUDStore';
-import NerveMesh, { COUNCIL_NODES } from './NerveMesh';
+import NerveMesh from './NerveMesh';
+import { COUNCIL_NODES } from './councilNodes';
 
 export default function DeliberationOverlay() {
   const [activeCastes, setActiveCastes] = useState<string[]>([]);

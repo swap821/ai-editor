@@ -26,6 +26,9 @@ vi.mock('./NerveMesh', () => ({
       data-float32={String(activeStates instanceof Float32Array)}
     />
   ),
+}));
+
+vi.mock('./councilNodes', () => ({
   COUNCIL_NODES: [{ caste: 'scout' }, { caste: 'builder' }, { caste: 'warrior' }],
 }));
 
