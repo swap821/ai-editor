@@ -5,6 +5,30 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-17, GAGOS assesses its own face and writes its own goals (branch `feat/gagos-face-self-assessment`)
+
+- **Asked:** the operator: "let GAGOS make its frontend 10/10 and also understand itself honestly". He chose that GAGOS writes its own goals.
+- **Before this, measured:**
+  - GAGOS's hourly self-understanding was one repeated stack list ("Docker, FastAPI, Node, Python, React, SQLite, TypeScript, Vite, Vitest"). It did not know its face's score or gaps.
+  - It had no open goal from 2026-11-16 04:53Z, so his envelope (signed 17:56Z) expired at 01:56Z unused.
+- **Now, each hour, before the clerk's intake** (`aios/maintenance/face_assessment.py`, `face_hour` in `tools/gagos_daily.py`), GAGOS reads its acceptance ledger, its journeys' design, its runner's journeys and its newest journey records on master. It says, criterion by criterion, what stands between it and the points. At master b5d2243c:
+  - 3 of 100 accepted (INT-01).
+  - 26 points need a journey it has not built.
+  - 14 need his signed-in, headed run on the build that ships.
+  - 15 need his review.
+  - 13 need people other than him.
+  - 19 need phones or named devices.
+  - 10 have nothing planned yet: INT-03, INT-07, UX-05, REL-01.
+- **Its own goals:**
+  - While none of its own goals is in flight, it files one goal for the next journey its design orders and its runner lacks (first: `decide-01`, INT-04). The goal is on `tools/gagos_journeys.py`, through the clerk like any goal.
+  - It never re-asks a journey already asked for, and says each one it asked for and whether it is built.
+  - Points stay the ledger's: GAGOS reads them and never awards them.
+- **Its knowledge base keeps the assessment** as `generated/face-assessment.md`, so the counter answers from it.
+- **What it does not do:**
+  - It cannot judge visual quality.
+  - It cannot tie a failed run to a file yet.
+  - Its sorting of what a criterion needs beyond journeys comes from the ledger's own words (Human, non-builder, physical, operator). That is a reading, not a measurement.
+
 ## 2026-11-16, the operator's yes: budgets frozen, the built face loads its 3D code (branch `fix/built-face-chunk-cycle`)
 
 - **What he said.** "Yes to all open questions", answering four:

@@ -12,6 +12,7 @@ the memory database.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -21,6 +22,8 @@ SELF_DOCS = ("README.md", "AGENTS.md", "HONEST_STATE.md")
 SELF_DOC_FOLDER = "docs/architecture"
 #: How GAGOS's own documents are named in the knowledge tables.
 PREFIX = "gagos:"
+#: Where the documents GAGOS writes about itself each hour are named.
+GENERATED = "generated"
 
 
 def self_documents(root: Path) -> list[str]:
@@ -35,20 +38,26 @@ def self_documents(root: Path) -> list[str]:
     return sorted(found)
 
 
-def refresh(root: Path, *, ingestor: Any) -> dict[str, Any]:
+def refresh(
+    root: Path, *, ingestor: Any, generated: Mapping[str, str] | None = None
+) -> dict[str, Any]:
     """Keep GAGOS's documents in *ingestor*'s knowledge tables as they are in
-    *root* now. Returns what changed: ``{"kept", "changed", "removed",
-    "failed"}`` (lists of paths; a failure is said with its reason)."""
+    *root* now, and the documents it *generated* about itself this hour (by
+    name, under ``GENERATED/``; 2026-11-17, its face's assessment). Returns
+    what changed: ``{"kept", "changed", "removed", "failed"}`` (lists of
+    paths; a failure is said with its reason)."""
     root = Path(root)
     kept: list[str] = []
     changed: list[str] = []
     failed: list[str] = []
-    present = self_documents(root)
-    for rel in present:
+    documents = [(rel, None) for rel in self_documents(root)] + [
+        (f"{GENERATED}/{name}", text) for name, text in (generated or {}).items()
+    ]
+    present = [rel for rel, _ in documents]
+    for rel, text in documents:
         try:
-            out = ingestor.replace(
-                PREFIX + rel, (root / rel).read_bytes(), "text/markdown"
-            )
+            body = (root / rel).read_bytes() if text is None else text.encode("utf-8")
+            out = ingestor.replace(PREFIX + rel, body, "text/markdown")
         except (OSError, ValueError) as exc:
             failed.append(f"{rel}: {exc}")
             continue
@@ -63,4 +72,11 @@ def refresh(root: Path, *, ingestor: Any) -> dict[str, Any]:
     return {"kept": kept, "changed": changed, "removed": removed, "failed": failed}
 
 
-__all__ = ["PREFIX", "SELF_DOCS", "SELF_DOC_FOLDER", "refresh", "self_documents"]
+__all__ = [
+    "GENERATED",
+    "PREFIX",
+    "SELF_DOCS",
+    "SELF_DOC_FOLDER",
+    "refresh",
+    "self_documents",
+]

@@ -4232,20 +4232,64 @@ def understanding_hour(root: Path, *, understand=None) -> Any:
     return passport
 
 
-def knowledge_hour(root: Path, *, ingestor=None) -> dict:
+def face_hour(led, root: Path, *, built=None, now=None) -> str:
+    """GAGOS's own assessment of its face (2026-11-17, the operator: GAGOS
+    makes its frontend 10/10 and understands itself honestly, writing its own
+    goals; aios.maintenance.face_assessment). Read from this hour's checkout of
+    master: what each criterion of the acceptance ledger still needs, said in
+    the hour; and, while none of its own is in flight, one goal for the next
+    journey its design plans and its runner lacks, through the clerk like any
+    goal. Returns the assessment as the document its knowledge base keeps."""
+    from aios.maintenance import face_assessment as fa
+
+    if built is None:
+        from tools import gagos_journeys as gj
+
+        built = {jid: spec[0] for jid, spec in {**gj.JOURNEYS, **gj.WATCHES}.items()}
+    design = (root / fa.DESIGN).read_text(encoding="utf-8")
+    assessment = fa.assess(
+        (root / fa.LEDGER).read_text(encoding="utf-8"),
+        design,
+        built,
+        fa.newest_records(root / fa.RECORDS),
+    )
+    for line in fa.lines(assessment):
+        print(f"  {line}")
+    for jid, task in fa.asked(led.tasks()).items():
+        state = "built" if jid in built else "not built"
+        print(
+            f"  face: GAGOS asked for {jid} on {str(task.get('created_at'))[:10]} "
+            f"({task['task_id']}, {task.get('status')}); {state}"
+        )
+    wanted = fa.next_goal(
+        assessment,
+        design,
+        led.tasks(),
+        now=now or datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    )
+    if wanted:
+        journey, text = wanted
+        tid = led.add_task(fa.RUNNER, text, said_by=fa.SAID_BY)
+        print(f"  face: GAGOS asks itself for {journey.id} ({tid})")
+    return fa.document(assessment, commit=_git(root, "rev-parse", "HEAD"))
+
+
+def knowledge_hour(root: Path, *, ingestor=None, generated=None) -> dict:
     """GAGOS's own documents kept in its knowledge base (move C, the operator's
     word of 2026-11-13: "GAGOS's own docs"): the README, AGENTS.md,
     HONEST_STATE.md and the architecture docs, as this hour's checkout of master
     has them, where the counter's corrective retrieval reads
-    (aios.memory.self_knowledge). Unchanged documents cost a hash; the
-    operator's own uploads are never touched; nothing leaves the laptop."""
+    (aios.memory.self_knowledge). *generated*: documents GAGOS wrote this
+    hour about itself (its face's assessment), by name. Unchanged documents
+    cost a hash; the operator's own uploads are never touched; nothing leaves
+    the laptop."""
     from aios.memory import self_knowledge
 
     if ingestor is None:
         from aios.memory.doc_ingest import DocumentIngestor
 
         ingestor = DocumentIngestor()
-    out = self_knowledge.refresh(root, ingestor=ingestor)
+    out = self_knowledge.refresh(root, ingestor=ingestor, generated=generated)
     print(
         f"  knowledge: {len(out['kept']) + len(out['changed'])} of GAGOS's documents "
         f"in its knowledge base ({len(out['changed'])} changed, "
@@ -5055,6 +5099,13 @@ def cmd_daily(args: argparse.Namespace) -> int:
                     :400
                 ]
             )
+        # Then its face, as it assesses it, and its own goal for it, if one
+        # is due (2026-11-17): before the clerk, which briefs it this hour.
+        face_document = None
+        try:
+            face_document = face_hour(led, root)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(f"  face: no assessment this hour: {type(exc).__name__}: {exc}"[:400])
         # Goals first through the clerk (the one-system plan, phase 1).
         try:
             goals_hour(led, root)
@@ -5075,7 +5126,12 @@ def cmd_daily(args: argparse.Namespace) -> int:
             print(f"  missions: the runs failed: {type(exc).__name__}: {exc}"[:400])
         # GAGOS's own documents, kept current in its knowledge base (move C).
         try:
-            knowledge_hour(root)
+            knowledge_hour(
+                root,
+                generated={"face-assessment.md": face_document}
+                if face_document
+                else None,
+            )
         except Exception as exc:  # the hour's other work goes on; said
             print(f"  knowledge: the refresh failed: {type(exc).__name__}: {exc}"[:400])
         # The friction it keeps meeting, proposed to organ 46 as lessons.

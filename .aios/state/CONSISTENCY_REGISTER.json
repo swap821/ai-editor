@@ -868,6 +868,24 @@
         "tests/test_gagos_journeys.py::test_perf_01_judges_by_the_budgets_the_blueprint_records_frozen"
       ],
       "note": "The operator froze two budgets on 2026-11-16 (frame p95 at most 20 ms, local feedback under 100 ms); the economy tier stays proposed."
+    },
+    {
+      "id": "face-assessment-sources",
+      "fact": "What GAGOS's face still needs: the acceptance ledger's criteria and frozen 100, the journeys design's table and order, and the runner's journeys, read together by its own face assessment.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "docs/frontend/LIVING_BEING_ACCEPTANCE_LEDGER_2026-09-24.md",
+        "docs/frontend/JOURNEYS_PHASE2_DESIGN_2026-11-16.md",
+        "tools/gagos_journeys.py",
+        "aios/maintenance/face_assessment.py"
+      ],
+      "guards": [
+        "tests/test_face_assessment.py::test_gagos_reads_its_whole_acceptance_ledger",
+        "tests/test_face_assessment.py::test_gagos_reads_its_journeys_design_in_the_order_it_builds_them",
+        "tests/test_face_assessment.py::test_every_point_not_earned_is_said_with_what_it_needs"
+      ],
+      "note": "2026-11-17: the operator chose that GAGOS writes its own face goals; it reads these three each hour, and a ledger that no longer adds to 100 is said, never scored."
     }
   ]
 }
