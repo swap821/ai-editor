@@ -69,8 +69,8 @@
     "core/AttentionField/SignalParticles.tsx": "7dac73c0fbbf31a372328571266dc884efb771b6334bad62aba193a479efc222",
     "core/AttentionField/index.ts": "b247b06f39ddae7d5bd17ddc703cc4ba92b9c049299583921add7956191a3c22",
     "core/CortexEngine.tsx": "a7b68b9dc1584e9e788be0bc1ed5c1e3c45d3114c683b02d49ad872ed2726a21",
-    "core/CorticalNerves/DeliberationOverlay.tsx": "de6b08e9458e3677beba416799a5072e3539b0494260fec1f065b0dc0d0477df",
-    "core/CorticalNerves/NerveMesh.tsx": "81b4de2367a2e22b1eeec1ebff0fd7b647427f9a12f0eb341bcedb75e8df8a19",
+    "core/CorticalNerves/DeliberationOverlay.tsx": "9c797a43283c36c9fb8cbd7650314db2ca4ada9a749f3197f47b5241b64d0366",
+    "core/CorticalNerves/NerveMesh.tsx": "862521745170f34d5923e57b6a26747ffbfa29081d91c3c2f2f5543d901e5e39",
     "core/CorticalNerves/PulseShader.tsx": "c0c22c541eaddea1456f240d6bebccc50c2f083d0a61c7b1004852c82b9f676f",
     "core/Performance/EventThrottler.ts": "26c3e332e31cab7a59b0cdf3a824550bf69b44802f4b0e43c7fc5134fdbd0847",
     "core/Performance/FeatureGate.ts": "71291238eb8c9ef5453a6957637298a8f79bafe73f1d922664f3e5f8efa2fc43",
@@ -248,7 +248,7 @@
     "core/AccretionCore/DecayAura.test.tsx": "d85618b6ba3bd984ba55350497e815488acd521a30f41c7b6683bd853a5234ba",
     "core/AttentionField/ConductionPaths.test.ts": "42ba9fa0f93a5fd4311e3d2dc59b5d15091df25ff01a8deacd6e7b65f62e7b18",
     "core/AttentionField/SignalParticles.test.tsx": "f1ac74dd42a3895e35981a2ce864bd68af764c97de1b4e203fa5b5a08010aa1b",
-    "core/CorticalNerves/DeliberationOverlay.test.tsx": "4be1baf12cf84cd1cffde6accbca18560e69847ca5a4b8de83e04b113e7e0fc0",
+    "core/CorticalNerves/DeliberationOverlay.test.tsx": "35f523c9d35b8f22bb69c95dd3e579a60bf553f35903c356d445085b2dc76585",
     "lib/seededRandom.test.ts": "c20e2edb04453e86ac9a0321829e40510affd67273c3864b9f28ecefb40d9ca2",
     "lib/spineAnatomy.test.ts": "7874cbcbf3521c1d9ae28ca68d6c709aa00de0fb9bbdb55490e4e5264f9de71b",
     "lib/brainMaterial.test.ts": "9aebb86d39a7c26dcaa60efcb9ae910c7d8f2f46aad38e03d5f4cc3f772234ce",
@@ -268,7 +268,7 @@
     "lib/useDomWorkPlane.test.ts": "bce0c2ebb6415ade6de04391db1f8a7a87021681aad25a9878918e9db8afa2ce",
     "components/canvas/VertebraeRepoMapOverlay.test.tsx": "908e91382b6238e6923ff57e1c0f93cf3122f7016d3afc8232c0114d09dea888",
     "components/canvas/WorkspaceCanvas.test.tsx": "50c304ee048db5f677f57dd0b94bc8cdc5a99b5c552311c5cd9cf1731959697f",
-    "core/CorticalNerves/NerveMesh.test.tsx": "c8f2794257509b96b21cfc4a8eb125a4ca7374ac5ea001c30c301f23d1a3d705",
+    "core/CorticalNerves/NerveMesh.test.tsx": "fe0b901cf054e433116cdb1ead8021494f305c7a4b2947591a317332ef9ce82d",
     "components/canvas/NeuralAura.test.tsx": "2f2f3c76bf619f38bdfdd5c0e2ba7f68578b0f1be642561e256125518fd6861e",
     "components/canvas/HorizonGlow.test.tsx": "1366e37796c935602b044f45183ed2c2a2bd8fa5553ece1239be16aedc66edab",
     "components/canvas/IdentityReadout.test.tsx": "1baf858acec96b6fb6a266d32ca3ab811ea35487f57a827d3425e4461056e852",
@@ -285,6 +285,7 @@
     "core/Performance/EventThrottler.test.ts": "61261a3c01f26a82e696c9b8da0726aa6e2ff1af1d04663d4ff5248e3ca35fa0",
     "components/canvas/NervousSystem.test.tsx": "b5c13b77f47115cfc50e27d6fe94f9423af594567f84f7d915ae7c45a9fe831b",
     "components/canvas/materializedTab/WorkspaceEdgeDust.test.tsx": "811ec8fa17ea3cd5a72744d94111f209eb8526bada2ff5f0ef755570ba262515",
-    "core/Performance/FeatureGate.test.ts": "0e9e3e21c9b2b9d883ea1e4cf2d60f6d6b05ba4badf47c3d1315c9d642985188"
+    "core/Performance/FeatureGate.test.ts": "0e9e3e21c9b2b9d883ea1e4cf2d60f6d6b05ba4badf47c3d1315c9d642985188",
+    "core/CorticalNerves/councilNodes.tsx": "8666d360ac36b246b87d4262262c7e3fa48a7775c1c19e1f181ea0aa303dfa4b"
   }
 }

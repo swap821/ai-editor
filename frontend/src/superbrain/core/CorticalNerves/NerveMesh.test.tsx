@@ -1,7 +1,8 @@
 import { render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as THREE from 'three';
-import NerveMesh, { COUNCIL_NODES } from './NerveMesh';
+import NerveMesh from './NerveMesh';
+import { COUNCIL_NODES } from './councilNodes';
 
 type FrameState = { clock: { elapsedTime: number } };
 type FrameCallback = (state: FrameState) => void;

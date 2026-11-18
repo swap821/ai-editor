@@ -860,7 +860,9 @@ export default function GagosChrome({
     onClick={() => setBondOpen((open) => !open)}
     aria-haspopup="dialog"
     aria-expanded={bondOpen}
-    aria-label={sovereign.operatorId && !guided
+    aria-label={sovereign.measured === 'measured' && !sovereign.operatorId
+      ? 'Sign in or claim the account. Open the account panel to sign in.'
+      : sovereign.operatorId && !guided
       ? `Sovereign bond held by ${sovereign.operatorId}. Open the bond panel.`
       : guided ? 'Account identity status. Open the account panel.'
         : 'No sovereign session. Open the bond panel to claim or present a credential.'}
@@ -869,7 +871,7 @@ export default function GagosChrome({
     <span className="gagos-pill__main">
       {sovereign.measured !== 'measured' ? (guided ? 'account…' : 'bond…')
         : sovereign.operatorId ? (guided ? 'account linked' : 'sovereign')
-          : (guided ? 'account not linked' : 'unbound')}
+          : 'Sign in'}
     </span>
     {sovereign.operatorId && !guided ? <span className="gagos-pill__meta">{sovereign.operatorId}</span> : null}
   </button>;
