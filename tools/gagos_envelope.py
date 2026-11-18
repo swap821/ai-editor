@@ -23,6 +23,16 @@ USAGE (one line each; PowerShell and bash)
     python tools/gagos_envelope.py sign
     python tools/gagos_envelope.py sign --folders frontend/src/superbrain/ --kinds tests --missions 2 --hours 8
     python tools/gagos_envelope.py revoke
+    python tools/gagos_envelope.py skills-sign                 # 30 days, 50 activations
+    python tools/gagos_envelope.py skills-sign --days 30 --activations 50
+    python tools/gagos_envelope.py skills-status
+    python tools/gagos_envelope.py skills-revoke
+
+The skill commands (2026-11-18, the operator: "only once, not again and
+again") sign, read and end his standing skill envelope
+(``aios/application/capabilities/skill_envelope.py``): for its days, GAGOS
+activates review-ready candidate skills itself, never a suspended one, up to
+its count. Same session, same re-authentication, same hidden credential.
 
 ``sign`` with no flags signs the terms of 2026-11-13: the superbrain and
 workbench folders, code and tests, 2 missions, 8 hours. A new signature ends
@@ -47,6 +57,10 @@ DEFAULT_FOLDERS = ("frontend/src/superbrain/", "frontend/src/workbench/")
 DEFAULT_KINDS = ("code", "tests")
 DEFAULT_MISSIONS = 2
 DEFAULT_HOURS = 8
+#: His standing skill envelope's default terms (2026-11-18).
+DEFAULT_SKILL_DAYS = 30
+DEFAULT_SKILL_ACTIVATIONS = 50
+SKILL_ROUTE = "/api/gagos/skill-envelope"
 
 ROUTE = "/api/gagos/envelope"
 
@@ -123,6 +137,16 @@ def run(args: argparse.Namespace, *, connect=session, waiting=waiting_report) ->
         reply = live.post_stream(ROUTE, terms(args), timeout=30)
     elif args.command == "revoke":
         reply = live.post_stream(f"{ROUTE}/revoke", {}, timeout=30)
+    elif args.command == "skills-sign":
+        reply = live.post_stream(
+            SKILL_ROUTE,
+            {"days": args.days, "maxActivations": args.activations},
+            timeout=30,
+        )
+    elif args.command == "skills-revoke":
+        reply = live.post_stream(f"{SKILL_ROUTE}/revoke", {}, timeout=30)
+    elif args.command == "skills-status":
+        reply = live.get(SKILL_ROUTE)
     else:
         reply = live.get(ROUTE)
     try:
@@ -135,11 +159,23 @@ def run(args: argparse.Namespace, *, connect=session, waiting=waiting_report) ->
 
 def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
-    p.add_argument("command", choices=("status", "sign", "revoke"))
+    p.add_argument(
+        "command",
+        choices=(
+            "status",
+            "sign",
+            "revoke",
+            "skills-status",
+            "skills-sign",
+            "skills-revoke",
+        ),
+    )
     p.add_argument("--folders", nargs="+", metavar="FOLDER")
     p.add_argument("--kinds", nargs="+", choices=("tests", "code"))
     p.add_argument("--missions", type=int, default=DEFAULT_MISSIONS)
     p.add_argument("--hours", type=int, default=DEFAULT_HOURS)
+    p.add_argument("--days", type=int, default=DEFAULT_SKILL_DAYS)
+    p.add_argument("--activations", type=int, default=DEFAULT_SKILL_ACTIVATIONS)
     p.add_argument("--base", default=None, help="the backend (AIOS_PROBE_BASE)")
     return p
 

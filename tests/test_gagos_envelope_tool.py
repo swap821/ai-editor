@@ -102,3 +102,19 @@ def test_no_credential_no_session(monkeypatch) -> None:
     monkeypatch.setattr(tool.sys.stdin, "isatty", lambda: False)
     with pytest.raises(SystemExit, match="never enrolls"):
         tool._credential()
+
+
+def test_the_skill_envelope_is_signed_read_and_ended_through_his_routes() -> None:
+    """2026-11-18, the operator: "only once, not again and again": he signs a
+    standing skill envelope, by default for 30 days and 50 activations."""
+    live = Live()
+    assert _run(["skills-sign"], live) == 0
+    assert _run(["skills-sign", "--days", "7", "--activations", "5"], live) == 0
+    assert _run(["skills-status"], live) == 0
+    assert _run(["skills-revoke"], live) == 0
+    assert live.calls == [
+        ("POST", "/api/gagos/skill-envelope", {"days": 30, "maxActivations": 50}),
+        ("POST", "/api/gagos/skill-envelope", {"days": 7, "maxActivations": 5}),
+        ("GET", "/api/gagos/skill-envelope", None),
+        ("POST", "/api/gagos/skill-envelope/revoke", {}),
+    ]
