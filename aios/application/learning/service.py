@@ -416,6 +416,66 @@ class LearningService:
         )
         return skill
 
+    def activate_skill_within_envelope(
+        self,
+        skill_id: str,
+        version: int,
+        *,
+        envelope: Any,
+        originator: str,
+    ) -> tuple[SkillRecord, Any]:
+        """Activate a review-ready candidate inside the operator's standing
+        skill envelope (the operator's decision, 2026-11-18: he signs once for a
+        period, not once per skill). Returns the active skill and the envelope
+        admission it consumed.
+
+        The skill's rules are checked here before a place is taken: only a
+        ``candidate`` the library calls review-ready (``is_review_ready``, the
+        one derivation); never a ``suspended`` skill, which returns only by the
+        operator's own re-activation (operator decision, 2026-09-29). The
+        envelope's rules -- live, signed by a privileged operator, under its
+        count, the requester never the signer -- are *envelope*'s
+        (:class:`aios.application.capabilities.skill_envelope.SkillEnvelopeAuthority`).
+        The skill becomes the signing operator's, as in his own activation.
+        """
+        from aios.application.memory.institutional_skills import is_review_ready
+
+        self._assert_operational()
+        skill = self.skill_repository.get(skill_id, version)
+        if skill is None:
+            raise KeyError(f"skill {skill_id!r} version {version} not found")
+        if skill.state == "suspended":
+            raise SkillActivationDenied(
+                "a suspended skill returns only by the operator's re-activation, "
+                "never inside an envelope"
+            )
+        if skill.state != "candidate":
+            raise SkillActivationDenied(
+                f"skill is in state {skill.state!r}; only a candidate is activated "
+                "inside an envelope"
+            )
+        if not is_review_ready(skill):
+            raise SkillActivationDenied("the skill is not review-ready")
+        try:
+            admission = envelope.admit(
+                skill_id=skill_id, version=version, originator=originator
+            )
+        except Exception as exc:  # noqa: BLE001 - every refusal is said, as a denial
+            raise SkillActivationDenied(str(exc)) from exc
+
+        stamped = stamp_for_activation(skill, activator=admission.operator_id)
+        if stamped is not skill:
+            self.skill_repository.save(stamped)
+        reviewed = self.skill_repository.transition_state(
+            skill_id, version, "human_reviewed"
+        )
+        if reviewed is None or reviewed.state != "human_reviewed":
+            raise SkillActivationDenied("skill review transition failed")
+        activated = self.skill_repository.transition_state(skill_id, version, "active")
+        if activated is None or activated.state != "active":
+            raise SkillActivationDenied("skill activation transition failed")
+        return activated, admission
+
     def attempt_local_reuse(
         self,
         *,

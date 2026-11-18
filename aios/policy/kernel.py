@@ -496,6 +496,24 @@ _ROUTE_AUTHORITY: dict[str, RouteAuthority] = {
         audit_event="gagos_envelope_revoke",
         action_type=ActionType.GAGOS_ENVELOPE_REVOKE,
     ),
+    # GAGOS's standing skill envelope (2026-11-18): his signature for a period
+    # lets GAGOS activate review-ready skills without asking each time, so
+    # signing is YELLOW, like the mission envelope's; ending it only takes
+    # authority away, and is YELLOW for its audit.
+    "/api/gagos/skill-envelope": RouteAuthority(
+        "YELLOW",
+        10,
+        "session",
+        audit_event="gagos_skill_envelope_sign",
+        action_type=ActionType.GAGOS_SKILL_ENVELOPE_SIGN,
+    ),
+    "/api/gagos/skill-envelope/revoke": RouteAuthority(
+        "YELLOW",
+        20,
+        "session",
+        audit_event="gagos_skill_envelope_revoke",
+        action_type=ActionType.GAGOS_SKILL_ENVELOPE_REVOKE,
+    ),
     "/api/v1/local-workforce/{model_id}/qualify": RouteAuthority(
         "YELLOW",
         30,
@@ -1032,6 +1050,18 @@ _METHOD_ROUTE_AUTHORITY: dict[tuple[str, str], RouteAuthority] = {
         120,
         "session",
         audit_event="gagos_envelope_status",
+        action_type=ActionType.PLAN,
+        serves_operator_data=True,
+    ),
+    # GAGOS's standing skill envelope as it stands (2026-11-18). Read-only.
+    (
+        "GET",
+        "/api/gagos/skill-envelope",
+    ): RouteAuthority(
+        "GREEN",
+        120,
+        "session",
+        audit_event="gagos_skill_envelope_status",
         action_type=ActionType.PLAN,
         serves_operator_data=True,
     ),
