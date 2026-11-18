@@ -582,3 +582,19 @@ def test_a_mission_a_skill_guided_drafts_no_second_skill_of_its_kind(capsys):
 
 def test_the_operational_store_is_where_candidates_are_kept(store):
     assert config.OPERATIONAL_STATE_DB_PATH == store
+
+
+def test_the_drafter_is_told_every_bound_its_answer_is_read_by() -> None:
+    """2026-11-18: the first two completed missions' drafts were both refused,
+    "kind must be text of 1 to 200 characters": the instructions said "in one
+    line" and never the 200, so no mission skill was ever drafted. Each bound
+    the reader enforces is now stated, from the same constants."""
+    system = ml.MISSION_SKILL_SYSTEM
+    kind = system[system.index('"kind"') : system.index('"procedure"')]
+    assert f"at most {ml.MAX_KIND_CHARS} characters" in kind
+    procedure = system[system.index('"procedure"') : system.index('"not_when"')]
+    assert f"at most {ml.MAX_PROCEDURE_CHARS} characters" in procedure
+    for field in ("not_when", "escalate_when"):
+        part = system[system.index(f'"{field}"') :].split(";\n")[0]
+        assert f"at most {ml.MAX_CONDITIONS} situations" in part
+        assert f"each at most {ml.MAX_CONDITION_CHARS} characters" in part

@@ -269,8 +269,16 @@ def mission_memory_hints(
     return hints
 
 
+#: Bounds on what a drafter may write.
+MAX_KIND_CHARS = 200
+MAX_PROCEDURE_CHARS = 2_000
+MAX_CONDITIONS = 6
+MAX_CONDITION_CHARS = 200
 #: The drafter's instructions: a skill is how to do goals of this kind, in
-#: general, learned from the one mission it saw (2026-11-15).
+#: general, learned from the one mission it saw (2026-11-15). Every bound the
+#: reader enforces is stated here from the same constants: until 2026-11-18 the
+#: kind's 200 was not, and the first two completed missions' drafts were both
+#: refused for a kind longer than that, so no mission skill was ever drafted.
 MISSION_SKILL_SYSTEM = (
     "You write a skill for GAGOS, an AI operating system that improves its own "
     "code. GAGOS's council just completed the goal below: the change was verified "
@@ -278,20 +286,17 @@ MISSION_SKILL_SYSTEM = (
     "goals of the same kind in future, in general: not this goal's particulars, "
     "but the steps that made the change right. Answer with one JSON object and "
     "nothing else, holding exactly these fields:\n"
-    '"kind": the kind of goal this skill is for, in one line, general enough that '
-    "a later goal of the same kind is recognised and narrow enough that another "
-    "kind is not;\n"
+    '"kind": the kind of goal this skill is for, in one short line of at most '
+    f"{MAX_KIND_CHARS} characters, general enough that a later goal of the same "
+    "kind is recognised and narrow enough that another kind is not;\n"
     '"procedure": the steps, in plain prose, for a writer who will do such a goal '
-    "(at most 2000 characters);\n"
-    '"not_when": a list of situations in which the skill must not be used;\n'
-    '"escalate_when": a list of situations in which a stronger writer must take '
-    "the goal instead."
+    f"(at most {MAX_PROCEDURE_CHARS} characters);\n"
+    f'"not_when": a list of at most {MAX_CONDITIONS} situations, each at most '
+    f"{MAX_CONDITION_CHARS} characters, in which the skill must not be used;\n"
+    f'"escalate_when": a list of at most {MAX_CONDITIONS} situations, each at most '
+    f"{MAX_CONDITION_CHARS} characters, in which a stronger writer must take the "
+    "goal instead."
 )
-#: Bounds on what a drafter may write.
-MAX_KIND_CHARS = 200
-MAX_PROCEDURE_CHARS = 2_000
-MAX_CONDITIONS = 6
-MAX_CONDITION_CHARS = 200
 #: What every mission skill's reuse is verified by: the mission's own steps.
 MISSION_SKILL_OBSERVATIONS = ("sandbox:passed", "review:accepted")
 

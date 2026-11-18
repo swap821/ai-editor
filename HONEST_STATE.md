@@ -5,6 +5,14 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-18, mission skills: the drafter is told the limits it is held to (branch `fix/mission-skill-draft-bounds`)
+
+- **What broke, in real use.** Both council missions that completed on 11-17 and 11-18 (NerveMesh, and the approval-survives-reconnect tests) ended with "learning: no candidate skill -- ValueError: kind must be text of 1 to 200 characters", so no mission has ever drafted a skill.
+- **Cause.** The drafter's instructions asked for the kind "in one line" and never said 200 characters, while the reader refuses more. The list bounds (6 items of 200 characters) were not stated either.
+- **Fix.** The instructions now state every bound the reader enforces, from the same constants. A new test pins each bound into the instructions, and it fails against master's.
+- `mission_learning.py` is not an organ entrypoint (checked directly in ORGAN_GREEN_LEDGER.json).
+- **Correction.** On 11-17 I told the operator SovereignStatePanel was not an organ entrypoint. That read had failed silently (Git Bash mangled the `git show` path). It is referenced 32 times in the ledger, for organs 48-51. Nothing was changed there.
+
 ## 2026-11-17, my audit-gate test broke master's CI on Windows (branch `fix/audit-gate-test-date`)
 
 - **What broke.** #713's new test `test_the_exception_ends_on_its_date` failed on GitHub's Windows runner, so master 94b4d583's CI was red and #712's Windows backend tests failed with it.
