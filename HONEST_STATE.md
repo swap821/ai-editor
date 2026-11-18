@@ -5,6 +5,13 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-17, my audit-gate test broke master's CI on Windows (branch `fix/audit-gate-test-date`)
+
+- **What broke.** #713's new test `test_the_exception_ends_on_its_date` failed on GitHub's Windows runner, so master 94b4d583's CI was red and #712's Windows backend tests failed with it.
+- **Why.** The test faked the date with a `date` stub on PATH. On that runner the real `date` came first, so the step saw the real date, the exception still applied, and the gate correctly passed.
+- **The gate was right; the test was wrong.** The fake date is now a shell function ahead of the step, and a function wins over any PATH entry. Checked with the real `date` placed first: the stub got 2026-11-17, the function 2026-12-02.
+- All 11 gate tests pass.
+
 ## 2026-11-17, CI's npm audit: one dated exception, the operator's (branch `fix/npm-audit-picomatch`)
 
 - **What broke.** From master b5f931f4 (#711's merge), `frontend-tests` failed every PR at its audit step, before any test ran, on GHSA-fc5q-39xc-vjpf:

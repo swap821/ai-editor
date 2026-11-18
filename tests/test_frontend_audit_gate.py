@@ -101,19 +101,22 @@ def _run(
     tmp_path: Path, npm_script: str, *, today: str | None = None
 ) -> tuple[int, str]:
     """Execute the real run-block with *npm_script* standing in for npm (and,
-    with *today*, a fixed UTC date standing in for date)."""
+    with *today*, a fixed UTC date standing in for date).
+
+    The date is a shell function ahead of the block, never a stub on PATH: a
+    function always wins, while a PATH stub lost to the real date on GitHub's
+    Windows runner (2026-11-17), so the expiry test saw the real date and the
+    exception still applied."""
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir(exist_ok=True)
-    stubs = [("npm", npm_script), ("sleep", "exit 0")]
-    if today is not None:
-        stubs.append(("date", f"echo {today}"))
-    for name, body in stubs:
+    for name, body in (("npm", npm_script), ("sleep", "exit 0")):
         f = bin_dir / name
         f.write_text(f"#!/bin/sh\n{body}\n", encoding="utf-8", newline="\n")
         f.chmod(f.stat().st_mode | stat.S_IEXEC | stat.S_IXGRP | stat.S_IXOTH)
 
+    prelude = f"date() {{ echo {today}; }}\n" if today is not None else ""
     script = tmp_path / "step.sh"
-    script.write_text(_audit_step()["run"], encoding="utf-8", newline="\n")
+    script.write_text(prelude + _audit_step()["run"], encoding="utf-8", newline="\n")
 
     env = dict(os.environ, PATH=f"{bin_dir}{os.pathsep}{os.environ['PATH']}")
     env["COUNTER"] = str(tmp_path / "count")
