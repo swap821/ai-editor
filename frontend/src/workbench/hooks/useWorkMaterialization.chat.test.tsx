@@ -401,6 +401,37 @@ it('chat cleanup: settles an unfinished turn before resetting stores and restori
   expect(getConversationPhase()).toBe('idle');
 });
 
+function mountStoppable(emergencyStopped: boolean) {
+  return renderHook(({ stopped }: { stopped: boolean }) => useWorkMaterialization({
+    setOnline: () => {}, setMilestones: () => {}, chatModelId: 'auto',
+    emergencyStopped: stopped,
+  }), { initialProps: { stopped: emergencyStopped } });
+}
+
+it('Stop during materialization: submitting with emergencyStopped sends no request, keeps the phase and leaves busy false', async () => {
+  const { result } = mountStoppable(true);
+  setConversationPhase('complete');
+  const calls = vi.mocked(fetch).mock.calls.length;
+  await act(async () => { await submitChat(result.current, 'Explain while stopped'); });
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(calls);
+  expect(streams.has('Explain while stopped')).toBe(false);
+  expect(getConversationPhase()).toBe('complete');
+  expect(result.current.busy).toBe(false);
+});
+
+it('Stop during materialization: after emergencyStopped is cleared on the same mounted hook, submitting sends a request again', async () => {
+  const { result, rerender } = mountStoppable(true);
+  const calls = vi.mocked(fetch).mock.calls.length;
+  await act(async () => { await submitChat(result.current, 'Explain while stopped'); });
+  expect(vi.mocked(fetch).mock.calls).toHaveLength(calls);
+  rerender({ stopped: false });
+  let turn!: Promise<void>;
+  act(() => { turn = submitChat(result.current, 'Explain after release'); });
+  const stream = await streamFor('Explain after release');
+  expect(vi.mocked(fetch).mock.calls.length).toBeGreaterThan(calls);
+  await act(async () => { stream.frame('done'); stream.end(); await turn; });
+});
+
 it('composer draft: a draft typed before unmount is back after a fresh mount', () => {
   window.sessionStorage.clear();
   const first = mountChat();
