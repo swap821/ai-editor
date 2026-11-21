@@ -127,4 +127,46 @@ describe('mirrorStore setSnapshot resync behavior', () => {
     useMirrorStore.getState().applyEvent(11, 'turn.started', {});
     expect(useMirrorStore.getState().turnAttributionInvalidated).toBe(false);
   });
+
+  const refusedIds = [6, 5, -1, 7.5, Number.NaN];
+  const workerEnvelope = { payload: { workerId: 'worker-b', role: 'reviewer' } };
+
+  function seedEvents() {
+    const store = useMirrorStore.getState();
+    store.applyEvent(5, 'turn.started', {});
+    useMirrorStore.getState().applyEvent(6, 'worker.started', { payload: { workerId: 'worker-a', role: 'coder' } });
+  }
+
+  function trackedState() {
+    const state = useMirrorStore.getState();
+    return {
+      lastEventId: state.lastEventId,
+      recentEvents: state.recentEvents,
+      workers: state.workers,
+      activeWorkers: state.activeWorkers,
+      activeCastes: state.activeCastes,
+      observations: state.observations,
+    };
+  }
+
+  it('refuses a repeated, smaller, negative, fractional or NaN event id and leaves the store unchanged', () => {
+    seedEvents();
+    const before = trackedState();
+
+    for (const id of refusedIds) {
+      expect(useMirrorStore.getState().applyEvent(id, 'worker.started', workerEnvelope)).toBe(false);
+      expect(trackedState()).toEqual(before);
+    }
+  });
+
+  it('still applies a larger event id after refusing invalid event ids', () => {
+    seedEvents();
+
+    for (const id of refusedIds) {
+      useMirrorStore.getState().applyEvent(id, 'worker.started', workerEnvelope);
+    }
+
+    expect(useMirrorStore.getState().applyEvent(8, 'worker.started', workerEnvelope)).toBe(true);
+    expect(useMirrorStore.getState().lastEventId).toBe(8);
+  });
 });
