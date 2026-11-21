@@ -199,16 +199,26 @@ def test_with_no_stop_wired_no_skill_envelope_can_be_signed(tmp_path) -> None:
         )
 
 
-def test_both_envelopes_judge_the_stop_by_one_derivation() -> None:
-    """The stop's rule lives once (2026-11-18): both envelopes call it."""
-    import inspect
-
+def test_both_envelopes_judge_the_stop_by_one_derivation(tmp_path, monkeypatch) -> None:
+    """The stop's rule lives once (2026-11-18): both envelopes call it. Shown
+    by behaviour, never by reading source: the skill envelope imports the very
+    function, and the mission envelope's authority answers with whatever that
+    module-level function says."""
     from aios.application.capabilities import skill_envelope
 
-    assert "stop_generation(" in inspect.getsource(
-        mission_envelope.EnvelopeAuthority._stop_generation
-    )
     assert skill_envelope.stop_generation is mission_envelope.stop_generation
+    seen: list[str] = []
+
+    def judged(stop, *, boundary):
+        seen.append(boundary)
+        return 7
+
+    monkeypatch.setattr(mission_envelope, "stop_generation", judged)
+    authority = mission_envelope.EnvelopeAuthority(
+        db_path=tmp_path / "missions.db", emergency_stop=object()
+    )
+    assert authority._stop_generation() == 7
+    assert seen == ["gagos-envelope"]
 
 
 # -- the learning service: the skill's own rules ----------------------------------

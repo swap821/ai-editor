@@ -463,18 +463,16 @@ class LearningService:
         except Exception as exc:  # noqa: BLE001 - every refusal is said, as a denial
             raise SkillActivationDenied(str(exc)) from exc
 
-        stamped = stamp_for_activation(skill, activator=admission.operator_id)
-        if stamped is not skill:
-            self.skill_repository.save(stamped)
-        reviewed = self.skill_repository.transition_state(
-            skill_id, version, "human_reviewed"
-        )
-        if reviewed is None or reviewed.state != "human_reviewed":
-            raise SkillActivationDenied("skill review transition failed")
-        activated = self.skill_repository.transition_state(skill_id, version, "active")
-        if activated is None or activated.state != "active":
-            raise SkillActivationDenied("skill activation transition failed")
-        return activated, admission
+        owned = stamp_for_activation(skill, activator=admission.operator_id)
+        if owned is not skill:
+            self.skill_repository.save(owned)
+        # The same two transitions as his own activation: reviewed, then active.
+        moved = skill
+        for step in ("human_reviewed", "active"):
+            moved = self.skill_repository.transition_state(skill_id, version, step)
+            if moved is None or moved.state != step:
+                raise SkillActivationDenied(f"skill transition to {step!r} failed")
+        return moved, admission
 
     def attempt_local_reuse(
         self,
