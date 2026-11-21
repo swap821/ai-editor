@@ -1765,6 +1765,10 @@ CREATE TABLE IF NOT EXISTS deliveries (
     outcome TEXT NOT NULL,
     created_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS merged_prs (
+    pr_url TEXT PRIMARY KEY,
+    seen_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS clerk_jobs (
     proposal_id TEXT PRIMARY KEY,
     model TEXT,
@@ -2729,6 +2733,18 @@ class DailyLedger:
             }
             for r in rows
         ]
+
+    def merged_prs(self) -> set[str]:
+        """The PRs GitHub once answered MERGED. Merged is final, so they are
+        never asked about again (2026-11-21)."""
+        with self._db() as db:
+            return {r["pr_url"] for r in db.execute("SELECT pr_url FROM merged_prs")}
+
+    def record_merged(self, pr_url: str) -> None:
+        with self._db() as db:
+            db.execute(
+                "INSERT OR IGNORE INTO merged_prs VALUES (?, ?)", (pr_url, _now())
+            )
 
     def pr_urls(self) -> list[str]:
         """Every PR a delivery opened, newest first (whether still open is

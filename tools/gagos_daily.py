@@ -5109,6 +5109,28 @@ def in_flight(led: DailyLedger, open_prs: list[str]) -> set[str]:
     return busy | led.rels_in_prs(open_prs) | led.claimed_files()
 
 
+def unsettled_prs(led, state=None) -> list[str]:
+    """GAGOS's PRs not known to be merged or closed, whose files stay its own
+    and whose being open holds delivery. A PR GitHub once called MERGED is
+    remembered and never asked about again: merged is final, and asking about
+    every PR ever opened, each hour, let one failed lookup (UNKNOWN, which
+    fails closed) hold delivery for an hour on a PR merged long before
+    (2026-11-18 #635, 2026-11-21 #675). CLOSED is asked each time, since a
+    closed PR can be reopened; UNKNOWN still holds."""
+    state = state or _pr_state
+    merged = led.merged_prs()
+    unsettled = []
+    for url in led.pr_urls():
+        if url in merged:
+            continue
+        answer = state(url)
+        if answer == "MERGED":
+            led.record_merged(url)
+        elif answer != "CLOSED":
+            unsettled.append(url)
+    return unsettled
+
+
 def _pr_state(url: str) -> str:
     """OPEN, MERGED or CLOSED; UNKNOWN when GitHub cannot be asked (which
     blocks the day: fail closed)."""
@@ -5148,7 +5170,7 @@ def cmd_daily(args: argparse.Namespace) -> int:
     # Asked whether publishing failed or not: the files of every PR not known
     # to be merged or closed stay GAGOS's, whatever else went wrong (Codex's
     # review of #580: a failed publication left an open PR's files unguarded).
-    open_prs = [u for u in led.pr_urls() if _pr_state(u) not in ("MERGED", "CLOSED")]
+    open_prs = unsettled_prs(led)
     if held is None and open_prs:
         held = f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
     if held:

@@ -5,6 +5,13 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-21, a merged PR no longer holds GAGOS's delivery (branch `fix/gagos-merged-pr-memory`)
+
+- **What broke, in real use.** Delivery waits while any PR GAGOS opened is not MERGED or CLOSED, and every PR it ever opened was asked about, each hour. A failed lookup answers UNKNOWN, which fails closed. So PRs merged days before held whole hours: #635 on 2026-11-18 (2 of 5 hours) and #675 on 2026-11-21 at 04:28 (the hour retried at 04:50 and delivered #717).
+- **Fix.** A PR GitHub once answered MERGED is remembered in the ledger (`merged_prs`) and never asked about again; merged is final. CLOSED is still asked each hour, since a closed PR can be reopened, and UNKNOWN still holds delivery.
+- **Test.** `test_a_pr_once_merged_is_never_asked_about_again` fails with the remembering turned off.
+- Neither `tools/gagos_daily.py` nor `aios/maintenance/daily_work.py` is an organ entrypoint (checked in ORGAN_GREEN_LEDGER.json).
+
 ## 2026-11-18, GAGOS's standing skill envelope (branch `feat/skill-envelope`)
 
 - **Asked.** The operator: "only once not again and again new skill will be added automatically no activate needed by me again n again". He chose the standing skill envelope, granting it as an exception to his 11-15 freeze.
