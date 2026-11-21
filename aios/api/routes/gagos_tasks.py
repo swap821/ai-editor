@@ -24,6 +24,16 @@ from aios import config
 from aios.api.action_guard import enforce_action_boundary
 from aios.api.deps import get_emergency_stop, require_privileged_operator
 from aios.application.capabilities.envelope import EnvelopeAuthority, EnvelopeRefused
+from aios.application.capabilities.skill_envelope import (
+    SkillEnvelopeAuthority,
+    SkillEnvelopeRefused,
+)
+from aios.domain.capabilities.skill_envelope import (
+    MAX_ACTIVATIONS,
+    MAX_DAYS,
+    SkillEnvelopeError,
+    SkillEnvelopeTerms,
+)
 from aios.domain.capabilities.envelope import (
     MAX_HOURS,
     MAX_MISSIONS,
@@ -167,3 +177,59 @@ def revoke_envelope(
 ) -> dict:
     ended = authority.revoke(principal=principal)
     return {"ended": ended, "envelope": authority.status()}
+
+
+# -- the standing skill envelope (the operator, 2026-11-18) ---------------------
+
+
+def get_gagos_skill_envelope_authority() -> SkillEnvelopeAuthority:
+    """The skill envelope authority, beside the mission envelope in the
+    capabilities store and governed by the same durable stop; tests override
+    this."""
+    return SkillEnvelopeAuthority(
+        db_path=config.CAPABILITY_DB_PATH, emergency_stop=get_emergency_stop()
+    )
+
+
+class SignSkillEnvelopeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    days: int = Field(ge=1, le=MAX_DAYS)
+    maxActivations: int = Field(ge=1, le=MAX_ACTIVATIONS)
+
+
+@router.get("/api/gagos/skill-envelope")
+def skill_envelope_status(
+    principal: Principal = Depends(require_privileged_operator),
+    authority: SkillEnvelopeAuthority = Depends(get_gagos_skill_envelope_authority),
+) -> dict:
+    return {"skillEnvelope": authority.status()}
+
+
+@router.post("/api/gagos/skill-envelope", status_code=201)
+def sign_skill_envelope(
+    body: SignSkillEnvelopeRequest,
+    principal: Principal = Depends(require_privileged_operator),
+    authority: SkillEnvelopeAuthority = Depends(get_gagos_skill_envelope_authority),
+) -> dict:
+    """His standing signature for skills: for *days*, GAGOS may activate up
+    to *maxActivations* review-ready candidate skills without asking him each
+    time; never a suspended one. A newer signature ends the older envelope,
+    and the emergency stop ends it for good."""
+    try:
+        terms = SkillEnvelopeTerms.build(
+            days=body.days, max_activations=body.maxActivations
+        )
+        authority.sign(terms, principal=principal)
+    except (SkillEnvelopeError, SkillEnvelopeRefused) as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"skillEnvelope": authority.status()}
+
+
+@router.post("/api/gagos/skill-envelope/revoke")
+def revoke_skill_envelope(
+    principal: Principal = Depends(require_privileged_operator),
+    authority: SkillEnvelopeAuthority = Depends(get_gagos_skill_envelope_authority),
+) -> dict:
+    ended = authority.revoke(principal=principal)
+    return {"ended": ended, "skillEnvelope": authority.status()}

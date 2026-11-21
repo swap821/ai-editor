@@ -19,6 +19,7 @@
 | Secret handling | `secret_scanner.py` | frozen core | never weaken |
 | Self-modification | `scope_lock.py` + frozen core | T4 RED + human review | §VIII process |
 | A GAGOS proposal reaching master | its sandbox tests, then Claude Code's review, then the operator's merge | unchanged | since 2026-11-10 the council's Critique queen pre-screens each tested proposal; advisory, it grants and refuses nothing |
+| Activating a GAGOS skill | the operator's own activation (`tools/activate_skills.py`: session, fresh re-authentication, consumed capability) | unchanged | since 2026-11-18 also inside his standing skill envelope (`aios/application/capabilities/skill_envelope.py`, routes `/api/gagos/skill-envelope`): signed by a privileged operator for at most 30 days and 100 activations, GAGOS's hour activates review-ready candidates only, never a suspended skill, the requester never the signer; ended by expiry, his revocation, a newer envelope or the emergency stop |
 | A metered cloud call | `model_calls.observe` (every adapter) | unchanged | since 2026-11-10 refused once the month's recorded spend reaches `AIOS_CLOUD_MONTHLY_USD` (`aios/core/cloud_spend.py`) |
 
 ## Route Authority Matrix
