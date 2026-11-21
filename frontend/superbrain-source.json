@@ -139,7 +139,7 @@
     "lib/metricsStore.test.ts": "f79d23a04a53d85786e82f33252d889643d2cc51a0de20d6e8469fb950005a85",
     "lib/metricsStore.ts": "8495ab5c3deba01ae9458dae37471cc67dc8875cd09c130011edd8e98ead27db",
     "lib/mirrorStore.connection.test.ts": "e7f48bcf5a5793bc9e8adfa9bba6eec0c10fd2ebfbe567105087fe85d925e439",
-    "lib/mirrorStore.entities.test.ts": "47cee4d63203c3db022927ccf667320cad8dc59a3a302be1684ba108fbcda986",
+    "lib/mirrorStore.entities.test.ts": "02f0a435fbca107c749146c7be04bfead016b5386c2a27e44187d7761da5de60",
     "lib/mirrorStore.test.ts": "cc4d3428c1c92eb7a70b377ea0c89d02c4df160359a650529d683af69a33a67e",
     "lib/mirrorStore.ts": "72850c15c03a63236e06a0b126d96b294a91b4a3e96194bbe412c46534b22f5e",
     "lib/monacoConfig.ts": "114db9c54741f83eefc34480306f35d66c8f58eb881a7d2e6a344dd99e34e097",

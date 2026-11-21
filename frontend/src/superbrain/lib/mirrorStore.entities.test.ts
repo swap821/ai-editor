@@ -50,3 +50,28 @@ it('stream connection and a partial snapshot cannot establish fresh complete ope
   expect(useMirrorStore.getState().observations.activeWorkers.status).toBe('stale');
   expect(useMirrorStore.getState().activeWorkers).toEqual(['w1']);
 });
+
+const reconnect = () => {
+  const store = useMirrorStore.getState();
+  store.setConnection('disconnected');
+  store.setConnection('connecting');
+  store.setConnection('connected');
+  store.markStale('reconnect');
+  store.setSnapshotRequired('reconnect');
+  store.setSnapshot({ status: 'online', last_event_id: 1 });
+};
+
+it('a pending approval stays pending through a dropped and restored connection and a fresh snapshot', () => {
+  expect(emit(1, 'approval.required', { missionId: 'm1', requestId: 'r1' })).toBe(true);
+  reconnect();
+  const state = useMirrorStore.getState();
+  expect(Object.values(state.approvals).map((a) => a.state)).toEqual(['pending']);
+  expect(state.approvalRequired).toBe(true);
+});
+
+it('an approval kept through a reconnect is resolved by a later decision', () => {
+  emit(1, 'approval.required', { missionId: 'm1', requestId: 'r1' });
+  reconnect();
+  expect(emit(2, 'approval.resolved', { missionId: 'm1', requestId: 'r1', decision: 'approve' })).toBe(true);
+  expect(useMirrorStore.getState().approvalRequired).toBe(false);
+});
