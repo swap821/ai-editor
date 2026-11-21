@@ -44,6 +44,29 @@ class EnvelopeRefused(RuntimeError):
     """The envelope authority refused; the message says why."""
 
 
+def stop_generation(stop: Any, *, boundary: str) -> int:
+    """The emergency stop's generation now; refuses when no stop is wired or
+    it is engaged. An envelope is never ungoverned: not even a test fixture's
+    deliberate "ungoverned" stands in for a real latch here. One derivation
+    for every envelope (the mission envelope and, from 2026-11-18, the skill
+    envelope): the stop's rule is never copied."""
+    state = getattr(stop, "state", None)
+    if stop is None or not callable(state):
+        raise EnvelopeRefused("no emergency stop is wired, so no envelope can hold")
+    try:
+        EmergencyStopHardWiringAuthority.assert_operational(stop, boundary=boundary)
+        # ONE snapshot decides both: engaged, and which generation. Codex's
+        # review of 58834665: read apart, a stop engaged between the check
+        # and the read was recorded as the envelope's own generation, so
+        # the envelope survived the stop's clearing.
+        snapshot = state()
+    except Exception as exc:  # noqa: BLE001 - every stop failure refuses
+        raise EnvelopeRefused(f"the emergency stop forbids it: {exc}") from exc
+    if getattr(snapshot, "engaged", True):
+        raise EnvelopeRefused("the emergency stop forbids it: it is engaged")
+    return int(snapshot.generation)
+
+
 @dataclass(frozen=True)
 class Envelope:
     envelope_id: str
@@ -107,27 +130,7 @@ class EnvelopeAuthority:
     # -- the stop ---------------------------------------------------------
 
     def _stop_generation(self) -> int:
-        """The stop's generation now; refuses when no stop is wired or it is
-        engaged. An envelope is never ungoverned: not even a test fixture's
-        deliberate "ungoverned" stands in for a real latch here."""
-        stop = self.emergency_stop
-        state = getattr(stop, "state", None)
-        if stop is None or not callable(state):
-            raise EnvelopeRefused("no emergency stop is wired, so no envelope can hold")
-        try:
-            EmergencyStopHardWiringAuthority.assert_operational(
-                stop, boundary=_BOUNDARY
-            )
-            # ONE snapshot decides both: engaged, and which generation. Codex's
-            # review of 58834665: read apart, a stop engaged between the check
-            # and the read was recorded as the envelope's own generation, so
-            # the envelope survived the stop's clearing.
-            snapshot = state()
-        except Exception as exc:  # noqa: BLE001 - every stop failure refuses
-            raise EnvelopeRefused(f"the emergency stop forbids it: {exc}") from exc
-        if getattr(snapshot, "engaged", True):
-            raise EnvelopeRefused("the emergency stop forbids it: it is engaged")
-        return int(snapshot.generation)
+        return stop_generation(self.emergency_stop, boundary=_BOUNDARY)
 
     # -- reading ----------------------------------------------------------
 

@@ -111,6 +111,8 @@ class ActionType(str, Enum):
     GAGOS_TASK_CANCEL = "gagos_task_cancel"
     GAGOS_ENVELOPE_SIGN = "gagos_envelope_sign"
     GAGOS_ENVELOPE_REVOKE = "gagos_envelope_revoke"
+    GAGOS_SKILL_ENVELOPE_SIGN = "gagos_skill_envelope_sign"
+    GAGOS_SKILL_ENVELOPE_REVOKE = "gagos_skill_envelope_revoke"
     CONSTITUTIONAL_AMENDMENT_PROPOSE = "constitutional_amendment_propose"
     CONSTITUTIONAL_AMENDMENT_CRITIQUE = "constitutional_amendment_critique"
     CONSTITUTIONAL_AMENDMENT_SIMULATE = "constitutional_amendment_simulate"

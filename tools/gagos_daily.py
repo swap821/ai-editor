@@ -3369,6 +3369,125 @@ def mission_keys_missing(store=None) -> list[str]:
     return [name for name in MISSION_KEYS if not os.environ.get(name)]
 
 
+#: The key a skill's activation is signed with (Plan Phase 4c-2): without it an
+#: activation leaves the skill active and inert, so the hour activates none.
+SKILL_KEYS = ("AIOS_LEARNING_KEY_LIVE",)
+#: Who originates an activation inside the skill envelope: never the operator
+#: who signed it (INVARIANT III).
+SKILL_ORIGINATOR = "GAGOS (its hour)"
+
+
+def skill_keys_missing(store=None) -> list[str]:
+    """As :func:`mission_keys_missing`, for the skill-signing key."""
+    lacking = [name for name in SKILL_KEYS if not os.environ.get(name)]
+    if lacking:
+        try:
+            if store is None:
+                from aios.operations.keystore import default_keystore
+
+                store = default_keystore()
+            for name in lacking:
+                value = store.get(name)
+                if value:
+                    os.environ[name] = value
+        except Exception:  # noqa: BLE001 - no keystore: said as missing below
+            pass
+    return [name for name in SKILL_KEYS if not os.environ.get(name)]
+
+
+def _skill_envelope_authority():
+    """The skill envelope authority over the capabilities store, under the
+    operator's emergency stop, beside the mission envelope's."""
+    from aios.api.deps import get_emergency_stop
+    from aios.application.capabilities.skill_envelope import SkillEnvelopeAuthority
+
+    return SkillEnvelopeAuthority(
+        db_path=config.CAPABILITY_DB_PATH, emergency_stop=get_emergency_stop()
+    )
+
+
+def _skill_attest():
+    """The memory authority's signing of an activation, as the activation
+    route signs it (``attest_activation``); None when it has none."""
+    from aios.api.deps import get_memory_authority
+
+    adapter = getattr(get_memory_authority(), "adapters", {}).get("skills")
+    return getattr(adapter, "attest_activation", None)
+
+
+def skills_hour(*, authority=None, service=None, attest=None, store=None) -> list[str]:
+    """GAGOS activates its review-ready candidate skills inside the operator's
+    standing skill envelope (2026-11-18, the operator: "only once, not again
+    and again"). Without a live skill envelope, or without the key that signs
+    an activation, nothing is activated and the hour says why. Each skill's own
+    rules are the learning service's (only a review-ready candidate, never a
+    suspended skill); the envelope's are its authority's. Returns the lines
+    said."""
+    from aios.application.learning.service import SkillActivationDenied
+    from aios.application.memory.institutional_skills import is_review_ready
+
+    said: list[str] = []
+
+    def say(line: str) -> None:
+        print(f"  skills: {line}")
+        said.append(line)
+
+    authority = authority or _skill_envelope_authority()
+    status = authority.status()
+    if not status.get("live"):
+        say(f"none activated -- {status.get('reason')}")
+        return said
+    if service is None:
+        from aios.api.deps import get_learning_service
+
+        service = get_learning_service()
+    ready = [
+        r
+        for r in service.skill_repository.list_skills()
+        if r.state == "candidate" and is_review_ready(r)
+    ]
+    if not ready:
+        say("no review-ready skill awaits activation")
+        return said
+    missing = skill_keys_missing(store)
+    if missing:
+        say(
+            "none activated -- the key that signs an activation is not in the "
+            f"operator's keystore ({', '.join(missing)}): an unsigned skill is inert"
+        )
+        return said
+    attest = attest if attest is not None else _skill_attest()
+    if not callable(attest):
+        say("none activated -- the memory authority cannot sign an activation")
+        return said
+    for record in ready:
+        label = f"{record.skill_id}@{record.version}"
+        try:
+            skill, admission = service.activate_skill_within_envelope(
+                record.skill_id,
+                record.version,
+                envelope=authority,
+                originator=SKILL_ORIGINATOR,
+            )
+        except (SkillActivationDenied, KeyError) as exc:
+            say(f"{label} not activated -- {exc}")
+            if not authority.status().get("live") or "activations are used" in str(exc):
+                break
+            continue
+        try:
+            signed = bool(
+                attest(skill.skill_id, skill.version, approver=admission.operator_id)
+            )
+        except Exception as exc:  # noqa: BLE001 - said; the skill stays active and inert
+            signed = False
+            say(f"{label} signing failed -- {type(exc).__name__}: {exc}"[:300])
+        say(
+            f"{label} activated -- {admission.reason()}; "
+            + ("signed" if signed else "NOT signed, so inert until signed")
+        )
+    return said
+
+
 class MissionWork:
     """What GAGOS's writer does as a council mission's worker (move A3,
     2026-11-13): the workshop's own steps, recorded in the workshop's ledger
@@ -5073,6 +5192,12 @@ def cmd_daily(args: argparse.Namespace) -> int:
             runs_hour(led, root, region=args.region)
         except Exception as exc:  # the hour's other work goes on; said
             print(f"  missions: the runs failed: {type(exc).__name__}: {exc}"[:400])
+        # Its review-ready skills, activated inside his standing skill envelope
+        # (2026-11-18), never without one.
+        try:
+            skills_hour()
+        except Exception as exc:  # the hour's other work goes on; said
+            print(f"  skills: none activated: {type(exc).__name__}: {exc}"[:400])
         # GAGOS's own documents, kept current in its knowledge base (move C).
         try:
             knowledge_hour(root)

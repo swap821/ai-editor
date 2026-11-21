@@ -5,6 +5,24 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-18, GAGOS's standing skill envelope (branch `feat/skill-envelope`)
+
+- **Asked.** The operator: "only once not again and again new skill will be added automatically no activate needed by me again n again". He chose the standing skill envelope, granting it as an exception to his 11-15 freeze.
+- **Before.** Every skill activation needed his own act: `tools/activate_skills.py`, his session, a fresh re-authentication and a server-consumed capability. Seven skills were review-ready and waiting.
+- **Now.** He signs a skill envelope once, through his routes (`tools/gagos_envelope.py skills-sign`, default 30 days and 50 activations, at most 30 and 100). Each hour, GAGOS activates its review-ready candidate skills inside it and signs each activation with the live learning key.
+- **The envelope's rules**, in its own authority (`aios/application/capabilities/skill_envelope.py`, the same family as organ 9's mission envelope):
+  - only a privileged operator with a recorded authentication signs it;
+  - the requester ("GAGOS (its hour)") is never the signer (INVARIANT III);
+  - each activation takes one place atomically, and a skill version takes at most one;
+  - expiry, his revocation, a newer envelope and any engagement of the emergency stop end it.
+  - Its stop check is the mission envelope's own function (`stop_generation`), never a copy.
+- **The skill's rules**, in the learning service (`activate_skill_within_envelope`): only a candidate the library calls review-ready (`is_review_ready`, the one derivation), and never a suspended skill, which returns only by his own re-activation.
+- **Without the signing key nothing is activated**, so no skill is made active and inert.
+- **The audit is the envelope's activations table:** envelope, activation number, skill version, requester, digest. The skill's signed provenance is not changed beyond naming the approving operator, as his own activation does.
+- **The policy kernel registers the routes:** signing and revoking are YELLOW like the mission envelope's; status is GREEN.
+- **Tests:** 37 new, plus the mission envelope's 69 still passing.
+- **Files.** `aios/policy/kernel.py`, `aios/domain/actions/envelope.py` and `aios/application/learning/service.py` are organ entrypoints, so their organs' evidence is re-gathered on this branch.
+
 ## 2026-11-18, mission skills: the drafter is told the limits it is held to (branch `fix/mission-skill-draft-bounds`)
 
 - **What broke, in real use.** Both council missions that completed on 11-17 and 11-18 (NerveMesh, and the approval-survives-reconnect tests) ended with "learning: no candidate skill -- ValueError: kind must be text of 1 to 200 characters", so no mission has ever drafted a skill.
