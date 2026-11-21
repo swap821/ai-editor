@@ -601,6 +601,36 @@ def test_unpublished_work_holds_back_delivery(tmp_path, monkeypatch) -> None:
     )
 
 
+def test_a_pr_once_merged_is_never_asked_about_again(tmp_path) -> None:
+    """2026-11-18 #635 and 2026-11-21 #675: every PR GAGOS ever opened was
+    asked about each hour, so one failed lookup of a PR merged days before
+    held delivery for the hour. Merged is final and remembered; closed (which
+    can be reopened) and unknown are asked again, and unknown still holds."""
+    led = dw.DailyLedger(tmp_path / "l.db")
+    for n, url in enumerate(("u/pull/1", "u/pull/2", "u/pull/3", "u/pull/4")):
+        pid = _proposal(led, dw.Finding(rel=f"f{n}.jsx", rule="r", warnings=()))
+        led.record_delivery(pid, branch=f"b{n}", outcome="delivered", pr_url=url)
+    first = {"u/pull/1": "MERGED", "u/pull/2": "CLOSED", "u/pull/3": "OPEN"}
+    asked: list[str] = []
+
+    def state(answers):
+        return lambda url: asked.append(url) or answers.get(url, "UNKNOWN")
+
+    assert sorted(tool.unsettled_prs(led, state(first))) == ["u/pull/3", "u/pull/4"]
+    assert led.merged_prs() == {"u/pull/1"}
+
+    asked.clear()
+    # GitHub is unreachable now: the merged PR is not asked about, so it cannot
+    # hold the hour; the rest fail closed.
+    assert sorted(tool.unsettled_prs(led, state({}))) == [
+        "u/pull/2",
+        "u/pull/3",
+        "u/pull/4",
+    ]
+    assert "u/pull/1" not in asked
+    assert sorted(asked) == ["u/pull/2", "u/pull/3", "u/pull/4"]
+
+
 def test_a_failed_publication_still_guards_an_open_prs_files(
     tmp_path, monkeypatch
 ) -> None:

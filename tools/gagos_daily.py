@@ -3349,11 +3349,11 @@ def _colony_admission(mission_id: str):
 MISSION_KEYS = ("AIOS_VERIFICATION_AUTHORITY_KEY", "AIOS_PROMOTION_AUTHORITY_KEY")
 
 
-def mission_keys_missing(store=None) -> list[str]:
-    """Load into this process, and no further, the mission keys it lacks, from
-    the operator's keystore (each by its name, nothing else read); return the
-    names still missing. A value is never printed, logged or recorded."""
-    lacking = [name for name in MISSION_KEYS if not os.environ.get(name)]
+def _keys_missing(names: tuple[str, ...], store=None) -> list[str]:
+    """Load into this process, and no further, the keys among *names* it lacks,
+    from the operator's keystore (each by its name, nothing else read); return
+    the names still missing. A value is never printed, logged or recorded."""
+    lacking = [name for name in names if not os.environ.get(name)]
     if lacking:
         try:
             if store is None:
@@ -3366,33 +3366,31 @@ def mission_keys_missing(store=None) -> list[str]:
                     os.environ[name] = value
         except Exception:  # noqa: BLE001 - no keystore: said as missing below
             pass
-    return [name for name in MISSION_KEYS if not os.environ.get(name)]
+    return [name for name in names if not os.environ.get(name)]
 
 
-#: The key a skill's activation is signed with (Plan Phase 4c-2): without it an
-#: activation leaves the skill active and inert, so the hour activates none.
-SKILL_KEYS = ("AIOS_LEARNING_KEY_LIVE",)
+def mission_keys_missing(store=None) -> list[str]:
+    """The mission keys still missing once loaded (:func:`_keys_missing`)."""
+    return _keys_missing(MISSION_KEYS, store)
+
+
+#: The keys a skill's activation needs. The learning service is built with
+#: organ 15's verification and organ 16's promotion authorities, which refuse
+#: to exist without their keys -- the very keys a mission's run signs with
+#: (2026-11-21: the first hour under the operator's envelope failed there, as
+#: missions once did) -- and the activation is signed with
+#: AIOS_LEARNING_KEY_LIVE (Plan Phase 4c-2); an unsigned skill is active and
+#: inert. The daily backend loads all three from the same keystore
+#: (tools/daily_backend.py KEYS); without any of them the hour activates none.
+SKILL_KEYS = ("AIOS_LEARNING_KEY_LIVE", *MISSION_KEYS)
 #: Who originates an activation inside the skill envelope: never the operator
 #: who signed it (INVARIANT III).
 SKILL_ORIGINATOR = "GAGOS (its hour)"
 
 
 def skill_keys_missing(store=None) -> list[str]:
-    """As :func:`mission_keys_missing`, for the skill-signing key."""
-    lacking = [name for name in SKILL_KEYS if not os.environ.get(name)]
-    if lacking:
-        try:
-            if store is None:
-                from aios.operations.keystore import default_keystore
-
-                store = default_keystore()
-            for name in lacking:
-                value = store.get(name)
-                if value:
-                    os.environ[name] = value
-        except Exception:  # noqa: BLE001 - no keystore: said as missing below
-            pass
-    return [name for name in SKILL_KEYS if not os.environ.get(name)]
+    """The skill keys still missing once loaded (:func:`_keys_missing`)."""
+    return _keys_missing(SKILL_KEYS, store)
 
 
 def _skill_envelope_authority():
@@ -3418,8 +3416,8 @@ def _skill_attest():
 def skills_hour(*, authority=None, service=None, attest=None, store=None) -> list[str]:
     """GAGOS activates its review-ready candidate skills inside the operator's
     standing skill envelope (2026-11-18, the operator: "only once, not again
-    and again"). Without a live skill envelope, or without the key that signs
-    an activation, nothing is activated and the hour says why. Each skill's own
+    and again"). Without a live skill envelope, or without the keys an
+    activation needs, nothing is activated and the hour says why. Each skill's own
     rules are the learning service's (only a review-ready candidate, never a
     suspended skill); the envelope's are its authority's. Returns the lines
     said."""
@@ -3437,6 +3435,15 @@ def skills_hour(*, authority=None, service=None, attest=None, store=None) -> lis
     if not status.get("live"):
         say(f"none activated -- {status.get('reason')}")
         return said
+    # Before the learning service is built: building it needs a key too.
+    missing = skill_keys_missing(store)
+    if missing:
+        say(
+            "none activated -- keys an activation needs are not in the "
+            f"operator's keystore ({', '.join(missing)}); without them no skill "
+            "is activated, and an unsigned skill is inert"
+        )
+        return said
     if service is None:
         from aios.api.deps import get_learning_service
 
@@ -3448,13 +3455,6 @@ def skills_hour(*, authority=None, service=None, attest=None, store=None) -> lis
     ]
     if not ready:
         say("no review-ready skill awaits activation")
-        return said
-    missing = skill_keys_missing(store)
-    if missing:
-        say(
-            "none activated -- the key that signs an activation is not in the "
-            f"operator's keystore ({', '.join(missing)}): an unsigned skill is inert"
-        )
         return said
     attest = attest if attest is not None else _skill_attest()
     if not callable(attest):
@@ -5109,6 +5109,28 @@ def in_flight(led: DailyLedger, open_prs: list[str]) -> set[str]:
     return busy | led.rels_in_prs(open_prs) | led.claimed_files()
 
 
+def unsettled_prs(led, state=None) -> list[str]:
+    """GAGOS's PRs not known to be merged or closed, whose files stay its own
+    and whose being open holds delivery. A PR GitHub once called MERGED is
+    remembered and never asked about again: merged is final, and asking about
+    every PR ever opened, each hour, let one failed lookup (UNKNOWN, which
+    fails closed) hold delivery for an hour on a PR merged long before
+    (2026-11-18 #635, 2026-11-21 #675). CLOSED is asked each time, since a
+    closed PR can be reopened; UNKNOWN still holds."""
+    state = state or _pr_state
+    merged = led.merged_prs()
+    unsettled = []
+    for url in led.pr_urls():
+        if url in merged:
+            continue
+        answer = state(url)
+        if answer == "MERGED":
+            led.record_merged(url)
+        elif answer != "CLOSED":
+            unsettled.append(url)
+    return unsettled
+
+
 def _pr_state(url: str) -> str:
     """OPEN, MERGED or CLOSED; UNKNOWN when GitHub cannot be asked (which
     blocks the day: fail closed)."""
@@ -5148,7 +5170,7 @@ def cmd_daily(args: argparse.Namespace) -> int:
     # Asked whether publishing failed or not: the files of every PR not known
     # to be merged or closed stay GAGOS's, whatever else went wrong (Codex's
     # review of #580: a failed publication left an open PR's files unguarded).
-    open_prs = [u for u in led.pr_urls() if _pr_state(u) not in ("MERGED", "CLOSED")]
+    open_prs = unsettled_prs(led)
     if held is None and open_prs:
         held = f"GAGOS's previous PR is not merged or closed: {', '.join(open_prs)}"
     if held:
