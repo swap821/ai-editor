@@ -11,6 +11,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **Fix.** A PR GitHub once answered MERGED is remembered in the ledger (`merged_prs`) and never asked about again; merged is final. CLOSED is still asked each hour, since a closed PR can be reopened, and UNKNOWN still holds delivery.
 - **Test.** `test_a_pr_once_merged_is_never_asked_about_again` fails with the remembering turned off.
 - Neither `tools/gagos_daily.py` nor `aios/maintenance/daily_work.py` is an organ entrypoint (checked in ORGAN_GREEN_LEDGER.json).
+- **Also in this branch: organ evidence re-gathered at master's tip, cea15a27.** #716's squash merge discarded the branch commits its evidence cited (f250f4dc, b8bdbaec), so `test_every_green_organ_cites_only_reachable_commits` failed on master. `verify_evidence_currency.py` still said 46 fresh, because it checks the entrypoints, not whether the cited commits are reachable. Gathered at cea15a27 itself (all organs passed), which master keeps through any squash. The same 8 organs as before stay stale; they need browser, Docker, Ollama or outside evidence.
 
 ## 2026-11-18, GAGOS's standing skill envelope (branch `feat/skill-envelope`)
 
