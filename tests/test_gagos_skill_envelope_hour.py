@@ -7,6 +7,10 @@ signing and the keystore stand in.
 
 from __future__ import annotations
 
+import os
+
+import pytest
+
 from tests.test_gagos_skill_envelope import Who, _authority, _skill, _terms
 
 from aios.application.learning.service import LearningService
@@ -33,6 +37,22 @@ class Keys:
 
     def get(self, name: str) -> str | None:
         return self.value
+
+
+@pytest.fixture(autouse=True)
+def _keys(monkeypatch):
+    """Both keys an activation needs, in this process only: the hour never
+    reads the operator's real keystore in a test, and CI's own key (set for
+    every job) never hides a missing one."""
+    for name in tool.SKILL_KEYS:
+        monkeypatch.setenv(name, "k" * 40)
+
+
+def _without_keys(monkeypatch) -> None:
+    # Set first, so the teardown restores the absence the test began with.
+    for name in tool.SKILL_KEYS:
+        monkeypatch.setenv(name, "k" * 40)
+        monkeypatch.delenv(name)
 
 
 def _world(tmp_path, *skills):
@@ -78,7 +98,7 @@ def test_only_review_ready_candidates_are_activated_and_signed(
 
 
 def test_without_the_signing_key_no_skill_is_activated(tmp_path, monkeypatch) -> None:
-    monkeypatch.delenv("AIOS_LEARNING_KEY_LIVE", raising=False)
+    _without_keys(monkeypatch)
     repository, service = _world(tmp_path, _skill("arc-ready"))
     authority = _authority(tmp_path)
     authority.sign(_terms(), principal=Who())
@@ -133,3 +153,46 @@ def test_no_ready_skill_is_said() -> None:
     assert tool.skills_hour(
         authority=Live(), service=Empty(), attest=lambda *a, **k: True
     ) == ["no review-ready skill awaits activation"]
+
+
+def test_the_keys_are_loaded_before_the_learning_service_is_built(
+    monkeypatch,
+) -> None:
+    """2026-11-21, the first hour under the operator's envelope: "skills: none
+    activated: RuntimeError: AIOS_VERIFICATION_AUTHORITY_KEY must be set". The
+    learning service is built with organ 15's verification and organ 16's
+    promotion authorities, which need their keys, and the hour loaded only the
+    signing key, after building it. Now all three come from the keystore
+    first (the promotion key was found missing by running the hour live)."""
+    _without_keys(monkeypatch)
+
+    class Empty:
+        skill_repository = type("R", (), {"list_skills": lambda self: []})()
+
+    def get_learning_service():
+        # As the real one: no verification or promotion key, no service.
+        for name in tool.MISSION_KEYS:
+            if len(os.environ.get(name, "")) < 32:
+                raise RuntimeError(f"{name} must be set")
+        return Empty()
+
+    import aios.api.deps as deps
+
+    monkeypatch.setattr(deps, "get_learning_service", get_learning_service)
+
+    class Live:
+        def status(self):
+            return {"live": True}
+
+    class Store:
+        def get(self, name):
+            return "s" * 40 if name in tool.SKILL_KEYS else None
+
+    assert tool.skills_hour(
+        authority=Live(), attest=lambda *a, **k: True, store=Store()
+    ) == ["no review-ready skill awaits activation"]
+    assert set(tool.SKILL_KEYS) == {
+        "AIOS_LEARNING_KEY_LIVE",
+        "AIOS_VERIFICATION_AUTHORITY_KEY",
+        "AIOS_PROMOTION_AUTHORITY_KEY",
+    }
