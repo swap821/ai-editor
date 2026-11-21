@@ -5,6 +5,15 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-21, GAGOS's skill hour could not build its learning service (same branch, `fix/gagos-merged-pr-memory`)
+
+- **What broke, in real use.** The first hour under the operator's skill envelope (17:53Z) logged "skills: none activated: RuntimeError: AIOS_VERIFICATION_AUTHORITY_KEY must be set". No skill was waiting, so none was lost, but every later activation would have failed the same way.
+- **Cause, mine (#716).** The learning service is built with organ 15's verification and organ 16's promotion authorities, which refuse to exist without their keys. `skills_hour` built the service before loading any key, and loaded only `AIOS_LEARNING_KEY_LIVE`. The tests never saw it, because CI sets the verification key for every job.
+- **Fix.** `SKILL_KEYS` is the signing key plus `MISSION_KEYS`, the same two a mission's run needs; the two lists are now one derivation. They load from the keystore right after the envelope check, before the service is built. Both key loaders share `_keys_missing`.
+- **Found live, not by the test.** The first fix added only the verification key. Running the hour against the operator's data in a process without the keys then failed on `AIOS_PROMOTION_AUTHORITY_KEY`. After the second fix the live hour says "no review-ready skill awaits activation".
+- **Not yet seen live.** The activation step itself, because no skill is review-ready yet.
+- **Tests.** The hour's tests now set the keys themselves. `test_the_keys_are_loaded_before_the_learning_service_is_built` fails with the old key list.
+
 ## 2026-11-21, a merged PR no longer holds GAGOS's delivery (branch `fix/gagos-merged-pr-memory`)
 
 - **What broke, in real use.** Delivery waits while any PR GAGOS opened is not MERGED or CLOSED, and every PR it ever opened was asked about, each hour. A failed lookup answers UNKNOWN, which fails closed. So PRs merged days before held whole hours: #635 on 2026-11-18 (2 of 5 hours) and #675 on 2026-11-21 at 04:28 (the hour retried at 04:50 and delivered #717).
