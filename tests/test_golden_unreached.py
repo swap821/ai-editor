@@ -87,6 +87,42 @@ def test_unverified_with_evidence_is_still_a_real_outcome(
     assert result["outcome"] == "verified_failure"
 
 
+def test_a_turn_the_model_looped_in_was_reached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live cohort of 2026-11-22: Sonnet alternated read_file and
+    read_directory until the loop guard stopped it. No `cloud_route` frame
+    (only the swarm sends one), so the step was filed as unreached and the
+    cohort voided. The guard fires only on calls the model returned."""
+    monkeypatch.setattr(
+        gmr,
+        "parse_sse",
+        _stream(
+            [
+                ("step", {"output": "read_file training_ground/t.py"}),
+                ("error", {"code": "agent_loop", "text": "Agent loop detected"}),
+            ]
+        ),
+    )
+    result = gmr.run_prompt("p", "s", model_id="m")
+    assert result["reached_provider"] is True
+    assert result["outcome"] == "unverified"
+
+
+def test_a_turn_with_no_model_output_stays_unreached(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A turn the breaker skipped also ends with no output, so this code cannot
+    tell the two apart and must not count as reached."""
+    monkeypatch.setattr(
+        gmr,
+        "parse_sse",
+        _stream([("error", {"code": "model_no_output", "text": "no output"})]),
+    )
+    result = gmr.run_prompt("p", "s", model_id="m")
+    assert result["reached_provider"] is False
+
+
 def test_retry_is_bounded_and_waits_out_the_breaker() -> None:
     """The cooldown must exceed organ 34's 60s recovery window, or the retry
     lands inside the same open circuit and measures nothing again."""
