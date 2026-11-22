@@ -8,8 +8,14 @@ model that wrote nothing -- so the cohort records ability it never measured.
 
 Two cohorts on 2026-09-14 (nova-pro, mistral-large-3) each recorded a full 0/15
 this way, their last two repeats 100% ``unverified`` at ~3s a mission. The
-``cloud_route`` frame is the only thing that separates "the model failed" from
-"we never asked it".
+``cloud_route`` frame was then the only thing that separated "the model
+failed" from "we never asked it".
+
+2026-11-22: only the swarm sends ``cloud_route``, so every single-agent turn
+that ended unverified was filed as unreached and retried: a failure was either
+voided (the cohort declares itself INVALID) or retried into a pass. The
+backend's ``done`` frame now says whether the model answered and which one
+did, and that decides.
 """
 
 from __future__ import annotations
@@ -121,6 +127,43 @@ def test_a_turn_with_no_model_output_stays_unreached(
     )
     result = gmr.run_prompt("p", "s", model_id="m")
     assert result["reached_provider"] is False
+
+
+def _done(output: bool, served: str) -> tuple[str, dict]:
+    return ("done", {"model_produced_output": output, "served_model_id": served})
+
+
+def test_a_turn_the_model_answered_in_prose_is_scored_not_retried(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The live cohort of 2026-11-22: Sonnet created both files, then stopped
+    without running the tests. Its failure, measured once."""
+    monkeypatch.setattr(
+        gmr,
+        "parse_sse",
+        _stream([("text_chunk", {"text": "I created both files."}), _done(True, "m")]),
+    )
+    result = gmr.run_prompt("p", "s", model_id="m")
+    assert result["reached_provider"] is True
+    assert result["outcome"] == "unverified"
+
+
+@pytest.mark.parametrize(
+    "done,model_id",
+    [
+        (_done(False, "m"), "m"),  # nothing produced: a skipped turn looks the same
+        (_done(True, "other"), "m"),  # failover served a different model
+        (("done", {}), "m"),  # a backend that does not say
+    ],
+)
+def test_otherwise_the_turn_stays_unreached(monkeypatch, done, model_id) -> None:
+    monkeypatch.setattr(gmr, "parse_sse", _stream([done]))
+    assert gmr.run_prompt("p", "s", model_id=model_id)["reached_provider"] is False
+
+
+def test_auto_counts_whichever_model_answered(monkeypatch) -> None:
+    monkeypatch.setattr(gmr, "parse_sse", _stream([_done(True, "plan.x")]))
+    assert gmr.run_prompt("p", "s", model_id="auto")["reached_provider"] is True
 
 
 def test_retry_is_bounded_and_waits_out_the_breaker() -> None:

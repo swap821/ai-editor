@@ -630,6 +630,29 @@ def _side_job_cloud(runtime: RuntimeDeps) -> Optional[tuple[str, Any]]:
     )
 
 
+def _done_payload(model_produced_output: bool, served: dict[str, Any]) -> dict:
+    """Whether the model answered this turn, and which one did. A harness
+    tells a measured turn from one no provider served by these, not by the
+    swarm-only ``cloud_route`` frame: organ 44's golden runner filed every
+    single-agent turn that ended without verification as unreached, then
+    retried it, so a model's failure could be voided or turned into a pass
+    (2026-11-22). The served id is the router's own prefix and the model that
+    actually answered (the failover client's route at the end of the turn).
+    """
+    from aios.core.router import provider_spec
+
+    provider = str(served.get("provider") or "")
+    model = str(served.get("model") or "")
+    try:
+        served_model_id = provider_spec(provider).prefix + model if model else ""
+    except KeyError:
+        served_model_id = ""
+    return {
+        "model_produced_output": bool(model_produced_output),
+        "served_model_id": served_model_id,
+    }
+
+
 def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]:
     """Run one agentic generation turn from an injected immutable runtime snapshot."""
     _refresh_main_bindings()
@@ -2302,4 +2325,4 @@ def stream_generate(context: TurnContext, runtime: RuntimeDeps) -> Iterator[str]
                 )
             capabilities.clear_grants(session_id, route="/api/generate")
             turn_state.clear(session_id)
-            yield sse("done", {})
+            yield sse("done", _done_payload(model_produced_output, _route_meta()))
