@@ -1,17 +1,17 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-22 (organ 46 re-verified at the tip; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-22 (organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
-## 2026-11-22, organ 46 re-verified at master's tip; organs 40 and 44 not yet (branch `evidence/regather-2026-11-22`)
+## 2026-11-22, organs 40 and 46 re-verified at master's tip; organ 44 not yet (branch `evidence/regather-2026-11-22`)
 
 - **Organ 46.** Its 12 cited test files pass at master `2b610472` (587 tests). One row at the tip replaces its five older rows, whose entrypoints had moved; their red-team artifacts stay in `release/organ-46/`. No campaign was repeated. It stays yellow, now with its real residual as the blocker: the adversarial cohort and a human red-team need live models on a machine other than the author's.
-- **Organ 40, not done.** Its live probe (`phase4_live_evidence.py`) reached the operator's daily executor with its keystore token and was refused with HTTP 403: "workspace is outside executor staging root". The refusal is correct. The probe builds a Linux path (`/workspace/jobs/<name>`) for the containerized executor, and the daily executor runs on Windows with its staging root in his data directory. Re-proving it needs the `aios-executor:local` image rebuilt at the tip (it is from September; the executor changed 10-30) and run beside the daily one: his yes first.
-- **Organ 44, not done, and more than I said.** I told the operator it was only a CI dispatch. Its green rests on the cloud [5,5,5] golden cohort (55 minutes of live Gemini calls, 2026-09-02). Its harness has changed since (#345, #452: about 110 lines, including how a failed turn is scored), so a current proof needs that cohort again, not only the CI job.
-- **Same wave.** The other 47 organs it probes passed at `2b610472`. They were already current, so that artifact was not attached.
-- **Now.** 51 organs fresh; 3 stale (40, 44, 55). 55 green, 4 yellow.
+- **Organ 40, green again (his yes).** The first probe went to the operator's daily executor and was refused with HTTP 403, correctly: the probe builds the container-side path as POSIX, and the daily executor runs natively on Windows. So a private executor was built from `2b610472` (`Dockerfile.executor`, its own tag, so `aios-executor:local` was left alone). It ran on `127.0.0.1:18081` with a one-time token and a scratch workspace, and was removed afterwards. Against it, `phase4_live_evidence.py` passed every organ it probes, 40 included: non-root uid 65534, no network, no workspace escape (`release/phase4/live-evidence-2b61047281c0.json`). `tests/test_executor_integration.py` ran 4 tests, 0 skipped, 0 failed (`release/organ-40/executor-junit-2026-11-22.xml`). The attach re-stamped 43 organs at the tip and superseded organ 40's stale row; its C7, C10, C11 and C12 name the new runs.
+- **My slip on the way.** The second probe also got 403, because Git Bash rewrote the container's `AIOS_EXECUTOR_WORKSPACE_ROOT=/workspace/jobs` to a Windows path. The executor was right to refuse; re-run with path conversion off, it passed.
+- **Organ 44, not done, and more than I said.** I told the operator it was only a CI dispatch. Its green rests on the cloud [5,5,5] golden cohort (55 minutes of live Gemini calls, 2026-09-02). Its harness has changed since (#345, #452: about 110 lines, including how a failed turn is scored), so a current proof needs that cohort again, not only the CI job. He said yes. One test call to `gemini-3.7-flash` was then refused by Vertex with `403 BILLING_DISABLED` on project `ai-editor-498414`; turning billing on is his act.
+- **Now.** 52 organs fresh; 2 stale (44, 55). 56 green, 3 yellow (44, 46, 55).
 
 ## 2026-11-22, organs 20, 48, 49 and 51 attested by the operator: green (branch `attest/face-organs-2026-11-22`)
 
