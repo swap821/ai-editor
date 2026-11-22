@@ -1,9 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-22 (the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-22 (his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-22, his plans see the files GAGOS's tools read from its scope (branch `feat/plan-sees-scope-files`)
+
+- **What broke, in real use.** Organ 44's cohort on `plan.claude-sonnet-5-5`, at master `09db20f9`. In `iterative-refinement` step 2 (edit `training_ground/test_sorted_insert.py`), Sonnet answered: "The earlier file contents came back redacted... I'd be guessing at the edit." That instance's privacy audit counted `redacted_tool_files` on every plan call of the turn. The counter keeps the full filter, which replaces every code-shaped tool result with `[FILE CONTENT REDACTED]`, so his plan brains have been editing his files blind.
+- **My error first.** I first told the operator his 11-11 masking decision covered this. It did not: that decision covers GAGOS's workshop sending its own code, and the code says the counter keeps the full filter. I corrected that, and he made a new decision: "Yes, on my plans only".
+- **Change.** The tool agent labels a `read_file` result whose resolved path lies inside a scope root; the read root is their parent, so the roots are checked. On his plan client only (`PlanCliClient`, `scope_files_shown`), a labelled result keeps its content. Credentials, high-entropy runs and local paths are still masked, the label never leaves, and the size is bounded by `read_file`'s 20,000 characters. Every other route, and every unlabelled tool result, keeps the whole-file redaction. A test pins `plan_cli.py` as the only caller that turns it on. `tests/test_plan_sees_scope_files.py` covers both ways.
+- **Live.** One `iterative-refinement` run on a fresh backend from this branch (`2056f57b`) passed 2/2 in 125 s, where at master it ended blind. GAGOS does not log file reads, so that run alone does not show the read was what helped. A real `read_file` under the cohort's scope configuration is labelled and reaches his plan client whole (10 of 10 lines), with no label left.
+- **Not changed.** Other tool results are still redacted whole when they look like code: the run still counted 18, for example directory listings and test output. They are outside his decision.
+- `aios/agents/tool_agent.py` is organ 57's entrypoint, so its evidence is re-gathered at this branch's tip.
 
 ## 2026-11-22, organ 44's runner voided a cohort over a turn the model looped in (branch `fix/golden-agent-loop-is-reached`)
 
