@@ -720,6 +720,30 @@ def build_auto_verify_command(test_arg: str) -> str:
     return f'{config.VERIFY_RUNNER} -o addopts= "{test_arg}" -q'
 
 
+def _scope_file(
+    name: str, status: str, args: dict[str, Any] | None, read_root: Path
+) -> str | None:
+    """The path of a file ``read_file`` read from inside GAGOS's scope roots,
+    else None. The read root can be wider than the scope (it is their parent),
+    so the roots are checked here, on the resolved path. The privacy filter
+    shows such a file to the operator's own plans (his decision, 2026-11-22)
+    and drops the label before anything leaves; every other route redacts it.
+    """
+    if name != "read_file" or status != "ok":
+        return None
+    filepath = str((args or {}).get("filepath") or "")
+    if not filepath:
+        return None
+    try:
+        resolved = (read_root / filepath).resolve()
+        roots = [Path(root).resolve() for root in config.SCOPE_ROOTS]
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if any(resolved.is_relative_to(root) for root in roots):
+        return filepath
+    return None
+
+
 class ToolAgent:
     """Bounded, security-gated reason -> act -> observe loop over a local model."""
 
@@ -1421,7 +1445,11 @@ class ToolAgent:
                 _guarded, _inj = _guard_tool_output(output)
                 if _inj is not None:
                     self._pending_injections.append({"tool": name, "reason": _inj})
-                convo.append({"role": "tool", "content": _guarded})
+                tool_msg: dict[str, Any] = {"role": "tool", "content": _guarded}
+                scope_file = _scope_file(name, status, args, self.read_root)
+                if scope_file:
+                    tool_msg["scope_file"] = scope_file
+                convo.append(tool_msg)
                 # An injection found in tool output is an OBSERVATION, so it
                 # surfaces through the same channel as every other thing that
                 # happened. Before 2026-09-03 nothing recorded it at all: the
