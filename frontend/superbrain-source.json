@@ -287,6 +287,7 @@
     "components/canvas/materializedTab/WorkspaceEdgeDust.test.tsx": "811ec8fa17ea3cd5a72744d94111f209eb8526bada2ff5f0ef755570ba262515",
     "core/Performance/FeatureGate.test.ts": "0e9e3e21c9b2b9d883ea1e4cf2d60f6d6b05ba4badf47c3d1315c9d642985188",
     "core/CorticalNerves/councilNodes.tsx": "8666d360ac36b246b87d4262262c7e3fa48a7775c1c19e1f181ea0aa303dfa4b",
-    "core/CorticalNerves/councilNodes.test.tsx": "34e6c3163d743dafa50efb38a1e5772edbc2dd593b4d93838cb254ca389f6c3f"
+    "core/CorticalNerves/councilNodes.test.tsx": "34e6c3163d743dafa50efb38a1e5772edbc2dd593b4d93838cb254ca389f6c3f",
+    "lib/troikaConfig.test.ts": "cebfa3aa16f0bed9fbec4a385a8a6e45c2a29536dd97e07e76e8834b4a864734"
   }
 }
