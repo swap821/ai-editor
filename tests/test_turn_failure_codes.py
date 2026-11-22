@@ -99,6 +99,34 @@ def _error_codes(frames: list[tuple[str, Any]]) -> list[Any]:
     return [data.get("code") for event, data in frames if event == "error"]
 
 
+class _TalkingModel:
+    """Answers in prose, calls no tool."""
+
+    def list_models(self) -> dict:
+        return {"available": True, "models": ["llama3.2:3b"]}
+
+    def chat(self, messages, *, tools=None, model=None) -> dict:
+        return {
+            "role": "assistant",
+            "content": "Hello from the model.",
+            "tool_calls": [],
+        }
+
+
+def _done(frames: list[tuple[str, Any]]) -> dict:
+    return [data for event, data in frames if event == "done"][-1]
+
+
+def test_done_says_whether_the_model_answered_and_which_one(client: TestClient) -> None:  # noqa: F811
+    """A harness reads who served the turn from ``done`` (2026-11-22): organ
+    44's runner had only a swarm frame to go by."""
+    silent = _done(_frames(client, _SilentModel, "Create a Pipeline class."))
+    assert silent["model_produced_output"] is False
+    talking = _done(_frames(client, _TalkingModel, "Say hello."))
+    assert talking["model_produced_output"] is True
+    assert talking["served_model_id"] == "ollama.llama3.2:3b"
+
+
 def test_an_empty_turn_says_the_model_failed_it(client: TestClient) -> None:  # noqa: F811
     frames = _frames(client, _SilentModel, "Create a Pipeline class.")
     assert turn_failures.MODEL_NO_OUTPUT in _error_codes(frames)

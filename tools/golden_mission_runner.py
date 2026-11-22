@@ -246,6 +246,17 @@ def compose_turn_text(prompt: str) -> str:
     return approval_policy_text() + "\n\n---\n\n" + prompt
 
 
+def served_the_model(done: Any, model_id: str) -> bool:
+    """Whether a turn's ``done`` frame says the model under test answered it:
+    the model produced output, and the model that served is *model_id* (any
+    model, for ``auto``)."""
+    if not isinstance(done, dict) or not done.get("model_produced_output"):
+        return False
+    if model_id in ("", "auto"):
+        return True
+    return done.get("served_model_id") == model_id
+
+
 def _run_prompt(
     prompt: str, session_id: str, model_id: str, reached: list[bool]
 ) -> dict[str, Any]:
@@ -320,6 +331,14 @@ def _run_prompt(
                 reached.append(True)
             elif event == "done":
                 finished = True
+                # The backend says whether the model answered and which one
+                # did. A turn the model under test answered is a measurement,
+                # whatever its end: prose with no verification is its failure,
+                # scored once and never retried into a pass. A turn another
+                # model served, or that produced nothing, stays unreached
+                # (2026-11-22; `cloud_route` comes only from the swarm).
+                if served_the_model(data, model_id):
+                    reached.append(True)
 
         if finished and paused is None:
             return {
