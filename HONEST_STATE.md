@@ -1,9 +1,19 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-23, organ 44's first valid cohort since September: [4, 3, 4] of 5 (branch `evidence/organ44-cohort-2026-11-22`)
+
+- **Run.** Master `423b93d0` (with #726, #727 and #729), `plan.claude-sonnet-5-5` (the operator's choice; Vertex refuses with `BILLING_DISABLED`). Three repeats, each a fresh backend instance, 2026-11-22 20:03-20:33Z.
+- **Result.** 11 of 15 mission runs passed (73%). Every repeat is valid: no step unreached, and `tdd-workflow`'s red phase is intact. The bar is three consecutive clean 5/5 repeats, so organ 44 stays yellow. Its evidence is now current (`release/organ-44/2026-11-22-plan-sonnet-cohort.md`, with the 33 records), and its blocker names the measurement.
+- **Failures.**
+  - `multi-module` failed all three repeats. By the model's own answers, the read tools were reported unavailable, and `create_file` results reached the plan redacted. Both are GAGOS gaps; the operator chose to fix them next.
+  - `data-pipeline` failed once: the model's own edit broke 3 of its tests.
+- **Not a comparison.** The September [5,5,5] was Gemini 3.7 Flash, a different model.
+- **Ledger.** 53 organs fresh, 1 stale (55, by his choice). 56 green, 3 yellow. Organ 44's six superseded rows include the one that cited an off-master commit (`e3b0b003`).
 
 ## 2026-11-23, organ 44's runner: a turn is reached when the model under test answered it (branch `fix/golden-reached-means-the-model-answered`)
 
