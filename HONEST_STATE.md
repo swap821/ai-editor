@@ -1,9 +1,15 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-22 (the face organs re-captured, and the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-22 (the face organs attested and green, and the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-22, organs 20, 48, 49 and 51 attested by the operator: green (branch `attest/face-organs-2026-11-22`)
+
+- **His act.** The operator ran `scripts/operator_attest.py --attest 20 48 49 51` himself, against the re-capture at `cea15a27` (the entry below). His declaration, recorded verbatim in each organ's C10: "done very good as expected". The agent wrote no part of it.
+- **A first run was not committed.** It recorded the placeholder text from the command I had given him in place of his words. I restored the three files before any commit and he ran it again; that first run is in no commit.
+- **Now.** 55 green, 4 yellow (40, 44, 46, 55). 50 organs fresh at master `a8dc316b`; the same 4 stale, each yellow with its stale-attestation blocker. Organ 55 stays yellow by his choice.
 
 ## 2026-11-22, the face organs 20, 48, 49 and 51 re-captured live; his attestation next (branch `evidence/face-organs-recapture-2026-11-22`)
 
