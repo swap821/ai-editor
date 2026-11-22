@@ -22,6 +22,7 @@ import pytest
 from types import SimpleNamespace
 
 from aios.agents import swarm
+from aios.core import model_calls
 from aios.application.workers.swarm_foundry import SwarmFoundry
 
 
@@ -151,6 +152,40 @@ def test_worker_legs_run_side_by_side_when_concurrency_allows(colony) -> None:
     meeting = threading.Barrier(3, timeout=10)
     events = _run(foundry, _factory(on_worker=meeting.wait), worker_concurrency=3)
     assert events[-1] == {"type": "done"}, "three workers met at once"
+
+
+def test_side_by_side_legs_keep_the_turns_gateway_entrance(colony) -> None:
+    """Found live on 2026-11-22, the operator's own swarm turn on SONNET: the
+    decomposer's call went out, then four worker legs started side by side and
+    each was refused, within a third of a second, as a model call "through no
+    gateway entrance". The turn's entrance is a ContextVar its stream holds
+    while it advances; a pool thread starts with an empty context, so a leg it
+    admitted carried none. Each leg now runs in a copy of the turn's context."""
+    foundry, _stop, _bus = colony
+    meeting = threading.Barrier(3, timeout=10)
+    seen: list[str | None] = []
+
+    def on_worker() -> None:
+        meeting.wait()
+        seen.append(model_calls.current_entrance())
+
+    mission = foundry.mission()
+    events = list(
+        model_calls.scoped_iter(
+            "stream_structured",
+            lambda: swarm.run_swarm(
+                _factory(on_worker=on_worker),
+                [{"role": "user", "content": "add a test"}],
+                enable_scout=False,
+                admit=lambda role, tools, run: foundry.admit(
+                    mission, role, run, allowed_tools=tuple(tools)
+                ),
+                worker_concurrency=3,
+            ),
+        )
+    )
+    assert events[-1] == {"type": "done"}
+    assert seen == ["stream_structured"] * 3
 
 
 def test_a_leg_paused_for_approval_is_recorded_as_awaiting_it(colony) -> None:

@@ -30,6 +30,7 @@ import pytest
 
 from aios.agents import swarm
 from aios.agents.swarm_patterns import SwarmPatternMemory
+from aios.core import model_calls
 from aios.core.verification_strength import VerificationStrength
 from aios.maintenance import daily_work as dw
 from aios.runtime.gagos_writer import WriterRefused
@@ -108,6 +109,30 @@ def test_the_colony_splits_and_its_writers_work_side_by_side() -> None:
     assert run.results == [(REL,), (OTHER,)], "in the parts' order"
     assert admitted.count("decomposer") == 1 and admitted.count("worker") == 2
     assert most[0] == 2, "the writers ran side by side"
+
+
+def test_the_colonys_writers_keep_their_callers_gateway_entrance() -> None:
+    """The colony's writers run in a copy of the caller's context, as the
+    swarm's legs do (2026-11-22: a pool thread starts with an empty context,
+    and the swarm's side-by-side legs lost the turn's gateway entrance)."""
+    seen: list = []
+    meeting = threading.Barrier(2, timeout=10)
+
+    def write_part(part):
+        meeting.wait()
+        seen.append(model_calls.current_entrance())
+        return part.files
+
+    with model_calls.gateway_scope("mission"):
+        swarm.run_writer_colony(
+            GOAL,
+            FILES,
+            decompose=lambda: SPLIT,
+            write_part=write_part,
+            admit=_admit([]),
+            concurrency=2,
+        )
+    assert seen == ["mission", "mission"]
 
 
 def test_no_clean_split_leaves_one_part_over_every_file() -> None:

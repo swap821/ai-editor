@@ -724,9 +724,11 @@
         "tests/test_swarm_foundry.py::test_every_caste_leg_is_a_worker_the_foundry_admits",
         "tests/test_swarm_foundry.py::test_an_engaged_stop_refuses_the_next_leg_and_the_swarm_says_so",
         "tests/test_documented_reachability.py::test_the_pipeline_runs_the_swarm_through_the_foundry",
-        "tests/e2e/test_swarm_strategy_is_gated.py::test_a_swarm_turn_runs_through_the_worker_foundry"
+        "tests/e2e/test_swarm_strategy_is_gated.py::test_a_swarm_turn_runs_through_the_worker_foundry",
+        "tests/test_swarm_foundry.py::test_side_by_side_legs_keep_the_turns_gateway_entrance",
+        "tests/test_gagos_colony.py::test_the_colonys_writers_keep_their_callers_gateway_entrance"
       ],
-      "note": "From 2026-07-15 to 2026-11-09 production refused every swarm turn. Now each leg is admitted (the emergency stop at each admission, a bounded scheduler, its lifecycle on the cortex bus); worker legs run side by side on a cloud or plan brain (AIOS_SWARM_CLOUD_CONCURRENCY, 3) and one at a time on the local one. The role pass is still refused."
+      "note": "From 2026-07-15 to 2026-11-09 production refused every swarm turn. Now each leg is admitted (the emergency stop at each admission, a bounded scheduler, its lifecycle on the cortex bus); worker legs run side by side on a cloud or plan brain (AIOS_SWARM_CLOUD_CONCURRENCY, 3) and one at a time on the local one. The role pass is still refused. Found live 2026-11-22, the operator's swarm turn on SONNET: the side-by-side legs ran in pool threads, which start with an empty context, so they lost the turn's gateway entrance (a ContextVar) and every worker's model call was refused; until then no live swarm turn had run its workers. Each leg, and each colony writer, now runs in a copy of its caller's context."
     },
     {
       "id": "stop-predicate",
