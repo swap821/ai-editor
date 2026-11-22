@@ -32,6 +32,7 @@ from aios.probe_common import (
     approval_policy_text,
 )
 from aios.probe_session import ProbeSession
+from aios.core.turn_failures import AGENT_LOOP
 
 try:
     import requests
@@ -288,6 +289,16 @@ def _run_prompt(
                 paused = data
                 break
             elif event == "error":
+                # The loop guard fires only on tool calls the model returned, so
+                # an `agent_loop` error proves the model was asked: a measured
+                # failure, not a turn the breaker skipped (#452's rule, which
+                # the endurance tester already follows). `cloud_route` comes
+                # only from the swarm, so a single-agent turn the model looped
+                # in was filed as unreached and voided the cohort (2026-11-22).
+                # `model_no_output` stays unreached: a skipped turn has no
+                # output either.
+                if isinstance(data, dict) and data.get("code") == AGENT_LOOP:
+                    reached.append(True)
                 # Classify by the evidence earned, not by how the turn ended.
                 # ``errored`` is retained so the trip stays visible in the record
                 # -- an agent that finishes the work and then fails to stop is a

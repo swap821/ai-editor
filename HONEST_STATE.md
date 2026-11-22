@@ -1,9 +1,17 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-22 (organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-22 (the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-22, organ 44's runner voided a cohort over a turn the model looped in (branch `fix/golden-agent-loop-is-reached`)
+
+- **What broke, in real use.** Organ 44's cohort on `plan.claude-sonnet-5-5` (the operator's choice, because Vertex refuses with `BILLING_DISABLED`), repeat 1 at master `b115b734`. The TDD mission passed 2/2, its red phase intact. In `iterative-refinement` step 2, Sonnet alternated `read_file` and `read_directory` until the loop guard stopped it (`code: agent_loop`). The runner filed the step as "no provider served this turn", retried it four times, 70 s apart, and marked it unreached. One unreached step makes the whole cohort declare itself INVALID.
+- **Cause.** The runner counts a turn as reached only on a `cloud_route` frame (#345). Only the swarm sends one (`aios/agents/swarm.py`), so no single-agent turn ever carries it. #452 taught the endurance tester that an `agent_loop` error is a measured model failure; the golden runner never got that rule.
+- **Fix.** An `agent_loop` error now marks the turn reached; the loop guard fires only on tool calls the model returned. `model_no_output` stays unreached, because a turn the breaker skipped has no output either. Pinned both ways in `tests/test_golden_unreached.py`; with the fix disabled, the looped turn reads as unreached.
+- **Not fixed, and still open.** A single-agent turn that reaches the model and ends unverified without either code (for example, prose and no verify) is still filed as unreached. Telling it apart from a skipped turn needs a frame that names the provider that actually answered; none exists today.
+- **The cohort.** Stopped after the first two missions of repeat 1, because its result would have been INVALID. It runs again at the tip once this merges. `tools/golden_mission_runner.py` is organ 44's own entrypoint, and organ 44 is already yellow and stale.
 
 ## 2026-11-22, organs 40 and 46 re-verified at master's tip; organ 44 not yet (branch `evidence/regather-2026-11-22`)
 
