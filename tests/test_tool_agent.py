@@ -2418,3 +2418,64 @@ def test_browse_fetches_and_extracts_text(monkeypatch) -> None:
         e for e in events if e.get("tool") == "browse" and e["type"] == "tool_result"
     ]
     assert result and "Hello world" in result[0]["output"]
+
+
+# --------------------------------------------------------------------------- #
+# A reply with two writes: the pause on the first says the second did not run
+# --------------------------------------------------------------------------- #
+def test_a_call_after_the_paused_one_is_said_not_to_have_run(sandbox) -> None:
+    """Organ 44's cohort, 2026-11-22: the model asked for a module and its test
+    in one reply. The turn paused for approval on the first, the resumed turn
+    applied only that one, and the test file never existed while the model
+    reported both written. The pause now records, for every later call in the
+    reply, that it did not run."""
+    two_writes = {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {
+                "function": {
+                    "name": "create_file",
+                    "arguments": {"filepath": "a.py", "content": "x = 1\n"},
+                }
+            },
+            {
+                "function": {
+                    "name": "create_file",
+                    "arguments": {
+                        "filepath": "test_a.py",
+                        "content": "def test_x():\n    pass\n",
+                    },
+                }
+            },
+        ],
+    }
+    chat = ScriptedChat([two_writes, {"role": "assistant", "content": "unreached"}])
+    events = list(
+        ToolAgent(chat, _executor(), max_iters=3).run(
+            [{"role": "user", "content": "make a module and its test"}]
+        )
+    )
+    pause = next(e for e in events if e["type"] == "human_required")
+    assert pause["creation"]["filepath"] == "a.py"
+    tail = pause["_convo_tail"]
+    assert tail[-1]["role"] == "tool"
+    assert tail[-1]["content"].startswith("[NOT RUN] create_file test_a.py")
+    assert not (sandbox / "test_a.py").exists()
+
+
+def test_a_write_applied_on_resume_is_labelled_for_his_plans(sandbox) -> None:
+    """The resumed turn's re-applied write carries the scope label, so the
+    operator's plans see its diff instead of [FILE CONTENT REDACTED]."""
+    chat = ScriptedChat([{"role": "assistant", "content": "Done."}])
+    list(
+        ToolAgent(
+            chat,
+            _executor(),
+            max_iters=3,
+            approved_creations=[{"filepath": "note.txt", "content": "hello\n"}],
+        ).run([{"role": "user", "content": "write the note"}])
+    )
+    sent = chat.calls[0]
+    applied = [m for m in sent if m.get("role") == "tool" and m.get("scope_file")]
+    assert applied and applied[0]["scope_file"] == "note.txt"
