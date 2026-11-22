@@ -1,9 +1,18 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-16 ("2026-11-16, the operator's yes" below;
+**Last updated:** 2026-11-22 (the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-22, the swarm's side-by-side workers were refused by the one gateway (branch `fix/swarm-legs-keep-gateway-entrance`)
+
+- **What broke, in real use.** The operator's first live swarm turn (SWARM on, SONNET, 2026-11-22 03:40Z, signed in, his own words typed): the decomposer leg ran on `plan · claude-sonnet-5-5` through the Worker Foundry. Then four worker legs were requested, admitted and started within half a second of each other, and each failed about 0.3 s later: "tool_agent.py:_stream_iteration asked plan for a model call through no gateway entrance; it was refused before it left". The turn failed. No model was reached and nothing was written.
+- **Cause.** The turn's gateway entrance (`stream_structured`) is a ContextVar its governed stream holds while it advances. A leg admitted from the turn's own thread carries it: the Foundry's `run_coroutine_threadsafe` and `asyncio.to_thread` both copy the caller's context. The side-by-side legs were admitted from a `ThreadPoolExecutor`, whose threads start with an empty context, so they carried none. The 11-09 register row said these legs run side by side on a cloud or plan brain; with the gateway enforced (since 10-29), none ever had.
+- **Fix.** `aios/agents/swarm.py:_submit_here` runs each leg in its own copy of the caller's context. Both pools use it: the swarm's workers and the colony's writers (the colony's legs set their own entrance, so for them this changes nothing measured; it keeps the two pools one way).
+- **Tests.** `test_side_by_side_legs_keep_the_turns_gateway_entrance` reproduces the live failure (three legs saw no entrance) and `test_the_colonys_writers_keep_their_callers_gateway_entrance` pins the colony; both fail without the fix. Added as guards to the register's `swarm-workers-admitted` row.
+- **Not yet seen live.** A swarm turn whose workers succeed. That needs this merged, the main checkout updated and the backend restarted (his yes), then one more swarm turn from him.
+- `aios/agents/swarm.py` is not an organ entrypoint (checked in ORGAN_GREEN_LEDGER.json). The same session's coding turn on automatic routing reached `plan · claude-sonnet-5-5`, the consistency plan's first live check.
 
 ## 2026-11-21, GAGOS's skill hour could not build its learning service (same branch, `fix/gagos-merged-pr-memory`)
 

@@ -39,9 +39,10 @@ the loop's grant pre-apply landing approved writes first.
 
 from __future__ import annotations
 
+import contextvars
 import logging
 import re
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator, Optional
 
@@ -130,6 +131,18 @@ CLOUD_BROKER_TOOLS = frozenset({"plan"})
 AgentFactory = Callable[..., Any]
 
 _SUBTASK_LINE = re.compile(r"^\s*(?:\d+[.)]|[-*])\s+(.*\S)\s*$")
+
+
+def _submit_here(
+    pool: ThreadPoolExecutor, fn: Callable[..., Any], *args: Any
+) -> Future:
+    """Run *fn* on *pool* in a copy of this thread's context. A pool thread
+    starts with an empty one, and the turn's gateway entrance is a ContextVar
+    (``aios.core.model_calls``): a leg run without it had every model call
+    refused as coming through no entrance (the operator's swarm turn,
+    2026-11-22). One copy per leg, since one context cannot be entered by two
+    threads at once."""
+    return pool.submit(contextvars.copy_context().run, fn, *args)
 
 
 @dataclass
@@ -604,7 +617,8 @@ def run_swarm(
             return index, _run_worker(index, replica, subtask)
 
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
-            indexed_results = list(pool.map(_worker_task, assignments))
+            futures = [_submit_here(pool, _worker_task, item) for item in assignments]
+            indexed_results = [future.result() for future in futures]
 
         grouped: list[list[_LegResult]] = [[] for _ in plan]
         for index, result in indexed_results:
@@ -804,7 +818,7 @@ def run_writer_colony(
     width = max(1, min(int(concurrency), len(run.parts)))
     with ThreadPoolExecutor(max_workers=width, thread_name_prefix="colony") as pool:
         futures = [
-            pool.submit(admit, "worker", lambda p=part: write_part(p))
+            _submit_here(pool, admit, "worker", lambda p=part: write_part(p))
             for part in run.parts
         ]
     failure: Optional[BaseException] = None
