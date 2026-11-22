@@ -366,7 +366,18 @@ class PrivacyFilter:
     could not see, and its reviewers were shown a name hidden on one line and
     plain on the next. Keys stay hidden on this route too: the known
     credential patterns here, and the gateway's secret policy (its own entropy
-    scan) on every prompt. Every other route keeps the full filter."""
+    scan) on every prompt. Every other route keeps the full filter.
+
+    *scope_files_shown* is the operator's own plans' policy for files the
+    counter's tools read (his decision of 2026-11-22): a tool result labelled
+    ``scope_file`` (``read_file`` inside GAGOS's scope roots, labelled by the
+    tool agent) keeps its content; credentials, high-entropy runs and local
+    paths are still masked, and the label never leaves. Its size is bounded
+    where it is read (``read_file``'s limit), not by the 500-character blob
+    cut, which would show a plan the first 8 lines. Without it every code file a plan brain read arrived as
+    ``[FILE CONTENT REDACTED]``, and the cohort's Sonnet declined to edit a
+    test it could not see. Every other route, and every unlabelled tool
+    result, keeps the whole-file redaction."""
 
     def __init__(
         self,
@@ -378,8 +389,10 @@ class PrivacyFilter:
         max_response_size: int = _MAX_RESPONSE_SIZE,
         max_messages: int = _MAX_MESSAGES_PER_REQUEST,
         identifiers_shown: bool = False,
+        scope_files_shown: bool = False,
     ) -> None:
         self.identifiers_shown = bool(identifiers_shown)
+        self.scope_files_shown = bool(scope_files_shown)
         base_history_window = (
             _HISTORY_WINDOW if history_window is None else history_window
         )
@@ -572,8 +585,9 @@ class PrivacyFilter:
             return None, audit
         if role == "tool":
             content_str = str(content)
-            content_str, n_file = self._redact_file_content(content_str)
-            audit["redacted_tool_files"] += n_file
+            if not (self.scope_files_shown and msg.get("scope_file")):
+                content_str, n_file = self._redact_file_content(content_str)
+                audit["redacted_tool_files"] += n_file
             content_str, n_cred = _redact_credentials(content_str)
             audit["redacted_credentials"] += n_cred
             content_str, n_sec = self._redact_high_entropy(content_str)
