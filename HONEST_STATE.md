@@ -1,9 +1,23 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-23, GAGOS tells its plan brains what their writes did (branch `fix/plan-sees-what-its-writes-did`)
+
+- **What broke, in real use.** Organ 44's cohort at `423b93d0`: `multi-module` failed all three repeats, and the model said the read tools "are not available". A diagnostic run recorded every plan prompt and answer, using a wrapper with no repository change. It showed the claim was wrong: `read_file` was offered in every call, and the model used it.
+- **Two real causes.**
+  - First, the model asked for `user_registry.py` and its test in one reply. The turn paused for approval on the first call, and the resumed turn applied only that approved call. The second call never ran and got no result. The model reported both files written, and the test file never existed.
+  - Second, an applied write's result is its diff, which starts `--- /dev/null`. The privacy filter replaced it with `[FILE CONTENT REDACTED]`, so the model could not tell whether its write landed. A directory listing was cut to 8 lines.
+- **Fix.**
+  - The pause now records a guarded result for every later call in the same reply: `[NOT RUN] <tool> <target> ... call it again if it is still needed`. Nothing runs without approval.
+  - The scope label (#727) now also covers the results of `read_directory`, `create_file` and `edit_file`, at both sites where a write's result is appended: the loop, and the approved writes re-applied on resume. It is judged against the scope the tools enforce (`scope_lock`).
+  - His plans see those results with credentials, high-entropy runs and paths masked; every other route keeps the whole-result redaction.
+  - The guard test now counts 8 tool-output sites, 7 of them guarded; the new one is the `[NOT RUN]` result.
+- **Live.** The same diagnostic run at `a985f73b` (this code before it was rebuilt on master `9f701dd8`, after #730): `multi-module` passed 2/2, where it had failed 4 of 4. Twice the model asked for both files in one reply, saw `[NOT RUN]` for the second, and re-issued it. Zero results arrived redacted.
+- `aios/agents/tool_agent.py` is organ 57's entrypoint, so its evidence is re-gathered at this branch's tip.
 
 ## 2026-11-23, organ 44's first valid cohort since September: [4, 3, 4] of 5 (branch `evidence/organ44-cohort-2026-11-22`)
 
