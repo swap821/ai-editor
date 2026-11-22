@@ -924,4 +924,41 @@ describe('GagosChrome voice UX', () => {
     await waitFor(() => expect(correctHumanState).toHaveBeenCalledTimes(1));
     expect(correctHumanState).toHaveBeenCalledWith('turn-test-2', 'decisive');
   });
+
+  it('reading position: a reader who scrolled up is not pulled down by a streaming reply, and their own next message brings them back', async () => {
+    isWorkIntent.mockReturnValue(false);
+    let onChunk: ((text: string) => void) | undefined;
+    let finish!: (text: string) => void;
+    sendVoiceTurn.mockImplementation((_text: string, opts: { onChunk: (text: string) => void }) => {
+      onChunk = opts.onChunk;
+      return new Promise<string>((resolve) => { finish = resolve; });
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+    const context = document.querySelector('.gagos-chat__context') as HTMLElement;
+    Object.defineProperty(context, 'scrollHeight', { configurable: true, value: 1000 });
+    Object.defineProperty(context, 'clientHeight', { configurable: true, value: 200 });
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'tell me a long story' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    await waitFor(() => expect(typeof onChunk).toBe('function'));
+    await act(async () => { onChunk!('Once upon a time'); });
+    expect(context.scrollTop).toBe(1000);
+    await act(async () => {
+      context.scrollTop = 120;
+      fireEvent.scroll(context);
+    });
+    await act(async () => { onChunk!('Once upon a time there was a being'); });
+    expect(context.scrollTop).toBe(120);
+    await act(async () => { finish('Once upon a time there was a being'); });
+    expect(context.scrollTop).toBe(120);
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'and then?' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    expect(context.scrollTop).toBe(1000);
+    await act(async () => { finish('The end.'); });
+  });
 });

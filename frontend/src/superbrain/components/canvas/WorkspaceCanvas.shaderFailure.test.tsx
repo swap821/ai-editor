@@ -251,3 +251,30 @@ it('retires readiness when the actual visual error boundary catches a renderer f
     expect(ready).toHaveBeenCalledTimes(1);
   } finally { window.removeEventListener('gagos:ready', ready); }
 });
+
+it('prevents the default on context loss and does not remount when the context is restored within the 4000 ms grace window', () => {
+  vi.useFakeTimers();
+  render(<WorkspaceCanvas />);
+  const element = driver.renderers[0].domElement;
+  const loss = new Event('webglcontextlost', { cancelable: true });
+  act(() => { element.dispatchEvent(loss); });
+  expect(loss.defaultPrevented).toBe(true);
+  act(() => { vi.advanceTimersByTime(3999); });
+  act(() => { element.dispatchEvent(new Event('webglcontextrestored')); });
+  act(() => { vi.advanceTimersByTime(10000); });
+  expect(driver.renderers).toHaveLength(1);
+});
+
+it('starts a fresh full 4000 ms grace window when the context is lost again after an in-place restore', () => {
+  vi.useFakeTimers();
+  render(<WorkspaceCanvas />);
+  const element = driver.renderers[0].domElement;
+  act(() => { element.dispatchEvent(new Event('webglcontextlost', { cancelable: true })); });
+  act(() => { vi.advanceTimersByTime(3000); });
+  act(() => { element.dispatchEvent(new Event('webglcontextrestored')); });
+  act(() => { element.dispatchEvent(new Event('webglcontextlost', { cancelable: true })); });
+  act(() => { vi.advanceTimersByTime(3999); });
+  expect(driver.renderers).toHaveLength(1);
+  act(() => { vi.advanceTimersByTime(1); });
+  expect(driver.renderers).toHaveLength(2);
+});

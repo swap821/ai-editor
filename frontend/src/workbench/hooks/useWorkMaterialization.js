@@ -133,7 +133,7 @@ export function extractStreamingCode(text) {
   return { code, language: open[1] || 'text' };
 }
 
-function cleanText(input, maxLen = 8000) {
+function cleanText(input, maxLen = Infinity) {
   return String(input ?? '').slice(0, maxLen);
 }
 
