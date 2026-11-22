@@ -19,6 +19,7 @@ from pathlib import Path
 import pytest
 
 from aios.agents import tool_agent
+from aios.security import scope_lock
 from aios.core import privacy_filter as pf
 from aios.core.plan_cli import PlanCliClient
 from aios.core.privacy_filter import PrivacyFilter
@@ -109,17 +110,30 @@ def scope(tmp_path, monkeypatch):
     (tmp_path / "training_ground" / "t.py").write_text("x = 1\n", encoding="utf-8")
     (tmp_path / "aios").mkdir()
     (tmp_path / "aios" / "core.py").write_text("y = 2\n", encoding="utf-8")
-    monkeypatch.setattr(
-        tool_agent.config, "SCOPE_ROOTS", (tmp_path / "training_ground",)
-    )
-    return tmp_path
+    original = scope_lock.get_scope_roots()
+    scope_lock.set_scope_roots([tmp_path / "training_ground"])
+    try:
+        yield tmp_path
+    finally:
+        scope_lock.set_scope_roots(list(original))
 
 
-def test_a_read_inside_the_scope_roots_is_labelled(scope) -> None:
-    label = tool_agent._scope_file(
-        "read_file", "ok", {"filepath": "training_ground/t.py"}, scope
-    )
-    assert label == "training_ground/t.py"
+@pytest.mark.parametrize(
+    "name,args",
+    [
+        ("read_file", {"filepath": "training_ground/t.py"}),
+        ("read_directory", {"path": "training_ground"}),
+        # A write's result is its diff: the plan saw [FILE CONTENT REDACTED]
+        # for its own write and could not tell whether it landed (2026-11-22).
+        ("create_file", {"filepath": "training_ground/t.py"}),
+        ("edit_file", {"filepath": "training_ground/t.py"}),
+    ],
+)
+def test_a_file_tool_result_inside_the_scope_roots_is_labelled(
+    scope, name, args
+) -> None:
+    label = tool_agent._scope_file(name, "ok", args, scope)
+    assert label == next(iter(args.values()))
 
 
 @pytest.mark.parametrize(
@@ -128,9 +142,11 @@ def test_a_read_inside_the_scope_roots_is_labelled(scope) -> None:
         ("read_file", "ok", "aios/core.py"),  # under the read root, outside the scope
         ("read_file", "ok", "training_ground/../aios/core.py"),  # traversal out
         ("read_file", "blocked", "training_ground/t.py"),  # a refused read
-        ("read_directory", "ok", "training_ground"),  # not a file's content
+        ("read_directory", "ok", "."),  # the read root itself, wider than the scope
+        ("create_file", "approval", "training_ground/t.py"),  # not written yet
         ("verify", "ok", "training_ground/t.py"),
     ],
 )
 def test_nothing_else_is_labelled(scope, name, status, filepath) -> None:
-    assert tool_agent._scope_file(name, status, {"filepath": filepath}, scope) is None
+    args = {"filepath": filepath, "path": filepath}
+    assert tool_agent._scope_file(name, status, args, scope) is None
