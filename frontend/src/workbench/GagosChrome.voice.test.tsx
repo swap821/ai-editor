@@ -961,4 +961,35 @@ describe('GagosChrome voice UX', () => {
     expect(context.scrollTop).toBe(1000);
     await act(async () => { finish('The end.'); });
   });
+
+  it("retry while busy: a failed turn's Retry is disabled while a newer reply streams, and works again after it", async () => {
+    isWorkIntent.mockReturnValue(false);
+    let finish!: (text: string) => void;
+    sendVoiceTurn
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockImplementationOnce(() => new Promise<string>((resolve) => { finish = resolve; }))
+      .mockResolvedValue('Back again.');
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+    const input = screen.getByLabelText('Talk to GAGOS');
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'first question' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    const retry = screen.getByRole('button', { name: 'Retry: first question' });
+    expect(retry).not.toBeDisabled();
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'second question' } });
+      fireEvent.keyDown(input, { key: 'Enter' });
+    });
+    expect(sendVoiceTurn).toHaveBeenCalledTimes(2);
+    expect(retry).toBeDisabled();
+    await act(async () => { fireEvent.click(retry); });
+    expect(sendVoiceTurn).toHaveBeenCalledTimes(2);
+    await act(async () => { finish('Second answer.'); });
+    expect(retry).not.toBeDisabled();
+    await act(async () => { fireEvent.click(retry); });
+    expect(sendVoiceTurn).toHaveBeenCalledTimes(3);
+    expect(sendVoiceTurn.mock.calls[2][0]).toBe('first question');
+  });
 });
