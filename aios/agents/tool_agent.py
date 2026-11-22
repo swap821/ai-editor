@@ -1445,11 +1445,11 @@ class ToolAgent:
                 _guarded, _inj = _guard_tool_output(output)
                 if _inj is not None:
                     self._pending_injections.append({"tool": name, "reason": _inj})
-                tool_msg: dict[str, Any] = {"role": "tool", "content": _guarded}
+                # The literal append shape keeps this site visible to the
+                # guard test (tests/adversarial/test_control_consistency.py).
                 scope_file = _scope_file(name, status, args, self.read_root)
-                if scope_file:
-                    tool_msg["scope_file"] = scope_file
-                convo.append(tool_msg)
+                label = {"scope_file": scope_file} if scope_file else {}
+                convo.append({"role": "tool", "content": _guarded, **label})
                 # An injection found in tool output is an OBSERVATION, so it
                 # surfaces through the same channel as every other thing that
                 # happened. Before 2026-09-03 nothing recorded it at all: the
