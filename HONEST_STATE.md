@@ -1,9 +1,16 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-22 (his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-23, organ 44's runner: a turn is reached when the model under test answered it (branch `fix/golden-reached-means-the-model-answered`)
+
+- **What broke, in real use.** Organ 44's cohort at master `eb6d4042`, 2026-11-22 18:05Z, on `plan.claude-sonnet-5-5`, with the files in scope now visible (#727). The TDD mission passed 2/2. In `iterative-refinement` step 1, Sonnet created both files, then stopped without running the tests. The runner filed the turn as unreached and began retrying it. I stopped the cohort.
+- **Cause.** #726 fixed one case, the loop guard. The rule was still the swarm-only `cloud_route` frame, so any single-agent turn that ended unverified, prose included, was unreached. Its retries either voided the cohort (INVALID) or turned the model's failure into a pass. Both directions were wrong.
+- **Fix.** The backend's final `done` frame carries `model_produced_output`, the pipeline's own flag (a real tool call, text or code, never the placeholder). It also carries `served_model_id`: the router's prefix plus the model the failover client says actually answered. The runner counts a turn reached when the model under test answered it (any model, for `auto`). Such a turn is scored once as it ended and never retried. A turn that produced nothing, or that another model served, stays unreached and keeps the breaker's retry. Pinned in `tests/test_golden_unreached.py`. A real backend turn's `done` is pinned in `tests/test_turn_failure_codes.py`: a silent model gives false, and one that answers names `ollama.llama3.2:3b`.
+- `aios/application/turns/generate_pipeline.py` is organ 32's entrypoint, so its evidence is re-gathered at this branch's tip. The cohort runs again after this merges.
 
 ## 2026-11-22, organ evidence at master's tip after #727's squash (branch `evidence/regather-eb6d4042`)
 
