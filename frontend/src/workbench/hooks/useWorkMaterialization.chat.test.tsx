@@ -487,3 +487,16 @@ it('large artifact streaming: 400 chunks of 1000 characters arrive as one reply,
   expect(replies[0].streaming).toBe(false);
   expect(getConversationPhase()).toBe('complete');
 });
+
+it("the operator's own message: a message of 5000 characters is shown whole in the conversation", async () => {
+  const { result } = mountChat();
+  const prompt = Array.from({ length: 50 }, (_, index) => `[${String(index).padStart(2, '0')}]${'y'.repeat(96)}`).join('');
+  let turn!: Promise<void>;
+  act(() => { turn = submitChat(result.current, prompt); });
+  const stream = await streamFor(prompt);
+  const messages = result.current.messages.filter(message => message.role === 'user');
+  expect(messages).toHaveLength(1);
+  expect(messages[0].text).toHaveLength(5000);
+  expect(messages[0].text).toBe(prompt);
+  await act(async () => { stream.frame('done'); stream.end(); await turn; });
+});

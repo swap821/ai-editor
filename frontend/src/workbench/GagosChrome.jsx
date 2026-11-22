@@ -1070,7 +1070,7 @@ export default function GagosChrome({
                         {renderWithRedactionChips(sanitizeToText(m.text))}
                         {streaming ? <span className="gagos-caret" aria-hidden="true" /> : null}
                         {m.retry ? (
-                          <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} disabled={emergencyStopped} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
+                          <button type="button" className="gagos-retry" onClick={() => submit(m.retry)} disabled={emergencyStopped || busy} aria-label={`Retry: ${(m.retry || '').slice(0, 40)}`}>
                             Retry
                           </button>
                         ) : null}
