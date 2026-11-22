@@ -1876,15 +1876,15 @@
     ],
     "live_evidence": [
       {
-        "description": "Truthful-UI live evidence in the operator's OWN browser (Kimi WebBridge, not headless). Reproduce with command=`curl -s -X POST http://127.0.0.1:10086/command -d '{\"action\":\"navigate\",\"args\":{\"url\":\"http://localhost:5173/\"}}'` against a backend on http://localhost:8000. Real enroll/login/reauth session (201/200/200), then three distinct states captured: unavailable/unbound; connected ('Sovereign spine connected', every tile MEASURED); and a DISTINCT disconnected state (red offline badge, operator binding retained, last readings held). Also found and fixed why the surface was blind: aiosMirror.ts carried the operator session on NEITHER transport, so http://localhost:8000/api/v1/mirror/snapshot and /api/v1/mirror/stream both answered 401 and the UI truthfully reported a blindness it inflicted on itself; 401 -> 200 OK verified in the backend log. Screens: release/organ-55/ui-evidence-2026-09-14/ || OPERATOR-ATTESTED by Swapnil Kumar at 2026-09-14T14:55:15+00:00 (tip 898ef8c3076b): \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\" \u2014 declared against the live evidence recorded on this organ, which the operator read before declaring.",
-        "commit_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
+        "description": "Re-captured 2026-11-22T03:29-03:37Z against the operator's running backend and face, both on code cea15a2791bc (data/services/daily.json), face at http://localhost:5173/. Browser: GAGOS's own journey Chrome (tools/gagos_journeys.py open), a real headed window on his desktop, not headless; the operator signed in himself in it. The page was read through DevTools on 127.0.0.1; the agent clicked only view controls, never Approve, Allow, Accept or Revoke. Record: release/ui-evidence-2026-11-22/capture.md. Three distinct states: signed out ('The backend answered: this browser has no operator session', projection unavailable); signed in and connected ('Live projection ready', transport connected, projection fresh, Sovereign State readings live); and disconnected, made by emulating the tab offline (the backend kept running): an offline badge within 5 s, the operator binding retained, the last readings held, then after 25 s 'GAGOS is showing a last-known picture; current state is not confirmed', and a reconnect by itself within 15 s of the network returning. The registry-driven surface (livingMirrorRegistry.ts unchanged since a696aa69, before this code) rendered all three.",
+        "commit_sha": "cea15a2791bc63d6b7ef56e5ca8b95e4d18f908c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [
-      "Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/superbrain/lib/livingMirrorRegistry.ts changed by this PR. This organ is green on live evidence captured in the operator's OWN browser (Kimi WebBridge, not headless) at cdfd7d16d2f6; that capture predates the new registry and cannot be re-earned mechanically. Re-capture against the shipped UI to restore green."
+      "Re-captured against the shipped UI at cea15a2791bc on 2026-11-22 (the newest live row): awaits the Operator attestation of that capture, which only he can make (scripts/operator_attest.py). Replaces: Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/superbrain/lib/livingMirrorRegistry.ts changed by this PR. This organ is green on live evidence captured in the operator's OWN browser (Kimi WebBridge, not headless) at cdfd7d16d2f6; that capture predates the new registry and cannot be re-earned mechanically. Re-capture against the shipped UI to restore green."
     ],
-    "last_verified_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
+    "last_verified_sha": "cea15a2791bc63d6b7ef56e5ca8b95e4d18f908c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 LivingMirrorAuthority class defined in production_entrypoints ['frontend/src/superbrain/lib/livingMirrorRegistry.ts'] (Decision A / enforce_owner_attestation)",
@@ -1896,7 +1896,7 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['frontend/src/superbrain/lib/aiosMirror.test.ts']",
       "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "PASS \u2014 the browser-session residual is DISCHARGED: truthful-UI live evidence captured in the operator's own browser at :5173 (not headless), with a real enroll/login/reauth session, showing three distinct states and the 401->200 fix that made the surface able to see at all. release/organ-55/ui-evidence-2026-09-14/",
-      "C10": "PASS \u2014 OPERATOR-ATTESTED. Swapnil Kumar declared on 2026-09-14T14:55:15+00:00: \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\". This is a HUMAN OBSERVATION, which is what C10's fourth referent is for; it is not a machine re-check and does not claim to be.",
+      "C10": "FAIL \u2014 awaiting operator attestation of the 2026-11-22 re-capture at cea15a2791bc (the newest live row). Prior text retained: || PASS \u2014 OPERATOR-ATTESTED. Swapnil Kumar declared on 2026-09-14T14:55:15+00:00: \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\". This is a HUMAN OBSERVATION, which is what C10's fourth referent is for; it is not a machine re-check and does not claim to be.",
       "C11": "PASS - last_verified_sha=cdfd7d16d2f64601b9275e0382f44a3981c14e03",
       "C12": "PASS - cdfd7d16d2f64601b9275e0382f44a3981c14e03 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed d8c7b4af18c7 -> cdfd7d16d2f6 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 1 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     },
@@ -3399,6 +3399,7 @@
       }
     ],
     "known_blockers": [
+      "STALE ATTESTATION (recorded 3619eea9): 3 of this organ's own production_entrypoints changed after cc8492f314eb (aios/api/routes/mirror.py, aios/application/executor/service.py, frontend/src/workbench/SovereignStatePanel.jsx). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.",
       "Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/workbench/SovereignStatePanel.jsx changed by this PR. The Phase 4 live run at cc8492f314eb that proved this organ no longer claims it (organ 40 is absent from the current runner's proof set), so the evidence cannot be refreshed by re-running it. Re-earn via the executor live path at a current tip to restore green."
     ],
     "last_verified_sha": "cc8492f314eb051c686baffb9fe80e640661efdd",
@@ -3674,7 +3675,7 @@
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded cc8492f3): 2 of this organ's own production_entrypoints changed after 461fd0b9803f (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "STALE ATTESTATION (recorded 3619eea9): 2 of this organ's own production_entrypoints changed after 461fd0b9803f (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
     ],
     "last_verified_sha": "af2688099f23601284e4716000665107a36fc3a8",
     "requires_live_evidence": true,
@@ -3804,7 +3805,7 @@
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded cc8492f3): 5 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "STALE ATTESTATION (recorded 3619eea9): 6 of this organ's own production_entrypoints changed after 5ecad32e3c47 (aios/api/routes/governance.py, aios/application/governance/adversarial_simulations.py, aios/application/governance/constitutional_learning.py, aios/domain/actions/envelope.py, aios/infrastructure/governance/sqlite_store.py, aios/policy/kernel.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
     ],
     "last_verified_sha": "3dc7323d74cc32d57b904dba720abe713a0dde0e",
     "requires_live_evidence": false,
@@ -3928,15 +3929,15 @@
     ],
     "live_evidence": [
       {
-        "description": "Truthful-UI live evidence in the operator's OWN browser (Kimi WebBridge, not headless). Reproduce with command=`curl -s -X POST http://127.0.0.1:10086/command -d '{\"action\":\"navigate\",\"args\":{\"url\":\"http://localhost:5173/\"}}'` against a backend on http://localhost:8000. Real enroll/login/reauth session (201/200/200), then three distinct states captured: unavailable/unbound; connected ('Sovereign spine connected', every tile MEASURED); and a DISTINCT disconnected state (red offline badge, operator binding retained, last readings held). Also found and fixed why the surface was blind: aiosMirror.ts carried the operator session on NEITHER transport, so http://localhost:8000/api/v1/mirror/snapshot and /api/v1/mirror/stream both answered 401 and the UI truthfully reported a blindness it inflicted on itself; 401 -> 200 OK verified in the backend log. Screens: release/organ-55/ui-evidence-2026-09-14/ || OPERATOR-ATTESTED by Swapnil Kumar at 2026-09-14T14:55:15+00:00 (tip 898ef8c3076b): \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\" \u2014 declared against the live evidence recorded on this organ, which the operator read before declaring.",
-        "commit_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
+        "description": "Re-captured 2026-11-22T03:29-03:37Z against the operator's running backend and face, both on code cea15a2791bc (data/services/daily.json), face at http://localhost:5173/. Browser: GAGOS's own journey Chrome (tools/gagos_journeys.py open), a real headed window on his desktop, not headless; the operator signed in himself in it. The page was read through DevTools on 127.0.0.1; the agent clicked only view controls, never Approve, Allow, Accept or Revoke. Record: release/ui-evidence-2026-11-22/capture.md. Three distinct states on the Sovereign State surface (SovereignStatePanel.jsx and mirror.py both unchanged since before this code): signed out (no operator session, projection unavailable); connected (every reading a measured value or an honest 'unavailable': constitution v1 OPERATIONAL, provider health '0 observed' with no never-called provider shown healthy, isolated executor reachable on docker); and disconnected by emulating the tab offline (the backend kept running): offline badge, binding retained, last readings held, 'GAGOS is showing a last-known picture; current state is not confirmed', automatic reconnect.",
+        "commit_sha": "cea15a2791bc63d6b7ef56e5ca8b95e4d18f908c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [
-      "Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/workbench/SovereignStatePanel.jsx changed by this PR. This organ is green on live evidence captured in the operator's OWN browser at cdfd7d16d2f6; the truthful-UI claim is precisely about the surface this PR rewrites, so the old capture cannot stand. Re-capture against the shipped UI to restore green."
+      "Re-captured against the shipped UI at cea15a2791bc on 2026-11-22 (the newest live row): awaits the Operator attestation of that capture, which only he can make (scripts/operator_attest.py). Replaces: Evidence currency (6ff5410b2b39): UI entrypoint frontend/src/workbench/SovereignStatePanel.jsx changed by this PR. This organ is green on live evidence captured in the operator's OWN browser at cdfd7d16d2f6; the truthful-UI claim is precisely about the surface this PR rewrites, so the old capture cannot stand. Re-capture against the shipped UI to restore green."
     ],
-    "last_verified_sha": "cdfd7d16d2f64601b9275e0382f44a3981c14e03",
+    "last_verified_sha": "cea15a2791bc63d6b7ef56e5ca8b95e4d18f908c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 TruthfulMirrorAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
@@ -3948,7 +3949,7 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
       "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "PASS \u2014 the browser-session residual is DISCHARGED: truthful-UI live evidence captured in the operator's own browser at :5173 (not headless), with a real enroll/login/reauth session, showing three distinct states and the 401->200 fix that made the surface able to see at all. release/organ-55/ui-evidence-2026-09-14/",
-      "C10": "PASS \u2014 OPERATOR-ATTESTED. Swapnil Kumar declared on 2026-09-14T14:55:15+00:00: \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\". This is a HUMAN OBSERVATION, which is what C10's fourth referent is for; it is not a machine re-check and does not claim to be.",
+      "C10": "FAIL \u2014 awaiting operator attestation of the 2026-11-22 re-capture at cea15a2791bc (the newest live row). Prior text retained: || PASS \u2014 OPERATOR-ATTESTED. Swapnil Kumar declared on 2026-09-14T14:55:15+00:00: \"I opened the UI at localhost:5173 in my own browser and saw the control plane go from unavailable to online, and a distinct disconnected state when the backend stopped\". This is a HUMAN OBSERVATION, which is what C10's fourth referent is for; it is not a machine re-check and does not claim to be.",
       "C11": "PASS - last_verified_sha=cdfd7d16d2f64601b9275e0382f44a3981c14e03",
       "C12": "PASS - cdfd7d16d2f64601b9275e0382f44a3981c14e03 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip. Evidence sha re-pointed d8c7b4af18c7 -> cdfd7d16d2f6 on lineage grounds: the original commit is real but was squash-merged, so it is permanently not an ancestor of HEAD. All 2 of this organ's own production_entrypoints are byte-identical at both commits, so the evidence still describes code in HEAD's history. Verified by scripts/verify_evidence_lineage.py, which re-points only to a commit whose content matches and refuses otherwise."
     },
@@ -3973,15 +3974,15 @@
     ],
     "live_evidence": [
       {
-        "description": "OPERATOR-ATTESTED: Operator browser session at http://localhost:5173 (Council Runtime -> Sovereign State) against a tip-current backend started for this check, NOT the 15h-stale process already on :8000. Verified in a real browser, confirmed by the operator: the Pending Approvals section enumerated capabilities awaiting consumption read-only ('0 pending', no bearer token exposed). Corroborating measurements captured from the live DOM: 10 recorded gemini routing decisions with an unmeasured privacy classification rendered tone=warn, never the pre-fix tone=ok (greenLeak=false); Isolated Executor reported configured=no with reachable=unavailable rather than claiming an unreachability it never measured; Provider Health reported '0 observed' with no never-called provider presented as healthy.",
-        "commit_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
+        "description": "Re-captured 2026-11-22T03:29-03:37Z against the operator's running backend and face, both on code cea15a2791bc (data/services/daily.json), face at http://localhost:5173/. Browser: GAGOS's own journey Chrome (tools/gagos_journeys.py open), a real headed window on his desktop, not headless; the operator signed in himself in it. The page was read through DevTools on 127.0.0.1; the agent clicked only view controls, never Approve, Allow, Accept or Revoke. Record: release/ui-evidence-2026-11-22/capture.md. Governance > Sovereign State, signed in and connected: PENDING APPROVALS '0 PENDING', 'a real, read-only enumeration of every capability awaiting consumption (CapabilityAuthority), never exposes a usable bearer token', 'Nothing awaiting consumption right now'. No token or Approve control was exposed or clicked. Full panel text: release/ui-evidence-2026-11-22/sovereign-state-connected.txt.",
+        "commit_sha": "cea15a2791bc63d6b7ef56e5ca8b95e4d18f908c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded cc8492f3): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "Re-captured against the shipped UI at cea15a2791bc on 2026-11-22 (the newest live row): awaits the Operator attestation of that capture, which only he can make (scripts/operator_attest.py)."
     ],
-    "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
+    "last_verified_sha": "cea15a2791bc63d6b7ef56e5ca8b95e4d18f908c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 ApprovalDecisionSurfaceAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
@@ -3993,7 +3994,7 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
       "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "FAIL \u2014 yellow with named residual(s): ['browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "C10": "FAIL \u2014 awaiting operator attestation of the 2026-11-22 re-capture at cea15a2791bc (the newest live row); named residual: operator browser session. Prior text retained: || N/A/FAIL \u2014 no live evidence; named residual: browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
       "C11": "PASS \u2014 last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
       "C12": "PASS \u2014 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
@@ -4117,15 +4118,15 @@
     ],
     "live_evidence": [
       {
-        "description": "OPERATOR-ATTESTED: Operator browser session at http://localhost:5173 (Council Runtime -> Sovereign State) against a tip-current backend started for this check, NOT the 15h-stale process already on :8000. Verified in a real browser, confirmed by the operator: Constitution & Emergency Stop reported OPERATIONAL from the live read-model surface. Corroborating measurements captured from the live DOM: 10 recorded gemini routing decisions with an unmeasured privacy classification rendered tone=warn, never the pre-fix tone=ok (greenLeak=false); Isolated Executor reported configured=no with reachable=unavailable rather than claiming an unreachability it never measured; Provider Health reported '0 observed' with no never-called provider presented as healthy.",
-        "commit_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
+        "description": "Re-captured 2026-11-22T03:29-03:37Z against the operator's running backend and face, both on code cea15a2791bc (data/services/daily.json), face at http://localhost:5173/. Browser: GAGOS's own journey Chrome (tools/gagos_journeys.py open), a real headed window on his desktop, not headless; the operator signed in himself in it. The page was read through DevTools on 127.0.0.1; the agent clicked only view controls, never Approve, Allow, Accept or Revoke. Record: release/ui-evidence-2026-11-22/capture.md. Governance > Sovereign State, signed in and connected: CONSTITUTION & EMERGENCY STOP 'OPERATIONAL' from the typed, digest-verified read model (constitution version 1, 6 foundation laws, emergency stop 'clear', stop reason honestly 'unavailable'); the heartbeat held: with the tab emulated offline the surface kept its last readings under an offline badge and said the current state is not confirmed, and reconnected by itself. Full panel text: release/ui-evidence-2026-11-22/sovereign-state-connected.txt.",
+        "commit_sha": "cea15a2791bc63d6b7ef56e5ca8b95e4d18f908c",
         "proof_level": "live"
       }
     ],
     "known_blockers": [
-      "STALE ATTESTATION (recorded cc8492f3): 1 of this organ's own production_entrypoints changed after 5c64cd54ca52 (aios/api/routes/mirror.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green."
+      "Re-captured against the shipped UI at cea15a2791bc on 2026-11-22 (the newest live row): awaits the Operator attestation of that capture, which only he can make (scripts/operator_attest.py)."
     ],
-    "last_verified_sha": "5c64cd54ca528121935c010f151ea0e2219ce95c",
+    "last_verified_sha": "cea15a2791bc63d6b7ef56e5ca8b95e4d18f908c",
     "requires_live_evidence": false,
     "condition_verdicts": {
       "C1": "PASS \u2014 SovereignHeartbeatSurfaceAuthority class defined in production_entrypoints ['aios/api/routes/mirror.py', 'frontend/src/workbench/SovereignStatePanel.jsx'] (Decision A / enforce_owner_attestation)",
@@ -4137,7 +4138,7 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['frontend/src/workbench/CouncilDashboard.sovereign.test.tsx']",
       "C8": "MET - the organ's own frontend suite demonstrates BOTH an unavailable case and a distinct error/stale/disconnected case. Set true on 2026-09-06: requires_frontend_error_states had been false on all 55 organs, so C8 read 'N/A' everywhere and could not bind on anything -- a condition that could not fail. It is now true for the 7 organs whose own entrypoints or tests are frontend files, derived from the ledger rather than judged.",
       "C9": "FAIL \u2014 yellow with named residual(s): ['browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)']",
-      "C10": "N/A/FAIL \u2014 no live evidence; named residual: browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
+      "C10": "FAIL \u2014 awaiting operator attestation of the 2026-11-22 re-capture at cea15a2791bc (the newest live row); named residual: operator browser session. Prior text retained: || N/A/FAIL \u2014 no live evidence; named residual: browser-session \u2014 truthful UI live evidence requires operator browser session at :5173 (not inventable headless)",
       "C11": "PASS \u2014 last_verified_sha=01f151fcba59f4b6170aab8fd28308788d345e09",
       "C12": "PASS \u2014 01f151fcba59f4b6170aab8fd28308788d345e09 must be an ancestor of HEAD (ordinary CI --require-sha-ancestry); exact tip match is --strict-release at tagged evidence tip"
     },
@@ -4440,6 +4441,7 @@
       }
     ],
     "known_blockers": [
+      "STALE ATTESTATION (recorded 3619eea9): 2 of this organ's own production_entrypoints changed after 6fd2245ef208 (aios/application/governance/governance_observation.py, tools/governance_mission_drivers.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.",
       "Outside-machine \u2014 NOT dischargeable by an operator signature, and the distinction matters enough to write down. C10 asks for evidence from a machine that is not this one; every cohort recorded here, including the 43-model sandboxed sweep of 2026-09-14, ran on the operator's own laptop. An attestation is a human saying 'I observed this'; it cannot make a second machine exist. A helper written for this briefly treated the two as the same and would have flipped this organ green on a signature given on the very laptop that produced its evidence -- removed, and recorded here so the confusion is not repeated. Two further reasons this organ in particular should be the last to go green: (1) its own newest evidence contains ONE unresolved M12 failure (zai.glm-4.7-flash, unreproduced across four re-runs, deliberately classified as neither breach nor false positive); (2) this is the organ GAGOS is judged by, and two of its own adjudicators were returning false verdicts as recently as 2026-09-14 (the M3 and M12 vacuous-FAIL defects). It should go green on someone else's machine, not on its author's word."
     ],
     "last_verified_sha": null,

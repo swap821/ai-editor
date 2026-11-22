@@ -1,0 +1,215 @@
+SOVEREIGN ORGANISM V10
+LOCAL ONLY
+PROPOSAL/EVIDENCE
+CONSTITUTION
+5 castes · frozen core protected
+VULTURE
+not scanned
+ECOSYSTEM
+not scanned
+COUNCIL MEMORY
+34 deliberation(s)
+SYMBOL REPOMAP
+not scanned
+META-LOOP
+advisory · 1 proposal(s)
+
+These v10 organs are backend-backed advisory evidence; none can authorize action, mutate policy, self-apply, write files, or bypass approval.
+
+CONSTITUTION & EMERGENCY STOP
+OPERATIONAL
+
+Distinct from the v10 section's own "Constitution" field above (an older, separate caste-count view) — this is the typed, digest-verified read-model surface (organs 47/48): every field below is either a real measured value or an honest "unavailable", never guessed.
+
+CONSTITUTION VERSION
+1
+RATIFIED BY
+operator:<id>
+SNAPSHOT DIGEST
+2653480cfbfe40d5…
+FOUNDATION LAWS
+6
+EMERGENCY STOP
+clear
+STOP REASON
+unavailable
+PROVIDER HEALTH
+0 OBSERVED
+
+Only providers with at least one real recorded call outcome are shown — a never-called provider is never presented as "healthy".
+
+No provider calls observed yet this process.
+
+PENDING APPROVALS
+0 PENDING
+
+A real, read-only enumeration of every capability awaiting consumption (CapabilityAuthority) — never exposes a usable bearer token.
+
+Nothing awaiting consumption right now.
+
+PROVENANCE & EXPLANATION
+10 RECENT TURN(S)
+
+Why the router picked a model, for the most recent real turns — sourced from durably recorded routing metadata, never guessed.
+
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:23:42
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:22:59
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:21:55
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:19:44
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:18:48
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:16:21
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:15:26
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:14:52
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:14:15
+LOCAL
+ollama · qwen2.5-coder:7b · coding
+2026-10-30 04:13:42
+
+What was sent / what was removed before a cloud call — real per-call redaction counts, never a second logging sink.
+
+plan
+0 path(s) · 0 credential(s) · 0 secret(s)
+2026-11-18T01:55:20.707193+00:00
+plan
+0 path(s) · 0 credential(s) · 0 secret(s)
+2026-11-17T17:52:52.709720+00:00
+plan
+0 path(s) · 0 credential(s) · 3 secret(s)
+2026-11-15T02:54:27.962892+00:00
+plan
+0 path(s) · 0 credential(s) · 3 secret(s)
+2026-11-14T14:52:12.176418+00:00
+plan
+0 path(s) · 0 credential(s) · 0 secret(s)
+2026-11-14T09:33:58.045714+00:00
+bedrock
+0 path(s) · 0 credential(s) · 1 secret(s)
+2026-11-14T08:52:19.620293+00:00
+ollama
+4 path(s) · 0 credential(s) · 0 secret(s)
+2026-10-29T10:08:38.501852+00:00
+ollama
+3 path(s) · 0 credential(s) · 10 secret(s)
+2026-10-29T10:08:12.518102+00:00
+bedrock
+4 path(s) · 0 credential(s) · 10 secret(s)
+2026-10-29T10:08:09.272476+00:00
+bedrock
+0 path(s) · 0 credential(s) · 0 secret(s)
+2026-10-29T10:07:42.452185+00:00
+ISOLATED EXECUTOR
+REACHABLE
+CONFIGURED
+yes
+REACHABLE
+yes
+RUNTIME
+docker
+REASON
+unavailable
+SOVEREIGN SUPERORGANISM V7
+LOCAL ONLY
+NORMAL
+REPOMAP
+not scanned · proposal/evidence
+RESOURCE
+normal · cloud allowed
+HIBERNATION
+not run · writes/cloud blocked
+PHEROMONES
+unavailable
+CASTE CONTRACTS
+none contracted
+PENDING PROPOSALS
+60 pending item(s)
+
+RepoMap and pheromones are proposal evidence only; security, verification, and King approval stay authoritative.
+
+EARNED AUTONOMY
+DISABLED
+EARNED
+create_file · *.py · streak 5 (5✓/0✗)
+Revoke
+PROBATION
+create_file · training_ground/*.py · streak 4 (39✓/80✗)
+Revoke
+PROBATION
+edit_file · lab/*.py · streak 4 (4✓/1✗)
+Revoke
+PROBATION
+edit_file · .aios/tmp/e2e_scope/demo_scope/*.py · streak 3 (3✓/0✗)
+Revoke
+PROBATION
+edit_file · .aios/tmp/e2e_scope/scope-ri9c9dwo/*.py · streak 1 (1✓/0✗)
+Revoke
+REVOKED
+edit_file · training_ground/*.py · streak 0 (4✓/4✗)
+FACTS AWAITING YOUR REVIEW
+
+Quarantine is empty — nothing waits to become knowledge.
+
+SKILL TRAILS
+14 VERIFIED · 67 CANDIDATE
+VERIFIED
+Use the verify tool to run exactly this command and report the r
+62%
+VERIFIED
+pin the behaviour of aios/agents/tool_handlers.py::next_step_aft
+62%
+VERIFIED
+Use the verify tool to run exactly this command: `pytest lab/tes
+62%
+VERIFIED
+Use the verify tool to run exactly this command: `pytest ai-edit
+62%
+VERIFIED
+Use the verify tool to run exactly this command: `pytest lab/tes
+62%
+VERIFIED
+pin the behaviour of aios/agents/tool_agent.py::build_auto_verif
+58%
+VERIFIED
+pin the behaviour of aios/agents/tool_handlers.py::next_step_aft
+52%
+VERIFIED
+Use the verify tool to run exactly this command: `pytest ai-edit
+7%
+CURRICULUM PROPOSALS
+python-testing L2: Read ai-editor/tests/test_privacy_filter.py and then create test
+Accept
+python-testing L2: Read ai-editor/tests/test_privacy_filter.py and then create test
+Accept
+python-algorithms L2: Create training_ground/sorted_insert_v2.py with function sorted_
+Accept
+python-algorithms L2: Create training_ground/sorted_insert_v2_holdout.py with function
+Accept
+python-algorithms L2: Create training_ground/mergetool_v2.py with merge_sorted(a, b) t
+Accept
+python-algorithms L2: Create training_ground/mergetool_v2_holdout.py with merge_sorted
+Accept
+python-error-handling L3: Create training_ground/stats_utils_v3.py with function moving_av
+Accept
+python-error-handling L3: Create training_ground/stats_utils_v3_holdout.py with function m
+Accept
+python-testing L2: Create training_ground/math_utils_v2.py with function clamp(valu
+Accept
+python-testing L2: Create training_ground/math_utils_v2_holdout.py with function cl
+Accept

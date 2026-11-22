@@ -1,9 +1,17 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-22 (the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-22 (the face organs re-captured, and the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-22, the face organs 20, 48, 49 and 51 re-captured live; his attestation next (branch `evidence/face-organs-recapture-2026-11-22`)
+
+- **Asked.** The operator, choosing "Now" for a live session (2026-11-22): signed in himself, in GAGOS's journey Chrome window on his desktop, against his running backend and face on `cea15a27`.
+- **Captured** (`release/ui-evidence-2026-11-22/`): the three states organs 20 and 48 claim (signed out; connected, every reading measured or honestly unavailable; disconnected, with the offline badge, binding kept, last readings held, "current state is not confirmed", reconnect by itself), and the Sovereign State surface organs 49 and 51 claim (0 pending approvals with no token exposed; constitution and emergency stop OPERATIONAL).
+- **The boundary.** The disconnect was made by emulating the browser tab offline, not by stopping the backend. The page was read through DevTools; the agent clicked only view controls. The window is GAGOS's journey profile, headed, which the operator signed into and watched.
+- **Ledger.** Each organ's new live row is at `cea15a27`. The old rows (`cdfd7d16`, `5c64cd54`) are superseded by the re-gather tool's rule: their entrypoints moved after them; git and the committed artifacts keep them. `verify_evidence_currency.py` withdrew the stale flags of 49 and 51 itself; fresh organs 46 to 50.
+- **Not done by me.** The organs stay yellow, each with the blocker "awaits the Operator attestation". Only he can declare what he observed (`scripts/operator_attest.py --attest 20 48 49 51`).
 
 ## 2026-11-22, the swarm's side-by-side workers were refused by the one gateway (branch `fix/swarm-legs-keep-gateway-entrance`)
 
