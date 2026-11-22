@@ -418,6 +418,13 @@ export default function GagosChrome({
     if (active === document.body || active === document.documentElement) inputRef.current?.focus();
   }, [pendingApproval?.token, emergencyStopped, inputRef]);
   const chatContextRef = useRef(null);
+  const followNewestRef = useRef(true);
+  const newestUserIdRef = useRef(null);
+  const onChatContextScroll = useCallback(() => {
+    const el = chatContextRef.current;
+    if (!el) return;
+    followNewestRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 32;
+  }, []);
   const busyRef = useRef(busy);
   useEffect(() => {
     busyRef.current = busy;
@@ -483,10 +490,24 @@ export default function GagosChrome({
     if (next.kind !== receipt.kind || next.message !== receipt.message) setReceipt(next);
   }, [liveTabs, recoverableTabs, receipt]);
 
-  // Keep newest message in view
+  // Keep the newest message in view only while the reader is at the bottom;
+  // a reader who scrolled up is left in place, and their own new message
+  // always brings them back.
   useEffect(() => {
     const el = chatContextRef.current;
-    if (el && messages.length > 0) el.scrollTop = el.scrollHeight;
+    if (!el || messages.length === 0) return;
+    let newestUser = null;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i].role === 'user') {
+        newestUser = messages[i];
+        break;
+      }
+    }
+    if (newestUser && newestUser.id !== newestUserIdRef.current) {
+      newestUserIdRef.current = newestUser.id;
+      followNewestRef.current = true;
+    }
+    if (followNewestRef.current) el.scrollTop = el.scrollHeight;
   }, [messages]);
 
   // Focus intake on desktop mount
@@ -984,7 +1005,7 @@ export default function GagosChrome({
       ) : null}
 
       <section className="gagos-chat" aria-label="Conversation">
-        <div id="gagos-chat-context" className="gagos-chat__context" ref={chatContextRef}>
+        <div id="gagos-chat-context" className="gagos-chat__context" ref={chatContextRef} onScroll={onChatContextScroll}>
           {emergencyStopped ? (
             <p id="gagos-stop-request-hold" className="gagos-voice-note">
               Emergency stop is engaged. New requests cannot be sent; your draft is kept. Use the emergency stop control to clear it, then send explicitly.
