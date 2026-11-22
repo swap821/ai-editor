@@ -5,6 +5,12 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-22, organ evidence at master's tip after #727's squash (branch `evidence/regather-eb6d4042`)
+
+- #727 was squash-merged, so the branch commits its evidence rows cited (`2d0ce63b`, `a6813393`) are on no branch of master. `phase4_live_evidence.py` at `eb6d4042` passed every organ it probes; the executor is not reachable here, so organ 40 is omitted and keeps its `2b610472` row. The attach re-stamped 42 organs at the tip and removed the rows citing the orphaned commits.
+- No green organ cites a commit off master. Two yellow organs still do, as they did before #727: 44 (`e3b0b003`) and 55 (`6fd2245e`).
+- 52 organs fresh, 2 stale (44, 55). 56 green, 3 yellow.
+
 ## 2026-11-22, his plans see the files GAGOS's tools read from its scope (branch `feat/plan-sees-scope-files`)
 
 - **What broke, in real use.** Organ 44's cohort on `plan.claude-sonnet-5-5`, at master `09db20f9`. In `iterative-refinement` step 2 (edit `training_ground/test_sorted_insert.py`), Sonnet answered: "The earlier file contents came back redacted... I'd be guessing at the edit." That instance's privacy audit counted `redacted_tool_files` on every plan call of the turn. The counter keeps the full filter, which replaces every code-shaped tool result with `[FILE CONTENT REDACTED]`, so his plan brains have been editing his files blind.
