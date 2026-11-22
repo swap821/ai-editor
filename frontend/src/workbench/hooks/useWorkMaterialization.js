@@ -325,7 +325,7 @@ export function useWorkMaterialization({
     if (abortRef.current) abortRef.current.abort();
     abortRef.current = new AbortController();
 
-    const userMsgId = pushMessage('user', sanitizeToText(cleanText(text, 400)));
+    const userMsgId = pushMessage('user', sanitizeToText(cleanText(text)));
     let gagosId = null;
     let partialReply = '';
 
