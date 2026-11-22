@@ -469,3 +469,21 @@ it('composer draft: throwing sessionStorage never breaks typing', () => {
     removeItem.mockRestore();
   }
 });
+
+it('large artifact streaming: 400 chunks of 1000 characters arrive as one reply, whole and in order', async () => {
+  const { result } = mountChat();
+  const parts = Array.from({ length: 400 }, (_, index) => `[${String(index).padStart(3, '0')}]${'x'.repeat(995)}`);
+  let turn!: Promise<void>;
+  act(() => { turn = submitChat(result.current, 'Explain a large artifact'); });
+  const stream = await streamFor('Explain a large artifact');
+  await act(async () => {
+    for (const part of parts) stream.frame('text_chunk', { text: part });
+  });
+  await waitFor(() => expect(result.current.messages.find(message => message.role === 'gagos')?.text).toBe(parts.join('')));
+  await act(async () => { stream.frame('done'); stream.end(); await turn; });
+  const replies = result.current.messages.filter(message => message.role === 'gagos');
+  expect(replies).toHaveLength(1);
+  expect(replies[0].text).toHaveLength(400000);
+  expect(replies[0].streaming).toBe(false);
+  expect(getConversationPhase()).toBe('complete');
+});
