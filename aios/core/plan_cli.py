@@ -262,8 +262,8 @@ class PlanCliClient:
         """*identifiers_shown*: GAGOS's workshop sending its own tracked code
         (the operator's decision of 2026-11-11; see :class:`PrivacyFilter`).
         The counter, which carries his words, keeps the full filter, except
-        that a file its tools read from inside GAGOS's scope roots reaches his
-        plans with keys, credentials, paths and high-entropy runs still masked
+        that the result of its file tools (a read, a listing, a write's diff) on
+        a path inside GAGOS's scope roots reaches his plans with keys, credentials, paths and high-entropy runs still masked
         (his decision of 2026-11-22; ``scope_files_shown``). Every other
         provider's client keeps the whole-file redaction."""
         self.claude = claude if claude is not None else claude_executable()
