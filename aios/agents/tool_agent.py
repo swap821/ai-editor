@@ -1002,6 +1002,16 @@ class ToolAgent:
             str(c.get("filepath", "")): str(c.get("content", ""))
             for c in (approved_creations or [])
         }
+        #: Paths whose human grant :meth:`_pre_apply_grants` has already tried.
+        #: A grant stands in for the model's args once, when it lands before
+        #: the model speaks. Afterwards the model's own later write to that file
+        #: is its own: before 2026-11-23 every one was swapped for the landed
+        #: grant and answered "already contains the requested replacement", so
+        #: a plan brain could not add the class its tests needed (organ 44's
+        #: cohort, data-pipeline: four writes, each swallowed). A new write
+        #: pauses for approval like any other.
+        self._landed_edit_grants: set[str] = set()
+        self._landed_creation_grants: set[str] = set()
         #: Optional pre-write snapshot hook (e.g. ``RollbackEngine.create_snapshot``)
         #: called before an approved edit is written, so it stays revertible.
         self.snapshot = snapshot
@@ -1738,6 +1748,11 @@ class ToolAgent:
         tool_loop_helpers.grant_earned(
             name, args, self.approved_edits, self.approved_creations
         )
+        # The earned grant carries the model's own args, so it applies even to
+        # a file whose human grant already landed this turn.
+        filepath = str(args.get("filepath", ""))
+        self._landed_edit_grants.discard(filepath)
+        self._landed_creation_grants.discard(filepath)
 
     def _pre_apply_grants(
         self, convo: list[dict[str, Any]]
@@ -1762,6 +1777,7 @@ class ToolAgent:
         applied: list[tuple[int, str, str]] = []  # (index, filepath, action_type)
         for index, (filepath, content) in enumerate(self.approved_creations.items()):
             output, status, _ = self._create_file(filepath, content)
+            self._landed_creation_grants.add(filepath)
             call_id = f"grant-create-{index}"
             if status in ("ok", "noop"):
                 # Remember the EXACT decision the human just made, so a later
@@ -1838,6 +1854,7 @@ class ToolAgent:
         for index, (filepath, _grant) in enumerate(self.approved_edits.items()):
             # _edit_file substitutes the approved (old, new) pair itself.
             output, status, _ = self._edit_file(filepath, "", "")
+            self._landed_edit_grants.add(filepath)
             call_id = f"grant-edit-{index}"
             if status in ("ok", "noop"):
                 # Remember the exact transformation the human just approved, so
@@ -2629,7 +2646,11 @@ class ToolAgent:
             old_string,
             new_string,
             read_root=self.read_root,
-            approved_edits=self.approved_edits,
+            approved_edits={
+                path: grant
+                for path, grant in self.approved_edits.items()
+                if path not in self._landed_edit_grants
+            },
             snapshot=self.snapshot,
             audit=self._audit,
         )
@@ -2639,7 +2660,11 @@ class ToolAgent:
             filepath,
             content,
             read_root=self.read_root,
-            approved_creations=self.approved_creations,
+            approved_creations={
+                path: content
+                for path, content in self.approved_creations.items()
+                if path not in self._landed_creation_grants
+            },
             snapshot=self.snapshot,
             audit=self._audit,
         )
