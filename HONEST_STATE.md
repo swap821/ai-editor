@@ -1,9 +1,20 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-23, organ 44 on a plan brain after #731: [4, 5, 5] of 5 (branch `evidence/organ44-cohort-2026-11-23`)
+
+- **Run.** Master `32f961dc` (with #731), `plan.claude-sonnet-5-5`, the same harness as 2026-11-22: three repeats, each a fresh backend instance, 06:07-06:37Z. Record: `release/organ-44/2026-11-23-plan-sonnet-cohort.md`, with the 33 records.
+- **Result.** 14 of 15 mission runs passed (93%). Every repeat is valid, and `tdd-workflow`'s red phase is intact. Two clean 5/5 repeats in a row; the bar is three, so organ 44 stays yellow.
+- **#731 measured.** `multi-module` passed all three repeats, where it failed all three on 2026-11-22.
+- **The one failure is a GAGOS gap.**
+  - `data-pipeline` step 2, repeat 1: the model's test imported `PipelineError`, which its `pipeline.py` lacked. It re-ran pytest nine times without editing `pipeline.py`.
+  - The plan never saw the failure. The plan route's privacy filter replaces a failing pytest report, which quotes source lines, with `[FILE CONTENT REDACTED]`: the repeat's `redacted_tool_files` rose from 3 to 10, and the real report reproduces it. #731 labels only the file tools' results, not `verify`'s.
+  - The 2026-11-22 `data-pipeline` failure, recorded then as the model's, shows the same pattern: the same failing report six times, while redactions rose from 0 to 16. Before #731 that count also included write results, so it is consistent with this gap, not proof of it.
+- **Ledger.** Organ 44's 2026-11-22 row is kept (its entrypoints have not moved); the new row is added beside it, and its blocker names the gap.
 
 ## 2026-11-23, organ evidence at master's tip after #731's rebase merge (branch `evidence/master-tip-after-731`)
 
