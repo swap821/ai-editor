@@ -482,7 +482,9 @@ def test_every_path_feeding_tool_output_to_the_model_is_guarded() -> None:
     The redaction fix above closed the `verify` route into the model's context;
     this asserts nothing has QUIETLY OPENED a new one. Both verify paths --
     the `verify` tool call and the forced auto-verify after a write -- append
-    through the guard today, and a seventh site added later must too.
+    through the guard today, and a seventh site added later must too. The
+    eighth (2026-11-23) is the ``[NOT RUN]`` result for a call after a paused
+    one in the same reply; it goes through the guard like the rest.
 
     The one exception is deliberate and named: the `[VERIFY SKIPPED]` note is
     composed entirely by this module (only a filename the model itself supplied
@@ -501,11 +503,11 @@ def test_every_path_feeding_tool_output_to_the_model_is_guarded() -> None:
     guarded = [line for line in appends if "_guarded" in line]
     unguarded = [line for line in appends if "_guarded" not in line]
 
-    assert len(appends) == 7, (
+    assert len(appends) == 8, (
         f"the number of tool-output append sites changed ({len(appends)}); "
         "confirm the new one is guarded, then update this count"
     )
-    assert len(guarded) == 6
+    assert len(guarded) == 7
     assert unguarded == ['convo.append({"role": "tool", "content": note})'], (
         "a tool-output append bypassed _guard_tool_output; every route into "
         f"model context must go through it. Unguarded: {unguarded}"
