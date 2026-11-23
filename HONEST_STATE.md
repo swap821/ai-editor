@@ -1,10 +1,16 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-23, organ 44 at master `c3bb03d5`: [5, 5, 4]; his attestation not committed (branch `evidence/organ44-cohort-master-c3bb03d5`)
+
+- **The attestation.** The operator attested the [5, 5, 5] at `df68b748`; a first run had recorded the tool's placeholder name, and he re-ran it with his own. `verify_organ_contracts.py` then refused the flip: a green organ needs a live row stamped at its `last_verified_sha`, and the [5, 5, 5] sits at a commit #739's squash orphaned. My tree-hash anchoring in #740 was enough for yellow, not for green. The attest tool says to revert rather than argue, so nothing was committed.
+- **The cohort at master's tip** (`c3bb03d5`, 16:46-17:12Z) measured **[5, 5, 4]**: every repeat valid, no tool result redacted (88 plan calls). The bar is not met, and organ 44 stays yellow.
+- **The failure.** `iterative-refinement` step 1, repeat 3: the model's reply announced the test file and no call executed. `plan_cli._turn` silently drops a call whose `arguments_json` is not a JSON object (raw newlines in a file body do it; checked on the shipped function). That is a candidate cause; no reply text was kept to confirm it.
+- **Ledger.** Organ 44's row is stamped at `c3bb03d5`, which is now its `last_verified_sha`; the `df68b748` row stays as recorded. 56 green, 3 yellow (44, 46, 55).
 ## 2026-11-23, minimatch 11.0.5: Dependabot alert #15 closed (branch `deps/minimatch-11`)
 
 - `frontend/package.json` pinned `minimatch` to 10.2.6 by override since #188 (2026-08-04). Its only consumers, `eslint`, `@eslint/config-array` and `@typescript-eslint/typescript-estree` (all dev), now ask for `^11.0.5`/`^11.0.1`, so the override was holding them below their own range and on a version alert #15 marks vulnerable (`>= 7.0.0, < 11.0.1`, medium).
