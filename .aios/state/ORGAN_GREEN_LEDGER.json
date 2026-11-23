@@ -4252,12 +4252,15 @@
         "description": "command=`python tools/golden_mission_runner.py run --model plan.claude-sonnet-5-5`, three repeats, each a fresh backend instance (own port, own AIOS_DATA_DIR, own enrollment, throwaway keys; training_ground and lab reset between repeats) at master 32f961dc7591 (with #731), sandbox image aios-verify:c4db53eb1fce, 2026-11-23 06:07-06:37Z; artifact=release/organ-44/2026-11-23-plan-sonnet-cohort.md, records=release/organ-44/2026-11-23-plan-sonnet-cohort.jsonl (33). RESULT [4, 5, 5] of 5: 14/15 mission runs (93%); every batch summary valid, no unreached step. tdd-workflow's red phase intact in all three; multi-module passed all three (0/3 on 2026-11-22). The one failure, data-pipeline step 2 in repeat 1 (verified_failure), is a GAGOS gap: the plan route's privacy filter replaced each failing pytest report with [FILE CONTENT REDACTED] (redacted_tool_files 3 -> 10 across the model's nine re-runs; reproduced on the real report), so the model never saw the ImportError it had to fix. The 2026-11-22 row is kept: the entrypoints have not moved since it.",
         "commit_sha": "32f961dc7591da98c255253ac76bb6ebe35db33c",
         "proof_level": "live"
+      },
+      {
+        "description": "command=`python tools/golden_mission_runner.py run --model plan.claude-sonnet-5-5`, three repeats, each a fresh backend instance (own port, own AIOS_DATA_DIR, own enrollment, throwaway keys; training_ground and lab reset between repeats) at df68b748ba75 (master 22be4860 plus his plans seeing scope test reports and a landed grant standing in once), sandbox image aios-verify:c4db53eb1fce, 2026-11-23 10:35-10:59Z; artifact=release/organ-44/2026-11-23-plan-sonnet-cohort-df68b748.md, records=release/organ-44/2026-11-23-plan-sonnet-cohort-df68b748.jsonl (33). RESULT [5, 5, 5] of 5: 15/15 mission runs; every batch summary valid, no unreached step; every step's outcome the one it expected; tdd-workflow's red phase intact in all three; redacted_tool_files 0 across all 94 plan calls. Meets the bar of three consecutive clean 5/5 repeats. The run between, at 2879873b ([4, 5, 4], repeat 3 invalid on the plan's session limit), is recorded alongside (2026-11-23-plan-sonnet-cohort-2879873b.jsonl) and found the landed-grant fault.",
+        "commit_sha": "df68b748ba7587306542f7d43ca12864eb2be59f",
+        "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Measured at master 32f961dc7591 (2026-11-23) on plan.claude-sonnet-5-5: [4, 5, 5] of 5, against the bar of three consecutive clean 5/5 repeats (two in a row here). The one failure, data-pipeline step 2 in repeat 1, is an open GAGOS gap: the plan route's privacy filter redacts a failing pytest report whole (it quotes source lines), so the model cannot see why its tests fail. The 2026-11-22 cohort's data-pipeline failure shows the same pattern. See release/organ-44/2026-11-23-plan-sonnet-cohort.md."
-    ],
-    "last_verified_sha": "32f961dc7591da98c255253ac76bb6ebe35db33c",
+    "known_blockers": [],
+    "last_verified_sha": "df68b748ba7587306542f7d43ca12864eb2be59f",
     "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 GoldenMissionEnduranceAuthority class defined in production_entrypoints ['tools/golden_mission_runner.py', 'tools/endurance_tester.py'] (Decision A / enforce_owner_attestation)",
@@ -4268,10 +4271,10 @@
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_authority_owners.py', 'tests/test_golden_analysis.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_e2e_sovereign_flywheel.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL - yellow: the 2026-11-22 cohort at 423b93d08c1b measured [4, 3, 4] of 5 against the bar of three consecutive clean 5/5 repeats (known_blockers names the causes). (The verdict text for the superseded rows is in git.)",
-      "C10": "PASS - live evidence present at commit 423b93d08c1b3ab422bf78342c9996f5e6252146 (release/organ-44/2026-11-22-plan-sonnet-cohort.md, its 33 records alongside). (The verdict text for the superseded rows is in git.)",
-      "C11": "PASS - last_verified_sha=423b93d08c1b3ab422bf78342c9996f5e6252146",
-      "C12": "PASS - 423b93d08c1b3ab422bf78342c9996f5e6252146 is master's own commit (#729's merge), so no squash can orphan it."
+      "C9": "PASS - the 2026-11-23 cohort at df68b748ba75 on plan.claude-sonnet-5-5 measured [5, 5, 5] of 5: three consecutive clean 5/5 repeats, the bar, every repeat valid with no unreached step (release/organ-44/2026-11-23-plan-sonnet-cohort-df68b748.md). (The verdict text for earlier cohorts is in git.)",
+      "C10": "PASS - live evidence present at commit df68b748ba7587306542f7d43ca12864eb2be59f (release/organ-44/2026-11-23-plan-sonnet-cohort-df68b748.md, its 33 records alongside). (The verdict text for the superseded rows is in git.)",
+      "C11": "PASS - last_verified_sha=df68b748ba7587306542f7d43ca12864eb2be59f",
+      "C12": "PASS - df68b748ba75 is this branch's commit and reaches master through a merge commit (the operator merges fix/plan-sees-its-test-reports without squashing or rebasing), so it stays in master's history."
     }
   },
   {
