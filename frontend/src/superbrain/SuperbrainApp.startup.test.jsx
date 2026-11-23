@@ -36,9 +36,11 @@ vi.stubGlobal('matchMedia', query => Object.assign(new EventTarget(), {
   matches: query.includes('reduced-motion'), media: query,
   addListener() {}, removeListener() {},
 }));
-// Module evaluation is the boundary being tested. Keep its cold transform
-// outside the unchanged per-interaction test budget, not a longer timeout.
+// Module evaluation is the boundary being tested. The cold transform stays
+// in this hook with its own budget; the per-interaction test budget is unchanged.
 let loadFailure;
+// The whole face's module evaluation takes about 3 s alone and more than vitest's default 10 s hook budget when the delivery check runs it under load (2026-11-22).
+const COLD_START_BUDGET_MS = 60_000;
 beforeAll(async () => {
   globalThis.jsdom.virtualConsole.on('jsdomError', recordNavigationError);
   document.body.innerHTML = '<div id="boot-loader"><span class="boot-label">Starting</span></div><div id="root"></div>';
@@ -52,7 +54,7 @@ beforeAll(async () => {
   // Wait for the fault boundary, not every import: the renderer intentionally
   // remains unresolved until after the person has typed into the real DOM.
   await rendererFault.started;
-});
+}, COLD_START_BUDGET_MS);
 afterEach(async () => {
   await act(async () => { observed.root?.unmount(); });
   globalThis.jsdom.virtualConsole.removeListener('jsdomError', recordNavigationError);
