@@ -1,9 +1,16 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-23, organ evidence at master's tip after #739's squash merge (branch `evidence/master-tip-after-739`)
+
+- #739 was squash-merged, so the branch commits its rows cited are on no branch of master: `test_ledger_verification_sha` failed for 42 organs (`f637a4a8`) and organ 44 (`df68b748`) at master `86e46a7d`.
+- `phase4_live_evidence.py` at `86e46a7d` passed every organ it probes; the attach re-stamped the 42 organs at the tip and removed the rows citing the orphaned commit.
+- Organ 44's cohort ([5, 5, 5]) ran at `df68b748`. That commit's `aios`, `tools`, `scripts`, `tests` and `frontend` trees are byte-identical to `86e46a7d`'s (git tree hashes, recorded in its C12 verdict), so the code measured is the code on master. Its `last_verified_sha` is now `86e46a7d`; the evidence row keeps `df68b748` as where it ran. It stays yellow, waiting on his attestation.
+- 53 organs fresh, 1 stale (55, by his choice). 56 green, 3 yellow (44, 46, 55).
 
 ## 2026-11-23, his plans see their test reports, and a landed grant stands in once: organ 44 [5, 5, 5] (branch `fix/plan-sees-its-test-reports`)
 
