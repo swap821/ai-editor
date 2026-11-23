@@ -22,7 +22,6 @@ import { createPortal, flushSync } from 'react-dom';
 import { CompactWorkingChrome } from '../livingMirror/CompactWorkingChrome';
 import { restoreCompactControlFocus } from '../livingMirror/compactChromeFocus';
 import {
-  cancelPendingApproval,
   getPendingApproval,
   previewIntent,
   fetchOnboardingState,
@@ -57,7 +56,7 @@ import { API_BASE } from '../config';
 import { sanitizeToText } from '../utils/sanitizeHtml';
 import './GagosChrome.css';
 
-import { useCognitionBus, formatActiveBrainChip } from './hooks/useCognitionBus';
+import { useCognitionBus } from './hooks/useCognitionBus';
 import { useWorkMaterialization, workFilepath, extractStreamingCode } from './hooks/useWorkMaterialization';
 import { useVoiceInput } from './hooks/useVoiceInput';
 import { ExperienceModeSwitch } from '../livingMirror/ExperienceModeSwitch';
@@ -305,8 +304,8 @@ export default function GagosChrome({
   // A health link is unknown until the first measured response. Starting in
   // "connected" would turn boot latency into a false operational claim.
   const [online, setOnline] = useState(null);
-  const [onboarded, setOnboarded] = useState(true);
-  const [hintDismissed, setHintDismissed] = useState(true);
+  const [onboarded, setOnboarded] = useState(() => { try { return !!window.localStorage.getItem('gagos-onboarded'); } catch { return true; } });
+  const [hintDismissed, setHintDismissed] = useState(() => { try { return !!window.localStorage.getItem(HINT_DISMISSED_KEY); } catch { return true; } });
   const [milestones, setMilestones] = useState(null);
   const [intentHint, setIntentHint] = useState('neutral');
   const [receipt, setReceipt] = useState(null);
@@ -438,7 +437,6 @@ export default function GagosChrome({
     setTranscriptPending,
     startMic,
     stopMic,
-    recognitionRef,
     voiceState, voiceError, backendVoice, browserVoiceAvailable, browserVoiceAllowed, setBrowserVoiceAllowed,
   } = useVoiceInput({
     voiceLang,
@@ -539,24 +537,6 @@ export default function GagosChrome({
     ping();
     const id = window.setInterval(ping, 12000);
     return () => { alive = false; window.clearInterval(id); };
-  }, []);
-
-  // First-run coach flag
-  useEffect(() => {
-    try {
-      setOnboarded(!!window.localStorage.getItem('gagos-onboarded'));
-    } catch {
-      setOnboarded(true);
-    }
-  }, []);
-
-  // First-run hint flag
-  useEffect(() => {
-    try {
-      setHintDismissed(!!window.localStorage.getItem(HINT_DISMISSED_KEY));
-    } catch {
-      setHintDismissed(true);
-    }
   }, []);
 
   // Onboarding milestones
