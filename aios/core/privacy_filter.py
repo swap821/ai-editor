@@ -371,7 +371,8 @@ class PrivacyFilter:
     *scope_files_shown* is the operator's own plans' policy for files the
     counter's tools read or write (his decision of 2026-11-22): a tool result
     labelled ``scope_file`` (``read_file``, ``read_directory``, ``create_file``
-    or ``edit_file`` on a path inside the scope roots, labelled by the tool
+    or ``edit_file`` on a path inside the scope roots, or since 2026-11-23 a
+    ``verify`` that is only a pytest run of such paths, labelled by the tool
     agent) keeps its content; credentials, high-entropy runs and local
     paths are still masked, and the label never leaves. Its size is bounded
     where it is read (``read_file``'s limit), not by the 500-character blob

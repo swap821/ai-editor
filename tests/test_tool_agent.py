@@ -2479,3 +2479,72 @@ def test_a_write_applied_on_resume_is_labelled_for_his_plans(sandbox) -> None:
     sent = chat.calls[0]
     applied = [m for m in sent if m.get("role") == "tool" and m.get("scope_file")]
     assert applied and applied[0]["scope_file"] == "note.txt"
+
+
+def test_the_verify_after_a_resumed_write_is_labelled_for_his_plans(sandbox) -> None:
+    """The forced verify of the test beside a re-applied write carries the
+    scope label too, so the operator's plans see why it failed instead of
+    [FILE CONTENT REDACTED] (organ 44's cohort, 2026-11-23)."""
+    (sandbox / "test_calc.py").write_text(
+        "def test_x():\n    assert True\n", encoding="utf-8"
+    )
+    chat = ScriptedChat([{"role": "assistant", "content": "Done."}])
+    events = list(
+        ToolAgent(
+            chat,
+            _executor(),
+            max_iters=3,
+            approved_creations=[{"filepath": "calc.py", "content": "x = 1\n"}],
+        ).run([{"role": "user", "content": "write calc"}])
+    )
+    assert any(e["type"] == "tool_result" and e["tool"] == "verify" for e in events), (
+        "the write was not followed by a verify"
+    )
+    sent = chat.calls[0]
+    labelled = [
+        m["scope_file"] for m in sent if m.get("role") == "tool" and m.get("scope_file")
+    ]
+    assert "calc.py" in labelled  # the write itself (#731)
+    assert any(label.endswith("test_calc.py") for label in labelled)  # its verify
+
+
+def test_a_new_edit_after_a_landed_grant_is_the_models_own(sandbox) -> None:
+    """Organ 44's cohort, 2026-11-23, data-pipeline: after the operator's
+    approved edit to pipeline.py landed on the resumed turn, every later
+    edit_file (and overwrite_file) the model made to that file was swapped for
+    the landed grant and answered "already contains the requested
+    replacement". The model could not add the class its tests imported. A new
+    edit now pauses for approval like any other; the grant still landed."""
+    (sandbox / "calc.py").write_text("x = 1\n", encoding="utf-8")
+    new_edit = {
+        "role": "assistant",
+        "content": "",
+        "tool_calls": [
+            {
+                "function": {
+                    "name": "edit_file",
+                    "arguments": {
+                        "filepath": "calc.py",
+                        "old_string": "x = 2",
+                        "new_string": "x = 2\ny = 3",
+                    },
+                }
+            }
+        ],
+    }
+    chat = ScriptedChat([new_edit, {"role": "assistant", "content": "unreached"}])
+    events = list(
+        ToolAgent(
+            chat,
+            _executor(),
+            max_iters=3,
+            approved_edits=[
+                {"filepath": "calc.py", "old_string": "x = 1", "new_string": "x = 2"}
+            ],
+        ).run([{"role": "user", "content": "change calc"}])
+    )
+    assert (sandbox / "calc.py").read_text(encoding="utf-8") == "x = 2\n"
+    outputs = " ".join(str(e.get("output", "")) for e in events)
+    assert "already contains the requested replacement" not in outputs
+    pause = next(e for e in events if e["type"] == "human_required")
+    assert "y = 3" in json.dumps(pause, default=str)

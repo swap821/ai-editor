@@ -1,9 +1,29 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-23, his plans see their test reports, and a landed grant stands in once: organ 44 [5, 5, 5] (branch `fix/plan-sees-its-test-reports`)
+
+- **Test reports.** The `data-pipeline` failure in the [4, 5, 5] cohort (#738) was the plan route's privacy filter: it replaced a failing pytest report, which quotes source lines, with `[FILE CONTENT REDACTED]`.
+  - The operator decided his plans see such reports as they see the scope files themselves.
+  - A `verify` result is labelled when its command is only a pytest run (`pytest`, `python -m pytest`) of paths that exist inside the scope roots, resolved against `scope_lock.command_cwd()`, with options from a short list that loads nothing from elsewhere (no `-p`, `-c`, `--rootdir`; `-o` only as `addopts=`).
+  - A chained, piped, redirected or substituted command, a bare `pytest`, or a path outside the scope stays redacted, as does `execute_terminal`'s output. Credentials, high-entropy runs and paths stay masked.
+- **A cohort on that fix alone (`2879873b`): [4, 5, 4], repeat 3 invalid.**
+  - Repeat 3's last step was never served: the operator's Claude plan hit its session limit at 07:57Z.
+  - In repeat 1 the model saw the report (0 redactions) and knew the fix, but by its own final answer each of its four writes to `pipeline.py` came back "already contains the requested replacement". The audit trail recorded none of them.
+- **Landed grants.** On a resumed turn the operator's approved edit landed first, then stayed in `approved_edits`, and `tool_handlers.edit_file` swapped every later edit to that file for it, a no-op. `overwrite_file` and created files had the same shape.
+  - A grant now stands in for the model's args once, when it lands before the model speaks. A new edit pauses for approval like any other; nothing is approved that was not before. An earned grant re-opens the path.
+  - The new test fails at `2879873b` with "already contains the requested replacement" and passes here.
+- **Organ 44: [5, 5, 5] at `df68b748`**, both fixes on master `22be4860`, 10:35-10:59Z.
+  - 15 of 15 mission runs passed, and every repeat is valid. Every step's outcome is the one it expected, `tdd-workflow`'s red phase is intact, and no tool result reached a plan redacted (94 calls).
+  - Three consecutive clean 5/5 repeats is the bar. The record is `release/organ-44/2026-11-23-plan-sonnet-cohort-df68b748.md`, and both cohorts' records sit beside it.
+  - It is a measurement on `plan.claude-sonnet-5-5`, the model the operator chose, not the September Gemini cohort.
+  - **Organ 44 stays yellow, waiting on his attestation.** `promote_verified_organs.py` promoted it (the only organ it would), and `verify_organ_twelve_conditions.py` rejected it on C10: a `release/organ-44` record is not a referent the gate can check. A run on his laptop counts only as `OPERATOR-ATTESTED`, his act (`scripts/operator_attest.py --show 44`). As the promotion contract requires, it was flipped back with that reason; C10 is its only open condition.
+  - The same verifier run, with CI's flags and the frontend report for organs 20, 48, 49 and 51: 148 test files, 2,881 passed, 0 failed. Eight green organs' mechanical re-reads still failed here, all on reports only CI supplies (the live clerk and executor JUnit, the full vitest report); CI's release-authority job runs the gate with them.
+- **Merge.** The evidence cites this branch's commits, so the branch is merged with a merge commit; a squash or a rebase would orphan them.
 
 ## 2026-11-23, organ 44 on a plan brain after #731: [4, 5, 5] of 5 (branch `evidence/organ44-cohort-2026-11-23`)
 

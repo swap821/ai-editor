@@ -85,6 +85,7 @@ import ast
 import json
 import logging
 import re
+import shlex
 from pathlib import Path
 from typing import Callable, Iterator, Optional, Protocol, Any, cast
 
@@ -746,17 +747,124 @@ _SCOPE_RESULT_TOOLS = {
 }
 
 
+#: The pytest options a labelled test run may carry, and whether each takes
+#: the next token as its value. None of them loads code or configuration from
+#: outside the paths the run names: ``-p`` (a plugin), ``-c`` (a config file),
+#: ``--rootdir`` and ``--confcutdir`` could, so a run using any option not
+#: listed here is not labelled. ``-o`` is allowed only as ``-o addopts=`` (the
+#: auto-verify's own command): another ini value such as ``pythonpath`` could
+#: import code from outside.
+_PYTEST_OPTIONS = {
+    "-q": False,
+    "-v": False,
+    "-vv": False,
+    "-x": False,
+    "-s": False,
+    "-l": False,
+    "-ra": False,
+    "-rA": False,
+    "--collect-only": False,
+    "--co": False,
+    "--no-header": False,
+    "--lf": False,
+    "--ff": False,
+    "-k": True,
+    "-m": True,
+    "--tb": True,
+    "--maxfail": True,
+    "-o": True,
+}
+#: A command chained, piped, redirected or substituted ran more than pytest.
+_SHELL_CONTROL = re.compile(r"[;&|<>`$\n\r]")
+
+
+def _scope_test_run(command: str) -> str | None:
+    """The first test path of a ``verify`` command that is only a pytest run
+    of paths inside the scope roots, else None.
+
+    A failing pytest report quotes the source lines it failed on, so the
+    privacy filter took the whole report for a file and replaced it with
+    ``[FILE CONTENT REDACTED]``. A plan brain saw that its tests passed, never
+    why they failed (organ 44's cohort, 2026-11-23: the model re-ran its tests
+    nine times without seeing the ImportError it had to fix). The operator
+    decided his plans see such a report as they see the scope files
+    themselves (2026-11-23).
+
+    Labelled: ``pytest`` or ``python -m pytest`` (``python3`` too), the
+    options in :data:`_PYTEST_OPTIONS`, and at least one path, each existing
+    and resolving inside the scope roots (a ``::`` test id is judged by its
+    file). The paths are resolved against ``scope_lock.command_cwd()``, the
+    directory the command runs in and the base the executor's scope check
+    uses, so the label and the run cannot read a path differently. Anything
+    else, a bare ``pytest`` included (it would collect from the whole root),
+    stays unlabelled. A traceback can still pass through the
+    standard library, or through a module outside the scope that a scope test
+    imports; credentials, high-entropy runs and local paths stay masked there
+    as everywhere.
+    """
+    if not command or _SHELL_CONTROL.search(command):
+        return None
+    try:
+        words = shlex.split(command)
+    except ValueError:
+        return None
+    if words[:1] == ["pytest"]:
+        rest = words[1:]
+    elif words[:1] in (["python"], ["python3"]) and words[1:3] == ["-m", "pytest"]:
+        rest = words[3:]
+    else:
+        return None
+    paths: list[str] = []
+    option = ""
+    for word in rest:
+        if option:
+            if option == "-o" and word != "addopts=":
+                return None
+            option = ""
+            continue
+        if word.startswith("-"):
+            name, sep, _ = word.partition("=")
+            if name not in _PYTEST_OPTIONS:
+                return None
+            if name == "-o" and sep:
+                return None
+            if _PYTEST_OPTIONS[name] and not sep:
+                option = name
+            continue
+        paths.append(word.split("::", 1)[0])
+    if option or not paths:
+        return None
+    try:
+        base = scope_lock.command_cwd()
+        roots = [Path(root).resolve() for root in scope_lock.get_scope_roots()]
+        resolved = [(base / path).resolve() for path in paths]
+    except (OSError, RuntimeError, ValueError):
+        return None
+    if all(
+        target.exists() and any(target.is_relative_to(root) for root in roots)
+        for target in resolved
+    ):
+        return paths[0]
+    return None
+
+
 def _scope_file(
     name: str, status: str, args: dict[str, Any] | None, read_root: Path
 ) -> str | None:
     """The scope path a file tool's successful result describes, else None:
     the target of ``read_file``, ``read_directory``, ``create_file`` or
     ``edit_file``, resolved inside the scope roots the tools enforce
-    (``scope_lock``). The read root can be wider than the scope (it is their
-    parent), so the roots are checked here, on the resolved path. The privacy filter shows such a result to the
-    operator's own plans (his decision, 2026-11-22) and drops the label before
-    anything leaves; every other route redacts it.
+    (``scope_lock``), or the test path of a ``verify`` that is only a pytest
+    run inside them (:func:`_scope_test_run`). The read root can be wider than
+    the scope (it is their parent), so the roots are checked here, on the
+    resolved path. The privacy filter shows such a result to the operator's
+    own plans (his decisions, 2026-11-22 and 2026-11-23) and drops the label
+    before anything leaves; every other route redacts it.
     """
+    if name == "verify":
+        if status != "ok":
+            return None
+        return _scope_test_run(str((args or {}).get("command") or ""))
     key = _SCOPE_RESULT_TOOLS.get(name)
     if key is None or status != "ok":
         return None
@@ -894,6 +1002,16 @@ class ToolAgent:
             str(c.get("filepath", "")): str(c.get("content", ""))
             for c in (approved_creations or [])
         }
+        #: Paths whose human grant :meth:`_pre_apply_grants` has already tried.
+        #: A grant stands in for the model's args once, when it lands before
+        #: the model speaks. Afterwards the model's own later write to that file
+        #: is its own: before 2026-11-23 every one was swapped for the landed
+        #: grant and answered "already contains the requested replacement", so
+        #: a plan brain could not add the class its tests needed (organ 44's
+        #: cohort, data-pipeline: four writes, each swallowed). A new write
+        #: pauses for approval like any other.
+        self._landed_edit_grants: set[str] = set()
+        self._landed_creation_grants: set[str] = set()
         #: Optional pre-write snapshot hook (e.g. ``RollbackEngine.create_snapshot``)
         #: called before an approved edit is written, so it stays revertible.
         self.snapshot = snapshot
@@ -1630,6 +1748,11 @@ class ToolAgent:
         tool_loop_helpers.grant_earned(
             name, args, self.approved_edits, self.approved_creations
         )
+        # The earned grant carries the model's own args, so it applies even to
+        # a file whose human grant already landed this turn.
+        filepath = str(args.get("filepath", ""))
+        self._landed_edit_grants.discard(filepath)
+        self._landed_creation_grants.discard(filepath)
 
     def _pre_apply_grants(
         self, convo: list[dict[str, Any]]
@@ -1654,6 +1777,7 @@ class ToolAgent:
         applied: list[tuple[int, str, str]] = []  # (index, filepath, action_type)
         for index, (filepath, content) in enumerate(self.approved_creations.items()):
             output, status, _ = self._create_file(filepath, content)
+            self._landed_creation_grants.add(filepath)
             call_id = f"grant-create-{index}"
             if status in ("ok", "noop"):
                 # Remember the EXACT decision the human just made, so a later
@@ -1730,6 +1854,7 @@ class ToolAgent:
         for index, (filepath, _grant) in enumerate(self.approved_edits.items()):
             # _edit_file substitutes the approved (old, new) pair itself.
             output, status, _ = self._edit_file(filepath, "", "")
+            self._landed_edit_grants.add(filepath)
             call_id = f"grant-edit-{index}"
             if status in ("ok", "noop"):
                 # Remember the exact transformation the human just approved, so
@@ -1962,7 +2087,11 @@ class ToolAgent:
         _guarded, _inj = _guard_tool_output(output)
         if _inj is not None:
             self._pending_injections.append({"tool": "verify", "reason": _inj})
-        convo.append({"role": "tool", "content": _guarded})
+        # The report on the test beside a scope write is labelled like the
+        # loop's own verify, so his plans see why it failed (2026-11-23).
+        scope_file = _scope_file("verify", status, {"command": command}, self.read_root)
+        label = {"scope_file": scope_file} if scope_file else {}
+        convo.append({"role": "tool", "content": _guarded, **label})
         yield from self._drain_scan_findings(f"autoverify-{index}")
         # Fold the authoritative verdict into the earned-autonomy evidence for
         # this write class: a PASS extends the streak (eventually graduating the
@@ -2517,7 +2646,11 @@ class ToolAgent:
             old_string,
             new_string,
             read_root=self.read_root,
-            approved_edits=self.approved_edits,
+            approved_edits={
+                path: grant
+                for path, grant in self.approved_edits.items()
+                if path not in self._landed_edit_grants
+            },
             snapshot=self.snapshot,
             audit=self._audit,
         )
@@ -2527,7 +2660,11 @@ class ToolAgent:
             filepath,
             content,
             read_root=self.read_root,
-            approved_creations=self.approved_creations,
+            approved_creations={
+                path: content
+                for path, content in self.approved_creations.items()
+                if path not in self._landed_creation_grants
+            },
             snapshot=self.snapshot,
             audit=self._audit,
         )
