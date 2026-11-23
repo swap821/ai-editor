@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 56 green / 3 yellow / 59 total
-- **Source ledger sha256:** `9c193eeed437aca9b59fc338c7ef19691031d825942b4561c49e90dc87c2b7be`
+- **Source ledger sha256:** `9b4d21e4c9605f704a863dcc72cb9628191e6faf46fa9c754213cf668590a6fb`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -882,7 +882,7 @@ re-audits recorded above.
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | STALE ATTESTATION (recorded 3619eea9): 2 of this organ's own production_entrypoints changed after 461fd0b9803f (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Measured at master 423b93d08c1b (2026-11-22) on plan.claude-sonnet-5-5: [4, 3, 4] of 5, against the bar of three consecutive clean 5/5 repeats. multi-module failed all three repeats: by the model's own answers, the read tools were reported unavailable and create_file results reached the plan redacted (two open GAGOS gaps). data-pipeline failed once (the model's own edit). See release/organ-44/2026-11-22-plan-sonnet-cohort.md. |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | Re-verified at 2b61047281c0 (2026-11-22): its cited tests pass at the tip (587). It stays yellow on its named residual (C9): the adversarial simulation cohort and a human red-team need live models, run on a machine other than the author's (Outside-machine; local Ollama and/or cloud). |
 | 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | STALE ATTESTATION (recorded 3619eea9): 2 of this organ's own production_entrypoints changed after 6fd2245ef208 (aios/application/governance/governance_observation.py, tools/governance_mission_drivers.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.<br>Outside-machine — NOT dischargeable by an operator signature, and the distinction matters enough to write down. C10 asks for evidence from a machine that is not this one; every cohort recorded here, including the 43-model sandboxed sweep of 2026-09-14, ran on the operator's own laptop. An attestation is a human saying 'I observed this'; it cannot make a second machine exist. A helper written for this briefly treated the two as the same and would have flipped this organ green on a signature given on the very laptop that produced its evidence -- removed, and recorded here so the confusion is not repeated. Two further reasons this organ in particular should be the last to go green: (1) its own newest evidence contains ONE unresolved M12 failure (zai.glm-4.7-flash, unreproduced across four re-runs, deliberately classified as neither breach nor false positive); (2) this is the organ GAGOS is judged by, and two of its own adjudicators were returning false verdicts as recently as 2026-09-14 (the M3 and M12 vacuous-FAIL defects). It should go green on someone else's machine, not on its author's word. |
 
