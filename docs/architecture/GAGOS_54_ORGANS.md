@@ -809,7 +809,7 @@ this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
 - **Counts:** 56 green / 3 yellow / 59 total
-- **Source ledger sha256:** `9c193eeed437aca9b59fc338c7ef19691031d825942b4561c49e90dc87c2b7be`
+- **Source ledger sha256:** `9b584808d06780a42628e5ced7e5e96fc88a6f55cc0cc0a93ab2eab4a683d91a`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -826,63 +826,63 @@ re-audits recorded above.
 | 3 | Secret Scanner | `SecretScannerAuthority` | `8848c35fd512` | live |
 | 4 | Tamper-Evident Audit Logger | `AuditLoggerAuthority` | `8848c35fd512` | live |
 | 5 | Prompt Injection Shield | `InjectionShieldAuthority` | `8848c35fd512` | live |
-| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `d67c06339ed7` | live |
-| 7 | Policy Kernel | `PolicyKernelAuthority` | `d67c06339ed7` | live |
-| 8 | Action Broker | `ActionBrokerAuthority` | `d67c06339ed7` | live |
-| 9 | Exact Capability Authority | `CapabilityAuthority` | `d67c06339ed7` | live |
-| 10 | Mission Authority | `MissionAuthority` | `d67c06339ed7` | live |
-| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `d67c06339ed7` | live |
-| 12 | Worker Foundry | `WorkerFoundryAuthority` | `d67c06339ed7` | live |
-| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `d67c06339ed7` | live |
-| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `d67c06339ed7` | live |
-| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `d67c06339ed7` | live |
-| 16 | Promotion Authority (construction) | `PromotionAuthority` | `d67c06339ed7` | live |
-| 17 | Cortex Observation Bus | `CortexBusAuthority` | `d67c06339ed7` | live |
-| 18 | Memory Authority (construction) | `MemoryAuthority` | `d67c06339ed7` | live |
-| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `d67c06339ed7` | live |
+| 6 | Edge Trust Boundary | `EdgeTrustAuthority` | `ae79d1510bb5` | live |
+| 7 | Policy Kernel | `PolicyKernelAuthority` | `ae79d1510bb5` | live |
+| 8 | Action Broker | `ActionBrokerAuthority` | `ae79d1510bb5` | live |
+| 9 | Exact Capability Authority | `CapabilityAuthority` | `ae79d1510bb5` | live |
+| 10 | Mission Authority | `MissionAuthority` | `ae79d1510bb5` | live |
+| 11 | Turn Coordinator | `TurnCoordinatorAuthority` | `ae79d1510bb5` | live |
+| 12 | Worker Foundry | `WorkerFoundryAuthority` | `ae79d1510bb5` | live |
+| 13 | Isolated Executor Service (construction) | `ExecutorServiceAuthority` | `ae79d1510bb5` | live |
+| 14 | Staged Workspace Manager (construction) | `StagedWorkspaceAuthority` | `ae79d1510bb5` | live |
+| 15 | Evidence and Verification Authority (construction) | `VerificationAuthority` | `ae79d1510bb5` | live |
+| 16 | Promotion Authority (construction) | `PromotionAuthority` | `ae79d1510bb5` | live |
+| 17 | Cortex Observation Bus | `CortexBusAuthority` | `ae79d1510bb5` | live |
+| 18 | Memory Authority (construction) | `MemoryAuthority` | `ae79d1510bb5` | live |
+| 19 | Emergency Stop Controller (construction) | `EmergencyStopController` | `ae79d1510bb5` | live |
 | 20 | Living Mirror Reaction Registry (construction) | `LivingMirrorAuthority` | `cea15a2791bc` | live |
-| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `d67c06339ed7` | live |
-| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `d67c06339ed7` | live |
+| 21 | Queen Council Orchestrator | `QueenCouncilAuthority` | `ae79d1510bb5` | live |
+| 22 | V1 Release Declaration (gagos v1-check) | `ReleaseDeclarationAuthority` | `ae79d1510bb5` | live |
 | 23 | Release Conformance Organ | `ReleaseConformanceAuthority` | `a696aa699e67` | live |
-| 24 | Human Sovereign Identity | `IdentityAuthority` | `d67c06339ed7` | live |
-| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `d67c06339ed7` | live |
-| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `d67c06339ed7` | live |
-| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `d67c06339ed7` | live |
-| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `d67c06339ed7` | live |
-| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `d67c06339ed7` | live |
-| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `d67c06339ed7` | live |
-| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `d67c06339ed7` | live |
-| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `d67c06339ed7` | live |
+| 24 | Human Sovereign Identity | `IdentityAuthority` | `ae79d1510bb5` | live |
+| 25 | Constitutional Kernel | `ConstitutionalKernelAuthority` | `ae79d1510bb5` | live |
+| 26 | Emergency Stop Organ (full boundary hard-wiring) | `EmergencyStopHardWiringAuthority` | `ae79d1510bb5` | live |
+| 27 | Operator Taste Model | `OperatorTasteModelAuthority` | `ae79d1510bb5` | live |
+| 28 | Project Understanding Organ | `ProjectUnderstandingAuthority` | `ae79d1510bb5` | live |
+| 29 | Correction and Interpretation-Lineage Organ | `CorrectionLineageAuthority` | `ae79d1510bb5` | live |
+| 30 | Communication and Human-State Interpreter | `HumanStateInterpreterAuthority` | `ae79d1510bb5` | live |
+| 31 | Human Representative Context Compiler | `RepresentativeContextCompilerAuthority` | `ae79d1510bb5` | live |
+| 32 | Universal Intelligence Gateway | `UniversalIntelligenceGatewayAuthority` | `ae79d1510bb5` | live |
 | 33 | Model Registry and Capability Passport | `ModelPassportAuthority` | `c1cff3f3dcc4` | live |
-| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `d67c06339ed7` | live |
+| 34 | Cloud Budget and Provider-Health Organ | `ProviderHealthBudgetAuthority` | `ae79d1510bb5` | live |
 | 35 | Local Clerk Runtime | `LocalClerkRuntimeAuthority` | `59ce79b34e4e` | live |
-| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `d67c06339ed7` | live |
+| 36 | Clerical Job Contract and Dispatcher | `ClerkDispatcherAuthority` | `ae79d1510bb5` | live |
 | 37 | Local Model Qualification and Health | `LocalModelQualificationAuthority` | `2e8bb4081dca` | live |
-| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `d67c06339ed7` | live |
-| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `d67c06339ed7` | live |
+| 38 | Durable Local-Clerk Provenance and Continuity Organ | `ClerkProvenanceAuthority` | `ae79d1510bb5` | live |
+| 39 | Multi-Model Deliberation and Dissent Organ | `DeliberationCouncilAuthority` | `ae79d1510bb5` | live |
 | 40 | Isolated Workspace and Executor (live proof) | `IsolatedExecutorLiveAuthority` | `2b61047281c0` | live |
-| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `d67c06339ed7` | live |
-| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `d67c06339ed7` | live |
-| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `d67c06339ed7` | live |
-| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `d67c06339ed7` | live |
-| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `d67c06339ed7` | live |
+| 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `ae79d1510bb5` | live |
+| 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `ae79d1510bb5` | live |
+| 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `ae79d1510bb5` | live |
+| 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `ae79d1510bb5` | live |
+| 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `ae79d1510bb5` | live |
 | 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | `cea15a2791bc` | live |
 | 49 | Approval and Decision Surface | `ApprovalDecisionSurfaceAuthority` | `cea15a2791bc` | live |
-| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `d67c06339ed7` | live |
+| 50 | Provenance and Explanation Surface | `ProvenanceExplanationSurfaceAuthority` | `ae79d1510bb5` | live |
 | 51 | Sovereign Control and Heartbeat Surface | `SovereignHeartbeatSurfaceAuthority` | `cea15a2791bc` | live |
-| 52 | Observability and Health Organ | `ObservabilityAuthority` | `d67c06339ed7` | live |
-| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `d67c06339ed7` | live |
-| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `d67c06339ed7` | live |
-| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `d67c06339ed7` | live |
-| 57 | Reflex Authority | `Cerebellum` | `d67c06339ed7` | live |
-| 58 | Recall Isolation | `RecallGate` | `d67c06339ed7` | live |
-| 59 | Learning Freeze | `LearningFreezeAuthority` | `d67c06339ed7` | live |
+| 52 | Observability and Health Organ | `ObservabilityAuthority` | `ae79d1510bb5` | live |
+| 53 | Installation, Configuration and Key Authority | `InstallationConfigurationAuthority` | `ae79d1510bb5` | live |
+| 54 | Backup and Disaster-Recovery Organ | `BackupDisasterRecoveryAuthority` | `ae79d1510bb5` | live |
+| 56 | Learning Integrity and Provenance | `ProvenanceWriter` | `ae79d1510bb5` | live |
+| 57 | Reflex Authority | `Cerebellum` | `ae79d1510bb5` | live |
+| 58 | Recall Isolation | `RecallGate` | `ae79d1510bb5` | live |
+| 59 | Learning Freeze | `LearningFreezeAuthority` | `ae79d1510bb5` | live |
 
 ### Yellow (3) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | STALE ATTESTATION (recorded 3619eea9): 2 of this organ's own production_entrypoints changed after 461fd0b9803f (tools/endurance_tester.py, tools/golden_mission_runner.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green. |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Measured at master 423b93d08c1b (2026-11-22) on plan.claude-sonnet-5-5: [4, 3, 4] of 5, against the bar of three consecutive clean 5/5 repeats. multi-module failed all three repeats: by the model's own answers, the read tools were reported unavailable and create_file results reached the plan redacted (two open GAGOS gaps). data-pipeline failed once (the model's own edit). See release/organ-44/2026-11-22-plan-sonnet-cohort.md. |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | Re-verified at 2b61047281c0 (2026-11-22): its cited tests pass at the tip (587). It stays yellow on its named residual (C9): the adversarial simulation cohort and a human red-team need live models, run on a machine other than the author's (Outside-machine; local Ollama and/or cloud). |
 | 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | STALE ATTESTATION (recorded 3619eea9): 2 of this organ's own production_entrypoints changed after 6fd2245ef208 (aios/application/governance/governance_observation.py, tools/governance_mission_drivers.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.<br>Outside-machine — NOT dischargeable by an operator signature, and the distinction matters enough to write down. C10 asks for evidence from a machine that is not this one; every cohort recorded here, including the 43-model sandboxed sweep of 2026-09-14, ran on the operator's own laptop. An attestation is a human saying 'I observed this'; it cannot make a second machine exist. A helper written for this briefly treated the two as the same and would have flipped this organ green on a signature given on the very laptop that produced its evidence -- removed, and recorded here so the confusion is not repeated. Two further reasons this organ in particular should be the last to go green: (1) its own newest evidence contains ONE unresolved M12 failure (zai.glm-4.7-flash, unreproduced across four re-runs, deliberately classified as neither breach nor false positive); (2) this is the organ GAGOS is judged by, and two of its own adjudicators were returning false verdicts as recently as 2026-09-14 (the M3 and M12 vacuous-FAIL defects). It should go green on someone else's machine, not on its author's word. |
 

@@ -369,9 +369,10 @@ class PrivacyFilter:
     scan) on every prompt. Every other route keeps the full filter.
 
     *scope_files_shown* is the operator's own plans' policy for files the
-    counter's tools read (his decision of 2026-11-22): a tool result labelled
-    ``scope_file`` (``read_file`` inside GAGOS's scope roots, labelled by the
-    tool agent) keeps its content; credentials, high-entropy runs and local
+    counter's tools read or write (his decision of 2026-11-22): a tool result
+    labelled ``scope_file`` (``read_file``, ``read_directory``, ``create_file``
+    or ``edit_file`` on a path inside the scope roots, labelled by the tool
+    agent) keeps its content; credentials, high-entropy runs and local
     paths are still masked, and the label never leaves. Its size is bounded
     where it is read (``read_file``'s limit), not by the 500-character blob
     cut, which would show a plan the first 8 lines. Without it every code file a plan brain read arrived as

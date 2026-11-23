@@ -111,6 +111,7 @@ from aios.core.verification_strength import (
     strength_from_text,
 )
 from aios.core.verifier import Verifier
+from aios.security import scope_lock
 from aios.security.audit_logger import log_action
 from aios.security.gateway import Zone, classify
 
@@ -720,23 +721,51 @@ def build_auto_verify_command(test_arg: str) -> str:
     return f'{config.VERIFY_RUNNER} -o addopts= "{test_arg}" -q'
 
 
+def _not_run_note(call: dict[str, Any]) -> str:
+    """The result of a call that did not run because the turn paused for
+    approval on an earlier call in the same reply."""
+    function = cast(dict[str, Any], call.get("function", {}))
+    args = _coerce_args(function.get("arguments"))
+    target = str(args.get("filepath") or args.get("path") or args.get("command") or "")
+    return (
+        f"[NOT RUN] {function.get('name', '')} {target}".rstrip()
+        + " was not run: the turn paused for approval on an earlier call in the"
+        " same reply. Call it again if it is still needed."
+    )
+
+
+#: The file tools whose successful result describes the path in this argument.
+#: A write's result is its diff, a folder's is its listing: without the label
+#: a plan brain saw ``[FILE CONTENT REDACTED]`` for its own write and could not
+#: tell whether it landed (organ 44's cohort, 2026-11-22).
+_SCOPE_RESULT_TOOLS = {
+    "read_file": "filepath",
+    "read_directory": "path",
+    "create_file": "filepath",
+    "edit_file": "filepath",
+}
+
+
 def _scope_file(
     name: str, status: str, args: dict[str, Any] | None, read_root: Path
 ) -> str | None:
-    """The path of a file ``read_file`` read from inside GAGOS's scope roots,
-    else None. The read root can be wider than the scope (it is their parent),
-    so the roots are checked here, on the resolved path. The privacy filter
-    shows such a file to the operator's own plans (his decision, 2026-11-22)
-    and drops the label before anything leaves; every other route redacts it.
+    """The scope path a file tool's successful result describes, else None:
+    the target of ``read_file``, ``read_directory``, ``create_file`` or
+    ``edit_file``, resolved inside the scope roots the tools enforce
+    (``scope_lock``). The read root can be wider than the scope (it is their
+    parent), so the roots are checked here, on the resolved path. The privacy filter shows such a result to the
+    operator's own plans (his decision, 2026-11-22) and drops the label before
+    anything leaves; every other route redacts it.
     """
-    if name != "read_file" or status != "ok":
+    key = _SCOPE_RESULT_TOOLS.get(name)
+    if key is None or status != "ok":
         return None
-    filepath = str((args or {}).get("filepath") or "")
+    filepath = str((args or {}).get(key) or "")
     if not filepath:
         return None
     try:
         resolved = (read_root / filepath).resolve()
-        roots = [Path(root).resolve() for root in config.SCOPE_ROOTS]
+        roots = [Path(root).resolve() for root in scope_lock.get_scope_roots()]
     except (OSError, RuntimeError, ValueError):
         return None
     if any(resolved.is_relative_to(root) for root in roots):
@@ -1397,6 +1426,16 @@ class ToolAgent:
                         # synthetic re-append needed. Popped off the event by
                         # main.py before it reaches the SSE payload -- this key
                         # must NEVER be emitted to the client.
+                        # Every later call in this reply does not run: the turn
+                        # resumes from this tail, where only the approved call
+                        # is applied. Say so, or the model believes it ran
+                        # (2026-11-22: a test file asked for in the same reply
+                        # never existed, and the model reported both written).
+                        for later in tool_calls[index + 1 :]:
+                            _not_run_guarded, _ = _guard_tool_output(
+                                _not_run_note(later)
+                            )
+                            convo.append({"role": "tool", "content": _not_run_guarded})
                         pause_event["_convo_tail"] = list(convo[prefix_len:])
                         yield pause_event
                         return
@@ -1669,7 +1708,11 @@ class ToolAgent:
                     self._pending_injections.append(
                         {"tool": "create_file", "reason": _inj}
                     )
-                convo.append({"role": "tool", "content": _guarded})
+                scope_file = _scope_file(
+                    "create_file", status, {"filepath": filepath}, self.read_root
+                )
+                label = {"scope_file": scope_file} if scope_file else {}
+                convo.append({"role": "tool", "content": _guarded, **label})
                 applied.append((index, filepath, "create_file"))
             else:
                 yield {
@@ -1729,7 +1772,11 @@ class ToolAgent:
                     self._pending_injections.append(
                         {"tool": "edit_file", "reason": _inj}
                     )
-                convo.append({"role": "tool", "content": _guarded})
+                scope_file = _scope_file(
+                    "edit_file", status, {"filepath": filepath}, self.read_root
+                )
+                label = {"scope_file": scope_file} if scope_file else {}
+                convo.append({"role": "tool", "content": _guarded, **label})
                 applied.append((index, filepath, "edit_file"))
             else:
                 yield {
