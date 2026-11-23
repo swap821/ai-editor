@@ -1,9 +1,15 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-23, organ evidence at master's tip after #731's rebase merge (branch `evidence/master-tip-after-731`)
+
+- #731 was rebase-merged, so its commits got new hashes, and the commit its evidence rows cited (`ae79d151`) is on no branch of master. `test_ledger_verification_sha` failed for 42 organs at master `ba0ec2d9`. `phase4_live_evidence.py` at `ba0ec2d9` passed every organ it probes; the attach re-stamped those 42 organs at the tip and removed the rows citing the orphaned commit.
+- #731's backend tests were still running when it merged; every other check had passed. Master's own CI at `ba0ec2d9` is the backend suite's first full run on that code.
+- No organ cites a commit off master; organ 44 now cites `423b93d0` (#730). 53 organs fresh, 1 stale (55, by his choice). 56 green, 3 yellow (44, 46, 55).
 
 ## 2026-11-23, GAGOS tells its plan brains what their writes did (branch `fix/plan-sees-what-its-writes-did`)
 
