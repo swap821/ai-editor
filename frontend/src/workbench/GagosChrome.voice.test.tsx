@@ -323,22 +323,22 @@ describe('GagosChrome voice UX', () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);
 
+    fireEvent.click(screen.getByRole('checkbox', { name: /use browser recognition/i }));
+    await waitFor(() => expect(recognitionProbe.current).not.toBeNull());
+
     const input = screen.getByLabelText('Talk to GAGOS') as HTMLInputElement;
     const micBtn = screen.getByRole('button', { name: /hold to speak/i });
-
     await act(async () => {
       fireEvent.pointerDown(micBtn);
+      recognitionProbe.current?.onresult?.({
+        results: [{ isFinal: true, 0: { transcript: 'open the readme' } }],
+      });
     });
 
-    // Simulate browser SpeechRecognition returning a final result
-    const rec = (window as any).__lastSpeechRecognition;
-    // Even if we can't directly call onresult, verify the input is not submitted
-    // by checking that sendDirective was NOT called
+    expect(input).toHaveValue('open the readme');
     expect(sendDirective).not.toHaveBeenCalled();
-
-    await act(async () => {
-      fireEvent.pointerUp(micBtn);
-    });
+    expect(sendVoiceTurn).not.toHaveBeenCalled();
+    fireEvent.pointerUp(micBtn);
   });
 
   it('keeps a spoken approval phrase as draft text and never authorizes a pending mutation', async () => {
@@ -382,16 +382,28 @@ describe('GagosChrome voice UX', () => {
     const { default: GagosChrome } = await import('./GagosChrome');
     render(<GagosChrome />);
 
-    const input = screen.getByLabelText('Talk to GAGOS') as HTMLInputElement;
+    fireEvent.click(screen.getByRole('checkbox', { name: /use browser recognition/i }));
+    await waitFor(() => expect(recognitionProbe.current).not.toBeNull());
 
-    // Simulate typing to populate draft (acting as if transcription filled it)
+    const input = screen.getByLabelText('Talk to GAGOS') as HTMLInputElement;
+    const micBtn = screen.getByRole('button', { name: /hold to speak/i });
     await act(async () => {
-      fireEvent.change(input, { target: { value: 'transcribed text' } });
+      fireEvent.pointerDown(micBtn);
+      recognitionProbe.current?.onresult?.({
+        results: [{ isFinal: true, 0: { transcript: 'transcribed text' } }],
+      });
     });
 
-    // The has-transcript class requires transcriptPending state — typing manually clears it.
-    // Verify the input exists and does NOT have has-transcript on manual edit
+    expect(input).toHaveValue('transcribed text');
+    expect(input.className).toContain('has-transcript');
+
+    // Typing manually clears transcriptPending, so the class goes away.
+    await act(async () => {
+      fireEvent.change(input, { target: { value: 'transcribed text edited' } });
+    });
     expect(input.className).not.toContain('has-transcript');
+
+    fireEvent.pointerUp(micBtn);
   });
 
   it('speaker button shows interrupt label while speaking', async () => {
