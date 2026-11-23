@@ -150,3 +150,109 @@ def test_a_file_tool_result_inside_the_scope_roots_is_labelled(
 def test_nothing_else_is_labelled(scope, name, status, filepath) -> None:
     args = {"filepath": filepath, "path": filepath}
     assert tool_agent._scope_file(name, status, args, scope) is None
+
+
+# --------------------------------------------------------------------------- #
+# Test reports (his decision, 2026-11-23)
+# --------------------------------------------------------------------------- #
+# Organ 44's cohort, 2026-11-23, data-pipeline step 2: the plan route turned
+# this report into [FILE CONTENT REDACTED] whole, and the model re-ran its
+# tests nine times without seeing the ImportError it had to fix.
+_FAILING_REPORT = "\n".join(
+    [
+        "[VERIFY FAIL] 0 passed, 1 failed (exit 2) (strength=NONE)",
+        "==================================== ERRORS ====================================",
+        "______________ ERROR collecting training_ground/test_pipeline.py _______________",
+        "ImportError while importing test module '/workspace/training_ground/test_pipeline.py'.",
+        "Traceback:",
+        "/usr/local/lib/python3.12/importlib/__init__.py:90: in import_module",
+        "    return _bootstrap._gcd_import(name[level:], package, level)",
+        "training_ground/test_pipeline.py:8: in <module>",
+        "    from pipeline import Pipeline, PipelineError, filter_nulls  # noqa: E402",
+        "E   ImportError: cannot import name 'PipelineError' from 'pipeline' (/workspace/training_ground/pipeline.py)",
+        "ERROR training_ground/test_pipeline.py",
+        "1 error in 0.40s",
+    ]
+)
+
+
+def test_his_plans_see_a_failing_scope_test_report() -> None:
+    safe, audit = PrivacyFilter(scope_files_shown=True).filter(
+        [_tool(_FAILING_REPORT, "training_ground/test_pipeline.py")]
+    )
+    content = safe[0]["content"]
+    assert "ImportError: cannot import name 'PipelineError'" in content
+    assert "from pipeline import Pipeline, PipelineError, filter_nulls" in content
+    assert "FILE CONTENT REDACTED" not in content
+    assert "/workspace/training_ground/pipeline.py" not in content  # paths masked
+    assert audit["redacted_tool_files"] == 0
+    assert "scope_file" not in safe[0]
+
+
+def test_an_unlabelled_test_report_is_still_redacted_whole() -> None:
+    safe, audit = PrivacyFilter(scope_files_shown=True).filter(
+        [_tool(_FAILING_REPORT, None)]
+    )
+    assert "FILE CONTENT REDACTED" in safe[0]["content"]
+    assert "PipelineError" not in safe[0]["content"]
+    assert audit["redacted_tool_files"] == 1
+
+
+@pytest.mark.parametrize(
+    "command,label",
+    [
+        ("pytest training_ground/t.py", "training_ground/t.py"),
+        (
+            tool_agent.build_auto_verify_command("training_ground/t.py"),
+            "training_ground/t.py",
+        ),
+        (
+            "python3 -m pytest -v training_ground/t.py::test_x",
+            "training_ground/t.py",
+        ),
+        (
+            "pytest -q --tb=short -k 'long and not slow' training_ground",
+            "training_ground",
+        ),
+        ("pytest --collect-only -q training_ground/t.py", "training_ground/t.py"),
+    ],
+)
+def test_a_pytest_run_inside_the_scope_roots_is_labelled(scope, command, label) -> None:
+    args = {"command": command}
+    assert tool_agent._scope_file("verify", "ok", args, scope) == label
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        "pytest",  # collects from the whole root
+        "pytest -q",
+        "pytest aios/core.py",  # under the read root, outside the scope
+        "pytest training_ground/../aios/core.py",  # traversal out
+        "pytest training_ground/missing.py",
+        "pytest training_ground/t.py aios/core.py",  # one path outside
+        "pytest training_ground/t.py; cat aios/core.py",
+        "pytest training_ground/t.py | tee out.txt",
+        "pytest training_ground/t.py > out.txt",
+        "pytest training_ground/t.py $(cat aios/core.py)",
+        "pytest training_ground/t.py `cat aios/core.py`",
+        "pytest training_ground/t.py && cat aios/core.py",
+        "pytest -p evil training_ground/t.py",  # a plugin from anywhere
+        "pytest -c aios/x.ini training_ground/t.py",
+        "pytest --rootdir=aios training_ground/t.py",
+        "pytest -o pythonpath=aios training_ground/t.py",
+        "pytest -o=pythonpath=aios training_ground/t.py",
+        "pytest training_ground/t.py -k",  # an option missing its value
+        "python -c 'import os' training_ground/t.py",
+        "cat training_ground/t.py",
+        "pytest 'training_ground/t.py",  # unbalanced quote
+    ],
+)
+def test_no_other_command_is_labelled(scope, command) -> None:
+    assert tool_agent._scope_file("verify", "ok", {"command": command}, scope) is None
+
+
+def test_a_verify_that_did_not_run_is_not_labelled(scope) -> None:
+    args = {"command": "pytest training_ground/t.py"}
+    for status in ("blocked", "approval"):
+        assert tool_agent._scope_file("verify", status, args, scope) is None

@@ -2479,3 +2479,30 @@ def test_a_write_applied_on_resume_is_labelled_for_his_plans(sandbox) -> None:
     sent = chat.calls[0]
     applied = [m for m in sent if m.get("role") == "tool" and m.get("scope_file")]
     assert applied and applied[0]["scope_file"] == "note.txt"
+
+
+def test_the_verify_after_a_resumed_write_is_labelled_for_his_plans(sandbox) -> None:
+    """The forced verify of the test beside a re-applied write carries the
+    scope label too, so the operator's plans see why it failed instead of
+    [FILE CONTENT REDACTED] (organ 44's cohort, 2026-11-23)."""
+    (sandbox / "test_calc.py").write_text(
+        "def test_x():\n    assert True\n", encoding="utf-8"
+    )
+    chat = ScriptedChat([{"role": "assistant", "content": "Done."}])
+    events = list(
+        ToolAgent(
+            chat,
+            _executor(),
+            max_iters=3,
+            approved_creations=[{"filepath": "calc.py", "content": "x = 1\n"}],
+        ).run([{"role": "user", "content": "write calc"}])
+    )
+    assert any(e["type"] == "tool_result" and e["tool"] == "verify" for e in events), (
+        "the write was not followed by a verify"
+    )
+    sent = chat.calls[0]
+    labelled = [
+        m["scope_file"] for m in sent if m.get("role") == "tool" and m.get("scope_file")
+    ]
+    assert "calc.py" in labelled  # the write itself (#731)
+    assert any(label.endswith("test_calc.py") for label in labelled)  # its verify
