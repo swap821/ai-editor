@@ -2548,3 +2548,32 @@ def test_a_new_edit_after_a_landed_grant_is_the_models_own(sandbox) -> None:
     assert "already contains the requested replacement" not in outputs
     pause = next(e for e in events if e["type"] == "human_required")
     assert "y = 3" in json.dumps(pause, default=str)
+
+
+def test_an_unreadable_call_runs_nothing_and_the_model_is_told(sandbox) -> None:
+    """Organ 44's cohort, 2026-11-23: a plan brain announced a test file, and its
+    call (arguments the client could not read) vanished, so the turn ended on
+    the announcement. The client now marks such a call; the loop answers it
+    with [NOT RUN], runs nothing, and asks the model again."""
+    unreadable = {
+        "role": "assistant",
+        "content": "Creating the test file next.",
+        "tool_calls": [
+            {
+                "id": "plan_0",
+                "function": {"name": "create_file", "arguments": {}},
+                "unreadable": "its arguments_json is not one JSON object",
+            }
+        ],
+    }
+    chat = ScriptedChat([unreadable, {"role": "assistant", "content": "Done."}])
+    events = list(
+        ToolAgent(chat, _executor(), max_iters=3).run(
+            [{"role": "user", "content": "write the test file"}]
+        )
+    )
+    assert len(chat.calls) == 2, "the turn went on to ask the model again"
+    told = [m for m in chat.calls[1] if m.get("role") == "tool"]
+    assert told and told[-1]["content"].startswith("[NOT RUN] create_file")
+    assert not any(e["type"] == "tool_call" for e in events), "nothing ran"
+    assert not any(sandbox.iterdir()), "no file was written"

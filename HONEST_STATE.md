@@ -1,10 +1,20 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
+## 2026-11-23, a plan brain's unreadable call is answered, not dropped (branch `fix/plan-dropped-calls-say-so`)
+
+- **What broke, in real use.** Organ 44's cohort at master `c3bb03d5` ([5, 5, 4], #743): in `iterative-refinement` step 1, the model's reply announced the test file, and no call executed; the turn ended `unverified`.
+- **The mechanism.** `plan_cli._turn` dropped, silently, a call to an offered tool whose `arguments_json` is not one JSON object. A `create_file` whose body carries raw newlines inside its JSON string is one: checked on the shipped function. No reply text was kept, so that run cannot confirm it was the cause; the drop is a defect either way.
+- **Fix.**
+  - The arguments are read with `strict=False`, so raw newlines inside a string are the newlines the model meant.
+  - A call whose arguments still cannot be read is kept, marked `unreadable`. The agent loop answers it with a guarded `[NOT RUN] <tool> was not run: ... Call it again with its arguments as one JSON object.`, runs nothing, and asks the model again.
+  - A call to a tool not offered is still dropped, as designed.
+- **Tests.** The loop test fails at master (`c3bb03d5`), where the call would have run with empty arguments and been refused as `[BLOCKED] Path ''`, and passes here. The guard test now counts 9 tool-output sites, 8 guarded; the new one is this `[NOT RUN]` result.
+- `aios/agents/tool_agent.py` is organ 57's entrypoint, so its evidence is re-gathered at this branch's tip.
 ## 2026-11-23, organ 44 at master `c3bb03d5`: [5, 5, 4]; his attestation not committed (branch `evidence/organ44-cohort-master-c3bb03d5`)
 
 - **The attestation.** The operator attested the [5, 5, 5] at `df68b748`; a first run had recorded the tool's placeholder name, and he re-ran it with his own. `verify_organ_contracts.py` then refused the flip: a green organ needs a live row stamped at its `last_verified_sha`, and the [5, 5, 5] sits at a commit #739's squash orphaned. My tree-hash anchoring in #740 was enough for yellow, not for green. The attest tool says to revert rather than argue, so nothing was committed.

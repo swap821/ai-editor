@@ -6,7 +6,8 @@ counter also and C"). Pinned here, without a model or a network:
   servers or plugins, an empty directory;
 * what leaves passes the privacy filter first;
 * the agent's tools are answered through structured output; a call to a tool
-  not offered, or with arguments that are not a JSON object, is dropped;
+  not offered is dropped, and one whose arguments are not a JSON object is
+  marked ``unreadable`` for the agent loop to answer ``[NOT RUN]``;
 * a call that gives no answer (a usage limit) is an LLMError, so failover runs;
 * the router offers each plan model as a cloud candidate, gated by the
   operator's cloud tasks like any other cloud provider, and ``plan.<model>``
@@ -115,8 +116,13 @@ def test_the_agents_tools_come_back_as_tool_calls() -> None:
         {
             "id": "plan_0",
             "function": {"name": "read_file", "arguments": {"path": "a.py"}},
-        }
-    ], "a tool not offered and arguments that are not JSON are dropped"
+        },
+        {
+            "id": "plan_2",
+            "function": {"name": "read_file", "arguments": {}},
+            "unreadable": plan_cli.UNREADABLE_ARGUMENTS,
+        },
+    ], "a tool not offered is dropped; unreadable arguments are marked, not dropped"
     [(argv, kw)] = run.calls
     assert json.loads(argv[argv.index("--json-schema") + 1]) == plan_cli.TURN_SCHEMA
     assert "read_file" in kw["input"], "the tools are described to the model"
@@ -273,7 +279,7 @@ def test_the_ledger_names_the_real_caller_not_the_plan_client() -> None:
     assert provider == "plan" and not site.startswith("aios/core/plan_cli.py")
 
 
-def test_tool_arguments_that_are_not_a_string_are_dropped_not_fatal() -> None:
+def test_tool_arguments_that_are_not_a_string_are_marked_not_fatal() -> None:
     structured = {
         "content": "reading",
         "tool_calls": [{"name": "read_file", "arguments_json": {"path": "a.py"}}],
@@ -282,7 +288,17 @@ def test_tool_arguments_that_are_not_a_string_are_dropped_not_fatal() -> None:
         stdout=json.dumps({"is_error": False, "structured_output": structured})
     )
     answer = _client(run).chat([{"role": "user", "content": "read"}], tools=TOOLS)
-    assert answer == {"role": "assistant", "content": "reading"}
+    assert answer == {
+        "role": "assistant",
+        "content": "reading",
+        "tool_calls": [
+            {
+                "id": "plan_0",
+                "function": {"name": "read_file", "arguments": {}},
+                "unreadable": plan_cli.UNREADABLE_ARGUMENTS,
+            }
+        ],
+    }
 
 
 def test_a_missing_tool_is_named_not_an_empty_model() -> None:
@@ -298,3 +314,21 @@ def test_a_missing_tool_is_named_not_an_empty_model() -> None:
         client.chat([{"role": "user", "content": "hi"}])
     with pytest.raises(LLMError, match="Codex CLI is not installed"):
         client.chat([{"role": "user", "content": "hi"}], model="gpt-6-luna")
+
+
+def test_a_file_body_with_raw_newlines_is_the_call_the_model_meant() -> None:
+    """Organ 44's cohort, 2026-11-23: a plan brain announced a test file that no
+    call created. A create_file whose body carries raw newlines inside its JSON
+    string was dropped; it is now read as written."""
+    body = "def test_a():\n    assert True\n"
+    raw = '{"filepath": "t/test_a.py", "content": "' + body + '"}'
+    turn = plan_cli._turn(
+        {
+            "content": "Creating it.",
+            "tool_calls": [{"name": "read_file", "arguments_json": raw}],
+        },
+        TOOLS,
+    )
+    [call] = turn["tool_calls"]
+    assert "unreadable" not in call
+    assert call["function"]["arguments"] == {"filepath": "t/test_a.py", "content": body}
