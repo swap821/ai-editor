@@ -1,9 +1,16 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-23 (minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-23, minimatch 11.0.5: Dependabot alert #15 closed (branch `deps/minimatch-11`)
+
+- `frontend/package.json` pinned `minimatch` to 10.2.6 by override since #188 (2026-08-04). Its only consumers, `eslint`, `@eslint/config-array` and `@typescript-eslint/typescript-estree` (all dev), now ask for `^11.0.5`/`^11.0.1`, so the override was holding them below their own range and on a version alert #15 marks vulnerable (`>= 7.0.0, < 11.0.1`, medium).
+- The override is now 11.0.5, published 2026-11-05: the newest 11.x at least two weeks old (11.0.8 and 11.0.9 are 12 and 7 days old). It adds one dependency, `@isaacs/nonrecursive-glob-match` 1.1.0 (2026-11-05).
+- Measured: `npm ci` then `eslint src` linted the same 643 files with the same result per file as on 10.2.6 (the one difference is `GagosChrome.jsx`, from #741); `npm audit` reports 0 vulnerabilities.
+- The lockfile changed, so GAGOS's frontend sandbox image (`aios-verify-web`, tagged by lock + runner) is rebuilt after this merges.
 
 ## 2026-11-23, organ evidence at master's tip after #739's squash merge (branch `evidence/master-tip-after-739`)
 
