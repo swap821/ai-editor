@@ -57,7 +57,7 @@ import { sanitizeToText } from '../utils/sanitizeHtml';
 import './GagosChrome.css';
 
 import { useCognitionBus } from './hooks/useCognitionBus';
-import { useWorkMaterialization, workFilepath, extractStreamingCode } from './hooks/useWorkMaterialization';
+import { useWorkMaterialization, extractStreamingCode } from './hooks/useWorkMaterialization';
 import { useVoiceInput } from './hooks/useVoiceInput';
 import { ExperienceModeSwitch } from '../livingMirror/ExperienceModeSwitch';
 import { isWorkspacePanelVisible } from '../livingMirror/experience/workspaceVisibility';
@@ -83,8 +83,6 @@ import { deriveReceipt } from '../livingMirror/experience/receipts';
 import { useBeingPresentation } from '../livingMirror/being/useBeingPresentation';
 import { beingStatusText } from '../livingMirror/being/presentationFromStores';
 import { useEmergencyStopPresentation } from '../livingMirror/emergencyStopPresentation';
-
-export { workFilepath, extractStreamingCode };
 
 // These surfaces are Expert-only. Keep their modules out of Guided startup;
 // the same components remain available when the technical mode is selected.

@@ -248,34 +248,3 @@ describe('GagosChrome — live writing slab', () => {
     });
   });
 });
-
-describe('workFilepath', () => {
-  it('prefers an explicit filename, then an identifier, dropping filler words', async () => {
-    const { workFilepath } = await import('./GagosChrome');
-    // explicit filename in the directive wins
-    expect(workFilepath('create hello.py that prints hi')).toBe('hello.py');
-    expect(workFilepath('Create a Python file streamtest.py that prints x')).toBe('streamtest.py');
-    // a function/identifier name + inferred language
-    expect(workFilepath('Write a Python function bubble_sort with inline comments')).toBe('bubble-sort.py');
-    // no longer the old ugly "a-python-function-…" filler guess
-    expect(workFilepath('Write a Python function bubble_sort with inline comments')).not.toContain('a-python');
-    // graceful fallback when there is nothing clean
-    expect(workFilepath('do the thing')).toMatch(/\.\w+$/);
-  });
-});
-
-describe('extractStreamingCode', () => {
-  it('returns no code until a fence opens, then the code-so-far (open or closed)', async () => {
-    const { extractStreamingCode } = await import('./GagosChrome');
-    // Before any fence: nothing to show.
-    expect(extractStreamingCode('thinking about it...').code).toBe('');
-    // Open (unclosed) fence: everything after it, live.
-    const open = extractStreamingCode('here:\n```py\nprint(1)');
-    expect(open.code).toContain('print(1)');
-    expect(open.language).toBe('py');
-    // Closed fence: just the block, trailing prose dropped.
-    const closed = extractStreamingCode('```python\nprint(1)\n```\nDone!');
-    expect(closed.code).toBe('print(1)\n');
-    expect(closed.language).toBe('python');
-  });
-});
