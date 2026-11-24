@@ -35,6 +35,7 @@ from aios.domain.capabilities.skill_envelope import (
     SkillEnvelopeTerms,
 )
 from aios.domain.capabilities.envelope import (
+    MAX_DAYS as MAX_ENVELOPE_DAYS,
     MAX_HOURS,
     MAX_MISSIONS,
     EnvelopeError,
@@ -92,6 +93,9 @@ class SignEnvelopeRequest(BaseModel):
     )
     maxMissions: int = Field(ge=1, le=MAX_MISSIONS)
     hours: int = Field(ge=1, le=MAX_HOURS)
+    #: 0: a day envelope. 1 to 30: a standing one (2026-11-24), hours 24,
+    #: maxMissions a cap per UTC day.
+    days: int = Field(default=0, ge=0, le=MAX_ENVELOPE_DAYS)
 
 
 def _known_task(ledger: DailyLedger, task_id: str) -> dict:
@@ -154,15 +158,17 @@ def sign_envelope(
     principal: Principal = Depends(require_privileged_operator),
     authority: EnvelopeAuthority = Depends(get_gagos_envelope_authority),
 ) -> dict:
-    """His once-a-day signature: GAGOS may originate up to *maxMissions*
-    missions in *folders*, of *kinds*, for *hours*, delivered by PR only. A
-    newer signature ends the older envelope."""
+    """His signature: GAGOS may originate up to *maxMissions* missions in
+    *folders*, of *kinds*, for *hours* -- or, with *days*, up to *maxMissions*
+    a day for that many days -- delivered by PR only. A newer signature ends
+    the older envelope."""
     try:
         terms = EnvelopeTerms.build(
             folders=body.folders,
             kinds=body.kinds,
             max_missions=body.maxMissions,
             hours=body.hours,
+            days=body.days,
         )
         authority.sign(terms, principal=principal)
     except (EnvelopeError, EnvelopeRefused) as exc:

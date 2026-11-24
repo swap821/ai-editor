@@ -144,12 +144,17 @@ class EnvelopeStore:
         kind: str,
         files: list[str],
         digest_for: Any,
+        day_seconds: int = 0,
     ) -> int | str:
         """Take the envelope's next slot for *mission_id*: its number, or
         ``"ended"`` (revoked or expired) or ``"full"``. *digest_for(slot)*
         gives the slot's digest. The clock is read only once the writer lock
         is held (Codex's review: read before, a wait for the lock admitted
-        an envelope that expired meanwhile)."""
+        an envelope that expired meanwhile).
+
+        With *day_seconds* (a standing envelope) *max_slots* caps the slots
+        taken since the current UTC day began, counted under the same lock;
+        slots are still numbered across the envelope's whole life."""
         with closing(self._connect()) as conn:
             conn.execute("BEGIN IMMEDIATE")
             try:
@@ -163,7 +168,14 @@ class EnvelopeStore:
                     "SELECT COUNT(*) FROM gagos_envelope_slots WHERE envelope_id = ?",
                     (envelope_id,),
                 ).fetchone()[0]
-                if live is None or used >= max_slots:
+                counted = used
+                if day_seconds:
+                    counted = conn.execute(
+                        "SELECT COUNT(*) FROM gagos_envelope_slots "
+                        "WHERE envelope_id = ? AND reserved_at >= ?",
+                        (envelope_id, now - now % day_seconds),
+                    ).fetchone()[0]
+                if live is None or counted >= max_slots:
                     conn.execute("ROLLBACK")
                     return "ended" if live is None else "full"
                 slot = int(used) + 1
@@ -200,14 +212,21 @@ class EnvelopeStore:
         out["files"] = json.loads(out.pop("files_json"))
         return out
 
-    def used(self, envelope_id: str) -> int:
+    def used(self, envelope_id: str, *, since: float | None = None) -> int:
+        """Slots *envelope_id* has handed out, or only those since *since*."""
         with closing(self._connect()) as conn:
-            return int(
-                conn.execute(
+            if since is None:
+                row = conn.execute(
                     "SELECT COUNT(*) FROM gagos_envelope_slots WHERE envelope_id = ?",
                     (envelope_id,),
-                ).fetchone()[0]
-            )
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM gagos_envelope_slots "
+                    "WHERE envelope_id = ? AND reserved_at >= ?",
+                    (envelope_id, float(since)),
+                ).fetchone()
+            return int(row[0])
 
 
 __all__ = ["EnvelopeStore"]

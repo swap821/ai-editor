@@ -13,7 +13,9 @@ What it will not do:
 * admit anything with no emergency stop wired, with the stop engaged, or once
   the stop has engaged at any time since the envelope was signed -- a stop
   ends the envelope, and only a new signature starts another;
-* admit past the envelope's slots, its expiry, its folders or its kinds.
+* admit past the envelope's slots, its expiry, its folders or its kinds --
+  for a standing envelope (2026-11-24), past its missions for the current UTC
+  day, counted under the store's writer lock.
 """
 
 from __future__ import annotations
@@ -29,6 +31,7 @@ from typing import Any
 
 from aios.application.capabilities.authority import EmergencyStopHardWiringAuthority
 from aios.domain.capabilities.envelope import (
+    DAY_SECONDS,
     EnvelopeError,
     EnvelopeTerms,
     normalise_path,
@@ -79,9 +82,11 @@ class Envelope:
     revoked_at: float | None
     revoked_reason: str | None
     used: int
+    #: Slots taken since the current UTC day began (a standing envelope's cap).
+    used_today: int = 0
 
     def describe(self) -> dict[str, Any]:
-        return {
+        out: dict[str, Any] = {
             "envelopeId": self.envelope_id,
             "terms": self.terms.as_payload(),
             "termsDigest": self.terms_digest,
@@ -90,6 +95,15 @@ class Envelope:
             "missionsUsed": self.used,
             "missionsLeft": max(self.terms.max_missions - self.used, 0),
         }
+        if self.terms.standing:
+            out.update(
+                standing=True,
+                days=self.terms.days,
+                missionsPerDay=self.terms.max_missions,
+                missionsUsedToday=self.used_today,
+                missionsLeft=max(self.terms.max_missions - self.used_today, 0),
+            )
+        return out
 
 
 @dataclass(frozen=True)
@@ -114,7 +128,7 @@ class EnvelopeSlot:
 
 
 class EnvelopeAuthority:
-    """Sign, admit into, and revoke GAGOS's daily envelope."""
+    """Sign, admit into, and revoke GAGOS's envelope: a day's, or a standing one."""
 
     def __init__(
         self,
@@ -135,10 +149,12 @@ class EnvelopeAuthority:
     # -- reading ----------------------------------------------------------
 
     def _from_row(self, row: dict[str, Any]) -> Envelope:
+        terms = EnvelopeTerms.from_payload(row["terms"])
+        now = self.clock()
         return Envelope(
             envelope_id=row["envelope_id"],
             operator_id=row["operator_id"],
-            terms=EnvelopeTerms.from_payload(row["terms"]),
+            terms=terms,
             terms_digest=row["terms_digest"],
             stop_generation=int(row["stop_generation"]),
             issued_at=float(row["issued_at"]),
@@ -146,6 +162,11 @@ class EnvelopeAuthority:
             revoked_at=row["revoked_at"],
             revoked_reason=row["revoked_reason"],
             used=self.store.used(row["envelope_id"]),
+            used_today=(
+                self.store.used(row["envelope_id"], since=now - now % DAY_SECONDS)
+                if terms.standing
+                else 0
+            ),
         )
 
     def _why_not_live(self, envelope: Envelope | None) -> str | None:
@@ -202,7 +223,7 @@ class EnvelopeAuthority:
             "terms_digest": terms.digest(),
             "stop_generation": generation,
             "issued_at": now,
-            "expires_at": now + terms.hours * 3600,
+            "expires_at": now + terms.lifetime_seconds,
         }
         self.store.insert(row, now=now)
         return self._from_row({**row, "revoked_at": None, "revoked_reason": None})
@@ -271,12 +292,18 @@ class EnvelopeAuthority:
                 kind=kind,
                 files=normalised,
                 digest_for=digest,
+                day_seconds=DAY_SECONDS if envelope.terms.standing else 0,
             )
         except sqlite3.IntegrityError as exc:
             raise EnvelopeRefused(f"{mission_id} already holds a slot") from exc
         if slot == "ended":
             raise EnvelopeRefused("the envelope ended while the slot was being taken")
         if slot == "full":
+            if envelope.terms.standing:
+                raise EnvelopeRefused(
+                    f"today's {envelope.terms.max_missions} missions are used; "
+                    "the standing envelope opens again at 00:00 UTC"
+                )
             raise EnvelopeRefused(
                 f"the envelope's {envelope.terms.max_missions} missions are used"
             )
@@ -292,7 +319,7 @@ class EnvelopeAuthority:
             envelope_id=envelope.envelope_id,
             terms_digest=envelope.terms_digest,
             slot=slot,
-            of=envelope.terms.max_missions,
+            of=envelope.terms.total_slots,
             mission_id=mission_id,
             originator=originator,
             kind=kind,
@@ -338,7 +365,7 @@ class EnvelopeAuthority:
             envelope_id=envelope.envelope_id,
             terms_digest=envelope.terms_digest,
             slot=int(row["slot"]),
-            of=envelope.terms.max_missions,
+            of=envelope.terms.total_slots,
             mission_id=mission_id,
             originator=row["originator"],
             kind=row["kind"],

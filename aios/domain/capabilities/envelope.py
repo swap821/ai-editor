@@ -14,6 +14,13 @@ for it. An envelope is a capability of its own kind:
 * ended by expiry, by his revocation, by a newer envelope, or by any
   engagement of the emergency stop after it was signed.
 
+A standing envelope (the operator's decision, 2026-11-24: GAGOS should work
+like Jarvis, on his authority, without a fresh signature each morning) is the
+same capability signed for whole days, up to :data:`MAX_DAYS`, like his skill
+envelope. Its ``max_missions`` is a cap per UTC day, and every other rule is
+unchanged. A day envelope's terms carry no ``days``, so its digest is the one
+it always had.
+
 This module holds the terms and their rules only. It reads no store and calls
 nothing; :mod:`aios.application.capabilities.envelope` is the authority.
 """
@@ -34,6 +41,10 @@ KINDS = ("tests", "code")
 MAX_MISSIONS = 20
 #: The longest an envelope may live, in hours.
 MAX_HOURS = 24
+#: The longest a standing envelope may live, in days (as his skill envelope).
+MAX_DAYS = 30
+#: One day of a standing envelope, the window its per-day cap counts in.
+DAY_SECONDS = 86400
 #: The only delivery an envelope allows: a pull request, merged by him.
 DELIVERY = "pr"
 #: Never inside an envelope, whatever its folders say (lower-case prefixes).
@@ -102,13 +113,17 @@ def _folder(folder: str) -> str:
 
 @dataclass(frozen=True)
 class EnvelopeTerms:
-    """What the operator signs: folders, kinds of change, missions, hours."""
+    """What the operator signs: folders, kinds of change, missions, hours --
+    and, for a standing envelope, days."""
 
     folders: tuple[str, ...]
     kinds: tuple[str, ...]
     max_missions: int
     hours: int
     delivery: str = DELIVERY
+    #: 0 for a day envelope; 1 to :data:`MAX_DAYS` for a standing one, whose
+    #: ``max_missions`` is then a cap per UTC day and whose ``hours`` is 24.
+    days: int = 0
 
     @classmethod
     def build(
@@ -119,6 +134,7 @@ class EnvelopeTerms:
         max_missions: int,
         hours: int,
         delivery: str = DELIVERY,
+        days: int = 0,
     ) -> "EnvelopeTerms":
         """Validated, normalised terms, or :class:`EnvelopeError` saying why."""
         normalised = tuple(sorted({_folder(f) for f in folders}))
@@ -137,16 +153,43 @@ class EnvelopeTerms:
             raise EnvelopeError(f"hours must be 1 to {MAX_HOURS}")
         if delivery != DELIVERY:
             raise EnvelopeError(f"delivery is by {DELIVERY} only; merging stays his")
-        return cls(normalised, chosen, max_missions, hours, delivery)
+        if isinstance(days, bool) or not isinstance(days, int):
+            raise EnvelopeError("days must be a whole number")
+        if not 0 <= days <= MAX_DAYS:
+            raise EnvelopeError(f"days must be 0 (a day envelope) to {MAX_DAYS}")
+        if days and hours != MAX_HOURS:
+            raise EnvelopeError(
+                f"a standing envelope runs whole days: its hours are {MAX_HOURS}"
+            )
+        return cls(normalised, chosen, max_missions, hours, delivery, days)
+
+    @property
+    def standing(self) -> bool:
+        """A standing envelope: whole days, a mission cap per UTC day."""
+        return self.days > 0
+
+    @property
+    def lifetime_seconds(self) -> int:
+        return self.days * DAY_SECONDS if self.standing else self.hours * 3600
+
+    @property
+    def total_slots(self) -> int:
+        """The most missions the envelope can hold over its whole life."""
+        return self.max_missions * self.days if self.standing else self.max_missions
 
     def as_payload(self) -> dict[str, Any]:
-        return {
+        payload: dict[str, Any] = {
             "folders": list(self.folders),
             "kinds": list(self.kinds),
             "max_missions": self.max_missions,
             "hours": self.hours,
             "delivery": self.delivery,
         }
+        # Only a standing envelope names its days, so every day envelope's
+        # payload, and therefore its digest, is the one it was signed with.
+        if self.standing:
+            payload["days"] = self.days
+        return payload
 
     @classmethod
     def from_payload(cls, payload: dict[str, Any]) -> "EnvelopeTerms":
@@ -204,6 +247,8 @@ __all__ = [
     "EnvelopeTerms",
     "FORBIDDEN_PREFIXES",
     "KINDS",
+    "DAY_SECONDS",
+    "MAX_DAYS",
     "MAX_HOURS",
     "MAX_MISSIONS",
     "forbidden",

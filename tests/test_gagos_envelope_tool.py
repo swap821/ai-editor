@@ -118,3 +118,29 @@ def test_the_skill_envelope_is_signed_read_and_ended_through_his_routes() -> Non
         ("GET", "/api/gagos/skill-envelope", None),
         ("POST", "/api/gagos/skill-envelope/revoke", {}),
     ]
+
+
+def test_standing_sign_signs_whole_days_with_missions_a_day() -> None:
+    """2026-11-24, the operator: GAGOS should work like Jarvis, on his
+    authority, without a fresh signature each morning."""
+    live = Live()
+    assert _run(["standing-sign"], live) == 0
+    assert live.calls == [
+        (
+            "POST",
+            "/api/gagos/envelope",
+            {
+                "folders": ["frontend/src/superbrain/", "frontend/src/workbench/"],
+                "kinds": ["code", "tests"],
+                "maxMissions": 2,
+                "hours": 24,
+                "days": 30,
+            },
+        )
+    ]
+    live = Live()
+    assert _run(["standing-sign", "--days", "7", "--missions", "3"], live) == 0
+    assert live.calls[0][2]["days"] == 7 and live.calls[0][2]["maxMissions"] == 3
+    live = Live()
+    assert _run(["sign"], live) == 0
+    assert "days" not in live.calls[0][2], "sign stays a day envelope"

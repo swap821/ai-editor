@@ -444,3 +444,147 @@ def test_expiry_is_read_once_the_lock_is_held(tmp_path) -> None:
     with pytest.raises(EnvelopeRefused, match="ended while the slot was being taken"):
         _admit(authority, "late")
     assert authority.store.slot("late") is None
+
+
+# -- a standing envelope (2026-11-24) ------------------------------------------
+# The operator: GAGOS should work like Jarvis, on his authority, without a fresh
+# signature each morning. A standing envelope is the same capability signed for
+# whole days, its missions capped per UTC day; every other rule is unchanged.
+
+#: 01:00 UTC on a day boundary of the test clock.
+DAY = 86400
+DAWN = 12 * DAY + 3600
+
+
+def _standing(**kw) -> EnvelopeTerms:
+    base = {
+        "folders": [FOLDER],
+        "kinds": ["tests"],
+        "max_missions": 2,
+        "hours": 24,
+        "days": 3,
+    }
+    return EnvelopeTerms.build(**{**base, **kw})
+
+
+def test_a_day_envelope_keeps_the_digest_it_was_signed_with() -> None:
+    """A day envelope's payload names no days, so an envelope signed before
+    standing envelopes existed still has its digest, and its slots still check."""
+    from aios.domain.capabilities.digest import payload_digest
+
+    terms = _terms()
+    old_payload = {
+        "folders": [FOLDER],
+        "kinds": ["tests"],
+        "max_missions": 2,
+        "hours": 12,
+        "delivery": "pr",
+    }
+    assert terms.as_payload() == old_payload
+    assert terms.digest() == payload_digest(old_payload)
+    assert EnvelopeTerms.from_payload(old_payload) == terms
+    assert not terms.standing and terms.total_slots == 2
+
+
+def test_standing_terms_run_whole_days_with_a_cap_a_day() -> None:
+    terms = _standing(days=30)
+    assert terms.standing and terms.lifetime_seconds == 30 * DAY
+    assert terms.total_slots == 60
+    assert terms.as_payload()["days"] == 30
+    assert EnvelopeTerms.from_payload(terms.as_payload()) == terms
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"days": 31},
+        {"days": -1},
+        {"days": True},
+        {"days": 1.5},
+        {"days": 7, "hours": 12},  # whole days only
+        {"days": 7, "max_missions": 21},
+    ],
+)
+def test_standing_terms_refuse_out_of_range_values(kw) -> None:
+    with pytest.raises(EnvelopeError):
+        _standing(**kw)
+
+
+def test_a_standing_envelope_caps_each_utc_day_and_lives_its_days(tmp_path) -> None:
+    clock = Clock()
+    clock.now = DAWN
+    authority = _authority(tmp_path, clock=clock)
+    envelope = authority.sign(_standing(days=3), principal=Who())
+    assert envelope.expires_at == DAWN + 3 * DAY
+
+    first = _admit(authority, "goal-1")
+    assert (first.slot, first.of) == (1, 6)
+    assert _admit(authority, "goal-2").slot == 2
+    with pytest.raises(EnvelopeRefused, match="today's 2 missions are used"):
+        _admit(authority, "goal-3")
+    status = authority.status()
+    assert status["live"] and status["standing"] and status["days"] == 3
+    assert (status["missionsUsedToday"], status["missionsLeft"]) == (2, 0)
+    assert status["missionsUsed"] == 2
+
+    clock.now = DAWN + DAY  # 01:00 the next UTC day
+    third = _admit(authority, "goal-3")
+    assert third.slot == 3, "slots are numbered across the envelope's life"
+    status = authority.status()
+    assert (status["missionsUsedToday"], status["missionsLeft"]) == (1, 1)
+    assert authority.held_slot("goal-1").slot == 1, "yesterday's slot still checks"
+
+    clock.now = DAWN + 3 * DAY  # its third day is over
+    with pytest.raises(EnvelopeRefused, match="expired"):
+        _admit(authority, "goal-4")
+    assert authority.status() == {"live": False, "reason": "the envelope has expired"}
+
+
+def test_a_stop_ends_a_standing_envelope_too(tmp_path) -> None:
+    stop = _stop(tmp_path)
+    clock = Clock()
+    clock.now = DAWN
+    authority = _authority(tmp_path, clock=clock, stop=stop)
+    authority.sign(_standing(days=30), principal=Who())
+    _admit(authority, "goal-1")
+    stop.engage(
+        EmergencyStopRequest(
+            operator_id="operator-1", authentication_event_id="auth-2", reason="test"
+        )
+    )
+    clock.now = DAWN + DAY  # a new day does not reopen it
+    with pytest.raises(EnvelopeRefused, match="emergency stop"):
+        _admit(authority, "goal-2")
+    with pytest.raises(EnvelopeRefused, match="emergency stop"):
+        authority.held_slot("goal-1")
+
+
+def test_the_signer_never_originates_inside_his_standing_envelope(tmp_path) -> None:
+    clock = Clock()
+    clock.now = DAWN
+    authority = _authority(tmp_path, clock=clock)
+    authority.sign(_standing(), principal=Who())
+    with pytest.raises(EnvelopeRefused, match="cannot originate"):
+        _admit(authority, by="operator-1")
+
+
+def test_two_missions_never_share_todays_last_slot(tmp_path) -> None:
+    clock = Clock()
+    clock.now = DAWN
+    authority = _authority(tmp_path, clock=clock)
+    authority.sign(_standing(max_missions=1), principal=Who())
+    admitted, refused = [], []
+
+    def race(mission: str) -> None:
+        try:
+            admitted.append(_admit(authority, mission).slot)
+        except EnvelopeRefused as exc:
+            refused.append(str(exc))
+
+    threads = [threading.Thread(target=race, args=(f"goal-{i}",)) for i in range(4)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert admitted == [1]
+    assert len(refused) == 3
