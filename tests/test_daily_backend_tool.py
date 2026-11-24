@@ -369,3 +369,14 @@ def test_a_pid_it_cannot_prove_is_ours_is_never_killed(
     monkeypatch.setattr(daily_backend, "_wait_health", lambda port, s: 200)
     daily_backend.main(["up"])
     assert [e for e in backend_up.events if e[0] == "kill"] == []
+
+
+def test_the_executor_serves_on_the_loop_that_keeps_listening() -> None:
+    """2026-11-24: one dropped client closed a Windows proactor's listener
+    (aios/runtime/windows_loop.py); the executor serves on the same resilient
+    loop the backend does, named once."""
+    from aios.runtime.windows_loop import LOOP_FACTORY
+
+    command = daily_backend.executor_command()
+    assert "aios.executor_service:app" in command
+    assert command[command.index("--loop") + 1] == LOOP_FACTORY

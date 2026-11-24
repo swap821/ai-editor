@@ -406,6 +406,26 @@ def _image_present(tag: str) -> bool:
 # --------------------------------------------------------------------------- #
 # Commands
 # --------------------------------------------------------------------------- #
+def executor_command() -> list[str]:
+    """The executor's launch: uvicorn on the loop that keeps listening when a
+    client drops before its accept (aios/runtime/windows_loop.py), the same
+    loop the backend serves on (2026-11-24)."""
+    from aios.runtime.windows_loop import LOOP_FACTORY
+
+    return [
+        sys.executable,
+        "-m",
+        "uvicorn",
+        "aios.executor_service:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        str(EXECUTOR_PORT),
+        "--loop",
+        LOOP_FACTORY,
+    ]
+
+
 def up(args: argparse.Namespace) -> int:
     # The face does not depend on the backend, so it is made sure of first: a
     # refusal below (Docker, image) must not leave him without a face.
@@ -495,20 +515,7 @@ def up(args: argparse.Namespace) -> int:
         backend_env["AIOS_MAINTENANCE_PROJECT_ROOT"] = args.maintenance_root
 
     pids = {
-        "executor": spawn(
-            "executor",
-            [
-                sys.executable,
-                "-m",
-                "uvicorn",
-                "aios.executor_service:app",
-                "--host",
-                "127.0.0.1",
-                "--port",
-                str(EXECUTOR_PORT),
-            ],
-            executor_env,
-        ),
+        "executor": spawn("executor", executor_command(), executor_env),
         "backend": spawn("backend", [sys.executable, "-m", "aios"], backend_env),
     }
     state = {
