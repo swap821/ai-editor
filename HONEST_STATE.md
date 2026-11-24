@@ -11,7 +11,7 @@ earlier sections keep the commit they were measured on). The whole story, from t
 - **The fix.** `aios/runtime/windows_loop.py`: a proactor whose accept treats the errors that mean only "that one client went away" (64, 1236, 10053, 10054) as such and starts the next accept; any other error fails as before. `python -m aios` serves on it; `--reload` keeps uvicorn's own loop.
 - **Measured.** On a throwaway server an aborted-connect burst killed the plain proactor's listener (a normal client then refused); under the fix the server absorbed 2 and 1 such errors in two runs and kept answering. Tests pin both directions: the plain loop loses its listener to WinError 64, the resilient one keeps serving, any other accept error still closes it.
 - Organ 54's live row re-gathered at the branch tip (`aios/__main__.py` is its entrypoint); 83 currency, conformance and loop tests pass; Bandit and mypy gates clean.
-- **Not yet:** the executor (:8081) still serves on uvicorn's own loop; its log has no such death. Live proof on his backend comes after the merge and a restart.
+- **The executor (:8081)** serves on the same loop, through `tools/daily_backend.py`'s one launch command; a throwaway uvicorn CLI server on it answered from `ResilientProactorEventLoop`. Live proof on his backend comes after the merge and a restart.
 
 ## 2026-11-24, harmony: two disagreements of the day's own making, made one (branch `fix/harmony-after-750`)
 
