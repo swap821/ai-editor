@@ -45,12 +45,13 @@ const fetchOnboardingState = vi.fn().mockResolvedValue({
   firstCloudRoute: true,
   firstAutonomy: true,
 });
+const fetchGagosBrief = vi.fn();
 
 vi.mock('../superbrain/lib/aiosAdapter', async () => {
   const actual = await vi.importActual<typeof import('../superbrain/lib/aiosAdapter')>(
     '../superbrain/lib/aiosAdapter',
   );
-  return { ...actual, sendDirective, getLastEmittedCode, previewIntent, fetchOnboardingState };
+  return { ...actual, sendDirective, getLastEmittedCode, previewIntent, fetchOnboardingState, fetchGagosBrief };
 });
 
 describe('GagosChrome W3 status chrome', () => {
@@ -64,6 +65,7 @@ describe('GagosChrome W3 status chrome', () => {
     __resetTabStoreForTests();
     __resetConversationPhaseForTests();
     sendDirective.mockClear();
+    fetchGagosBrief.mockReset().mockResolvedValue(null);
     getLastEmittedCode.mockReset().mockReturnValue(null);
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true }));
     Object.defineProperty(window, 'matchMedia', {
@@ -349,5 +351,41 @@ describe('GagosChrome W3 status chrome', () => {
 
     rerender(<GagosChrome experienceMode="expert" />);
     expect(await screen.findByRole('dialog', { name: 'Sovereign bond' })).toBeInTheDocument();
+  });
+
+  it('opens with GAGOS\'s brief as its first message', async () => {
+    fetchGagosBrief.mockResolvedValue({
+      since: '2026-11-23T09:00:00Z',
+      now: '2026-11-24T09:00:00Z',
+      did: ['Delivered 1 pull request: #741.'],
+      waiting: ['Organ 44 waits on your attestation.'],
+      broke: [],
+      quiet: false,
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    const log = await screen.findByRole('log', { name: 'Conversation with GAGOS' });
+    await waitFor(() => expect(log).toHaveTextContent('Since you last looked:'));
+    expect(log).toHaveTextContent('Delivered 1 pull request: #741.');
+    expect(log).toHaveTextContent('Waiting on you:');
+  });
+
+  it('adds no brief text when the brief is quiet', async () => {
+    fetchGagosBrief.mockResolvedValue({
+      since: '2026-11-23T09:00:00Z',
+      now: '2026-11-24T09:00:00Z',
+      did: [],
+      waiting: [],
+      broke: [],
+      quiet: true,
+    });
+    const { default: GagosChrome } = await import('./GagosChrome');
+    render(<GagosChrome />);
+
+    await waitFor(() => expect(fetchGagosBrief).toHaveBeenCalled());
+    const log = await screen.findByRole('log', { name: 'Conversation with GAGOS' });
+    expect(log).not.toHaveTextContent('Since you last looked:');
+    expect(log).not.toHaveTextContent('Waiting on you:');
   });
 });
