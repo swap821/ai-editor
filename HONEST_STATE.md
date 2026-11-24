@@ -5,13 +5,14 @@ earlier sections keep the commit they were measured on). The whole story, from t
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
 
-## 2026-11-24, harmony: two disagreements of the day's own making, made one (branch `feat/gagos-self-model`)
+## 2026-11-24, harmony: two disagreements of the day's own making, made one (branch `fix/harmony-after-750`)
 
 - **His word.** "cross-system consistency is very important for GAGOS bcoz that will honestly make a GAGOS a system running in harmony".
 - **Measured:** `scripts/consistency_audit.py` said 53 of 53 registered facts guarded -- and, rightly, "a fact nobody registered is not measured". Today's work had added shared facts no row covered, and two of them disagreed:
   - **which organs wait on him:** the brief (#748) named organ 44 by its C10 wording; the self-model named 44 and 55 by the blocker text. Now one rule, `brief.organ_owner`, read by both; a guard fails if they name different organs.
   - **what a goal's words look like to its writer:** step 2 checked a self-goal with `redact_paths`, narrower than the `egress_redact` the batch sends every goal through. Now the check is that same filter; a guard fails a goal its writer would see altered.
 - **Registered** (56 of 56 guarded): `organ-owner`, `part-wakes` (what wakes each part, declared once on the aliveness map), `goal-text-egress`.
+- **It missed #750.** I pushed it to #750's branch after his merge (08:27:15Z), so master ran both disagreements until this lands; found by re-running the audit at master's tip (53, not 56). Landed again on its own branch.
 - **Still open, not hidden:** the audit's 5 hand-written provider lists outside the one registry of brains (the 11-04 plan's phase 1 was never finished); facts nobody has registered are not measured.
 
 ## 2026-11-24, GAGOS completes itself, step 2: the goals it takes on itself (branch `feat/gagos-self-model`)
