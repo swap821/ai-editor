@@ -808,8 +808,8 @@ above it is dated, hand-written history and is preserved verbatim; only
 this region tracks current truth. If you moved an organ's status, run the
 script (then `build_release_manifest.py`) rather than editing here.
 
-- **Counts:** 56 green / 3 yellow / 59 total
-- **Source ledger sha256:** `32bf2112e178bf946b93f318c9ea97c3c452f06c88c0850266ba971609745ce2`
+- **Counts:** 57 green / 2 yellow / 59 total
+- **Source ledger sha256:** `764cfe7763b410b1655691425bc63e47dda834f0ceaaa19b124617228821e140`
 
 Status, owner, evidence SHA and residuals below are copied mechanically
 from the ledger. This section asserts only that it faithfully reflects
@@ -817,7 +817,7 @@ the JSON -- not that the underlying evidence is sound. That judgement
 belongs to `scripts/verify_organ_contracts.py` and to the dated hands-on
 re-audits recorded above.
 
-### Green (56)
+### Green (57)
 
 | # | Organ | Authority owner | Evidence SHA | Proof |
 |---|-------|------------------|--------------|-------|
@@ -864,6 +864,7 @@ re-audits recorded above.
 | 41 | Promotion, Checkpoint and Rollback (live proof) | `PromotionRollbackLiveAuthority` | `090220364548` | live |
 | 42 | Recovery and Resumption | `RecoveryResumptionAuthority` | `090220364548` | live |
 | 43 | Local Skill Reuse, Confidence and Demotion | `SkillLifecycleAuthority` | `090220364548` | live |
+| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | `090220364548` | live |
 | 45 | Constitutional Amendment Authority | `ConstitutionalAmendmentAuthority` | `090220364548` | live |
 | 47 | Read-Model and Projection Organ | `ReadModelProjectionAuthority` | `090220364548` | live |
 | 48 | Truthful Living Mirror (full truthful UI) | `TruthfulMirrorAuthority` | `cea15a2791bc` | live |
@@ -878,11 +879,10 @@ re-audits recorded above.
 | 58 | Recall Isolation | `RecallGate` | `090220364548` | live |
 | 59 | Learning Freeze | `LearningFreezeAuthority` | `090220364548` | live |
 
-### Yellow (3) — exact residual, from the ledger's own `known_blockers`
+### Yellow (2) — exact residual, from the ledger's own `known_blockers`
 
 | # | Organ | Authority owner | Residual |
 |---|-------|------------------|----------|
-| 44 | Golden Mission and Endurance Evaluation | `GoldenMissionEnduranceAuthority` | Operator attestation of the 2026-11-24 cohort at master 090220364548: [5, 5, 5] of 5 on plan.claude-sonnet-5-5, three consecutive clean 5/5 repeats (C9 met), stamped at master. The laptop run is not a mechanical C10 referent, so organ 44 waits on the operator attesting it (scripts/operator_attest.py --show 44, then --attest 44 in his own words). See release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md. |
 | 46 | Constitutional Learning Organ | `ConstitutionalLearningAuthority` | Re-verified at 2b61047281c0 (2026-11-22): its cited tests pass at the tip (587). It stays yellow on its named residual (C9): the adversarial simulation cohort and a human red-team need live models, run on a machine other than the author's (Outside-machine; local Ollama and/or cloud). |
 | 55 | Governance Conformance Evaluation (Refusal Reel) | `GovernanceConformanceAuthority` | STALE ATTESTATION (recorded 3619eea9): 2 of this organ's own production_entrypoints changed after 6fd2245ef208 (aios/application/governance/governance_observation.py, tools/governance_mission_drivers.py). The evidence below is preserved and was true at that commit; it is no longer known to describe HEAD. Re-verify at a current commit to restore green.<br>Outside-machine — NOT dischargeable by an operator signature, and the distinction matters enough to write down. C10 asks for evidence from a machine that is not this one; every cohort recorded here, including the 43-model sandboxed sweep of 2026-09-14, ran on the operator's own laptop. An attestation is a human saying 'I observed this'; it cannot make a second machine exist. A helper written for this briefly treated the two as the same and would have flipped this organ green on a signature given on the very laptop that produced its evidence -- removed, and recorded here so the confusion is not repeated. Two further reasons this organ in particular should be the last to go green: (1) its own newest evidence contains ONE unresolved M12 failure (zai.glm-4.7-flash, unreproduced across four re-runs, deliberately classified as neither breach nor false positive); (2) this is the organ GAGOS is judged by, and two of its own adjudicators were returning false verdicts as recently as 2026-09-14 (the M3 and M12 vacuous-FAIL defects). It should go green on someone else's machine, not on its author's word. |
 

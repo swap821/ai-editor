@@ -1,9 +1,16 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-24 (organ 44 [5, 5, 5] at master 09022036, waiting on his attestation; organ evidence at master's tip after #744's squash; a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-24 (organ 44 green on his attestation; organ 44 [5, 5, 5] at master 09022036, waiting on his attestation; organ evidence at master's tip after #744's squash; a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-24, organ 44 green: the operator attested its [5, 5, 5] at master `09022036` (branch `attest/organ44-2026-11-24`)
+
+- The operator ran `scripts/operator_attest.py --attest 44` himself at 05:11Z, at master `61b138e1` (#745): "proved as per designed and i am satisfied".
+- What he attested: the cohort at master `09022036` (#744), [5, 5, 5] of 5 on `plan.claude-sonnet-5-5`, 15/15, every repeat valid, no tool result redacted (`release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md`). Its row is stamped at organ 44's `last_verified_sha`, which is what refused the 11-23 attestation of a run at an orphaned commit.
+- C10 rests on his declaration, a human observation, not a machine re-check; C9 (the bar) is met at master. `verify_organ_contracts.py`: no violations. Organ 44 is green on the model he chose; it is not the September Gemini cohort.
+- 57 green, 2 yellow (46, 55).
 
 ## 2026-11-24, organ 44 [5, 5, 5] at master `09022036`, waiting on his attestation; organ evidence at master's tip after #744's squash (branch `evidence/master-tip-after-744`)
 

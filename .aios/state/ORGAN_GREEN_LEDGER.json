@@ -4549,7 +4549,7 @@
   {
     "organ_id": 44,
     "name": "Golden Mission and Endurance Evaluation",
-    "status": "yellow",
+    "status": "green",
     "authority_owner": "GoldenMissionEnduranceAuthority",
     "production_entrypoints": [
       "tools/golden_mission_runner.py",
@@ -4584,14 +4584,12 @@
         "proof_level": "live"
       },
       {
-        "description": "command=`python tools/golden_mission_runner.py run --model plan.claude-sonnet-5-5`, three repeats, each a fresh backend instance (own port, own AIOS_DATA_DIR, own enrollment, throwaway keys; training_ground and lab reset between repeats) at master 090220364548 (#744), sandbox image aios-verify:c4db53eb1fce, 2026-11-24 04:04-04:28Z; artifact=release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md, records=release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.jsonl (33). RESULT [5, 5, 5] of 5: 15/15 mission runs; every batch summary valid, no unreached step; every step's outcome the one it expected, no step error; tdd-workflow's red phase intact in all three; redacted_tool_files 0 across 86 plan calls. Three consecutive clean 5/5 repeats, the bar, stamped at a master commit.",
+        "description": "command=`python tools/golden_mission_runner.py run --model plan.claude-sonnet-5-5`, three repeats, each a fresh backend instance (own port, own AIOS_DATA_DIR, own enrollment, throwaway keys; training_ground and lab reset between repeats) at master 090220364548 (#744), sandbox image aios-verify:c4db53eb1fce, 2026-11-24 04:04-04:28Z; artifact=release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md, records=release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.jsonl (33). RESULT [5, 5, 5] of 5: 15/15 mission runs; every batch summary valid, no unreached step; every step's outcome the one it expected, no step error; tdd-workflow's red phase intact in all three; redacted_tool_files 0 across 86 plan calls. Three consecutive clean 5/5 repeats, the bar, stamped at a master commit. || OPERATOR-ATTESTED by Swapnil Kumar at 2026-11-24T05:11:56+00:00 (tip 61b138e14c46): \"proved as per designed and i am satisfied\" \u2014 declared against the live evidence recorded on this organ, which the operator read before declaring.",
         "commit_sha": "090220364548d537eb7629a0c7222f89256ad339",
         "proof_level": "live"
       }
     ],
-    "known_blockers": [
-      "Operator attestation of the 2026-11-24 cohort at master 090220364548: [5, 5, 5] of 5 on plan.claude-sonnet-5-5, three consecutive clean 5/5 repeats (C9 met), stamped at master. The laptop run is not a mechanical C10 referent, so organ 44 waits on the operator attesting it (scripts/operator_attest.py --show 44, then --attest 44 in his own words). See release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md."
-    ],
+    "known_blockers": [],
     "last_verified_sha": "090220364548d537eb7629a0c7222f89256ad339",
     "requires_live_evidence": true,
     "condition_verdicts": {
@@ -4604,7 +4602,7 @@
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_e2e_sovereign_flywheel.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
       "C9": "PASS - the cohort at master 090220364548 on plan.claude-sonnet-5-5 measured [5, 5, 5] of 5: three consecutive clean 5/5 repeats, the bar, every repeat valid with no unreached step (release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md). (Earlier verdict text is in git.)",
-      "C10": "WAITING - operator attestation: the cohort at master 090220364548 ([5, 5, 5], release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md with its 33 records) ran on the operator's laptop through his Claude plan. A release/organ-44 record is not a referent the gate can check, so C10 rests on the operator declaring it OPERATOR-ATTESTED with scripts/operator_attest.py, his act.",
+      "C10": "PASS \u2014 OPERATOR-ATTESTED. Swapnil Kumar declared on 2026-11-24T05:11:56+00:00: \"proved as per designed and i am satisfied\". This is a HUMAN OBSERVATION, which is what C10's fourth referent is for; it is not a machine re-check and does not claim to be.",
       "C11": "PASS - last_verified_sha=090220364548d537eb7629a0c7222f89256ad339",
       "C12": "PASS - 090220364548 is master's own commit (#744), so no squash can orphan it."
     }
