@@ -18,6 +18,12 @@ One run (``--once``; a scheduled task runs it every 30 minutes):
   is reported ONCE per failed run;
   the reported run ids persist in a state file, so a red nightly is one alert,
   not one every half hour.
+* **GAGOS's brief** (2026-11-24, the operator: GAGOS should behave like
+  Jarvis; his choice of what rings). The same brief the face opens with, read
+  from GAGOS's stores by the face's own providers. The doorbell rings once for
+  each thing that BROKE and once when something NEW starts waiting on him; a
+  wait that stands never rings twice, and one that ends and comes back rings
+  again.
 * **Notify.** A Windows notification for anything that needs him, and one
   JSON line per run in the log either way -- the log is the record, the
   notification is only the doorbell.
@@ -37,6 +43,7 @@ import argparse
 import base64
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -71,7 +78,7 @@ def _default_data_dir() -> Path:
 class Finding:
     """One thing the operator should know about."""
 
-    kind: str  # "ollama" | "ci"
+    kind: str  # "ollama" | "ci" | "brief"
     title: str
     detail: str
 
@@ -81,6 +88,7 @@ class RunReport:
     ts: str
     ollama: dict = field(default_factory=dict)
     ci: dict = field(default_factory=dict)
+    brief: dict = field(default_factory=dict)
     findings: list[Finding] = field(default_factory=list)
 
 
@@ -335,6 +343,100 @@ def windows_toast(title: str, body: str) -> bool:
     return result.returncode == 0
 
 
+# --------------------------------------------------------------------------- #
+# GAGOS's brief: the doorbell
+# --------------------------------------------------------------------------- #
+#: At most this many lines in one notification; the rest are counted.
+BRIEF_LINES_SHOWN = 3
+#: The one brief line that carries a running count ("silent for N hours"): the
+#: same silence must not ring again each hour it lasts.
+_RUNNING_COUNT = re.compile(r"silent for \d+ hours")
+
+
+def gagos_brief() -> dict:
+    """GAGOS's brief now, as the face's brief route reads it: the same
+    providers (its ledger, its two envelopes, the organ ledger, the stop),
+    looking back as far as a first brief does."""
+    from aios.api.routes import gagos_tasks as route
+    from aios.application.observability import brief
+
+    now = datetime.now(timezone.utc)
+    told = brief.gather(
+        since=now - route.BRIEF_FIRST_LOOK,
+        now=now,
+        ledger_db=route.get_gagos_task_ledger().path,
+        organ_ledger_path=route.get_organ_ledger_path(),
+        mission_envelope=route.get_gagos_envelope_authority().status(),
+        skill_envelope=route.get_gagos_skill_envelope_authority().status(),
+        stop_engaged=route._stop_engaged(),
+    )
+    return told.as_dict()
+
+
+def steady(line: str) -> str:
+    """A brief line as the doorbell remembers it: its running count dropped,
+    every other word (a PR number, an organ, an hour) kept."""
+    return _RUNNING_COUNT.sub("silent for some hours", line)
+
+
+def _shown(lines: list[str]) -> str:
+    more = len(lines) - BRIEF_LINES_SHOWN
+    body = "\n".join(lines[:BRIEF_LINES_SHOWN])
+    return body + (f"\n(and {more} more)" if more > 0 else "")
+
+
+def check_brief(
+    seen: dict, *, read: Callable[[], dict] = gagos_brief
+) -> tuple[dict, list[Finding], dict]:
+    """(state, findings, seen now). Rings for what broke or newly waits since
+    the last cycle; *seen* is what the last cycle saw, as steady lines."""
+    try:
+        told = read()
+    except Exception as exc:  # noqa: BLE001 - an unreadable brief is said, not hidden
+        error = f"{type(exc).__name__}: {exc}"[:300]
+        findings = []
+        if seen.get("error") != error:
+            findings.append(Finding("brief", "GAGOS's brief could not be read", error))
+        return {"read": False, "error": error}, findings, {**seen, "error": error}
+    broke = [str(x) for x in told.get("broke") or []]
+    waiting = [str(x) for x in told.get("waiting") or []]
+    was_broke, was_waiting = (
+        set(seen.get("broke") or ()),
+        set(seen.get("waiting") or ()),
+    )
+    new_broke = [x for x in broke if steady(x) not in was_broke]
+    new_waiting = [x for x in waiting if steady(x) not in was_waiting]
+    findings = []
+    if new_broke:
+        findings.append(Finding("brief", "GAGOS: something broke", _shown(new_broke)))
+    if new_waiting:
+        findings.append(Finding("brief", "GAGOS: waiting on you", _shown(new_waiting)))
+    state = {
+        "read": True,
+        "broke": len(broke),
+        "waiting": len(waiting),
+        "new": len(new_broke) + len(new_waiting),
+    }
+    now_seen = {
+        "broke": [steady(x) for x in broke],
+        "waiting": [steady(x) for x in waiting],
+    }
+    return state, findings, now_seen
+
+
+def load_seen(path: Path) -> dict:
+    try:
+        seen = json.loads(path.read_text(encoding="utf-8"))
+        return seen if isinstance(seen, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_seen(path: Path, seen: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(seen) + "\n", encoding="utf-8")
+
+
 def load_reported(state_path: Path) -> set[int]:
     try:
         return {
@@ -358,6 +460,7 @@ def run_once(
     quiet: bool = False,
     ollama_check: Callable[[], tuple[dict, list[Finding]]] = check_ollama,
     ci_runs: Callable[[], list[dict]] = gh_master_runs,
+    brief: Callable[[], dict] = gagos_brief,
 ) -> RunReport:
     """One watch cycle. Returns what it saw; writes the log and state."""
     state_path = data_dir / "state.json"
@@ -368,7 +471,11 @@ def run_once(
     report.ci, ci_findings, reported = check_ci(
         reported, runs=ci_runs, first_run=first_run
     )
-    report.findings = ollama_findings + ci_findings
+    brief_path = data_dir / "brief_seen.json"
+    report.brief, brief_findings, brief_seen = check_brief(
+        load_seen(brief_path), read=brief
+    )
+    report.findings = ollama_findings + ci_findings + brief_findings
 
     notified = []
     if not quiet:
@@ -377,6 +484,7 @@ def run_once(
     # The state is saved AFTER notifying: a run that died mid-way re-reports
     # rather than silently swallowing a failure it never showed anyone.
     save_reported(state_path, reported)
+    save_seen(brief_path, brief_seen)
 
     data_dir.mkdir(parents=True, exist_ok=True)
     with (data_dir / "health_watch.jsonl").open("a", encoding="utf-8") as log:
@@ -386,6 +494,7 @@ def run_once(
                     "ts": report.ts,
                     "ollama": report.ollama,
                     "ci": report.ci,
+                    "brief": report.brief,
                     "findings": [f.__dict__ for f in report.findings],
                     "notified": notified,
                 }
@@ -430,6 +539,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             {
                 "ollama": report.ollama,
                 "ci": report.ci,
+                "brief": report.brief,
                 "findings": [f.title for f in report.findings],
             },
             indent=2,
