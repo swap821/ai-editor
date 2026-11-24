@@ -479,3 +479,73 @@ def test_the_report_does_not_count_an_unjudged_run_as_decided(led, tmp_path) -> 
     in_all = next(line for line in tool.mission_section(led) if "in all:" in line)
     assert "given back, its sandbox could not run 1" in in_all
     assert "decided" not in in_all
+
+
+# -- a run whose model could not be reached (2026-11-24) --------------------------------
+#
+# The operator's Claude plan ran out of sessions mid-hour: both of the day's
+# missions failed at the council's dissent call before any writer wrote, and the
+# goals stayed with the council for good. A run that reached no model judged
+# nothing: the goal goes back, once, like a run whose sandbox could not run.
+
+OUT_OF_SESSIONS = (
+    "LLMError: Claude Code exited 1: You've hit your session limit"
+    " · resets 5:20pm (Asia/Kolkata)"
+)
+
+
+def _run_failing(reason):
+    def run(task, mission_id, work):
+        return {"state": "failed", "reason": reason}
+
+    return run
+
+
+def test_a_goal_whose_model_could_not_be_reached_is_given_back_once(
+    led, tmp_path, capsys
+) -> None:
+    tid = _originated(led)
+    tool.runs_hour(led, tmp_path, region="r", run=_run_failing(OUT_OF_SESSIONS))
+
+    assert led.originations()[tid]["state"] == tool.RETURNED
+    assert led.task(tid)["status"] == "open"
+    assert tid in tool.council_goals(led), "the council takes it again, not a writer"
+    out = capsys.readouterr().out
+    assert "open again for a later slot" in out
+    assert "a model it needed could not be reached" in out
+
+    sent = []
+
+    def originate(task, seen):
+        sent.append(task["task_id"])
+        return {"state": "awaiting_approval", "mission_id": "mission-second00000"}
+
+    tool.missions_hour(led, tmp_path, envelope=_Live(), originate=originate)
+    assert sent == [tid]
+
+    tool.runs_hour(led, tmp_path, region="r", run=_run_failing(OUT_OF_SESSIONS))
+    assert led.originations()[tid]["state"] == "run_failed"
+    assert "given back once already" in capsys.readouterr().out
+
+
+def test_a_model_error_raised_by_the_run_counts_too(led, tmp_path) -> None:
+    from aios.core.llm import LLMError
+
+    tid = _originated(led)
+
+    def run(task, mission_id, work):
+        raise LLMError("Claude Code exited 1: You've hit your session limit")
+
+    tool.runs_hour(led, tmp_path, region="r", run=run)
+    assert led.originations()[tid]["state"] == tool.RETURNED
+
+
+def test_a_run_that_failed_for_another_reason_is_not_given_back(led, tmp_path) -> None:
+    tid = _originated(led)
+    tool.runs_hour(
+        led,
+        tmp_path,
+        region="r",
+        run=_run_failing("the council's critique rejected it"),
+    )
+    assert led.originations()[tid]["state"] == "run_failed"
