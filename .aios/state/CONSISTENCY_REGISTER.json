@@ -870,6 +870,50 @@
         "tests/test_gagos_journeys.py::test_perf_01_judges_by_the_budgets_the_blueprint_records_frozen"
       ],
       "note": "The operator froze two budgets on 2026-11-16 (frame p95 at most 20 ms, local feedback under 100 ms); the economy tier stays proposed."
+    },
+    {
+      "id": "organ-owner",
+      "fact": "Whose an organ that is not green is (his, GAGOS's, or outside), read from its recorded reason: what GAGOS's brief tells him waits on him, and what its self-model owns.",
+      "state": "single",
+      "source": "aios/application/observability/brief.py::organ_owner",
+      "places": [
+        "aios/application/observability/brief.py::organ_owner",
+        "aios/application/observability/brief.py::organs_waiting_on_operator",
+        "aios/operations/self_model.py::organ_gaps"
+      ],
+      "guards": [
+        "tests/test_gagos_brief.py::test_the_brief_and_the_self_model_name_the_same_organs"
+      ],
+      "note": "Found 2026-11-24, the day both were written: the brief named organ 44 by its C10 wording, the self-model named 44 and 55 by the blocker text, so one GAGOS would have told him two things."
+    },
+    {
+      "id": "part-wakes",
+      "fact": "What wakes each part of GAGOS (his conversation turns, his own act, its missions, or its own work): the aliveness pulse's map, and the self-model's owner of a dormant part.",
+      "state": "single",
+      "source": "aios/application/observability/aliveness.py::PARTS",
+      "places": [
+        "aios/application/observability/aliveness.py::PARTS",
+        "aios/operations/self_model.py::dormant_gaps"
+      ],
+      "guards": [
+        "tests/test_gagos_self_model.py::test_the_parts_that_wake_in_his_turns_are_declared_on_the_map"
+      ],
+      "note": "Found 2026-11-24: without Part.wakes, the self-model's first real run named reflex, recall isolation, curriculum and self-analysis GAGOS's own, wrong by that day's measurement (they run inside his turns)."
+    },
+    {
+      "id": "goal-text-egress",
+      "fact": "What a goal's words look like to its writer: the filter GAGOS checks a goal it sets on itself with, and the filter the batch sends every goal's text through.",
+      "state": "single",
+      "source": "tools/gagos_daily.py::egress_redact",
+      "places": [
+        "tools/gagos_daily.py::egress_redact",
+        "tools/gagos_daily.py::self_goals_hour",
+        "tools/gagos_daily.py::task_jobs"
+      ],
+      "guards": [
+        "tests/test_gagos_self_goals.py::test_a_goal_whose_words_a_writer_would_not_see_is_not_set"
+      ],
+      "note": "Found 2026-11-24 in step 2's first draft, which checked with redact_paths, narrower than the egress_redact the batch applies; a goal could pass the check and reach its writer altered."
     }
   ]
 }
