@@ -15,6 +15,8 @@ carries his acts.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -22,7 +24,12 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aios import config
 from aios.api.action_guard import enforce_action_boundary
-from aios.api.deps import get_emergency_stop, require_privileged_operator
+from aios.api.deps import (
+    get_authenticated_principal,
+    get_emergency_stop,
+    require_privileged_operator,
+)
+from aios.application.observability import brief as gagos_brief
 from aios.application.capabilities.envelope import EnvelopeAuthority, EnvelopeRefused
 from aios.application.capabilities.skill_envelope import (
     SkillEnvelopeAuthority,
@@ -41,7 +48,7 @@ from aios.domain.capabilities.envelope import (
     EnvelopeError,
     EnvelopeTerms,
 )
-from aios.domain.identity.models import Principal
+from aios.domain.identity.models import Principal, PrincipalType
 from aios.maintenance.daily_work import (
     ledger_path,
     MAX_TASK_CHARS,
@@ -239,3 +246,69 @@ def revoke_skill_envelope(
 ) -> dict:
     ended = authority.revoke(principal=principal)
     return {"ended": ended, "skillEnvelope": authority.status()}
+
+
+# -- GAGOS speaks first (2026-11-24) ---------------------------------------------
+
+#: How far back a first brief looks when the face has never asked before.
+BRIEF_FIRST_LOOK = timedelta(hours=24)
+#: The furthest back a brief looks, however long he was away.
+BRIEF_LONGEST_LOOK = timedelta(days=30)
+
+
+def require_operator_session(
+    principal: Principal = Depends(get_authenticated_principal),
+) -> Principal:
+    """A signed-in operator. The brief only reads, so it needs no fresh
+    re-authentication; everything that changes something stays privileged."""
+    if principal.principal_type is not PrincipalType.OPERATOR:
+        raise HTTPException(status_code=403, detail="Human Sovereign operator required")
+    return principal
+
+
+def get_organ_ledger_path() -> Path:
+    """The organ ledger the brief reads; tests override this."""
+    return config.PROJECT_ROOT / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
+
+
+def _stop_engaged() -> bool:
+    stop = get_emergency_stop()
+    try:
+        return bool(stop is not None and stop.is_engaged())
+    except Exception:  # noqa: BLE001 - an unreadable stop is reported, not hidden
+        return True
+
+
+@router.get("/api/gagos/brief")
+def brief(
+    since: str | None = None,
+    principal: Principal = Depends(require_operator_session),
+    ledger: DailyLedger = Depends(get_gagos_task_ledger),
+    envelope: EnvelopeAuthority = Depends(get_gagos_envelope_authority),
+    skills: SkillEnvelopeAuthority = Depends(get_gagos_skill_envelope_authority),
+    organ_ledger: Path = Depends(get_organ_ledger_path),
+    stop_engaged: bool = Depends(_stop_engaged),
+) -> dict:
+    """What GAGOS tells him first when he opens the face (the operator,
+    2026-11-24: GAGOS should behave like Jarvis): what it did since *since*,
+    what waits on him, what broke. Facts only, read from its own stores."""
+    now = datetime.now(timezone.utc)
+    start = now - BRIEF_FIRST_LOOK
+    if since:
+        try:
+            asked = datetime.fromisoformat(since)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="since is not a time") from exc
+        if asked.tzinfo is None:
+            asked = asked.replace(tzinfo=timezone.utc)
+        start = min(max(asked, now - BRIEF_LONGEST_LOOK), now)
+    told = gagos_brief.gather(
+        since=start,
+        now=now,
+        ledger_db=ledger.path,
+        organ_ledger_path=organ_ledger,
+        mission_envelope=envelope.status(),
+        skill_envelope=skills.status(),
+        stop_engaged=stop_engaged,
+    )
+    return {"brief": told.as_dict()}
