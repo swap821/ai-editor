@@ -4393,7 +4393,6 @@ def self_goals_hour(
     mission envelope's folders and kinds -- set as goals, which are applied as
     edits (aios.operations.self_goals). Without a live envelope it takes none
     and says so."""
-    from aios.core.privacy_filter import redact_paths
     from aios.domain.capabilities.envelope import EnvelopeTerms, is_test_file
     from aios.operations import self_goals
 
@@ -4439,7 +4438,10 @@ def self_goals_hour(
             continue
         size = len((root / candidate.rel).read_bytes().decode("utf-8"))
         text = self_goals.goal_text(candidate, size=size, bound=MAX_FILE_CHARS)
-        if redact_paths(text) != text:
+        # The same oracle the goal's text passes on its way to every writer
+        # (egress_redact, as the batch sends task["text"]): a narrower check
+        # could pass a goal its writer then sees altered.
+        if egress_redact(text) != text:
             skipped.append(f"{name} (its words would not reach a writer)")
             continue
         try:
