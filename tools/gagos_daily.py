@@ -4374,6 +4374,52 @@ def knowledge_hour(root: Path, *, ingestor=None) -> dict:
     return out
 
 
+#: How far back GAGOS's self-model reads its own refusals.
+SELF_MODEL_DAYS = 7
+
+
+def self_model_hour(
+    led: DailyLedger,
+    root: Path,
+    *,
+    now: datetime | None = None,
+    readings=None,
+    envelope=None,
+) -> Any:
+    """GAGOS's own honest list of what it is missing, and whose it is to fix
+    (2026-11-24, the operator: "my jarvis which is GAGOS should understand
+    itself honestly and then complete itself first"): read from its refusals,
+    the files its writers never see, its hour's measures, the aliveness pulse
+    and the organ ledger -- no new measurement (aios.operations.self_model)."""
+    from aios.application.observability import aliveness
+    from aios.operations import self_model
+
+    now = now or datetime.now(timezone.utc)
+    since = (now - timedelta(days=SELF_MODEL_DAYS)).isoformat()
+    if readings is None:
+        readings = aliveness.pulse(Path(config.DATA_DIR), now=now)
+    envelope = envelope or _envelope_authority()
+    model = self_model.compose(
+        self_model.friction_gaps(led.friction(since), days=SELF_MODEL_DAYS),
+        self_model.withheld_gaps(led.writer_withholdings(since), days=SELF_MODEL_DAYS),
+        self_model.measure_gaps(self_model.latest_measures(led)),
+        self_model.dormant_gaps(
+            readings,
+            turn_events=aliveness.TURN,
+            mission=aliveness.MISSION,
+            mission_envelope_live=bool(envelope.status().get("live")),
+        ),
+        self_model.organ_gaps(
+            self_model.organ_ledger(
+                root / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
+            )
+        ),
+    )
+    for line in self_model.report_lines(model):
+        print(f"  {line}")
+    return model
+
+
 def governance_hour(
     led: DailyLedger, *, now: datetime | None = None, store=None
 ) -> list:
@@ -5231,6 +5277,13 @@ def cmd_daily(args: argparse.Namespace) -> int:
         except Exception as exc:  # the hour's other work goes on; said
             print(
                 f"  governance: no lessons this hour: {type(exc).__name__}: {exc}"[:400]
+            )
+        # What it is missing, in its own words, and whose it is to fix.
+        try:
+            self_model_hour(led, root)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(
+                f"  self-model: not read this hour: {type(exc).__name__}: {exc}"[:400]
             )
         rc = cmd_propose(
             argparse.Namespace(
