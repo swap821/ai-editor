@@ -789,6 +789,45 @@ export async function fetchOnboardingState(): Promise<OnboardingState> {
   }
 }
 
+export interface GagosBrief {
+  since: string;
+  now: string;
+  did: string[];
+  waiting: string[];
+  broke: string[];
+  quiet: boolean;
+}
+
+const BRIEF_PATH = ['api', 'gagos', 'brief'].join('/');
+
+/** Read GAGOS's own brief of what happened since `since`.
+ *  Returns null when the backend is unreachable or has no brief. */
+export async function fetchGagosBrief(since: string | null): Promise<GagosBrief | null> {
+  try {
+    const query = since ? `?since=${encodeURIComponent(since)}` : '';
+    const res = await fetch(`${AIOS_BASE}/${BRIEF_PATH}${query}`, {
+      credentials: FETCH_CREDENTIALS,
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as Record<string, unknown>;
+    const brief = data.brief as Record<string, unknown> | null | undefined;
+    if (!brief || typeof brief !== 'object') return null;
+    const strings = (value: unknown): string[] =>
+      Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
+    return {
+      since: String(brief.since ?? ''),
+      now: String(brief.now ?? ''),
+      did: strings(brief.did),
+      waiting: strings(brief.waiting),
+      broke: strings(brief.broke),
+      quiet: Boolean(brief.quiet),
+    };
+  } catch {
+    return null;
+  }
+}
+
 export interface OperatorModel {
   preferences: Array<{ predicate: string; object: string }>;
   attributes: Record<string, string>;

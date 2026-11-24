@@ -25,6 +25,7 @@ import {
   getPendingApproval,
   previewIntent,
   fetchOnboardingState,
+  fetchGagosBrief,
   BACKEND_REDACTION_MARKER_RE,
   setSwarmMode,
   getSwarmMode,
@@ -545,6 +546,36 @@ export default function GagosChrome({
       if (alive) setMilestones(state);
     };
     void load();
+    return () => { alive = false; };
+  }, []);
+
+  // GAGOS speaks first: the brief since the operator last looked
+  const pushMessageRef = useRef(pushMessage);
+  useEffect(() => {
+    pushMessageRef.current = pushMessage;
+  }, [pushMessage]);
+  useEffect(() => {
+    let alive = true;
+    const loadBrief = async () => {
+      try {
+        let seen = null;
+        try { seen = window.localStorage.getItem('gagos-brief-seen'); } catch { seen = null; }
+        const brief = await fetchGagosBrief(seen);
+        if (!alive || !brief || brief.quiet) return;
+        const lines = ['Since you last looked:', ...brief.did.map((item) => `- ${item}`)];
+        if (brief.waiting.length > 0) {
+          lines.push('Waiting on you:', ...brief.waiting.map((item) => `- ${item}`));
+        }
+        if (brief.broke.length > 0) {
+          lines.push('Broken:', ...brief.broke.map((item) => `- ${item}`));
+        }
+        pushMessageRef.current('gagos', lines.join('\n'));
+        try { window.localStorage.setItem('gagos-brief-seen', brief.now); } catch { /* storage blocked */ }
+      } catch {
+        /* the brief is best-effort; never throw from the effect */
+      }
+    };
+    void loadBrief();
     return () => { alive = false; };
   }, []);
 
