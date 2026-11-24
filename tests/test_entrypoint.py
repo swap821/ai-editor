@@ -52,3 +52,23 @@ def test_entrypoint_env_trust_proxy_without_flag_passes_to_uvicorn(monkeypatch):
 
     assert config.TRUST_PROXY_HEADERS is True
     assert run.call_args.kwargs["proxy_headers"] is True
+
+
+def test_entrypoint_serves_on_the_loop_that_keeps_listening(monkeypatch):
+    """2026-11-24: a client dropping mid-accept closed the backend's listener
+    (aios/runtime/windows_loop.py); the launch serves on the loop that does
+    not, and the reloader keeps uvicorn's own."""
+    import aios.__main__ as entry
+    from aios.runtime.windows_loop import LOOP_FACTORY
+
+    monkeypatch.setattr(config, "TRUST_PROXY_HEADERS", False)
+    with patch("uvicorn.run") as run, patch.object(sys, "argv", ["python -m aios"]):
+        entry.main()
+    assert run.call_args.kwargs["loop"] == LOOP_FACTORY
+
+    with (
+        patch("uvicorn.run") as run,
+        patch.object(sys, "argv", ["python -m aios", "--reload"]),
+    ):
+        entry.main()
+    assert run.call_args.kwargs["loop"] == "auto"
