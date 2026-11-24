@@ -20,7 +20,7 @@ from aios.api.routes import gagos_tasks
 from aios.application.observability.brief import (
     MAX_LINES,
     Facts,
-    attestation_waits,
+    organs_waiting_on_operator,
     compose,
     ledger_facts,
 )
@@ -106,7 +106,13 @@ def test_what_waits_on_him() -> None:
                 "live": False,
                 "reason": "the operator has not signed an envelope",
             },
-            attestation_waits=((44, "Golden Mission and Endurance Evaluation"),),
+            organ_waits=(
+                (
+                    44,
+                    "Golden Mission and Endurance Evaluation",
+                    "Operator attestation of the cohort at master 09022036: [5, 5, 5]",
+                ),
+            ),
         )
     )
     assert told.waiting == (
@@ -114,7 +120,8 @@ def test_what_waits_on_him() -> None:
         "GAGOS's pull request #752 is not yet seen merged.",
         "No mission envelope is live (the envelope has expired), so GAGOS starts no council missions.",
         "No skill envelope is live (the operator has not signed an envelope), so GAGOS activates no skills.",
-        "Organ 44 (Golden Mission and Endurance Evaluation) waits on your attestation.",
+        "Organ 44 (Golden Mission and Endurance Evaluation) waits on you: "
+        "Operator attestation of the cohort at master 09022036.",
     )
 
 
@@ -164,30 +171,40 @@ def test_a_long_list_is_counted_never_dropped() -> None:
     assert waiting[-1] == f"and {10 - (MAX_LINES - 1)} more"
 
 
-def test_only_organs_waiting_on_his_attestation_are_named() -> None:
+def test_the_brief_and_the_self_model_name_the_same_organs() -> None:
+    """One rule decides whose an organ that is not green is (2026-11-24: the
+    brief and GAGOS's self-model each had their own, and named different
+    organs). The brief's waiting organs are exactly the self-model's."""
+    from aios.operations import self_model
+
     organs = [
         {
             "organ_id": 44,
             "name": "Golden",
             "status": "yellow",
-            "condition_verdicts": {
-                "C10": "WAITING - operator attestation: the cohort ..."
-            },
+            "known_blockers": ["Operator attestation of the cohort at 09022036"],
+        },
+        {
+            "organ_id": 55,
+            "name": "Reel",
+            "status": "yellow",
+            "known_blockers": ["STALE ATTESTATION (recorded 3619eea9)"],
         },
         {
             "organ_id": 46,
             "name": "Learning",
             "status": "yellow",
-            "condition_verdicts": {"C10": "PASS - live evidence present"},
+            "known_blockers": ["Outside-machine residual: a human red-team"],
         },
-        {
-            "organ_id": 9,
-            "name": "Caps",
-            "status": "green",
-            "condition_verdicts": {"C10": "WAITING - operator attestation"},
-        },
+        {"organ_id": 9, "name": "Caps", "status": "green", "known_blockers": []},
     ]
-    assert attestation_waits(organs) == ((44, "Golden"),)
+    in_brief = {organ_id for organ_id, _, _ in organs_waiting_on_operator(organs)}
+    in_model = {
+        int(g.key.split(":")[1])
+        for g in self_model.organ_gaps(organs)
+        if g.owner == self_model.OPERATOR
+    }
+    assert in_brief == in_model == {44, 55}
 
 
 def test_the_ledger_is_read_read_only(tmp_path) -> None:
@@ -235,6 +252,9 @@ def brief_env(tmp_path):
                     "name": "Golden",
                     "status": "yellow",
                     "condition_verdicts": {"C10": "WAITING - operator attestation"},
+                    "known_blockers": [
+                        "Operator attestation of the cohort at 09022036"
+                    ],
                 },
             ]
         ),
@@ -269,7 +289,7 @@ def test_the_operator_reads_his_brief(brief_env) -> None:
     assert (
         "No mission envelope is live (the envelope has expired)" in told["waiting"][1]
     )
-    assert told["waiting"][2] == "Organ 44 (Golden) waits on your attestation."
+    assert told["waiting"][2].startswith("Organ 44 (Golden) waits on you: ")
     assert told["broke"] == [] and told["quiet"] is False
 
 

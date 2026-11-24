@@ -34,7 +34,14 @@ from dataclasses import dataclass
 from pathlib import PurePosixPath
 from typing import Any
 
-GAGOS, OPERATOR, OUTSIDE = "gagos", "operator", "outside"
+from aios.application.observability.brief import (
+    OWNER_GAGOS as GAGOS,
+    OWNER_OPERATOR as OPERATOR,
+    OWNER_OUTSIDE as OUTSIDE,
+    organ_owner,
+    organ_reason,
+)
+
 _ORDER = {GAGOS: 0, OPERATOR: 1, OUTSIDE: 2}
 
 #: The refusals GAGOS meets in its own work, by what its records say: the
@@ -270,18 +277,8 @@ def organ_gaps(organs: Iterable[Mapping[str, Any]]) -> list[Gap]:
     for organ in organs:
         if organ.get("status") == "green":
             continue
-        blocker = str((organ.get("known_blockers") or [""])[0])
-        lowered = blocker.lower()
-        if "attestation" in lowered or "stale attestation" in lowered:
-            owner = OPERATOR
-        elif (
-            "outside-machine" in lowered
-            or "machine other than" in lowered
-            or "human red-team" in lowered
-        ):
-            owner = OUTSIDE
-        else:
-            owner = GAGOS
+        blocker = organ_reason(organ)
+        owner = organ_owner(blocker)  # the one rule the brief reads too
         out.append(
             Gap(
                 key=f"organ:{organ.get('organ_id')}",

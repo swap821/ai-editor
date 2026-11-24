@@ -247,3 +247,19 @@ def test_a_file_its_own_unmerged_work_touches_is_left_alone(tmp_path, capsys) ->
     )
     assert taken == []
     assert "my unmerged work touches it" in capsys.readouterr().out
+
+
+def test_a_goal_whose_words_a_writer_would_not_see_is_not_set(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """The check is the very filter a goal's text passes to every writer
+    (egress_redact), not a narrower one that could let an altered goal through."""
+    from tools import gagos_daily
+
+    root, led = _hour_setup(tmp_path)
+    monkeypatch.setattr(
+        gagos_daily, "egress_redact", lambda text: text.replace("Clear", "[REDACTED]")
+    )
+    taken = gagos_daily.self_goals_hour(led, root, envelope=_Envelope(_status()))
+    assert taken == [] and led.tasks() == []
+    assert "its words would not reach a writer" in capsys.readouterr().out

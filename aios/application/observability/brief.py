@@ -95,8 +95,8 @@ class Facts:
     #: ``status()`` of the mission envelope and of the skill envelope.
     mission_envelope: Mapping[str, Any] = field(default_factory=dict)
     skill_envelope: Mapping[str, Any] = field(default_factory=dict)
-    #: Organs whose live evidence waits on his attestation: (id, name).
-    attestation_waits: tuple[tuple[int, str], ...] = ()
+    #: Organs not green whose reason asks for him: (id, name, reason).
+    organ_waits: tuple[tuple[int, str, str], ...] = ()
     stop_engaged: bool = False
     #: Its hours: ``day`` (slot), ``status``, ``reason``, ``updated_at``.
     hours: tuple[Mapping[str, Any], ...] = ()
@@ -162,8 +162,10 @@ def compose(facts: Facts) -> Brief:
             + (f" ({skill['reason']})" if skill.get("reason") else "")
             + ", so GAGOS activates no skills."
         )
-    for organ_id, name in facts.attestation_waits:
-        waiting.append(f"Organ {organ_id} ({name}) waits on your attestation.")
+    for organ_id, name, reason in facts.organ_waits:
+        waiting.append(
+            f"Organ {organ_id} ({name}) waits on you: {_first_clause(reason)}."
+        )
 
     broke: list[str] = []
     if facts.stop_engaged:
@@ -254,18 +256,45 @@ def ledger_facts(ledger_db: Path, since: datetime) -> dict[str, Any]:
     }
 
 
-def attestation_waits(
+#: Who an organ that is not green waits on, by what its recorded reason asks
+#: for: the ONE rule the brief and GAGOS's self-model both read (2026-11-24:
+#: each had its own, and they named different organs).
+OWNER_GAGOS, OWNER_OPERATOR, OWNER_OUTSIDE = "gagos", "operator", "outside"
+
+
+def organ_owner(blocker: str) -> str:
+    """``operator`` for an attestation (or a stale one), ``outside`` for
+    another machine or a human red-team, else ``gagos``."""
+    lowered = str(blocker or "").lower()
+    if "attestation" in lowered:
+        return OWNER_OPERATOR
+    if (
+        "outside-machine" in lowered
+        or "machine other than" in lowered
+        or "human red-team" in lowered
+    ):
+        return OWNER_OUTSIDE
+    return OWNER_GAGOS
+
+
+def organ_reason(organ: Mapping[str, Any]) -> str:
+    return str((organ.get("known_blockers") or [""])[0])
+
+
+def organs_waiting_on_operator(
     organs: Iterable[Mapping[str, Any]],
-) -> tuple[tuple[int, str], ...]:
-    """Yellow organs whose live-evidence condition (C10) waits on his attestation."""
-    waits = []
-    for organ in organs:
-        if organ.get("status") != "yellow":
-            continue
-        c10 = str((organ.get("condition_verdicts") or {}).get("C10", ""))
-        if c10.upper().startswith("WAITING") and "attestation" in c10.lower():
-            waits.append((int(organ["organ_id"]), str(organ.get("name", ""))))
-    return tuple(waits)
+) -> tuple[tuple[int, str, str], ...]:
+    """Organs not green whose reason asks for him: (id, name, reason)."""
+    return tuple(
+        (int(o["organ_id"]), str(o.get("name", "")), organ_reason(o))
+        for o in organs
+        if o.get("status") != "green" and organ_owner(organ_reason(o)) == OWNER_OPERATOR
+    )
+
+
+def _first_clause(text: str, limit: int = 110) -> str:
+    clause = str(text or "").split(": ")[0].split(". ")[0].rstrip(".")
+    return clause if len(clause) <= limit else clause[: limit - 1].rstrip() + "…"
 
 
 def organ_ledger(path: Path) -> list[dict[str, Any]]:
@@ -294,7 +323,7 @@ def gather(
             now=now,
             mission_envelope=mission_envelope,
             skill_envelope=skill_envelope,
-            attestation_waits=attestation_waits(organ_ledger(organ_ledger_path)),
+            organ_waits=organs_waiting_on_operator(organ_ledger(organ_ledger_path)),
             stop_engaged=stop_engaged,
             **found,
         )
@@ -306,7 +335,8 @@ __all__ = [
     "Facts",
     "MAX_LINES",
     "SILENT_AFTER",
-    "attestation_waits",
+    "organ_owner",
+    "organs_waiting_on_operator",
     "compose",
     "gather",
     "ledger_facts",
