@@ -15,7 +15,6 @@
  * listener, poller, or stream error can break the render loop.
  */
 
-import { publishCognition } from './cognitionBus';
 import { setMetricBases, setMetricLink } from './metricsStore';
 import { __resetSessionForTests, ensureSession } from './sessionId';
 import { parseSkills, type SkillContract } from '../../livingMirror/contracts';
@@ -1145,7 +1144,7 @@ export async function rejectFactProposal(id: number): Promise<boolean> {
 
 /* ------------------------------------------------- living mirror extensions */
 
-export async function fetchHiringProposals(): Promise<any[]> {
+export async function fetchHiringProposals(): Promise<Record<string, unknown>[]> {
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/hiring/proposals`, {
       credentials: FETCH_CREDENTIALS,
@@ -1163,7 +1162,7 @@ export async function fetchSkills(): Promise<SkillContract[]> {
   return (await readResource('/api/v1/skills', parseSkills)).items;
 }
 
-export async function fetchMaintenanceFindings(): Promise<any[]> {
+export async function fetchMaintenanceFindings(): Promise<Record<string, unknown>[]> {
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/maintenance/findings`, {
       credentials: FETCH_CREDENTIALS,
@@ -1177,7 +1176,7 @@ export async function fetchMaintenanceFindings(): Promise<any[]> {
   }
 }
 
-export async function fetchMaintenanceScans(): Promise<any[]> {
+export async function fetchMaintenanceScans(): Promise<Record<string, unknown>[]> {
   try {
     const res = await fetch(`${AIOS_BASE}/api/v1/maintenance/scans`, {
       credentials: FETCH_CREDENTIALS,
