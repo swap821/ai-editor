@@ -16,7 +16,8 @@ The agent's tools are offered as text and answered through each tool's
 structured output (``--json-schema`` / ``--output-schema``): the model fills
 ``content`` and, to act, ``tool_calls`` with each call's arguments as a JSON
 string. Nothing the model asks for runs here; the agent loop and its gates
-decide, as for every provider.
+decide, as for every provider. A call whose arguments cannot be read reaches
+the loop marked ``unreadable``, and is answered ``[NOT RUN]``.
 
 Not streamed: :meth:`PlanCliClient.stream_chat` yields the whole answer once.
 """
@@ -206,9 +207,21 @@ def _transcript(
     return "\n\n".join(system), "\n".join(lines)
 
 
+#: Why an offered tool's call is not run: the agent loop answers it with this
+#: as a ``[NOT RUN]`` result, so the model can call it again.
+UNREADABLE_ARGUMENTS = "its arguments_json is not one JSON object"
+
+
 def _turn(answer: Any, tools: Sequence[dict[str, Any]]) -> dict[str, Any]:
-    """The agent's message from a structured answer; a call to a tool not
-    offered, or with arguments that are not a JSON object, is dropped."""
+    """The agent's message from a structured answer. A call to a tool not
+    offered is dropped.
+
+    A call to an offered tool whose arguments are not a JSON object is kept,
+    marked ``unreadable``, so the agent loop answers it with ``[NOT RUN]``
+    instead of ending the turn on the reply's text. Before 2026-11-23 it was
+    dropped silently: organ 44's cohort saw a plan brain announce a test file
+    no call ever created. Raw newlines inside a JSON string, the usual shape of
+    a file body written unescaped, are read as the newlines they are."""
     if not isinstance(answer, dict):
         raise LLMError("the plan model gave no structured answer")
     offered = {
@@ -216,21 +229,24 @@ def _turn(answer: Any, tools: Sequence[dict[str, Any]]) -> dict[str, Any]:
         for t in tools
         if isinstance(t, dict)
     }
-    calls = []
+    calls: list[dict[str, Any]] = []
     for i, call in enumerate(answer.get("tool_calls") or []):
         if not isinstance(call, dict) or call.get("name") not in offered:
             continue
         try:
-            args = json.loads(call.get("arguments_json") or "{}")
-        except (ValueError, TypeError):  # not a JSON string: the call is dropped
-            continue
-        if isinstance(args, dict):
-            calls.append(
-                {
-                    "id": f"plan_{i}",
-                    "function": {"name": call["name"], "arguments": args},
-                }
-            )
+            args = json.loads(call.get("arguments_json") or "{}", strict=False)
+        except (ValueError, TypeError):
+            args = None
+        entry: dict[str, Any] = {
+            "id": f"plan_{i}",
+            "function": {
+                "name": call["name"],
+                "arguments": args if isinstance(args, dict) else {},
+            },
+        }
+        if not isinstance(args, dict):
+            entry["unreadable"] = UNREADABLE_ARGUMENTS
+        calls.append(entry)
     result: dict[str, Any] = {
         "role": "assistant",
         "content": str(answer.get("content") or ""),

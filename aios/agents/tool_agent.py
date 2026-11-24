@@ -1393,8 +1393,22 @@ class ToolAgent:
             for index, call in enumerate(tool_calls):
                 function = cast(dict[str, Any], call.get("function", {}))
                 name = str(function.get("name", ""))
-                required_tools.discard(name)
                 args: dict[str, Any] = _coerce_args(function.get("arguments"))
+
+                # A call the client could not read (a plan reply's arguments
+                # that are not one JSON object) runs nothing and says so, so the
+                # model can call it again. Dropped silently, the turn ended on
+                # the reply's text (organ 44's cohort, 2026-11-23: a test file
+                # announced and never created).
+                unreadable = call.get("unreadable")
+                if unreadable:
+                    _unread_guarded, _ = _guard_tool_output(
+                        f"[NOT RUN] {name} was not run: {unreadable}, so nothing"
+                        " ran. Call it again with its arguments as one JSON object."
+                    )
+                    convo.append({"role": "tool", "content": _unread_guarded})
+                    continue
+                required_tools.discard(name)
 
                 # An overwrite IS an edit whose old_string is the file's current
                 # body, so resolve it into one HERE, before anything downstream
