@@ -1,9 +1,48 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-24 (the backend keeps listening when a client drops mid-accept; two of the day's disagreements made one, 56 facts guarded; GAGOS takes goals on itself (step 2); GAGOS's self-model; organ 44's earlier cohort rows superseded before his attestation; GAGOS speaks first, its brief; a standing mission envelope; organ 44 [5, 5, 5] at master 09022036, waiting on his attestation; organ evidence at master's tip after #744's squash; a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-24 (GAGOS's self-model reads its consistency audit; the doorbell rings for GAGOS's brief; organ evidence at master's tip after #753; organ 44 green on his attestation; organ 46's wrong residual corrected; the backend keeps listening when a client drops mid-accept; two of the day's disagreements made one, 56 facts guarded; GAGOS takes goals on itself (step 2); GAGOS's self-model; organ 44's earlier cohort rows superseded before his attestation; GAGOS speaks first, its brief; a standing mission envelope; organ 44 [5, 5, 5] at master 09022036, waiting on his attestation; organ evidence at master's tip after #744's squash; a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-24, harmony in GAGOS's self-model: it reads its own consistency audit (branch `feat/self-model-reads-harmony`)
+
+- **His word:** cross-system consistency is what makes GAGOS run in harmony. Until today only I ran the audit; drift was something I noticed, not something GAGOS knew.
+- **Now** the hour's self-model loads `scripts/consistency_audit.py` from its own tree (the module he runs by hand, never a second derivation) and reports, as its own gaps: shared facts not held to one source or guarded, a register that is wrong (a guard that no longer exists), or an audit it could not run.
+- **On this tree:** 57 of 57 facts guarded, nothing open, no errors, so no harmony gap today. The first draft could never load the audit (a dataclass needs its module registered); the guard comparing the hour's summary with the audit's own result caught it before it shipped.
+- **Corrected:** the five "hand-written provider lists" the audit names are intentional, not drifting copies of which brains exist: the inventory's integrity check counts the two providers it fakes with a request counter (Ollama, Bedrock), two governance proofs carry provider names as scenario inputs, and the pipeline names its clients. I had called the inventory's count "the one real gap"; it was not.
+- 190 self-model, self-goals, hour, consistency, architecture and Bandit tests pass.
+
+
+
+
+## 2026-11-24, GAGOS speaks first, step 3: the doorbell (branch `feat/gagos-doorbell`)
+
+- **His choice:** ring once for each thing that broke and once when something new starts waiting on him; a standing wait never rings twice.
+- **What it is.** The health watch (`tools/health_watch.py`, already the doorbell for Ollama and master's CI) now reads GAGOS's brief through the face's own brief providers and rings a Windows notification for what broke or newly waits. A wait that ends and comes back rings again; an unreadable brief rings once per cause; the brief's one running count ("silent for N hours") is keyed without its number, so one silence rings once.
+- **Dry run on his real stores** (no notification, temp state): the first cycle would ring once with 3 waits (#752 not yet seen merged, organ 44's attestation, organ 55's stale attestation); the second rang nothing.
+- **Registered** (58 of 58 guarded): `brief-inputs` (route and doorbell read the same providers) and `brief-silence-wording`.
+- **Not live until his act:** the scheduled task is not installed. After the merge: `.venv\Scripts\python.exe tools/health_watch.py --print-task` in the main checkout, then run the command it prints.
+
+
+
+## 2026-11-24, organ evidence at master's tip after #753's squash (branch `attest/organ44-after-supersede`)
+
+- #753 squash-merged as `7491bb65`; its branch evidence commit `778f8190` is not on master. Live evidence re-gathered at `7491bb65` (all passed) and attached: 42 organs now rest on that master commit, and every organ's `last_verified_sha` is on master.
+- **Live proof of #753 on his restarted backend:** 2,000 aborted connects against :8000; it still answered 200, the fix absorbed 1,807 dropped clients, and "Accept failed on a socket" appears 0 times.
+
+
+## 2026-11-24, organ 46's residual corrected: no model in it, so only a human red-team remains (branch `attest/organ44-after-supersede`)
+
+- **The record said** its adversarial simulation cohort "needs live models" and that it was yellow for "no Ollama". **Measured today:** none of its eight production entrypoints imports or calls a model; the adversarial simulations are deterministic scenarios (provider names in them are scenario inputs) and pass in CI on all three OSes at master `61b138e1` (actions run 45331328404, success); Ollama runs on this machine.
+- **Organ 46 stays yellow** on its one true residual: a human red-team on a machine other than the author's (Outside-machine). Its blocker, C9 and C10 now say that; nothing else in its row changed.
+
+
+## 2026-11-24, organ 44 green on his attestation (branch `attest/organ44-after-supersede`)
+
+- **His act, 09:26Z:** `operator_attest.py --attest 44` on the cohort at master `090220364548` ([5, 5, 5] of 5 on `plan.claude-sonnet-5-5`), after #749 superseded the four earlier rows the twelve-condition check had rejected. His words are recorded verbatim; C10 is OPERATOR-ATTESTED and organ 44 is **green**.
+- **The twelve-condition check, run locally on this commit's ledger** (fresh vitest JUnit from the same tree, 5,389 tests passed, 0 failed): organ 44 clean. It exited 1 on four OTHER greens whose cited suites are gated off locally: organs 33, 35, 37 (`AIOS_OLLAMA_INTEGRATION`) and 40 (`AIOS_EXECUTOR_INTEGRATION`, runs only inside the executor container). The clerk suite was then run live against local Ollama: 6 of 6 pass. This PR does not touch those organs.
+
 
 ## 2026-11-24, the backend keeps listening when a client drops mid-accept (branch `fix/backend-keeps-listening`)
 

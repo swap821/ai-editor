@@ -304,6 +304,52 @@ class SelfModel:
         return {"gaps": [g.as_dict() for g in self.gaps]}
 
 
+def consistency_gaps(summary: Mapping[str, Any] | None) -> list[Gap]:
+    """Where GAGOS's parts may not agree, by its own consistency audit
+    (2026-11-24, the operator: cross-system consistency is what makes GAGOS
+    run in harmony). *summary* is the audit's result (``rows``, ``covered``,
+    ``open`` ids, ``errors``), or None when it could not be run."""
+    if summary is None:
+        return [
+            Gap(
+                key="consistency:unread",
+                what="I could not run my consistency audit, so I cannot say my parts agree",
+                evidence="consistency audit",
+                owner=GAGOS,
+            )
+        ]
+    out = []
+    unheld = list(summary.get("open") or ())
+    if unheld:
+        out.append(
+            Gap(
+                key="consistency:open",
+                what=(
+                    f"{len(unheld)} fact(s) my parts share are neither held to one "
+                    f"source nor guarded: {', '.join(unheld[:4])}"
+                ),
+                evidence="consistency register",
+                owner=GAGOS,
+                weight=len(unheld),
+            )
+        )
+    errors = list(summary.get("errors") or ())
+    if errors:
+        out.append(
+            Gap(
+                key="consistency:errors",
+                what=(
+                    f"my consistency register is wrong in {len(errors)} place(s), "
+                    f"first: {str(errors[0])[:140]}"
+                ),
+                evidence="consistency audit",
+                owner=GAGOS,
+                weight=len(errors),
+            )
+        )
+    return out
+
+
 def compose(*groups: Iterable[Gap]) -> SelfModel:
     """Every gap, GAGOS's own first, the heaviest first within an owner."""
     gaps = [g for group in groups for g in group]

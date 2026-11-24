@@ -178,6 +178,7 @@ def _cycle(tmp_path: Path, runs, *, quiet=False, ollama=(True,)):
         quiet=quiet,
         ollama_check=lambda: _check(Ollama(*ollama))[0],
         ci_runs=lambda: runs,
+        brief=lambda: {},
     )
     return report, shown
 

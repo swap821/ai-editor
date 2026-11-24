@@ -914,6 +914,50 @@
         "tests/test_gagos_self_goals.py::test_a_goal_whose_words_a_writer_would_not_see_is_not_set"
       ],
       "note": "Found 2026-11-24 in step 2's first draft, which checked with redact_paths, narrower than the egress_redact the batch applies; a goal could pass the check and reach its writer altered."
+    },
+    {
+      "id": "brief-inputs",
+      "fact": "Which stores GAGOS's brief is read from (its ledger, its mission and skill envelopes, the organ ledger, the emergency stop): what the face's brief route reads, and what the health watch's doorbell reads.",
+      "state": "single",
+      "source": "aios/api/routes/gagos_tasks.py::get_organ_ledger_path",
+      "places": [
+        "aios/api/routes/gagos_tasks.py::get_organ_ledger_path",
+        "aios/api/routes/gagos_tasks.py::brief",
+        "tools/health_watch.py::gagos_brief"
+      ],
+      "guards": [
+        "tests/test_gagos_doorbell.py::test_the_doorbell_reads_the_brief_through_the_faces_providers"
+      ],
+      "note": "2026-11-24, the doorbell: it calls the route's own providers rather than deriving the stores a second time; the guard swaps the providers and checks the doorbell sees exactly them."
+    },
+    {
+      "id": "brief-silence-wording",
+      "fact": "The brief's one line with a running count (its hourly job silent for N hours): how compose() words it, and how the doorbell keys it so the same silence rings once.",
+      "state": "agreed",
+      "source": null,
+      "places": [
+        "aios/application/observability/brief.py::compose",
+        "tools/health_watch.py::steady"
+      ],
+      "guards": [
+        "tests/test_gagos_doorbell.py::test_a_silence_that_lasts_rings_once_in_the_briefs_own_words"
+      ],
+      "note": "2026-11-24: a naive doorbell would ring every hour of one silence. The guard composes real brief lines an hour apart, proves the count ran, and checks the doorbell rings once."
+    },
+    {
+      "id": "self-model-harmony",
+      "fact": "Whether GAGOS's parts agree, as its consistency audit measures it: what the operator runs by hand, and what GAGOS's self-model reports each hour.",
+      "state": "single",
+      "source": "scripts/consistency_audit.py::audit",
+      "places": [
+        "scripts/consistency_audit.py::audit",
+        "tools/gagos_daily.py::consistency_summary",
+        "aios/operations/self_model.py::consistency_gaps"
+      ],
+      "guards": [
+        "tests/test_gagos_self_model.py::test_the_hour_reads_the_audit_the_operator_runs"
+      ],
+      "note": "2026-11-24: drift becomes one of GAGOS's own gaps. The hour loads the audit module from its own tree rather than deriving it again; the guard compares the hour's summary with the audit's own result. Its first draft could never load the module (a dataclass needs its module registered), and the guard caught it."
     }
   ]
 }
