@@ -44,6 +44,15 @@ WORKSHOP, SWARM, MISSION = "workshop", "swarm", "mission"
 #: Turns: what every turn-scoped organ is last seen in.
 TURN = ("turn.started", "turn.completed")
 
+#: What wakes a part whose evidence does not say so itself (2026-11-24, for
+#: GAGOS's self-model): ``WAKES_TURN`` -- it runs inside the operator's own
+#: conversation turns (curriculum mining at the end of every turn,
+#: generate_pipeline; self-analysis as a turn's tool; reflex and recall before
+#: a turn's routing); ``WAKES_OPERATOR`` -- it runs on his own act (an
+#: approval, a ratification, a key). Empty: a part GAGOS's own work runs, or
+#: one nobody has found the cause of.
+WAKES_TURN, WAKES_OPERATOR = "turn", "operator"
+
 
 @dataclass(frozen=True)
 class Part:
@@ -55,6 +64,7 @@ class Part:
     events: tuple[str, ...] = ()
     workers: tuple[str, ...] = ()
     kind: str = ""  # GUARD / FACE / EVALUATION when nothing is measurable
+    wakes: str = ""  # WAKES_TURN / WAKES_OPERATOR, when its evidence does not say
 
 
 def _organ(n: int, name: str, **kw: Any) -> Part:
@@ -106,13 +116,20 @@ PARTS: tuple[Part, ...] = (
         "Operator Taste Model",
         tables=("alignment_observations",),
         events=("alignment",),
+        wakes=WAKES_TURN,
     ),
     _organ(28, "Project Understanding Organ", tables=("project_passports",)),
-    _organ(29, "Correction and Interpretation-Lineage", tables=("correction_records",)),
+    _organ(
+        29,
+        "Correction and Interpretation-Lineage",
+        tables=("correction_records",),
+        wakes=WAKES_TURN,
+    ),
     _organ(
         30,
         "Communication and Human-State Interpreter",
         tables=("human_state_hypotheses",),
+        wakes=WAKES_TURN,
     ),
     _organ(
         31, "Human Representative Context Compiler", tables=("representative_contexts",)
@@ -147,6 +164,7 @@ PARTS: tuple[Part, ...] = (
         45,
         "Constitutional Amendment Authority",
         tables=("constitution_snapshots", "governance_amendment_proposals"),
+        wakes=WAKES_OPERATOR,
     ),
     _organ(
         46,
@@ -166,6 +184,7 @@ PARTS: tuple[Part, ...] = (
         49,
         "Approval and Decision Surface",
         tables=("approval_pending", "approval_grants"),
+        wakes=WAKES_OPERATOR,
     ),
     _organ(50, "Provenance and Explanation Surface", kind=FACE),
     _organ(51, "Sovereign Control and Heartbeat Surface", kind=FACE),
@@ -174,6 +193,7 @@ PARTS: tuple[Part, ...] = (
         53,
         "Installation, Configuration and Key Authority",
         tables=("api_token_rotation",),
+        wakes=WAKES_OPERATOR,
     ),
     _organ(54, "Backup and Disaster-Recovery", kind=GUARD),
     _organ(55, "Governance Conformance Evaluation", kind=EVALUATION),
@@ -186,9 +206,12 @@ PARTS: tuple[Part, ...] = (
         tables=("learning_events", "learning_provenance"),
     ),
     _organ(
-        57, "Reflex Authority", events=("cerebellum.replayed", "cerebellum.abstained")
+        57,
+        "Reflex Authority",
+        events=("cerebellum.replayed", "cerebellum.abstained"),
+        wakes=WAKES_TURN,
     ),
-    _organ(58, "Recall Isolation", events=("memory.recalled",)),
+    _organ(58, "Recall Isolation", events=("memory.recalled",), wakes=WAKES_TURN),
     _organ(59, "Learning Freeze", kind=GUARD),
     Part("swarm", "Swarm (ant colony)", tables=("swarm_patterns",), workers=(SWARM,)),
     Part("workshop", "Workshop writers", workers=(WORKSHOP,)),
@@ -203,11 +226,13 @@ PARTS: tuple[Part, ...] = (
         "memory",
         "Memory (episodic, semantic, mistake pool)",
         tables=("episodic_memory", "semantic_memory", "mistake_pool"),
+        wakes=WAKES_TURN,
     ),
     Part(
         "reflex",
         "Reflex (cerebellum)",
         events=("cerebellum.replayed", "cerebellum.abstained"),
+        wakes=WAKES_TURN,
     ),
     Part("skill-trails", "Skill trails (stigmergy)", tables=("skill_trails",)),
     Part(
@@ -225,8 +250,13 @@ PARTS: tuple[Part, ...] = (
         "Council planning",
         tables=("council_events", "deliberation_records"),
     ),
-    Part("curriculum", "Curriculum", tables=("curriculum_tasks",)),
-    Part("self-analysis", "Self-analysis", tables=("self_analysis_report",)),
+    Part("curriculum", "Curriculum", tables=("curriculum_tasks",), wakes=WAKES_TURN),
+    Part(
+        "self-analysis",
+        "Self-analysis",
+        tables=("self_analysis_report",),
+        wakes=WAKES_TURN,
+    ),
 )
 
 _TS = re.compile(

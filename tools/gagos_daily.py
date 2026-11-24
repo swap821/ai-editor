@@ -4374,6 +4374,137 @@ def knowledge_hour(root: Path, *, ingestor=None) -> dict:
     return out
 
 
+#: How far back GAGOS's self-model reads its own refusals.
+SELF_MODEL_DAYS = 7
+#: At most this many goals GAGOS takes on itself in one hour (step 2 starts small).
+SELF_GOALS_PER_HOUR = 1
+
+
+def self_goals_hour(
+    led: DailyLedger,
+    root: Path,
+    *,
+    envelope=None,
+    busy: Sequence[str] | set[str] = (),
+) -> list[str]:
+    """The goals GAGOS takes on itself from its own gaps (2026-11-24, the
+    operator's step 2): findings refused because their file is over the
+    whole-file bound, still true on this hour's checkout, inside his live
+    mission envelope's folders and kinds -- set as goals, which are applied as
+    edits (aios.operations.self_goals). Without a live envelope it takes none
+    and says so."""
+    from aios.core.privacy_filter import redact_paths
+    from aios.domain.capabilities.envelope import EnvelopeTerms, is_test_file
+    from aios.operations import self_goals
+
+    envelope = envelope or _envelope_authority()
+    status = envelope.status()
+    if not status.get("live"):
+        print(
+            "  self-goals: none -- no live mission envelope "
+            f"({status.get('reason')}), so I take no goals on myself"
+        )
+        return []
+
+    def digest_now(rel: str) -> str | None:
+        try:
+            return digest((root / rel).read_bytes().decode("utf-8"))
+        except (OSError, UnicodeDecodeError):
+            return None
+
+    found = self_goals.candidates(
+        led.proposals(status="refused"),
+        digest_now=digest_now,
+        rules=[r for r in WORK_RULES if r != MISSING_TEST],
+    )
+    tasks = led.tasks()
+    taken: list[str] = []
+    skipped: list[str] = []
+    for candidate in found:
+        if len(taken) >= SELF_GOALS_PER_HOUR:
+            break
+        name = Path(candidate.rel).name
+        if candidate.rel in set(busy):
+            skipped.append(f"{name} (my unmerged work touches it)")
+            continue
+        if not self_goals.within(
+            status,
+            candidate.rel,
+            terms_from=EnvelopeTerms.from_payload,
+            is_test=is_test_file,
+        ):
+            skipped.append(f"{name} (outside the envelope)")
+            continue
+        if not self_goals.unclaimed(candidate, tasks):
+            continue
+        size = len((root / candidate.rel).read_bytes().decode("utf-8"))
+        text = self_goals.goal_text(candidate, size=size, bound=MAX_FILE_CHARS)
+        if redact_paths(text) != text:
+            skipped.append(f"{name} (its words would not reach a writer)")
+            continue
+        try:
+            task_id = led.add_task(
+                candidate.rel, text, said_by=f"{self_goals.SAID_BY}, {candidate.marker}"
+            )
+        except TaskRefused as exc:
+            skipped.append(f"{name} ({exc})")
+            continue
+        taken.append(task_id)
+        print(
+            f"  self-goals: {task_id} on {name}: {len(candidate.findings)} finding(s) "
+            "refused for size, taken on as a goal"
+        )
+    if not taken:
+        print(
+            f"  self-goals: none this hour ({len(found)} still-true size refusal(s)"
+            + (f"; skipped: {'; '.join(skipped)}" if skipped else "")
+            + ")"
+        )
+    return taken
+
+
+def self_model_hour(
+    led: DailyLedger,
+    root: Path,
+    *,
+    now: datetime | None = None,
+    readings=None,
+    envelope=None,
+) -> Any:
+    """GAGOS's own honest list of what it is missing, and whose it is to fix
+    (2026-11-24, the operator: "my jarvis which is GAGOS should understand
+    itself honestly and then complete itself first"): read from its refusals,
+    the files its writers never see, its hour's measures, the aliveness pulse
+    and the organ ledger -- no new measurement (aios.operations.self_model)."""
+    from aios.application.observability import aliveness
+    from aios.operations import self_model
+
+    now = now or datetime.now(timezone.utc)
+    since = (now - timedelta(days=SELF_MODEL_DAYS)).isoformat()
+    if readings is None:
+        readings = aliveness.pulse(Path(config.DATA_DIR), now=now)
+    envelope = envelope or _envelope_authority()
+    model = self_model.compose(
+        self_model.friction_gaps(led.friction(since), days=SELF_MODEL_DAYS),
+        self_model.withheld_gaps(led.writer_withholdings(since), days=SELF_MODEL_DAYS),
+        self_model.measure_gaps(self_model.latest_measures(led)),
+        self_model.dormant_gaps(
+            readings,
+            turn_events=aliveness.TURN,
+            mission=aliveness.MISSION,
+            mission_envelope_live=bool(envelope.status().get("live")),
+        ),
+        self_model.organ_gaps(
+            self_model.organ_ledger(
+                root / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
+            )
+        ),
+    )
+    for line in self_model.report_lines(model):
+        print(f"  {line}")
+    return model
+
+
 def governance_hour(
     led: DailyLedger, *, now: datetime | None = None, store=None
 ) -> list:
@@ -5196,6 +5327,12 @@ def cmd_daily(args: argparse.Namespace) -> int:
                     :400
                 ]
             )
+        # The goals GAGOS takes on itself from its own gaps (step 2), before the
+        # clerk briefs this hour's goals, so they are briefed with the rest.
+        try:
+            self_goals_hour(led, root, busy=in_flight(led, open_prs))
+        except Exception as exc:  # the hour's other work goes on; said
+            print(f"  self-goals: none this hour: {type(exc).__name__}: {exc}"[:400])
         # Goals first through the clerk (the one-system plan, phase 1).
         try:
             goals_hour(led, root)
@@ -5231,6 +5368,13 @@ def cmd_daily(args: argparse.Namespace) -> int:
         except Exception as exc:  # the hour's other work goes on; said
             print(
                 f"  governance: no lessons this hour: {type(exc).__name__}: {exc}"[:400]
+            )
+        # What it is missing, in its own words, and whose it is to fix.
+        try:
+            self_model_hour(led, root)
+        except Exception as exc:  # the hour's other work goes on; said
+            print(
+                f"  self-model: not read this hour: {type(exc).__name__}: {exc}"[:400]
             )
         rc = cmd_propose(
             argparse.Namespace(
