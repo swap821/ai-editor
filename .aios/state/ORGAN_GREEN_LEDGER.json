@@ -4582,12 +4582,17 @@
         "description": "command=`python tools/golden_mission_runner.py run --model plan.claude-sonnet-5-5`, three repeats, each a fresh backend instance (own port, own AIOS_DATA_DIR, own enrollment, throwaway keys; training_ground and lab reset between repeats) at master c3bb03d57c53 (#741, with #739's fixes), sandbox image aios-verify:c4db53eb1fce, 2026-11-23 16:46-17:12Z; artifact=release/organ-44/2026-11-23-plan-sonnet-cohort-c3bb03d5.md, records=release/organ-44/2026-11-23-plan-sonnet-cohort-c3bb03d5.jsonl (33). RESULT [5, 5, 4] of 5: 14/15; every batch summary valid, no unreached step; redacted_tool_files 0 across 88 plan calls. The failure, iterative-refinement step 1 in repeat 3 (unverified): the model's reply announced the test file and no call executed; plan_cli._turn silently drops a call whose arguments_json is not a JSON object (raw newlines in a file body do it), a candidate cause this run cannot confirm (no reply text kept). Run at master's tip because the [5, 5, 5] at df68b748 was orphaned by #739's squash.",
         "commit_sha": "c3bb03d57c531979785191ddcc73f5bf2f3a8e87",
         "proof_level": "live"
+      },
+      {
+        "description": "command=`python tools/golden_mission_runner.py run --model plan.claude-sonnet-5-5`, three repeats, each a fresh backend instance (own port, own AIOS_DATA_DIR, own enrollment, throwaway keys; training_ground and lab reset between repeats) at master 090220364548 (#744), sandbox image aios-verify:c4db53eb1fce, 2026-11-24 04:04-04:28Z; artifact=release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md, records=release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.jsonl (33). RESULT [5, 5, 5] of 5: 15/15 mission runs; every batch summary valid, no unreached step; every step's outcome the one it expected, no step error; tdd-workflow's red phase intact in all three; redacted_tool_files 0 across 86 plan calls. Three consecutive clean 5/5 repeats, the bar, stamped at a master commit.",
+        "commit_sha": "090220364548d537eb7629a0c7222f89256ad339",
+        "proof_level": "live"
       }
     ],
     "known_blockers": [
-      "Measured at master c3bb03d57c53 (2026-11-23) on plan.claude-sonnet-5-5: [5, 5, 4] of 5, against the bar of three consecutive clean 5/5 repeats. The failure (iterative-refinement step 1, repeat 3) ended unverified after the model announced a test file no call created; a candidate GAGOS cause is plan_cli._turn silently dropping a call whose arguments are not a JSON object. A green flip needs a master-stamped clean [5, 5, 5] and then the operator's attestation. See release/organ-44/2026-11-23-plan-sonnet-cohort-c3bb03d5.md."
+      "Operator attestation of the 2026-11-24 cohort at master 090220364548: [5, 5, 5] of 5 on plan.claude-sonnet-5-5, three consecutive clean 5/5 repeats (C9 met), stamped at master. The laptop run is not a mechanical C10 referent, so organ 44 waits on the operator attesting it (scripts/operator_attest.py --show 44, then --attest 44 in his own words). See release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md."
     ],
-    "last_verified_sha": "c3bb03d57c531979785191ddcc73f5bf2f3a8e87",
+    "last_verified_sha": "090220364548d537eb7629a0c7222f89256ad339",
     "requires_live_evidence": true,
     "condition_verdicts": {
       "C1": "PASS \u2014 GoldenMissionEnduranceAuthority class defined in production_entrypoints ['tools/golden_mission_runner.py', 'tools/endurance_tester.py'] (Decision A / enforce_owner_attestation)",
@@ -4598,10 +4603,10 @@
       "C6": "PASS \u2014 focused_tests resolve on disk: ['tests/test_organ_authority_owners.py', 'tests/test_golden_analysis.py']",
       "C7": "PASS \u2014 integration_tests resolve on disk: ['tests/test_e2e_sovereign_flywheel.py']",
       "C8": "N/A \u2014 requires_frontend_error_states is false",
-      "C9": "FAIL - yellow: the master-stamped cohort at c3bb03d57c53 measured [5, 5, 4] of 5 against the bar of three consecutive clean 5/5 repeats (release/organ-44/2026-11-23-plan-sonnet-cohort-c3bb03d5.md). The [5, 5, 5] at df68b748ba75 met the bar at a commit #739's squash orphaned. (Earlier verdict text is in git.)",
-      "C10": "PASS - live evidence present at commit c3bb03d57c531979785191ddcc73f5bf2f3a8e87 (release/organ-44/2026-11-23-plan-sonnet-cohort-c3bb03d5.md, its 33 records alongside); a laptop cohort counts toward green only once the operator attests it, his act. (Earlier verdict text is in git.)",
-      "C11": "PASS - last_verified_sha=c3bb03d57c531979785191ddcc73f5bf2f3a8e87",
-      "C12": "PASS - c3bb03d57c53 is master's own commit (#741), so no squash can orphan it."
+      "C9": "PASS - the cohort at master 090220364548 on plan.claude-sonnet-5-5 measured [5, 5, 5] of 5: three consecutive clean 5/5 repeats, the bar, every repeat valid with no unreached step (release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md). (Earlier verdict text is in git.)",
+      "C10": "WAITING - operator attestation: the cohort at master 090220364548 ([5, 5, 5], release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md with its 33 records) ran on the operator's laptop through his Claude plan. A release/organ-44 record is not a referent the gate can check, so C10 rests on the operator declaring it OPERATOR-ATTESTED with scripts/operator_attest.py, his act.",
+      "C11": "PASS - last_verified_sha=090220364548d537eb7629a0c7222f89256ad339",
+      "C12": "PASS - 090220364548 is master's own commit (#744), so no squash can orphan it."
     }
   },
   {
