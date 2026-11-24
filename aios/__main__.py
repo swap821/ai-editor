@@ -33,6 +33,7 @@ import uvicorn
 
 from aios import config
 from aios.bootstrap import run_bootstrap, write_env_template
+from aios.runtime.windows_loop import LOOP_FACTORY
 
 
 def _cmd_serve(args: argparse.Namespace) -> int:
@@ -51,6 +52,9 @@ def _cmd_serve(args: argparse.Namespace) -> int:
         port=config.API_PORT,
         reload=args.reload,
         proxy_headers=trust_proxy_headers,
+        # Keeps listening when a client drops mid-accept (Windows; see
+        # aios/runtime/windows_loop.py). The reloader keeps uvicorn's own loop.
+        loop="auto" if args.reload else LOOP_FACTORY,
     )
     return 0
 
