@@ -1,9 +1,16 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-24 (organ 44 [5, 5, 5] at master 09022036, waiting on his attestation; organ evidence at master's tip after #744's squash; a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-24, organ 44 [5, 5, 5] at master `09022036`, waiting on his attestation; organ evidence at master's tip after #744's squash (branch `evidence/master-tip-after-744`)
+
+- **Organ 44 at master `09022036` (#744): [5, 5, 5].** 2026-11-24 04:04-04:28Z, `plan.claude-sonnet-5-5`, the same harness as every cohort since 11-22. 15 of 15 mission runs passed, every repeat is valid, every step's outcome is the one it expected, and no tool result reached a plan redacted (86 calls). Three consecutive clean 5/5 repeats is the bar, and this run is stamped at a master commit, so C9 is met. Record: `release/organ-44/2026-11-24-plan-sonnet-cohort-09022036.md`, with the 33 records.
+- Organ 44 stays yellow until the operator attests it (C10, a run on his laptop). Every failure found on the way since 11-22 was a GAGOS gap between the model and its own tools (#731, #739, #744), not the model.
+- #744 was squash-merged about four minutes after its last push, before its CI finished, so the branch commit its rows cited (`600da14b`) is on no branch of master and master's own CI at `09022036` is that code's first full run. `phase4_live_evidence.py` at `09022036` passed every organ it probes; the attach re-stamped them at the tip and removed the rows citing the orphaned commit.
+- 53 organs fresh, 1 stale (55, by his choice). 56 green, 3 yellow (44, 46, 55).
 
 ## 2026-11-23, a plan brain's unreadable call is answered, not dropped (branch `fix/plan-dropped-calls-say-so`)
 
