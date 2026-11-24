@@ -22,6 +22,8 @@ USAGE (one line each; PowerShell and bash)
     python tools/gagos_envelope.py status
     python tools/gagos_envelope.py sign
     python tools/gagos_envelope.py sign --folders frontend/src/superbrain/ --kinds tests --missions 2 --hours 8
+    python tools/gagos_envelope.py standing-sign               # 30 days, 2 missions a day
+    python tools/gagos_envelope.py standing-sign --days 30 --missions 2
     python tools/gagos_envelope.py revoke
     python tools/gagos_envelope.py skills-sign                 # 30 days, 50 activations
     python tools/gagos_envelope.py skills-sign --days 30 --activations 50
@@ -35,8 +37,12 @@ activates review-ready candidate skills itself, never a suspended one, up to
 its count. Same session, same re-authentication, same hidden credential.
 
 ``sign`` with no flags signs the terms of 2026-11-13: the superbrain and
-workbench folders, code and tests, 2 missions, 8 hours. A new signature ends
-the envelope before it. The backend must be running (``AIOS_PROBE_BASE``,
+workbench folders, code and tests, 2 missions, 8 hours. ``standing-sign``
+(2026-11-24, the operator: GAGOS should work like Jarvis, without a fresh
+signature each morning) signs the same folders and kinds for ``--days`` whole
+days (default 30) with ``--missions`` as a cap per UTC day; ``revoke`` ends
+it at any time, and any emergency stop ends it too. A new signature ends the
+envelope before it. The backend must be running (``AIOS_PROBE_BASE``,
 default http://127.0.0.1:8000).
 """
 
@@ -65,14 +71,22 @@ SKILL_ROUTE = "/api/gagos/skill-envelope"
 ROUTE = "/api/gagos/envelope"
 
 
+#: A standing envelope runs whole days of this many hours.
+STANDING_HOURS = 24
+
+
 def terms(args: argparse.Namespace) -> dict[str, Any]:
-    """The request body ``POST /api/gagos/envelope`` takes."""
-    return {
+    """The request body ``POST /api/gagos/envelope`` takes: a day envelope for
+    ``sign``, a standing one (whole days, missions a day) for ``standing-sign``."""
+    body: dict[str, Any] = {
         "folders": list(args.folders or DEFAULT_FOLDERS),
         "kinds": list(args.kinds or DEFAULT_KINDS),
         "maxMissions": int(args.missions),
         "hours": int(args.hours),
     }
+    if args.command == "standing-sign":
+        body.update(hours=STANDING_HOURS, days=int(args.days))
+    return body
 
 
 def _credential() -> str:
@@ -129,11 +143,11 @@ def waiting_report(days: int = 7, *, led=None) -> list[str]:
 def run(args: argparse.Namespace, *, connect=session, waiting=waiting_report) -> int:
     from aios.probe_common import PROBE_BASE
 
-    if args.command in ("sign", "status"):
+    if args.command in ("sign", "standing-sign", "status"):
         for line in waiting():
             print(line)
     live = connect(args.base or PROBE_BASE)
-    if args.command == "sign":
+    if args.command in ("sign", "standing-sign"):
         reply = live.post_stream(ROUTE, terms(args), timeout=30)
     elif args.command == "revoke":
         reply = live.post_stream(f"{ROUTE}/revoke", {}, timeout=30)
@@ -164,6 +178,7 @@ def parser() -> argparse.ArgumentParser:
         choices=(
             "status",
             "sign",
+            "standing-sign",
             "revoke",
             "skills-status",
             "skills-sign",

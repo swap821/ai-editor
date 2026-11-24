@@ -97,3 +97,30 @@ def test_the_operator_id_is_never_echoed(env) -> None:
     operator_id = authority.store.latest()["operator_id"]
     for response in (signed, client.get("/api/gagos/envelope")):
         assert operator_id not in response.text
+
+
+def test_a_standing_envelope_is_signed_through_his_route(env) -> None:
+    client, authority = env
+    standing = {**_SIGN, "hours": 24, "days": 30, "maxMissions": 2}
+    signed = client.post("/api/gagos/envelope", json=standing)
+    assert signed.status_code == 201, signed.text
+    envelope = signed.json()["envelope"]
+    assert envelope["standing"] is True and envelope["days"] == 30
+    assert (envelope["missionsPerDay"], envelope["missionsLeft"]) == (2, 2)
+    assert envelope["terms"]["days"] == 30
+    assert authority.live().terms.lifetime_seconds == 30 * 86400
+
+
+@pytest.mark.parametrize(
+    "extra",
+    [
+        {"days": 31, "hours": 24},
+        {"days": 7, "hours": 8},  # a standing envelope runs whole days
+        {"days": -1},
+    ],
+)
+def test_standing_terms_outside_the_rules_are_refused(env, extra) -> None:
+    client, authority = env
+    response = client.post("/api/gagos/envelope", json={**_SIGN, **extra})
+    assert response.status_code == 422, response.text
+    assert authority.status()["live"] is False
