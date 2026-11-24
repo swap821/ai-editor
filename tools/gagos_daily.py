@@ -3976,6 +3976,17 @@ class MissionWork:
                 self.led.refuse(r["proposal_id"], reason)
 
 
+def model_unreachable(outcome: Mapping[str, Any]) -> bool:
+    """The run failed because a model it needed could not be reached at all
+    (an ``LLMError``): nothing was judged. 2026-11-24: the operator's Claude
+    plan ran out of sessions mid-hour and both of the day's missions failed
+    at the council's dissent call, before any writer wrote; the goals stayed
+    with the council for good, never to be worked."""
+    from aios.core.llm import LLMError
+
+    return f"{LLMError.__name__}:" in str(outcome.get("reason") or "")
+
+
 def runs_hour(
     led: DailyLedger, root: Path, *, region: str, envelope=None, run=None
 ) -> None:
@@ -4045,7 +4056,11 @@ def runs_hour(
         # A run whose sandbox could not run judged nothing (2026-11-15: its
         # /tmp filled). The goal goes back to open for a later slot, once, and
         # neither the colony's trail nor a skill learns from it.
-        unjudged = state == "run_failed" and work.sandbox_could_not_run()
+        # So does a run whose model could not be reached (2026-11-24).
+        sandbox_down = work.sandbox_could_not_run()
+        unjudged = state == "run_failed" and (
+            sandbox_down or model_unreachable(outcome)
+        )
         give_back = unjudged and tid not in led.returned_goals()
         if give_back:
             state = RETURNED
@@ -4075,13 +4090,21 @@ def runs_hour(
             f"  mission {o['mission_id']} for {tid}: {state}"
             + (f" -- {outcome['reason']}" if outcome.get("reason") else "")
         )
-        if give_back and led.return_task(
-            tid, f"given back: mission {o['mission_id']}'s sandbox could not run"
+        why = (
+            "its sandbox could not run"
+            if sandbox_down
+            else "a model it needed could not be reached"
+        )
+        # A goal no writer took (the run failed before any wrote) is open
+        # already; it is given back all the same, for the council's next slot.
+        if give_back and (
+            led.return_task(tid, f"given back: mission {o['mission_id']}: {why}")
+            or led.task(tid)["status"] == "open"
         ):
             print(
-                f"    {tid} is open again for a later slot of the envelope: its "
-                "sandbox could not run, so the change was never judged (a goal is "
-                "given back once; the slot stays spent)"
+                f"    {tid} is open again for a later slot of the envelope: {why}, "
+                "so the change was never judged (a goal is given back once; the "
+                "slot stays spent)"
             )
         elif unjudged and not give_back:
             print(f"    {tid} is not given back again: it was given back once already")
