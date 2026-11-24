@@ -1,9 +1,14 @@
 # Honest State of Sovereignty
 
-**Last updated:** 2026-11-23 (a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
+**Last updated:** 2026-11-24 (organ evidence at master's tip after #744's squash; a plan brain's unreadable call is answered, not dropped; organ 44 at master c3bb03d5 [5, 5, 4], his attestation not committed; minimatch 11.0.5, alert #15 closed; organ evidence at master's tip after #739's squash; his plans see their test reports and a landed grant stands in once, organ 44 [5, 5, 5] awaiting his attestation; organ 44 on a plan brain after #731, [4, 5, 5]; organ evidence at master's tip after #731's rebase merge; GAGOS tells its plan brains what their writes did; organ 44's first valid cohort since September, [4, 3, 4]; organ 44's runner reads who answered from `done`; his plans see the files GAGOS's tools read from its scope; the golden runner's loop-guard fix; organs 40 and 46 re-verified at the tip, 40 green again; the face organs attested and green; the swarm's workers and the gateway, below;
 earlier sections keep the commit they were measured on). The whole story, from the first commit, is
 `docs/HISTORY.md`.
 **Proof script:** `prove_sovereignty.py` (18 assertions, 6 phases, all pass on `6b64b9ca`)
+
+## 2026-11-24, organ evidence at master's tip after #744's squash merge (branch `evidence/master-tip-after-744`)
+
+- #744 was squash-merged about four minutes after its last push, before its CI finished, so the branch commit its rows cited (`600da14b`) is on no branch of master and master's own CI at `09022036` is that code's first full run. `phase4_live_evidence.py` at `09022036` passed every organ it probes; the attach re-stamped them at the tip and removed the rows citing the orphaned commit.
+- 53 organs fresh, 1 stale (55, by his choice). 56 green, 3 yellow (44, 46, 55).
 
 ## 2026-11-23, a plan brain's unreadable call is answered, not dropped (branch `fix/plan-dropped-calls-say-so`)
 
