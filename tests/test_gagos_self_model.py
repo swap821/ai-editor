@@ -10,6 +10,7 @@ first, the heaviest first; the hour prints them and never fails the hour.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import sys
 from pathlib import Path
 
 from aios.application.observability import aliveness
@@ -223,6 +224,10 @@ class _Ledger:
         return [{"values": {"waiting": 18, "untested": 25}}]
 
 
+#: A consistency audit with nothing to say.
+CLEAN = {"rows": 58, "covered": 58, "open": [], "errors": []}
+
+
 class _Envelope:
     def status(self):
         return {"live": False, "reason": "the envelope has expired"}
@@ -232,7 +237,12 @@ def test_the_hour_prints_gagos_own_list(tmp_path, capsys) -> None:
     from tools import gagos_daily
 
     model = gagos_daily.self_model_hour(
-        _Ledger(), Path(tmp_path), now=NOW, readings=[], envelope=_Envelope()
+        _Ledger(),
+        Path(tmp_path),
+        now=NOW,
+        readings=[],
+        envelope=_Envelope(),
+        consistency=CLEAN,
     )
     out = capsys.readouterr().out
     assert (
@@ -242,3 +252,69 @@ def test_the_hour_prints_gagos_own_list(tmp_path, capsys) -> None:
     assert "25 of my files have no test" in out
     assert "Big.jsx" in out
     assert len(model.owned(sm.GAGOS)) == 3
+
+
+# -- harmony: GAGOS reads its own consistency audit (2026-11-24) -------------------
+
+
+def test_a_clean_audit_is_no_gap_and_drift_is_gagos_own() -> None:
+    assert sm.consistency_gaps(CLEAN) == []
+    unheld = sm.consistency_gaps({**CLEAN, "covered": 56, "open": ["a", "b"]})
+    assert [(g.key, g.owner, g.weight) for g in unheld] == [
+        ("consistency:open", sm.GAGOS, 2)
+    ]
+    assert "a, b" in unheld[0].what
+    wrong = sm.consistency_gaps(
+        {**CLEAN, "errors": ["row x: its guard does not exist"]}
+    )
+    assert (
+        wrong[0].key == "consistency:errors"
+        and "its guard does not exist" in wrong[0].what
+    )
+    unread = sm.consistency_gaps(None)
+    assert unread[0].key == "consistency:unread" and unread[0].owner == sm.GAGOS
+
+
+def test_the_hour_reads_the_audit_the_operator_runs() -> None:
+    """One derivation, two callers: the hour's summary of this tree is the
+    audit's own result, read by loading scripts/consistency_audit.py itself."""
+    import importlib.util
+
+    from tools import gagos_daily
+
+    root = Path(__file__).resolve().parents[1]
+    spec = importlib.util.spec_from_file_location(
+        "audit_here", root / "scripts" / "consistency_audit.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[spec.name] = module
+    try:
+        spec.loader.exec_module(module)
+    finally:
+        sys.modules.pop(spec.name, None)
+    result = module.audit(module.load(), root)
+    summary = gagos_daily.consistency_summary(root)
+    assert summary == {
+        "rows": len(result.rows),
+        "covered": len(result.covered),
+        "open": [row.id for row in result.open],
+        "errors": list(result.errors),
+    }
+    assert gagos_daily.consistency_summary(root / "no-such-tree") is None
+
+
+def test_the_hour_says_when_its_parts_may_disagree(tmp_path, capsys) -> None:
+    from tools import gagos_daily
+
+    gagos_daily.self_model_hour(
+        _Ledger(),
+        Path(tmp_path),
+        now=NOW,
+        readings=[],
+        envelope=_Envelope(),
+        consistency={**CLEAN, "open": ["brief-inputs"]},
+    )
+    assert (
+        "neither held to one source nor guarded: brief-inputs"
+        in capsys.readouterr().out
+    )

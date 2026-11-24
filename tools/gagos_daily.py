@@ -4465,6 +4465,35 @@ def self_goals_hour(
     return taken
 
 
+def consistency_summary(root: Path) -> dict[str, Any] | None:
+    """GAGOS's consistency audit of *root*, as ``scripts/consistency_audit.py``
+    measures it -- the same module the operator runs by hand, loaded from the
+    tree, never a second derivation -- or None when it cannot be run."""
+    import importlib.util
+
+    path = root / "scripts" / "consistency_audit.py"
+    try:
+        spec = importlib.util.spec_from_file_location("gagos_consistency_audit", path)
+        if spec is None or spec.loader is None:
+            return None
+        module = importlib.util.module_from_spec(spec)
+        # Its dataclasses resolve their module by name while the class is built.
+        sys.modules[spec.name] = module
+        try:
+            spec.loader.exec_module(module)
+            result = module.audit(module.load(), root)
+        finally:
+            sys.modules.pop(spec.name, None)
+    except Exception:  # noqa: BLE001 - an audit that cannot run is a gap, said
+        return None
+    return {
+        "rows": len(result.rows),
+        "covered": len(result.covered),
+        "open": [row.id for row in result.open],
+        "errors": list(result.errors),
+    }
+
+
 def self_model_hour(
     led: DailyLedger,
     root: Path,
@@ -4472,6 +4501,7 @@ def self_model_hour(
     now: datetime | None = None,
     readings=None,
     envelope=None,
+    consistency: dict[str, Any] | None | bool = True,
 ) -> Any:
     """GAGOS's own honest list of what it is missing, and whose it is to fix
     (2026-11-24, the operator: "my jarvis which is GAGOS should understand
@@ -4486,6 +4516,8 @@ def self_model_hour(
     if readings is None:
         readings = aliveness.pulse(Path(config.DATA_DIR), now=now)
     envelope = envelope or _envelope_authority()
+    if consistency is True:
+        consistency = consistency_summary(root)
     model = self_model.compose(
         self_model.friction_gaps(led.friction(since), days=SELF_MODEL_DAYS),
         self_model.withheld_gaps(led.writer_withholdings(since), days=SELF_MODEL_DAYS),
@@ -4501,6 +4533,7 @@ def self_model_hour(
                 root / ".aios" / "state" / "ORGAN_GREEN_LEDGER.json"
             )
         ),
+        self_model.consistency_gaps(consistency or None),
     )
     for line in self_model.report_lines(model):
         print(f"  {line}")

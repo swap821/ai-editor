@@ -943,6 +943,21 @@
         "tests/test_gagos_doorbell.py::test_a_silence_that_lasts_rings_once_in_the_briefs_own_words"
       ],
       "note": "2026-11-24: a naive doorbell would ring every hour of one silence. The guard composes real brief lines an hour apart, proves the count ran, and checks the doorbell rings once."
+    },
+    {
+      "id": "self-model-harmony",
+      "fact": "Whether GAGOS's parts agree, as its consistency audit measures it: what the operator runs by hand, and what GAGOS's self-model reports each hour.",
+      "state": "single",
+      "source": "scripts/consistency_audit.py::audit",
+      "places": [
+        "scripts/consistency_audit.py::audit",
+        "tools/gagos_daily.py::consistency_summary",
+        "aios/operations/self_model.py::consistency_gaps"
+      ],
+      "guards": [
+        "tests/test_gagos_self_model.py::test_the_hour_reads_the_audit_the_operator_runs"
+      ],
+      "note": "2026-11-24: drift becomes one of GAGOS's own gaps. The hour loads the audit module from its own tree rather than deriving it again; the guard compares the hour's summary with the audit's own result. Its first draft could never load the module (a dataclass needs its module registered), and the guard caught it."
     }
   ]
 }
